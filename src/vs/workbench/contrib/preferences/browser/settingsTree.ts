@@ -420,7 +420,7 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 
 		const extensionId = group.extensionInfo!.id;
 		const extension = await extensionService.getExtension(extensionId);
-		const extensionName = extension!.displayName ?? extension!.name;
+		const extensionName = extension?.displayName ?? extension?.name ?? extensionId;
 
 		// Each group represents a single category of settings.
 		// If the extension author forgets to specify an id for the group,
@@ -2130,8 +2130,8 @@ function cleanRenderedMarkdown(element: Node): void {
 }
 
 function fixSettingLinks(text: string, linkify = true): string {
-	return text.replace(/`#([^#]*)#`|'#([^#]*)#'/g, (match) => {
-		const settingKey = match.substring(2, match.length - 2);
+	return text.replace(/`#([^#]*)#`|'#([^#]*)#'/g, (match, backticksGroup, quotesGroup) => {
+		const settingKey: string = backticksGroup ?? quotesGroup;
 		const targetDisplayFormat = settingKeyToDisplayFormat(settingKey);
 		const targetName = `${targetDisplayFormat.category}: ${targetDisplayFormat.label}`;
 		return linkify ?

@@ -859,7 +859,6 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		return this._actual.onScrollChanged();
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		this._context.viewModel.invalidateMinimapColorCache();
 		this._actual.onThemeChanged();
 		this._onOptionsMaybeChanged();
 		return true;

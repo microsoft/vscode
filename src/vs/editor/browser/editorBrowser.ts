@@ -16,9 +16,8 @@ import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IViewModel } from 'vs/editor/common/viewModel';
+import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IDimension } from 'vs/editor/common/core/dimension';

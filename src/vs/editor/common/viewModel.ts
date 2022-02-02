@@ -15,8 +15,6 @@ import { EndOfLinePreference, IModelDecorationOptions, ITextModel, PositionAffin
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from 'vs/editor/common/textModelGuides';
 import { EditorTheme } from 'vs/editor/common/editorTheme';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
-import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ILineBreaksComputer, InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 
@@ -41,7 +39,6 @@ export interface IViewModel extends ICursorSimpleModel {
 	setHasFocus(hasFocus: boolean): void;
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
-	onDidColorThemeChange(): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
@@ -61,8 +58,6 @@ export interface IViewModel extends ICursorSimpleModel {
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	getAllOverviewRulerDecorations(theme: EditorTheme): OverviewRulerDecorationsGroup[];
-	invalidateOverviewRulerColorCache(): void;
-	invalidateMinimapColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
@@ -129,6 +124,52 @@ export interface IViewLayout {
 	 * Get the layout information for whitespaces currently in the viewport
 	 */
 	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
+}
+
+export interface IEditorWhitespace {
+	readonly id: string;
+	readonly afterLineNumber: number;
+	readonly height: number;
+}
+
+/**
+ * An accessor that allows for whtiespace to be added, removed or changed in bulk.
+ */
+export interface IWhitespaceChangeAccessor {
+	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;
+	changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): void;
+	removeWhitespace(id: string): void;
+}
+
+export interface IPartialViewLinesViewportData {
+	/**
+	 * Value to be substracted from `scrollTop` (in order to vertical offset numbers < 1MM)
+	 */
+	readonly bigNumbersDelta: number;
+	/**
+	 * The first (partially) visible line number.
+	 */
+	readonly startLineNumber: number;
+	/**
+	 * The last (partially) visible line number.
+	 */
+	readonly endLineNumber: number;
+	/**
+	 * relativeVerticalOffset[i] is the `top` position for line at `i` + `startLineNumber`.
+	 */
+	readonly relativeVerticalOffset: number[];
+	/**
+	 * The centered line in the viewport.
+	 */
+	readonly centeredLineNumber: number;
+	/**
+	 * The first completely visible line number.
+	 */
+	readonly completelyVisibleStartLineNumber: number;
+	/**
+	 * The last completely visible line number.
+	 */
+	readonly completelyVisibleEndLineNumber: number;
 }
 
 export interface IViewWhitespaceViewportData {

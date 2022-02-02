@@ -5,38 +5,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IViewModel, IViewWhitespaceViewportData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
-
-export interface IPartialViewLinesViewportData {
-	/**
-	 * Value to be substracted from `scrollTop` (in order to vertical offset numbers < 1MM)
-	 */
-	readonly bigNumbersDelta: number;
-	/**
-	 * The first (partially) visible line number.
-	 */
-	readonly startLineNumber: number;
-	/**
-	 * The last (partially) visible line number.
-	 */
-	readonly endLineNumber: number;
-	/**
-	 * relativeVerticalOffset[i] is the `top` position for line at `i` + `startLineNumber`.
-	 */
-	readonly relativeVerticalOffset: number[];
-	/**
-	 * The centered line in the viewport.
-	 */
-	readonly centeredLineNumber: number;
-	/**
-	 * The first completely visible line number.
-	 */
-	readonly completelyVisibleStartLineNumber: number;
-	/**
-	 * The last completely visible line number.
-	 */
-	readonly completelyVisibleEndLineNumber: number;
-}
+import { IPartialViewLinesViewportData, IViewModel, IViewWhitespaceViewportData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
 
 /**
  * Contains all data needed to render at a specific viewport.

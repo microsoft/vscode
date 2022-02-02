@@ -9,7 +9,7 @@ import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollable
 import { pushToEnd, pushToStart, range } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { Scrollable, ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import * as types from 'vs/base/common/types';
@@ -1326,7 +1326,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	override dispose(): void {
 		super.dispose();
 
-		this.viewItems.forEach(i => i.dispose());
+		dispose(this.viewItems);
 		this.viewItems = [];
 
 		this.sashItems.forEach(i => i.disposable.dispose());

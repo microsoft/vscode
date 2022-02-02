@@ -56,7 +56,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/marshalling';
 import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri } from 'vs/workbench/common/webview';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { coalesce, equals, flatten } from 'vs/base/common/arrays';

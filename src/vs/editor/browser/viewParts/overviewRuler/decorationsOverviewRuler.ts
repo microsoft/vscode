@@ -296,8 +296,6 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 	public override onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
-		// invalidate color cache
-		this._context.viewModel.invalidateOverviewRulerColorCache();
 		return this._updateSettings(false);
 	}
 

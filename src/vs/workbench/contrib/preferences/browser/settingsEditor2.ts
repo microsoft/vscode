@@ -18,7 +18,7 @@ import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { isArray, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -1001,7 +1001,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		if (!key) {
-			this.scheduledRefreshes.forEach(r => r.dispose());
+			dispose(this.scheduledRefreshes.values());
 			this.scheduledRefreshes.clear();
 		}
 

@@ -15,7 +15,7 @@ import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDep
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
 import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
-import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/api/common/shared/webview';
+import { decodeAuthority, webviewResourceBaseHost } from 'vs/workbench/common/webview';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import type * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';

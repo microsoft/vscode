@@ -9,7 +9,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { trackFocus, Dimension } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -243,7 +243,7 @@ export abstract class Composite extends Component implements IComposite {
 export abstract class CompositeDescriptor<T extends Composite> {
 
 	constructor(
-		private readonly ctor: IConstructorSignature0<T>,
+		private readonly ctor: IConstructorSignature<T>,
 		readonly id: string,
 		readonly name: string,
 		readonly cssClass?: string,
