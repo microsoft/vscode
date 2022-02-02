@@ -2783,12 +2783,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			let buildTasks: (Task | ConfiguringTask)[] = [];
 
 			// First check for globs before checking for default build tasks
-			const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
-			if (uri) {
+
+			const absoluteURI = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+			if (absoluteURI) {
+				const workspaceFolder = this.contextService.getWorkspaceFolder(absoluteURI);
+				// fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
+				const relativePath = workspaceFolder?.uri ? resources.relativePath(workspaceFolder?.uri, absoluteURI) || absoluteURI.path : absoluteURI.path;
+
 				buildTasks = await this._findWorkspaceTasks((task) => {
 					const taskGroup = task.configurationProperties.group;
 					if (taskGroup && typeof taskGroup !== 'string' && taskGroup.glob) {
-						return (taskGroup._id === 'build' && glob.match(taskGroup.glob, uri?.path));
+						return (taskGroup._id === TaskGroup.Build._id && glob.match(taskGroup.glob, relativePath));
 					}
 
 					return false;
@@ -2865,16 +2870,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: nls.localize('TaskService.fetchingTestTasks', 'Fetching test tasks...')
 		};
 
-		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+		const absoluteURI = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
 		let promise = this.getTasksForGroup(TaskGroup.Test).then((tasks) => {
 			if (tasks.length > 0) {
 
 				// First filter out globbed tasks
-				if (uri) {
+				if (absoluteURI) {
+					const workspaceFolder = this.contextService.getWorkspaceFolder(absoluteURI);
+					// fallback to absolute path of the file if it is not in a workspace or relative path cannot be found
+					const relativePath = workspaceFolder?.uri ? resources.relativePath(workspaceFolder?.uri, absoluteURI) || absoluteURI.path : absoluteURI.path;
 					const globbedTasks = tasks.filter(task => {
 						const group = task?.configurationProperties?.group;
 						if (typeof group === 'string') { return; }
-						return group?._id === 'test' && group.glob && glob.match(group.glob, uri?.path);
+						return group?._id === TaskGroup.Test._id && group.glob && glob.match(group.glob, relativePath);
 					});
 
 					if (globbedTasks.length === 1) {
