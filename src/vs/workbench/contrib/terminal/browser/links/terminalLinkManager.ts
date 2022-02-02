@@ -3,34 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalProcessManager, ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFileService } from 'vs/platform/files/common/files';
-import type { Terminal, IViewportRange, ILinkProvider, ILink } from 'xterm';
+import { EventType } from 'vs/base/browser/dom';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix, win32 } from 'vs/base/common/path';
-import { ITerminalExternalLinkProvider, ITerminalInstance, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { OperatingSystem, isMacintosh, OS } from 'vs/base/common/platform';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
-import { TerminalValidatedLocalLinkProvider, lineAndColumnClause, unixLocalLinkClause, winLocalLinkClause, winDrivePrefix, winLineAndColumnMatchIndex, unixLineAndColumnMatchIndex, lineAndColumnClauseGroupCount } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
-import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
+import { isMacintosh, OperatingSystem, OS } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
-import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
-import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
-import { TerminalExternalLinkProviderAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkProviderAdapter';
+import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
-import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
+import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, OmitFirstArg, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkDetector';
+import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
+import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
+import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
+import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
+import { lineAndColumnClause, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
+import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
+import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { EventType } from 'vs/base/browser/dom';
+import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
@@ -47,70 +48,78 @@ interface IPath {
 export class TerminalLinkManager extends DisposableStore {
 	private _widgetManager: TerminalWidgetManager | undefined;
 	private _processCwd: string | undefined;
-	private _standardLinkProviders: Map<string, ILinkProvider> = new Map();
-	private _linkProvidersDisposables: IDisposable[] = [];
-	private readonly _xterm: Terminal;
+	private readonly _standardLinkProviders: Map<string, ILinkProvider> = new Map();
+	private readonly _linkProvidersDisposables: IDisposable[] = [];
+	private readonly _externalLinkProviders: IDisposable[] = [];
+	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
 
 	constructor(
-		private _xtermTerminal: XtermTerminal,
+		private readonly _xterm: Terminal,
 		private readonly _processManager: ITerminalProcessManager,
-		private readonly _capabilities: ITerminalCapabilityStore,
-		@IOpenerService private readonly _openerService: IOpenerService,
-		@IEditorService private readonly _editorService: IEditorService,
+		capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
 		super();
-		this._xterm = _xtermTerminal.raw;
-		// Protocol links
-		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
-		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider,
-			this._xterm,
-			wrappedActivateCallback,
-			this._wrapLinkHandler.bind(this),
-			this._tooltipCallback.bind(this),
-			async (link, cb) => cb(await this._resolvePath(link)));
-		this._standardLinkProviders.set(TerminalProtocolLinkProvider.id, protocolProvider);
 
-		// Validated local links
+		// Setup link detectors in their order of priority
+		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._resolvePath.bind(this)));
 		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
-			const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
-			const validatedProvider = this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
-				this._xterm,
-				this._processManager.os || OS,
-				wrappedTextLinkActivateCallback,
-				this._wrapLinkHandler.bind(this),
-				this._tooltipCallback.bind(this),
-				async (linkCandidates, cb) => {
-					for (const link of linkCandidates) {
-						const result = await this._resolvePath(link);
-						if (result) {
-							return cb(result);
-						}
-					}
-					return cb(undefined);
-				});
-			this._standardLinkProviders.set(TerminalValidatedLocalLinkProvider.id, validatedProvider);
+			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, this._processManager.os || OS, this._resolvePath.bind(this)));
 		}
+		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
 
-		this._capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(cwd => {
+		capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(cwd => {
 			this.processCwd = cwd;
 		});
 
-		// Word links
-		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xtermTerminal, this._capabilities, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
-		this._standardLinkProviders.set(TerminalWordLinkProvider.id, wordProvider);
+		// Setup link openers
+		const localFileOpener = this._instantiationService.createInstance(TerminalLocalFileLinkOpener, this._processManager.os || OS);
+		this._openers.set(TerminalBuiltinLinkType.LocalFile, localFileOpener);
+		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, this._instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener));
+		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
+		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, this._processManager.os || OS));
+		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
 
 		this._registerStandardLinkProviders();
 	}
 
+	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector, isExternal: boolean = false): ILinkProvider {
+		const detectorAdapter = this._instantiationService.createInstance(TerminalLinkDetectorAdapter, detector);
+		detectorAdapter.onDidActivateLink(e => {
+			// Prevent default electron link handling so Alt+Click mode works normally
+			e.event?.preventDefault();
+			// Require correct modifier on click unless event is coming from linkQuickPick selection
+			if (e.event && !(e.event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(e.event)) {
+				return;
+			}
+			// Just call the handler if there is no before listener
+			this._openLink(e.link);
+		});
+		detectorAdapter.onDidShowHover(e => this._tooltipCallback(e.link, e.viewportRange, e.modifierDownCallback, e.modifierUpCallback));
+		if (!isExternal) {
+			this._standardLinkProviders.set(id, detectorAdapter);
+		}
+		return detectorAdapter;
+	}
+
+	private async _openLink(link: ITerminalSimpleLink): Promise<void> {
+		this._logService.debug('Opening link', link);
+		const opener = this._openers.get(link.type);
+		if (!opener) {
+			throw new Error(`No matching opener for link type "${link.type}"`);
+		}
+		await opener.open(link);
+	}
+
 	async openRecentLink(type: 'file' | 'web'): Promise<ILink | undefined> {
 		let links;
-		let i = this._xtermTerminal.raw.buffer.active.length;
-		while ((!links || links.length === 0) && i >= this._xtermTerminal.raw.buffer.active.viewportY) {
-			links = await this.getLinksForType(i, type);
+		let i = this._xterm.buffer.active.length;
+		while ((!links || links.length === 0) && i >= this._xterm.buffer.active.viewportY) {
+			links = await this._getLinksForType(i, type);
 			i--;
 		}
 
@@ -127,7 +136,7 @@ export class TerminalLinkManager extends DisposableStore {
 		const webResults: ILink[] = [];
 		const fileResults: ILink[] = [];
 
-		for (let i = this._xtermTerminal.raw.buffer.active.length - 1; i >= this._xtermTerminal.raw.buffer.active.viewportY; i--) {
+		for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY; i--) {
 			const links = await this._getLinksForLine(i);
 			if (links) {
 				const { wordLinks, webLinks, fileLinks } = links;
@@ -146,9 +155,9 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
-		let unfilteredWordLinks = await this.getLinksForType(y, 'word');
-		const webLinks = await this.getLinksForType(y, 'web');
-		const fileLinks = await this.getLinksForType(y, 'file');
+		let unfilteredWordLinks = await this._getLinksForType(y, 'word');
+		const webLinks = await this._getLinksForType(y, 'web');
+		const fileLinks = await this._getLinksForType(y, 'file');
 		const words = new Set();
 		let wordLinks;
 		if (unfilteredWordLinks) {
@@ -163,14 +172,14 @@ export class TerminalLinkManager extends DisposableStore {
 		return { wordLinks, webLinks, fileLinks };
 	}
 
-	async getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
+	protected async _getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
-				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkProvider.id)?.provideLinks(y, r)));
+				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkDetector.id)?.provideLinks(y, r)));
 			case 'web':
-				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalProtocolLinkProvider.id)?.provideLinks(y, r)));
+				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalUriLinkDetector.id)?.provideLinks(y, r)));
 			case 'file':
-				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalValidatedLocalLinkProvider.id)?.provideLinks(y, r)));
+				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalLocalLinkDetector.id)?.provideLinks(y, r)));
 		}
 	}
 
@@ -224,7 +233,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 	private _clearLinkProviders(): void {
 		dispose(this._linkProvidersDisposables);
-		this._linkProvidersDisposables = [];
+		this._linkProvidersDisposables.length = 0;
 	}
 
 	private _registerStandardLinkProviders(): void {
@@ -233,29 +242,15 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 	}
 
-	registerExternalLinkProvider(instance: ITerminalInstance, linkProvider: ITerminalExternalLinkProvider): IDisposable {
+	registerExternalLinkProvider(provideLinks: OmitFirstArg<ITerminalExternalLinkProvider['provideLinks']>): IDisposable {
 		// Clear and re-register the standard link providers so they are a lower priority than the new one
 		this._clearLinkProviders();
-		const wrappedLinkProvider = this._instantiationService.createInstance(TerminalExternalLinkProviderAdapter, this._xterm, instance, linkProvider, this._wrapLinkHandler.bind(this), this._tooltipCallback.bind(this));
+		const detectorId = `extension-${this._externalLinkProviders.length}`;
+		const wrappedLinkProvider = this._setupLinkDetector(detectorId, new TerminalExternalLinkDetector(detectorId, this._xterm, provideLinks), true);
 		const newLinkProvider = this._xterm.registerLinkProvider(wrappedLinkProvider);
-		this._linkProvidersDisposables.push(newLinkProvider);
+		this._externalLinkProviders.push(newLinkProvider);
 		this._registerStandardLinkProviders();
 		return newLinkProvider;
-	}
-
-	protected _wrapLinkHandler(handler: (event: MouseEvent | undefined, link: string) => void): XtermLinkMatcherHandler {
-		return async (event: MouseEvent | undefined, link: string) => {
-			// Prevent default electron link handling so Alt+Click mode works normally
-			event?.preventDefault();
-
-			// Require correct modifier on click unless event is coming from linkQuickPick selection
-			if (event && !(event instanceof TerminalLinkQuickPickEvent) && !this._isLinkActivationModifierDown(event)) {
-				return;
-			}
-
-			// Just call the handler if there is no before listener
-			handler(event, link);
-		};
 	}
 
 	protected get _localLinkRegex(): RegExp {
@@ -265,45 +260,6 @@ export class TerminalLinkManager extends DisposableStore {
 		const baseLocalLinkClause = this._processManager.os === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
-	}
-
-	private async _handleLocalLink(link: string): Promise<void> {
-		// TODO: This gets resolved again but doesn't need to as it's already validated
-		const resolvedLink = await this._resolvePath(link);
-		if (!resolvedLink) {
-			return;
-		}
-		const lineColumnInfo: LineColumnInfo = this.extractLineColumnInfo(link);
-		const selection: ITextEditorSelection = {
-			startLineNumber: lineColumnInfo.lineNumber,
-			startColumn: lineColumnInfo.columnNumber
-		};
-		await this._editorService.openEditor({
-			resource: resolvedLink.uri,
-			options: { pinned: true, selection, revealIfOpened: true }
-		});
-	}
-
-	private _handleHypertextLink(url: string): void {
-		this._openerService.open(url, {
-			allowTunneling: !!(this._processManager && this._processManager.remoteAuthority),
-			allowContributedOpeners: true,
-		});
-	}
-
-	private async _handleProtocolLink(link: string): Promise<void> {
-		// Check if it's a file:/// link, hand off to local link handler so to open an editor and
-		// respect line/col attachment
-		const uri = URI.parse(link);
-		if (uri.scheme === Schemas.file) {
-			// Just using fsPath here is unsafe: https://github.com/microsoft/vscode/issues/109076
-			const fsPath = uri.fsPath;
-			this._handleLocalLink(((this._osPath.sep === posix.sep) && this._processManager.os === OperatingSystem.Windows) ? fsPath.replace(/\\/g, posix.sep) : fsPath);
-			return;
-		}
-
-		// Open as a web link if it's not a file
-		this._handleHypertextLink(link);
 	}
 
 	protected _isLinkActivationModifierDown(event: MouseEvent): boolean {
@@ -408,9 +364,20 @@ export class TerminalLinkManager extends DisposableStore {
 		return link;
 	}
 
-	private async _resolvePath(link: string): Promise<{ uri: URI; link: string; isDirectory: boolean } | undefined> {
+	private async _resolvePath(link: string, uri?: URI): Promise<{ uri: URI; link: string; isDirectory: boolean } | undefined> {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
+		}
+
+		if (uri) {
+			try {
+				const stat = await this._fileService.resolve(uri);
+				return { uri, link, isDirectory: stat.isDirectory };
+			}
+			catch (e) {
+				// Does not exist
+				return undefined;
+			}
 		}
 
 		const preprocessedLink = this._preprocessPath(link);
@@ -450,40 +417,6 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	/**
-	 * Returns line and column number of URl if that is present.
-	 *
-	 * @param link Url link which may contain line and column number.
-	 */
-	extractLineColumnInfo(link: string): LineColumnInfo {
-		const matches: string[] | null = this._localLinkRegex.exec(link);
-		const lineColumnInfo: LineColumnInfo = {
-			lineNumber: 1,
-			columnNumber: 1
-		};
-
-		if (!matches || !this._processManager) {
-			return lineColumnInfo;
-		}
-
-		const lineAndColumnMatchIndex = this._processManager.os === OperatingSystem.Windows ? winLineAndColumnMatchIndex : unixLineAndColumnMatchIndex;
-		for (let i = 0; i < lineAndColumnClause.length; i++) {
-			const lineMatchIndex = lineAndColumnMatchIndex + (lineAndColumnClauseGroupCount * i);
-			const rowNumber = matches[lineMatchIndex];
-			if (rowNumber) {
-				lineColumnInfo['lineNumber'] = parseInt(rowNumber, 10);
-				// Check if column number exists
-				const columnNumber = matches[lineMatchIndex + 2];
-				if (columnNumber) {
-					lineColumnInfo['columnNumber'] = parseInt(columnNumber, 10);
-				}
-				break;
-			}
-		}
-
-		return lineColumnInfo;
-	}
-
-	/**
 	 * Returns url from link as link may contain line and column information.
 	 *
 	 * @param link url link which may contain line and column number.
@@ -497,7 +430,7 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 }
 
-export interface LineColumnInfo {
+export interface ILineColumnInfo {
 	lineNumber: number;
 	columnNumber: number;
 }
