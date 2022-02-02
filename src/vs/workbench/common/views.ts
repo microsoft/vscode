@@ -637,6 +637,7 @@ export interface IViewDescriptorService {
 
 export interface ITreeDataTransferItem {
 	asString(): Thenable<string>;
+	value: any;
 }
 
 export type ITreeDataTransfer = Map<string, ITreeDataTransferItem>;

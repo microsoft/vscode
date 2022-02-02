@@ -1382,7 +1382,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 								willDropUuid = dataValue;
 							} else {
 								treeDataTransfer.set(type, {
-									asString: () => Promise.resolve(dataValue)
+									asString: () => Promise.resolve(dataValue),
+									value: undefined
 								});
 							}
 							decrementStringCount();

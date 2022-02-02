@@ -29,24 +29,13 @@ declare module 'vscode' {
 	/**
 	 * A class for encapsulating data transferred during a tree drag and drop event.
 	 *
-	 * If your `DragAndDropController` implements `handleDrag`, you can extend `TreeDataTransferItem` and return
-	 * an instance of your new class for easy access to the source tree items.
-	 *
-	 * ```ts
-	 * 	class TestViewObjectTransferItem extends vscode.TreeDataTransferItem {
-	 * 		constructor(private _nodes: Node[]) {
-	 * 			super(_nodes);
-	 * 		}
-	 *
-	 * 		asObject(): Node[] {
-	 * 			return this._nodes;
-	 * 		}
-	 * 	}
-	 * ```
+	 * If your `DragAndDropController` implements `handleDrag`, you can use the `value` of the `TreeDataTransferItem`
+	 * to get back the object you put into it so long as the extension that created the `TreeDataTransferItem` runs in the same
+	 * extension host.
 	 */
 	export class TreeDataTransferItem {
 		asString(): Thenable<string>;
-
+		readonly value: any;
 		constructor(value: any);
 	}
 
