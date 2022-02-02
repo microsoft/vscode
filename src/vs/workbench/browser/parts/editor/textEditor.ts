@@ -85,7 +85,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
 		if (this.isVisible()) {
-			this.logConditional('TextEditor#handleConfigurationChangeEvent: visible, applying');
+			this.logConditional('TextEditor#handleConfigurationChangeEvent: visible, applying. Input is: ' + this.input?.resource?.toString(true));
 			this.updateEditorConfiguration(configuration);
 		} else {
 			this.logConditional('TextEditor#handleConfigurationChangeEvent: NOT visible!. Input is: ' + this.input?.resource?.toString(true));
@@ -95,8 +95,12 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	private consumePendingConfigurationChangeEvent(): void {
 		if (this.hasPendingConfigurationChange) {
+			this.logConditional(`TextEditor#consumePendingConfigurationChangeEvent: hasPendingConfigurationChange. Input is: ` + this.input?.resource?.toString(true));
+
 			this.updateEditorConfiguration();
 			this.hasPendingConfigurationChange = false;
+		} else {
+			this.logConditional(`TextEditor#consumePendingConfigurationChangeEvent: NOT have hasPendingConfigurationChange. Input is: ` + this.input?.resource?.toString(true));
 		}
 	}
 
@@ -172,11 +176,19 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		}
 	}
 
+	override setVisible(visible: boolean, group?: IEditorGroup): void {
+		this.logConditional(`TextEditor#setVisible(${visible}): Input is: ` + this.input?.resource?.toString(true));
+
+		return super.setVisible(visible, group);
+	}
+
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 
 		// Pass on to Editor
 		const editorControl = assertIsDefined(this.editorControl);
 		if (visible) {
+			this.logConditional(`TextEditor#setEditorVisible(true): consumePendingConfigurationChangeEvent. Input is: ` + this.input?.resource?.toString(true));
+
 			this.consumePendingConfigurationChangeEvent();
 			editorControl.onVisible();
 		} else {
