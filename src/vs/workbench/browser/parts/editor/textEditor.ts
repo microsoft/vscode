@@ -85,22 +85,21 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
 		if (this.isVisible()) {
-			this.logConditional('TextEditor#handleConfigurationChangeEvent: visible, applying. Input is: ' + this.input?.resource?.toString(true));
+			this.logConditional('TextEditor#handleConfigurationChangeEvent(): visible. Input is: ' + this.input?.resource?.toString(true));
 			this.updateEditorConfiguration(configuration);
 		} else {
-			this.logConditional('TextEditor#handleConfigurationChangeEvent: NOT visible!. Input is: ' + this.input?.resource?.toString(true));
+			this.logConditional('TextEditor#handleConfigurationChangeEvent(): NOT visible!. Input is: ' + this.input?.resource?.toString(true));
 			this.hasPendingConfigurationChange = true;
 		}
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {
 		if (this.hasPendingConfigurationChange) {
-			this.logConditional(`TextEditor#consumePendingConfigurationChangeEvent: hasPendingConfigurationChange. Input is: ` + this.input?.resource?.toString(true));
-
+			this.logConditional(`TextEditor#consumePendingConfigurationChangeEvent(): hasPendingConfigurationChange. Input is: ` + this.input?.resource?.toString(true));
 			this.updateEditorConfiguration();
 			this.hasPendingConfigurationChange = false;
 		} else {
-			this.logConditional(`TextEditor#consumePendingConfigurationChangeEvent: NOT have hasPendingConfigurationChange. Input is: ` + this.input?.resource?.toString(true));
+			this.logConditional(`TextEditor#consumePendingConfigurationChangeEvent(): NOT have hasPendingConfigurationChange. Input is: ` + this.input?.resource?.toString(true));
 		}
 	}
 
@@ -252,17 +251,18 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	private updateEditorConfiguration(configuration?: IEditorConfiguration): void {
-		this.logConditional('TextEditor#updateEditorConfiguration: ' + JSON.stringify(configuration));
+		this.logConditional('TextEditor#updateEditorConfiguration(): configuration is ' + (configuration as any)?.editor?.lineNumbers);
 
 		if (!configuration) {
 			const resource = this.getActiveResource();
 			if (resource) {
 				configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);
+				this.logConditional('TextEditor#updateEditorConfiguration(): resolving default configurtion for resource: ' + (configuration as any)?.editor?.lineNumbers);
 			}
 		}
 
 		if (!this.editorControl || !configuration) {
-			this.logConditional('TextEditor#updateEditorConfiguration: return early');
+			this.logConditional('TextEditor#updateEditorConfiguration(): return early');
 			return;
 		}
 
@@ -278,7 +278,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 		if (Object.keys(editorSettingsToApply).length > 0) {
 			this.lastAppliedEditorOptions = editorConfiguration;
-			this.logConditional('TextEditor#updateEditorConfiguration: passing onto code editor: ' + JSON.stringify(editorSettingsToApply));
+			this.logConditional('TextEditor#updateEditorConfiguration(): passing onto code editor: ' + (editorSettingsToApply as any)?.editor?.lineNumbers);
 			this.editorControl.updateOptions(editorSettingsToApply);
 		} else {
 			this.logConditional('TextEditor#updateEditorConfiguration: no settings to apply');
