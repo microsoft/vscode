@@ -53,5 +53,5 @@ steps:
   - task: PublishPipelineArtifact@0
     displayName: "Publish remote node_modules"
     inputs:
-      artifactName: "vscode_reh_node_modules-$(VSCODE_ARCH)"
+      artifactName: "reh_node_modules-$(VSCODE_ARCH)"
       targetPath: $(Build.SourcesDirectory)/remote/node_modules
