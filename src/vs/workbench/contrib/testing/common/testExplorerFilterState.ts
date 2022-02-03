@@ -5,6 +5,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+// eslint-disable-next-line code-import-patterns
 import { TestTag } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 

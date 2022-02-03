@@ -38,8 +38,8 @@ export interface ILocalFileSearchSimpleWorker {
 
 	cancelQuery(queryId: number): void;
 
-	listDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, queryId: number): Promise<IWorkerFileSearchComplete>;
-	searchDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, queryId: number): Promise<IWorkerTextSearchComplete>;
+	listDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete>;
+	searchDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete>;
 }
 
 export interface ILocalFileSearchSimpleWorkerHost {

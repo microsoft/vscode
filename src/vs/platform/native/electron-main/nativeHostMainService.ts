@@ -32,8 +32,9 @@ import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platf
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPartsSplash, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { ICodeWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';

@@ -320,6 +320,16 @@ export class GettingStartedPage extends EditorPane {
 					e.stopPropagation();
 					this.runDispatchCommand(command, argument);
 				}));
+				this.dispatchListeners.add(addDisposableListener(element, 'keyup', (e) => {
+					const keyboardEvent = new StandardKeyboardEvent(e);
+					e.stopPropagation();
+					switch (keyboardEvent.keyCode) {
+						case KeyCode.Enter:
+						case KeyCode.Space:
+							this.runDispatchCommand(command, argument);
+							return;
+					}
+				}));
 			}
 		});
 	}
@@ -1167,7 +1177,6 @@ export class GettingStartedPage extends EditorPane {
 			return $('button.getting-started-category' + (category.isFeatured ? '.featured' : ''),
 				{
 					'x-dispatch': 'selectCategory:' + category.id,
-					'role': 'listitem',
 					'title': category.description
 				},
 				featuredBadge,
@@ -1176,6 +1185,7 @@ export class GettingStartedPage extends EditorPane {
 					$('h3.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title,),
 					renderNewBadge ? newBadge : $('.no-badge'),
 					$('a.codicon.codicon-close.hide-category-button', {
+						'tabindex': 0,
 						'x-dispatch': 'hideCategory:' + category.id,
 						'title': localize('close', "Hide"),
 					}),
@@ -1205,7 +1215,7 @@ export class GettingStartedPage extends EditorPane {
 				title: localize('walkthroughs', "Walkthroughs"),
 				klass: 'getting-started',
 				limit: 5,
-				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "More...")),
+				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs', 'tabindex': 0 }, localize('showAll', "More...")),
 				renderElement: renderGetttingStaredWalkthrough,
 				rankElement: rankWalkthrough,
 				contextService: this.contextService,

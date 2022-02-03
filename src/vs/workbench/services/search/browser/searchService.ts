@@ -58,6 +58,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 
 	constructor(
 		@IFileService private fileService: IFileService,
+		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._worker = null;
@@ -108,7 +109,8 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					}
 				}));
 
-				const folderResults = await proxy.searchDirectory(handle, query, fq, queryId);
+				const ignorePathCasing = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
+				const folderResults = await proxy.searchDirectory(handle, query, fq, ignorePathCasing, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push(reviveMatch(folderResult));
 				}
@@ -149,8 +151,8 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					console.error('Could not get directory handle for ', fq);
 					return;
 				}
-
-				const folderResults = await proxy.listDirectory(handle, query, fq, queryId);
+				const caseSensitive = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
+				const folderResults = await proxy.listDirectory(handle, query, fq, caseSensitive, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push({ resource: URI.joinPath(fq.folder, folderResult) });
 				}

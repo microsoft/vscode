@@ -8,13 +8,13 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { ILocalFileSearchSimpleWorker, ILocalFileSearchSimpleWorkerHost, ISearchWorkerFileSystemDirectoryHandle, ISearchWorkerFileSystemFileHandle, IWorkerFileSearchComplete, IWorkerTextSearchComplete, SearchWorkerFileSystemHandle } from 'vs/workbench/services/search/common/localFileSearchWorkerTypes';
 import { ICommonQueryProps, IFileMatch, IFileQueryProps, IFolderQuery, IPatternInfo, ITextQueryProps, } from 'vs/workbench/services/search/common/search';
-import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { getFileResults } from 'vs/workbench/services/search/common/getFileResults';
 import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
 import { createRegExp } from 'vs/base/common/strings';
 import { Promises } from 'vs/base/common/async';
+import { ExtUri } from 'vs/base/common/resources';
 
 const PERF = false;
 
@@ -72,7 +72,10 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		return source;
 	}
 
-	async listDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, queryId: number): Promise<IWorkerFileSearchComplete> {
+	async listDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, query: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete> {
+		const revivedFolderQuery = reviveFolderQuery(folderQuery);
+		const extUri = new ExtUri(() => ignorePathCasing);
+
 		const token = this.registerCancellationToken(queryId);
 		const entries: string[] = [];
 		let limitHit = false;
@@ -84,7 +87,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 			? (name: string) => query.filePattern!.split('').every(c => name.includes(c))
 			: (name: string) => true;
 
-		await time('listDirectory', () => this.walkFolderQuery(handle, query, folderQuery, file => {
+		await time('listDirectory', () => this.walkFolderQuery(handle, reviveQueryProps(query), revivedFolderQuery, extUri, file => {
 			if (!filePatternMatcher(file.name)) {
 				return;
 			}
@@ -104,7 +107,10 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		};
 	}
 
-	async searchDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, queryId: number): Promise<IWorkerTextSearchComplete> {
+	async searchDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, query: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete> {
+		const revivedQuery = reviveFolderQuery(folderQuery);
+		const extUri = new ExtUri(() => ignorePathCasing);
+
 		return time('searchInFiles', async () => {
 			const token = this.registerCancellationToken(queryId);
 
@@ -144,7 +150,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 						token.cancel();
 					}
 					const match = {
-						resource: URI.joinPath(URI.revive(folderQuery.folder), file.path),
+						resource: URI.joinPath(revivedQuery.folder, file.path),
 						results: fileResults,
 					};
 					this.host.sendTextSearchMatch(match, queryId);
@@ -153,7 +159,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 			};
 
 			await time('walkFolderToResolve', () =>
-				this.walkFolderQuery(handle, query, folderQuery, async file => onGoingProcesses.push(processFile(file)), token.token)
+				this.walkFolderQuery(handle, reviveQueryProps(query), revivedQuery, extUri, async file => onGoingProcesses.push(processFile(file)), token.token)
 			);
 
 			await time('resolveOngoingProcesses', () => Promise.all(onGoingProcesses));
@@ -168,7 +174,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 	}
 
-	private async walkFolderQuery(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<UriComponents>, folderQuery: IFolderQuery<UriComponents>, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
+	private async walkFolderQuery(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery<URI>, extUri: ExtUri, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
 
 		const folderExcludes = glob.parse(folderQuery.excludePattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression;
 
@@ -184,7 +190,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 		const isFileIncluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
 			path = path.slice(1);
 			if (folderExcludes(path, basename, hasSibling)) { return false; }
-			if (!pathIncludedInQuery(queryProps, path)) { return false; }
+			if (!pathIncludedInQuery(queryProps, URI.file(path), extUri)) { return false; }
 			return true;
 		};
 
@@ -289,31 +295,46 @@ function createSearchRegExp(options: IPatternInfo): RegExp {
 	});
 }
 
+function reviveFolderQuery(folderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
+	return {
+		...folderQuery,
+		folder: URI.revive(folderQuery.folder),
+	};
+}
 
-function pathExcludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
+function reviveQueryProps(queryProps: ICommonQueryProps<UriComponents>): ICommonQueryProps<URI> {
+	return {
+		...queryProps,
+		extraFileResources: queryProps.extraFileResources?.map(r => URI.revive(r)),
+		folderQueries: queryProps.folderQueries.map(fq => reviveFolderQuery(fq)),
+	};
+}
+
+
+function pathExcludedInQuery(queryProps: ICommonQueryProps<URI>, fsPath: string): boolean {
 	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
 		return true;
 	}
-
 	return false;
 }
 
-function pathIncludedInQuery(queryProps: ICommonQueryProps<UriComponents>, fsPath: string): boolean {
-	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, fsPath)) {
+function pathIncludedInQuery(queryProps: ICommonQueryProps<URI>, path: URI, extUri: ExtUri): boolean {
+	if (queryProps.excludePattern && glob.match(queryProps.excludePattern, path.fsPath)) {
 		return false;
 	}
 
 	if (queryProps.includePattern || queryProps.usingSearchPaths) {
-		if (queryProps.includePattern && glob.match(queryProps.includePattern, fsPath)) {
+		if (queryProps.includePattern && glob.match(queryProps.includePattern, path.fsPath)) {
 			return true;
 		}
 
 		// If searchPaths are being used, the extra file must be in a subfolder and match the pattern, if present
 		if (queryProps.usingSearchPaths) {
+
 			return !!queryProps.folderQueries && queryProps.folderQueries.some(fq => {
-				const searchPath = fq.folder.path;
-				if (extpath.isEqualOrParent(fsPath, searchPath)) {
-					const relPath = paths.relative(searchPath, fsPath);
+				const searchPath = fq.folder;
+				if (extUri.isEqualOrParent(path, searchPath)) {
+					const relPath = paths.relative(searchPath.path, path.path);
 					return !fq.includePattern || !!glob.match(fq.includePattern, relPath);
 				} else {
 					return false;

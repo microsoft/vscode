@@ -27,8 +27,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private readonly _onInvalidated = new Emitter<void>();
 	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
-
-
 	constructor(
 		private readonly _xterm: Terminal,
 		readonly range: IBufferRange,
