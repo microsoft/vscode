@@ -77,10 +77,7 @@ exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
 
 const buildDate = new Date().toISOString();
 
-/**
- * @param extensionsRoot {string} The location where extension will be read from
- */
-const createVSCodeWebFileContentMapper = (extensionsRoot) => {
+const createVSCodeWebProductConfigurationPatcher = () => {
 	/**
 	 * @param content {string} The contens of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
@@ -98,6 +95,20 @@ const createVSCodeWebFileContentMapper = (extensionsRoot) => {
 			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 		}
 
+		return content;
+	};
+	return result;
+};
+
+/**
+ * @param extensionsRoot {string} The location where extension will be read from
+ */
+const createVSCodeWebBuiltinExtensionsPatcher = (extensionsRoot) => {
+	/**
+	 * @param content {string} The contens of the file
+	 * @param path {string} The absolute file path, always using `/`, even on Windows
+	 */
+	const result = (content, path) => {
 		// (2) Patch builtin extensions
 		if (path.endsWith('vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.js')) {
 			const builtinExtensions = JSON.stringify(extensions.scanBuiltinExtensions(extensionsRoot));
@@ -107,6 +118,33 @@ const createVSCodeWebFileContentMapper = (extensionsRoot) => {
 		return content;
 	};
 	return result;
+};
+
+/**
+ * @param patchers {((content:string, path: string)=>string)[]}
+ */
+const combineContentPatchers = (...patchers) => {
+	/**
+	 * @param content {string} The contens of the file
+	 * @param path {string} The absolute file path, always using `/`, even on Windows
+	 */
+	const result = (content, path) => {
+		for (const patcher of patchers) {
+			content = patcher(content, path);
+		}
+		return content;
+	};
+	return result;
+};
+
+/**
+ * @param extensionsRoot {string} The location where extension will be read from
+ */
+const createVSCodeWebFileContentMapper = (extensionsRoot) => {
+	return combineContentPatchers(
+		createVSCodeWebProductConfigurationPatcher(),
+		createVSCodeWebBuiltinExtensionsPatcher(extensionsRoot)
+	);
 };
 exports.createVSCodeWebFileContentMapper = createVSCodeWebFileContentMapper;
 
