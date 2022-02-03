@@ -50,8 +50,13 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
+  - script: |
+      set -e
+      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz $(Build.SourcesDirectory)/remote/node_modules
+    displayName: Compress node_modules output
+
   - task: PublishPipelineArtifact@0
     displayName: "Publish remote node_modules"
     inputs:
       artifactName: "reh_node_modules-$(VSCODE_ARCH)"
-      targetPath: $(Build.SourcesDirectory)/remote/node_modules
+      targetPath: $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz

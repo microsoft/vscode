@@ -16,6 +16,13 @@ steps:
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
 
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: reh_node_modules-$(VSCODE_ARCH)
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download server build dependencies
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
   - script: |
       set -e
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
@@ -117,11 +124,10 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: reh_node_modules-$(VSCODE_ARCH)
-      path: $(Build.SourcesDirectory)/remote/node_modules
-    displayName: Download server build dependencies
+  - script: |
+      set -e
+      tar -xzf $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz --directory $(Build.SourcesDirectory)/remote/node_modules
+    displayName: Extract server node_modules output
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
