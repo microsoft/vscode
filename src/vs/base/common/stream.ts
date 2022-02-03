@@ -159,8 +159,8 @@ export function isReadableBufferedStream<T>(obj: unknown): obj is ReadableBuffer
 	return isReadableStream(candidate.stream) && Array.isArray(candidate.buffer) && typeof candidate.ended === 'boolean';
 }
 
-export interface IReducer<T> {
-	(data: T[]): T;
+export interface IReducer<T, R = T> {
+	(data: T[]): R;
 }
 
 export interface IDataTransformer<Original, Transformed> {
@@ -504,9 +504,9 @@ export function peekReadable<T>(readable: Readable<T>, reducer: IReducer<T>, max
  * a stream fully, awaiting all the events without caring
  * about the data.
  */
-export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T>): Promise<T>;
+export function consumeStream<T, R = T>(stream: ReadableStreamEvents<T>, reducer: IReducer<T, R>): Promise<R>;
 export function consumeStream(stream: ReadableStreamEvents<unknown>): Promise<undefined>;
-export function consumeStream<T>(stream: ReadableStreamEvents<T>, reducer?: IReducer<T>): Promise<T | undefined> {
+export function consumeStream<T, R = T>(stream: ReadableStreamEvents<T>, reducer?: IReducer<T, R>): Promise<R | undefined> {
 	return new Promise((resolve, reject) => {
 		const chunks: T[] = [];
 
