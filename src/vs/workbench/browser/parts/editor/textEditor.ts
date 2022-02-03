@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone } from 'vs/base/common/objects';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -43,6 +43,9 @@ export interface IEditorConfiguration {
 export abstract class BaseTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> implements IEditorPaneWithSelection {
 
 	private static readonly VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
+
+	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	private editorControl: IEditor | undefined;
 	private editorContainer: HTMLElement | undefined;
@@ -340,6 +343,10 @@ class TextEditorPaneSelection implements IEditorPaneSelection {
 			return EditorPaneSelectionCompareResult.DIFFERENT; // unknown selections
 		}
 
+		if (this.reason !== other.reason) {
+			return EditorPaneSelectionCompareResult.DIFFERENT; // different reasons
+		}
+
 		const thisLineNumber = Math.min(this.textSelection.selectionStartLineNumber, this.textSelection.positionLineNumber);
 		const otherLineNumber = Math.min(other.textSelection.selectionStartLineNumber, other.textSelection.positionLineNumber);
 
@@ -361,9 +368,6 @@ class TextEditorPaneSelection implements IEditorPaneSelection {
 
 		const textOptions = options as ITextEditorOptions;
 		textOptions.selectionRevealType = TextEditorSelectionRevealType.CenterIfOutsideViewport;
-		textOptions.selection = {
-			startLineNumber: this.textSelection.startLineNumber,
-			startColumn: this.textSelection.startColumn
-		};
+		textOptions.selection = this.textSelection;
 	}
 }

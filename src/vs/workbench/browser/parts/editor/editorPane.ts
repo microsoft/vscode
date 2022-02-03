@@ -54,9 +54,6 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	protected readonly _onDidChangeControl = this._register(new Emitter<void>());
 	readonly onDidChangeControl = this._onDidChangeControl.event;
 
-	protected readonly _onDidChangeSelection = this._register(new Emitter<void>());
-	readonly onDidChangeSelection = this._onDidChangeSelection.event;
-
 	//#endregion
 
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
