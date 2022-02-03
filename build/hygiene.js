@@ -10,7 +10,7 @@ const vfs = require('vinyl-fs');
 const path = require('path');
 const fs = require('fs');
 const pall = require('p-all');
-const { all, copyrightFilter, unicodeFilter, indentationFilter, jsHygieneFilter, tsHygieneFilter } = require('./filters');
+const { all, copyrightFilter, unicodeFilter, indentationFilter, tsFormattingFilter, eslintFilter } = require('./filters');
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
@@ -162,13 +162,13 @@ function hygiene(some, linting = true) {
 		.pipe(copyrights);
 
 	const streams = [
-		result.pipe(filter(tsHygieneFilter)).pipe(formatting)
+		result.pipe(filter(tsFormattingFilter)).pipe(formatting)
 	];
 
 	if (linting) {
 		streams.push(
 			result
-				.pipe(filter([...jsHygieneFilter, ...tsHygieneFilter]))
+				.pipe(filter(eslintFilter))
 				.pipe(
 					gulpeslint({
 						configFile: '.eslintrc.json',

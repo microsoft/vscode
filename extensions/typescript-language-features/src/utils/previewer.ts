@@ -199,9 +199,11 @@ export function markdownDocumentation(
 	documentation: Proto.SymbolDisplayPart[] | string,
 	tags: Proto.JSDocTagInfo[],
 	filePathConverter: IFilePathToResourceConverter,
+	baseUri: vscode.Uri | undefined,
 ): vscode.MarkdownString {
 	const out = new vscode.MarkdownString();
 	addMarkdownDocumentation(out, documentation, tags, filePathConverter);
+	out.baseUri = baseUri;
 	return out;
 }
 

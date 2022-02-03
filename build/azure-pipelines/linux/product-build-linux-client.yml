@@ -16,6 +16,13 @@ steps:
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
 
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: reh_node_modules-$(VSCODE_ARCH)
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download server build dependencies
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
   - script: |
       set -e
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
@@ -97,11 +104,6 @@ steps:
         export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
       fi
 
-      if [ "$VSCODE_ARCH" == "x64" ]; then
-        export VSCODE_REMOTE_CC=$(which gcc-4.8)
-        export VSCODE_REMOTE_CXX=$(which g++-4.8)
-      fi
-
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
         if [ $i -eq 3 ]; then
@@ -116,6 +118,13 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      rm -rf remote/node_modules
+      tar -xzf $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz --directory $(Build.SourcesDirectory)/remote
+    displayName: Extract server node_modules output
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e

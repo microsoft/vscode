@@ -21,7 +21,7 @@ import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { resolvePath } from 'vs/base/common/resources';
+import { dirname, resolvePath } from 'vs/base/common/resources';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
@@ -32,7 +32,6 @@ export interface MarkedOptions extends marked.MarkedOptions {
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
 	asyncRenderCallback?: () => void;
-	baseUrl?: URI;
 }
 
 /**
@@ -132,11 +131,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			text = removeMarkdownEscapes(text);
 		}
 		href = _href(href, false);
-		if (options.baseUrl) {
-			const hasScheme = /^\w[\w\d+.-]*:/.test(href);
-			if (!hasScheme) {
-				href = resolvePath(options.baseUrl, href).toString();
-			}
+		if (markdown.baseUri) {
+			href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 		}
 		title = typeof title === 'string' ? removeMarkdownEscapes(title) : '';
 		href = removeMarkdownEscapes(href);
@@ -206,8 +202,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				}
 			}
 			try {
-				const href = target.dataset['href'];
+				let href = target.dataset['href'];
 				if (href) {
+					if (markdown.baseUri) {
+						href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+					}
 					options.actionHandler!.callback(href, mouseEvent);
 				}
 			} catch (err) {
@@ -259,17 +258,16 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	markdownHtmlDoc.body.querySelectorAll('img')
 		.forEach(img => {
-			if (img.src) {
-				let href = _href(img.src, true);
-
+			const src = img.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
+			if (src) {
+				let href = src;
 				try {
-					const hrefAsUri = URI.parse(href);
-					if (options.baseUrl && hrefAsUri.scheme === Schemas.file) { // absolute or relative local path, or file: uri
-						href = resolvePath(options.baseUrl, href).toString();
+					if (markdown.baseUri) { // absolute or relative local path, or file: uri
+						href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 					}
 				} catch (err) { }
 
-				img.src = href;
+				img.src = _href(href, true);
 			}
 		});
 
@@ -296,6 +294,19 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			disposables.dispose();
 		}
 	};
+}
+
+function resolveWithBaseUri(baseUri: URI, href: string): string {
+	const hasScheme = /^\w[\w\d+.-]*:/.test(href);
+	if (hasScheme) {
+		return href;
+	}
+
+	if (baseUri.path.endsWith('/')) {
+		return resolvePath(baseUri, href).toString();
+	} else {
+		return resolvePath(dirname(baseUri), href).toString();
+	}
 }
 
 function sanitizeRenderedMarkdown(
