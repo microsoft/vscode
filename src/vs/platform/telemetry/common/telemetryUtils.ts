@@ -82,8 +82,8 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 	return configurationService.onDidChangeConfiguration(event => {
 		if (event.source !== ConfigurationTarget.DEFAULT) {
 			type UpdateConfigurationClassification = {
-				configurationSource: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				configurationKeys: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				configurationSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				configurationKeys: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 			type UpdateConfigurationEvent = {
 				configurationSource: string;
@@ -148,7 +148,7 @@ export interface Measurements {
 	[key: string]: number;
 }
 
-export function validateTelemetryData(data?: any): { properties: Properties, measurements: Measurements } {
+export function validateTelemetryData(data?: any): { properties: Properties; measurements: Measurements } {
 
 	const properties: Properties = Object.create(null);
 	const measurements: Measurements = Object.create(null);

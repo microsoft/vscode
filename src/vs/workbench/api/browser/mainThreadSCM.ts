@@ -96,7 +96,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	get id(): string { return this._id; }
 
 	readonly groups = new Sequence<MainThreadSCMResourceGroup>();
-	private readonly _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup; } = Object.create(null);
+	private readonly _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup } = Object.create(null);
 
 	// get groups(): ISequence<ISCMResourceGroup> {
 	// 	return {

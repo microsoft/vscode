@@ -154,7 +154,7 @@ export class FoldingModel implements IDisposable {
 
 		const viewModel = this._viewModel;
 		const cells = viewModel.viewCells;
-		const stack: { index: number, level: number, endIndex: number }[] = [];
+		const stack: { index: number; level: number; endIndex: number }[] = [];
 
 		for (let i = 0; i < cells.length; i++) {
 			const cell = cells[i];

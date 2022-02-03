@@ -455,7 +455,7 @@ export class SuggestModel implements IDisposable {
 		});
 	}
 
-	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[], clipboardText: string | undefined }): void {
+	trigger(context: SuggestTriggerContext, retrigger: boolean = false, onlyFrom?: Set<CompletionItemProvider>, existing?: { items: CompletionItem[]; clipboardText: string | undefined }): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -567,8 +567,8 @@ export class SuggestModel implements IDisposable {
 		}
 
 		setTimeout(() => {
-			type Durations = { data: string; };
-			type DurationsClassification = { data: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' } };
+			type Durations = { data: string };
+			type DurationsClassification = { data: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' } };
 			this._telemetryService.publicLog2<Durations, DurationsClassification>('suggest.durations.json', { data: JSON.stringify(durations) });
 			this._logService.debug('suggest.durations.json', durations);
 		});

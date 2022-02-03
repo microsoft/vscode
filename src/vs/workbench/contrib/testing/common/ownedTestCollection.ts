@@ -46,7 +46,7 @@ export class SingleUseTestCollection extends Disposable {
 
 	public readonly root = new TestItemRootImpl(this.controllerId, this.controllerId);
 	public readonly tree = new Map</* full test id */string, OwnedCollectionTestItem>();
-	private readonly tags = new Map<string, { label?: string, refCount: number }>();
+	private readonly tags = new Map<string, { label?: string; refCount: number }>();
 
 	protected diff: TestsDiff = [];
 

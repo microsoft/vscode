@@ -102,9 +102,9 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			fileNesting: {
 				enabled: boolean;
 				expand: boolean;
-				patterns: { [parent: string]: string }
-			}
-		}
+				patterns: { [parent: string]: string };
+			};
+		};
 	};
 	editor: IEditorOptions;
 }

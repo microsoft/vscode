@@ -140,8 +140,8 @@ interface ISemanticTokenInfo {
 	type: string;
 	modifiers: string[];
 	range: Range;
-	metadata?: IDecodedMetadata,
-	definitions: TokenStyleDefinitions
+	metadata?: IDecodedMetadata;
+	definitions: TokenStyleDefinitions;
 }
 
 interface IDecodedMetadata {
@@ -178,7 +178,7 @@ function renderTokenText(tokenText: string): string {
 	return result;
 }
 
-type SemanticTokensResult = { tokens: SemanticTokens, legend: SemanticTokensLegend };
+type SemanticTokensResult = { tokens: SemanticTokens; legend: SemanticTokensLegend };
 
 class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 

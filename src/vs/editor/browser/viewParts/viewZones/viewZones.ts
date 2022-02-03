@@ -34,7 +34,7 @@ const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class ViewZones extends ViewPart {
 
-	private _zones: { [id: string]: IMyViewZone; };
+	private _zones: { [id: string]: IMyViewZone };
 	private _lineHeight: number;
 	private _contentWidth: number;
 	private _contentLeft: number;
@@ -359,7 +359,7 @@ export class ViewZones extends ViewPart {
 
 	public render(ctx: RestrictedRenderingContext): void {
 		const visibleWhitespaces = ctx.viewportData.whitespaceViewportData;
-		const visibleZones: { [id: string]: IViewWhitespaceViewportData; } = {};
+		const visibleZones: { [id: string]: IViewWhitespaceViewportData } = {};
 
 		let hasVisibleZone = false;
 		for (const visibleWhitespace of visibleWhitespaces) {

@@ -27,7 +27,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		private readonly _logService: ILogService,
 		private readonly _documents: ExtHostDocuments,
 		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape,
-		private readonly _thresholds: { timeout: number; errors: number; } = { timeout: 1500, errors: 3 }
+		private readonly _thresholds: { timeout: number; errors: number } = { timeout: 1500, errors: 3 }
 	) {
 		//
 	}

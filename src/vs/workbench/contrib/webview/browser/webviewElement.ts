@@ -83,7 +83,7 @@ namespace WebviewState {
 		readonly type = Type.Initializing;
 
 		constructor(
-			public readonly pendingMessages: Array<{ readonly channel: string, readonly data?: any }>
+			public readonly pendingMessages: Array<{ readonly channel: string; readonly data?: any }>
 		) { }
 	}
 
@@ -224,7 +224,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this._onDidClickLink.fire(uri);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.onmessage, (data: { message: any, transfer?: ArrayBuffer[] }) => {
+		this._register(this.on(WebviewMessageChannels.onmessage, (data: { message: any; transfer?: ArrayBuffer[] }) => {
 			this._onMessage.fire({
 				message: data.message,
 				transfer: data.transfer,
@@ -275,7 +275,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.handleKeyEvent('keyup', data);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number, clientY: number }) => {
+		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number; clientY: number }) => {
 			if (!this.element) {
 				return;
 			}
@@ -298,7 +298,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			});
 		}));
 
-		this._register(this.on(WebviewMessageChannels.loadResource, async (entry: { id: number, path: string, query: string, scheme: string, authority: string, ifNoneMatch?: string }) => {
+		this._register(this.on(WebviewMessageChannels.loadResource, async (entry: { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string }) => {
 			try {
 				// Restore the authority we previously encoded
 				const authority = decodeAuthority(entry.authority);
@@ -381,7 +381,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private readonly _onMessage = this._register(new Emitter<WebviewMessageReceivedEvent>());
 	public readonly onMessage = this._onMessage.event;
 
-	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
+	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number }>());
 	public readonly onDidScroll = this._onDidScroll.event;
 
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
@@ -512,10 +512,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}
 
 			type TelemetryClassification = {
-				extension?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				extension?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 			type TelemetryData = {
-				extension?: string,
+				extension?: string;
 			};
 
 			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {

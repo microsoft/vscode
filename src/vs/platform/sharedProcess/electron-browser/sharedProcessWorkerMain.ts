@@ -142,7 +142,7 @@ class SharedProcessWorkerProcess extends Disposable {
 		// Handle termination that happens from the process
 		// itself. This can either be a crash or the process
 		// not being long running.
-		const onExit = Event.fromNodeEventEmitter<{ code: number | null, signal: NodeJS.Signals | null }>(this.child, 'exit', (code: number | null, signal: NodeJS.Signals | null) => ({ code, signal }));
+		const onExit = Event.fromNodeEventEmitter<{ code: number | null; signal: NodeJS.Signals | null }>(this.child, 'exit', (code: number | null, signal: NodeJS.Signals | null) => ({ code, signal }));
 		this._register(onExit(({ code, signal }) => {
 			const logMsg = `Worker process with pid ${this.child?.pid} terminated by itself with code ${code}, signal: ${signal} (type: ${this.configuration.process.type}, window: ${this.configuration.reply.windowId})`;
 			if (code !== 0 && signal !== 'SIGTERM') {

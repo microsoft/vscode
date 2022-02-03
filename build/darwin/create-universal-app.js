@@ -45,8 +45,8 @@ async function main() {
     await fs.writeJson(productJsonPath, productJson);
     // Verify if native module architecture is correct
     const findOutput = await (0, cross_spawn_promise_1.spawn)('find', [outAppPath, '-name', 'keytar.node']);
-    const lipoOutput = await (0, cross_spawn_promise_1.spawn)('lipo', ['-archs', findOutput.replace(/\n$/, "")]);
-    if (lipoOutput.replace(/\n$/, "") !== 'x86_64 arm64') {
+    const lipoOutput = await (0, cross_spawn_promise_1.spawn)('lipo', ['-archs', findOutput.replace(/\n$/, '')]);
+    if (lipoOutput.replace(/\n$/, '') !== 'x86_64 arm64') {
         throw new Error(`Invalid arch, got : ${lipoOutput}`);
     }
 }

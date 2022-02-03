@@ -163,7 +163,7 @@ interface FontDefinition {
 	weight: string;
 	style: string;
 	size: string;
-	src: { path: string; format: string; }[];
+	src: { path: string; format: string }[];
 }
 
 interface IconsAssociation {
@@ -172,11 +172,11 @@ interface IconsAssociation {
 	folderExpanded?: string;
 	rootFolder?: string;
 	rootFolderExpanded?: string;
-	folderNames?: { [folderName: string]: string; };
-	folderNamesExpanded?: { [folderName: string]: string; };
-	fileExtensions?: { [extension: string]: string; };
-	fileNames?: { [fileName: string]: string; };
-	languageIds?: { [languageId: string]: string; };
+	folderNames?: { [folderName: string]: string };
+	folderNamesExpanded?: { [folderName: string]: string };
+	fileExtensions?: { [extension: string]: string };
+	fileNames?: { [fileName: string]: string };
+	languageIds?: { [languageId: string]: string };
 }
 
 interface IconThemeDocument extends IconsAssociation {
@@ -224,7 +224,7 @@ export class FileIconThemeLoader {
 		});
 	}
 
-	private processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean; } {
+	private processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, iconThemeDocument: IconThemeDocument): { content: string; hasFileIcons: boolean; hasFolderIcons: boolean; hidesExplorerArrows: boolean } {
 
 		const result = { content: '', hasFileIcons: false, hasFolderIcons: false, hidesExplorerArrows: !!iconThemeDocument.hidesExplorerArrows };
 

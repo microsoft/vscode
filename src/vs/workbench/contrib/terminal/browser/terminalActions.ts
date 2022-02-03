@@ -2231,7 +2231,7 @@ function focusNext(accessor: ServicesAccessor): void {
 	listService.lastFocusedList?.focusNext();
 }
 
-export function validateTerminalName(name: string): { content: string, severity: Severity } | null {
+export function validateTerminalName(name: string): { content: string; severity: Severity } | null {
 	if (!name || name.trim().length === 0) {
 		return {
 			content: localize('emptyTerminalNameInfo', "Providing no name will reset it to the default value"),

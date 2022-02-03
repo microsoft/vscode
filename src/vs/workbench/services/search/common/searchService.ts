@@ -288,17 +288,17 @@ export class SearchService extends Disposable implements ISearchService {
 				const cacheStats: ICachedSearchStats = fileSearchStats.detailStats as ICachedSearchStats;
 
 				type CachedSearchCompleteClassifcation = {
-					reason?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					resultCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					workspaceFolderCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					endToEndTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					sortingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cacheWasResolved: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					cacheLookupTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cacheFilterTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cacheEntryCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					scheme: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					cacheWasResolved: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+					cacheLookupTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					cacheFilterTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					cacheEntryCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				};
 				type CachedSearchCompleteEvent = {
 					reason?: string;
@@ -330,18 +330,18 @@ export class SearchService extends Disposable implements ISearchService {
 				const searchEngineStats: ISearchEngineStats = fileSearchStats.detailStats as ISearchEngineStats;
 
 				type SearchCompleteClassification = {
-					reason?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					resultCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					workspaceFolderCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-					endToEndTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					sortingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					fileWalkTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					directoriesWalked: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					filesWalked: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cmdTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					cmdResultCount?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-					scheme: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+					endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					sortingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					fileWalkTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					directoriesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					filesWalked: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					cmdTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					cmdResultCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+					scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				};
 				type SearchCompleteEvent = {
 					reason?: string;
@@ -350,7 +350,7 @@ export class SearchService extends Disposable implements ISearchService {
 					type: 'fileSearchProvider' | 'searchProcess';
 					endToEndTime: number;
 					sortingTime?: number;
-					fileWalkTime: number
+					fileWalkTime: number;
 					directoriesWalked: number;
 					filesWalked: number;
 					cmdTime: number;
@@ -387,12 +387,12 @@ export class SearchService extends Disposable implements ISearchService {
 			}
 
 			type TextSearchCompleteClassification = {
-				reason?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				workspaceFolderCount: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				endToEndTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				scheme: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				error?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				usePCRE2: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				endToEndTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				scheme: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				error?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				usePCRE2: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			type TextSearchCompleteEvent = {
 				reason?: string;

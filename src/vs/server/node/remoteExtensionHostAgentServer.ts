@@ -53,8 +53,8 @@ declare module vsda {
 
 export class RemoteExtensionHostAgentServer extends Disposable {
 
-	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
-	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection; };
+	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection };
+	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection };
 	private readonly _allReconnectionTokens: Set<string>;
 	private readonly _webClientServer: WebClientServer | null;
 
@@ -704,10 +704,10 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		const telemetryService = accessor.get(ITelemetryService);
 
 		type ServerStartClassification = {
-			startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			startedTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			codeLoadedTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			readyTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			startedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			codeLoadedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			readyTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 		};
 		type ServerStartEvent = {
 			startTime: number;

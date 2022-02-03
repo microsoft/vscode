@@ -108,7 +108,7 @@ export function areKeyboardLayoutsEqual(a: IKeyboardLayoutInfo | null, b: IKeybo
 	return false;
 }
 
-export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | null): { label: string, description: string } {
+export function parseKeyboardLayoutDescription(layout: IKeyboardLayoutInfo | null): { label: string; description: string } {
 	if (!layout) {
 		return { label: '', description: '' };
 	}

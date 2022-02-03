@@ -15,7 +15,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
+import { ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -117,13 +117,6 @@ export class DesktopMain extends Disposable {
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
 
-		// Logging (as `info` when running CI to aid failing test diagnosis)
-		if (isCI) {
-			services.logService.info('workbench#open with configuration', safeStringify(this.configuration));
-		} else {
-			services.logService.trace('workbench#open with configuration', safeStringify(this.configuration));
-		}
-
 		// Driver
 		if (this.configuration.driver) {
 			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
@@ -147,7 +140,7 @@ export class DesktopMain extends Disposable {
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection; logService: ILogService; storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -184,6 +177,12 @@ export class DesktopMain extends Disposable {
 		// Log
 		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, this.configuration.logLevel, loggerService, logLevelChannelClient, environmentService));
 		serviceCollection.set(ILogService, logService);
+		if (isCI) {
+			logService.info('workbench#open()'); // marking workbench open helps to diagnose flaky integration/smoke tests
+		}
+		if (logService.getLevel() === LogLevel.Trace) {
+			logService.trace('workbench#open(): with configuration', safeStringify(this.configuration));
+		}
 
 		// Shared Process
 		const sharedProcessService = new SharedProcessService(this.configuration.windowId, logService);

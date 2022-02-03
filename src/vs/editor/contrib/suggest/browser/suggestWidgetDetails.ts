@@ -377,7 +377,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 		const defaultMinSize = new dom.Dimension(220, 2 * info.lineHeight);
 		const defaultTop = anchorBox.top;
 
-		type Placement = { top: number, left: number, fit: number, maxSizeTop: dom.Dimension, maxSizeBottom: dom.Dimension, minSize: dom.Dimension };
+		type Placement = { top: number; left: number; fit: number; maxSizeTop: dom.Dimension; maxSizeBottom: dom.Dimension; minSize: dom.Dimension };
 
 		// EAST
 		const eastPlacement: Placement = (function () {

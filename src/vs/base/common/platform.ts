@@ -21,7 +21,7 @@ let _userAgent: string | undefined = undefined;
 
 interface NLSConfig {
 	locale: string;
-	availableLanguages: { [key: string]: string; };
+	availableLanguages: { [key: string]: string };
 	_translationsConfigFile: string;
 }
 

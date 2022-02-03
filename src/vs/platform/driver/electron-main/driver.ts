@@ -200,7 +200,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return await windowDriver.getElements(selector, recursive);
 	}
 
-	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		return await windowDriver.getElementXY(selector, xoffset, yoffset);
 	}

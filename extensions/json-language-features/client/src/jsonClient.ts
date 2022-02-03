@@ -59,7 +59,7 @@ namespace ResultLimitReachedNotification {
 interface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
-		format?: { enable: boolean; };
+		format?: { enable: boolean };
 		resultLimit?: number;
 	};
 	http?: {
@@ -96,7 +96,7 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 
 export interface Runtime {
 	schemaRequests: SchemaRequestService;
-	telemetry?: TelemetryReporter
+	telemetry?: TelemetryReporter;
 }
 
 export interface SchemaRequestService {

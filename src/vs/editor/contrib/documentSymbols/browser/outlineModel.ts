@@ -100,7 +100,7 @@ export interface IOutlineMarker {
 export class OutlineElement extends TreeElement {
 
 	children = new Map<string, OutlineElement>();
-	marker: { count: number, topSev: MarkerSeverity } | undefined;
+	marker: { count: number; topSev: MarkerSeverity } | undefined;
 
 	constructor(
 		readonly id: string,

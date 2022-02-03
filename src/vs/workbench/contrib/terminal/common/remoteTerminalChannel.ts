@@ -35,7 +35,7 @@ export interface IWorkspaceFolderData {
 
 export interface ICreateTerminalProcessArguments {
 	configuration: ICompleteTerminalConfiguration;
-	resolvedVariables: { [name: string]: string; };
+	resolvedVariables: { [name: string]: string };
 	envVariableCollections: ITerminalEnvironmentVariableCollections;
 	shellLaunchConfig: IShellLaunchConfigDto;
 	workspaceId: string;
@@ -47,7 +47,7 @@ export interface ICreateTerminalProcessArguments {
 	cols: number;
 	rows: number;
 	unicodeVersion: '6' | '11';
-	resolverEnv: { [key: string]: string | null; } | undefined
+	resolverEnv: { [key: string]: string | null } | undefined;
 }
 
 export interface ICreateTerminalProcessResult {
@@ -72,29 +72,29 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	get onPtyHostRequestResolveVariables(): Event<IRequestResolveVariablesEvent> {
 		return this._channel.listen<IRequestResolveVariablesEvent>('$onPtyHostRequestResolveVariablesEvent');
 	}
-	get onProcessData(): Event<{ id: number, event: IProcessDataEvent | string }> {
-		return this._channel.listen<{ id: number, event: IProcessDataEvent | string }>('$onProcessDataEvent');
+	get onProcessData(): Event<{ id: number; event: IProcessDataEvent | string }> {
+		return this._channel.listen<{ id: number; event: IProcessDataEvent | string }>('$onProcessDataEvent');
 	}
-	get onProcessExit(): Event<{ id: number, event: number | undefined }> {
-		return this._channel.listen<{ id: number, event: number | undefined }>('$onProcessExitEvent');
+	get onProcessExit(): Event<{ id: number; event: number | undefined }> {
+		return this._channel.listen<{ id: number; event: number | undefined }>('$onProcessExitEvent');
 	}
-	get onProcessReady(): Event<{ id: number, event: { pid: number, cwd: string, requireWindowsMode?: boolean } }> {
-		return this._channel.listen<{ id: number, event: { pid: number, cwd: string, requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
+	get onProcessReady(): Event<{ id: number; event: { pid: number; cwd: string; requireWindowsMode?: boolean } }> {
+		return this._channel.listen<{ id: number; event: { pid: number; cwd: string; requiresWindowsMode?: boolean } }>('$onProcessReadyEvent');
 	}
-	get onProcessReplay(): Event<{ id: number, event: IPtyHostProcessReplayEvent }> {
-		return this._channel.listen<{ id: number, event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
+	get onProcessReplay(): Event<{ id: number; event: IPtyHostProcessReplayEvent }> {
+		return this._channel.listen<{ id: number; event: IPtyHostProcessReplayEvent }>('$onProcessReplayEvent');
 	}
 	get onProcessOrphanQuestion(): Event<{ id: number }> {
 		return this._channel.listen<{ id: number }>('$onProcessOrphanQuestion');
 	}
-	get onExecuteCommand(): Event<{ reqId: number, commandId: string, commandArgs: any[] }> {
-		return this._channel.listen<{ reqId: number, commandId: string, commandArgs: any[] }>('$onExecuteCommand');
+	get onExecuteCommand(): Event<{ reqId: number; commandId: string; commandArgs: any[] }> {
+		return this._channel.listen<{ reqId: number; commandId: string; commandArgs: any[] }>('$onExecuteCommand');
 	}
-	get onDidRequestDetach(): Event<{ requestId: number, workspaceId: string, instanceId: number }> {
-		return this._channel.listen<{ requestId: number, workspaceId: string, instanceId: number }>('$onDidRequestDetach');
+	get onDidRequestDetach(): Event<{ requestId: number; workspaceId: string; instanceId: number }> {
+		return this._channel.listen<{ requestId: number; workspaceId: string; instanceId: number }>('$onDidRequestDetach');
 	}
-	get onDidChangeProperty(): Event<{ id: number, property: IProcessProperty<any> }> {
-		return this._channel.listen<{ id: number, property: IProcessProperty<any> }>('$onDidChangeProperty');
+	get onDidChangeProperty(): Event<{ id: number; property: IProcessProperty<any> }> {
+		return this._channel.listen<{ id: number; property: IProcessProperty<any> }>('$onDidChangeProperty');
 	}
 
 	constructor(

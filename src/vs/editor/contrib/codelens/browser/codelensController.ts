@@ -486,7 +486,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 			return;
 		}
 
-		const items: { label: string, command: Command }[] = [];
+		const items: { label: string; command: Command }[] = [];
 		for (const lens of model.lenses) {
 			if (lens.symbol.command && lens.symbol.range.startLineNumber === lineNumber) {
 				items.push({

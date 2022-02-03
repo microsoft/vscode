@@ -60,7 +60,7 @@ import { isOfflineError } from 'vs/base/parts/request/common/request';
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
 
 type WorkspaceRecommendationsClassification = {
-	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', 'isMeasurement': true; };
+	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'isMeasurement': true };
 };
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
@@ -103,7 +103,7 @@ export class ExtensionsListView extends ViewPane {
 	} | undefined;
 	private badge: CountBadge | undefined;
 	private list: WorkbenchPagedList<IExtension> | null = null;
-	private queryRequest: { query: string, request: CancelablePromise<IPagedModel<IExtension>>; } | null = null;
+	private queryRequest: { query: string; request: CancelablePromise<IPagedModel<IExtension>> } | null = null;
 	private queryResult: IQueryResult | undefined;
 
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
@@ -379,7 +379,7 @@ export class ExtensionsListView extends ViewPane {
 		};
 	}
 
-	private filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): { extensions: IExtension[], canIncludeInstalledExtensions: boolean; } {
+	private filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): { extensions: IExtension[]; canIncludeInstalledExtensions: boolean } {
 		let value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
@@ -462,7 +462,7 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private parseCategories(value: string): { value: string, categories: string[]; } {
+	private parseCategories(value: string): { value: string; categories: string[] } {
 		const categories: string[] = [];
 		value = value.replace(/\bcategory:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategory, category) => {
 			const entry = (category || quotedCategory || '').toLowerCase();
@@ -828,7 +828,7 @@ export class ExtensionsListView extends ViewPane {
 	private async getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const recommendations = await this.getWorkspaceRecommendations();
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-workspace' }, token));
-		this.telemetryService.publicLog2<{ count: number; }, WorkspaceRecommendationsClassification>('extensionWorkspaceRecommendations:open', { count: installableRecommendations.length });
+		this.telemetryService.publicLog2<{ count: number }, WorkspaceRecommendationsClassification>('extensionWorkspaceRecommendations:open', { count: installableRecommendations.length });
 		const result: IExtension[] = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
 		return new PagedModel(result);
 	}
@@ -956,7 +956,7 @@ export class ExtensionsListView extends ViewPane {
 		}
 	}
 
-	private openExtension(extension: IExtension, options: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean; }): void {
+	private openExtension(extension: IExtension, options: { sideByside?: boolean; preserveFocus?: boolean; pinned?: boolean }): void {
 		extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0] || extension;
 		this.extensionsWorkbenchService.open(extension, options).then(undefined, err => this.onError(err));
 	}

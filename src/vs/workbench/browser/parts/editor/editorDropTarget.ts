@@ -483,7 +483,7 @@ class DropOverlay extends Themable {
 		this.currentDropOperation = { splitDirection };
 	}
 
-	private doPositionOverlay(options: { top: string, left: string, width: string, height: string }): void {
+	private doPositionOverlay(options: { top: string; left: string; width: string; height: string }): void {
 		const [container, overlay] = assertAllDefined(this.container, this.overlay);
 
 		// Container

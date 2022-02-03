@@ -333,12 +333,12 @@ export type DistributeSizing = { type: 'distribute' };
  * When adding or removing views, split the delta space with another
  * specific view, indexed by the provided `index`.
  */
-export type SplitSizing = { type: 'split', index: number };
+export type SplitSizing = { type: 'split'; index: number };
 
 /**
  * When adding or removing views, assume the view is invisible.
  */
-export type InvisibleSizing = { type: 'invisible', cachedVisibleSize: number };
+export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
 
 /**
  * When adding or removing views, the sizing provides fine grained

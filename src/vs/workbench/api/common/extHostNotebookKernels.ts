@@ -27,16 +27,16 @@ import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/
 import * as vscode from 'vscode';
 
 interface IKernelData {
-	extensionId: ExtensionIdentifier,
+	extensionId: ExtensionIdentifier;
 	controller: vscode.NotebookController;
-	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument; }>;
-	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor, message: any; }>;
+	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>;
+	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor; message: any }>;
 	associatedNotebooks: ResourceMap<boolean>;
 }
 
 type ExtHostSelectKernelArgs = ControllerInfo | { notebookEditor: vscode.NotebookEditor } | ControllerInfo & { notebookEditor: vscode.NotebookEditor } | undefined;
 export type SelectKernelReturnArgs = ControllerInfo | { notebookEditorId: string } | ControllerInfo & { notebookEditorId: string } | undefined;
-type ControllerInfo = { id: string, extension: string };
+type ControllerInfo = { id: string; extension: string };
 
 
 export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
@@ -104,8 +104,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
 
-		const onDidChangeSelection = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument; }>();
-		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any; }>();
+		const onDidChangeSelection = new Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>();
+		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor; message: any }>();
 
 		const data: INotebookKernelDto2 = {
 			id: createKernelId(extension, id),

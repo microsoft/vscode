@@ -81,8 +81,8 @@ export interface IPaneCompositeSelectorPart {
 export class PaneCompositeParts implements IPaneCompositePartService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
-	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
+	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
 
 	private paneCompositeParts = new Map<ViewContainerLocation, IPaneCompositePart>();
 	private paneCompositeSelectorParts = new Map<ViewContainerLocation, IPaneCompositeSelectorPart>();

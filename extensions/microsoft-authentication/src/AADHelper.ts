@@ -58,9 +58,9 @@ interface IStoredSession {
 	scope: string; // Scopes are alphabetized and joined with a space
 	account: {
 		label?: string;
-		displayName?: string,
-		id: string
-	}
+		displayName?: string;
+		id: string;
+	};
 }
 
 export interface ITokenResponse {
@@ -79,11 +79,11 @@ export interface IMicrosoftTokens {
 }
 
 interface IScopeData {
-	scopes: string[],
-	scopeStr: string,
-	scopesToSend: string,
-	clientId: string,
-	tenant: string
+	scopes: string[];
+	scopeStr: string;
+	scopesToSend: string;
+	clientId: string;
+	tenant: string;
 }
 
 function parseQuery(uri: vscode.Uri) {

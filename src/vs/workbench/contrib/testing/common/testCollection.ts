@@ -76,7 +76,7 @@ export interface ExtensionRunTestsRequest {
 	include: string[];
 	exclude: string[];
 	controllerId: string;
-	profile?: { group: TestRunProfileBitset, id: number };
+	profile?: { group: TestRunProfileBitset; id: number };
 	persist: boolean;
 }
 
@@ -221,7 +221,7 @@ export interface TestResultItem extends InternalTestItem {
 }
 
 export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
-	& { children: string[], retired: undefined };
+	& { children: string[]; retired: undefined };
 
 /**
  * Test results serialized for transport and storage.

@@ -11,7 +11,7 @@ import { sep } from 'vs/base/common/path';
 // than it is to use String.prototype.localeCompare()
 
 // A collator with numeric sorting enabled, and no sensitivity to case, accents or diacritics.
-const intlFileNameCollatorBaseNumeric: IdleValue<{ collator: Intl.Collator, collatorIsNumeric: boolean }> = new IdleValue(() => {
+const intlFileNameCollatorBaseNumeric: IdleValue<{ collator: Intl.Collator; collatorIsNumeric: boolean }> = new IdleValue(() => {
 	const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 	return {
 		collator: collator,

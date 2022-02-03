@@ -16,7 +16,7 @@ export class ExtensionMemento implements vscode.Memento {
 	protected readonly _storage: ExtHostStorage;
 
 	private readonly _init: Promise<ExtensionMemento>;
-	private _value?: { [n: string]: any; };
+	private _value?: { [n: string]: any };
 	private readonly _storageListener: IDisposable;
 
 	private _deferredPromises: Map<string, DeferredPromise<void>> = new Map();

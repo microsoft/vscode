@@ -48,7 +48,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-type NewFileItem = { commandID: string, title: string, from: string, group: string };
+type NewFileItem = { commandID: string; title: string; from: string; group: string };
 class NewFileTemplatesManager extends Disposable {
 	static Instance: NewFileTemplatesManager | undefined;
 

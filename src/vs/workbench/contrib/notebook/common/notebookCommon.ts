@@ -75,7 +75,7 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string; };
+export type NotebookRendererEntrypoint = string | { extends: string; path: string };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -245,7 +245,7 @@ export type NotebookCellOutputsSplice = {
 
 export interface IMainCellDto {
 	handle: number;
-	uri: UriComponents,
+	uri: UriComponents;
 	source: string[];
 	eol: string;
 	language: string;
@@ -347,7 +347,7 @@ export type NotebookCellsChangedEventDto = {
 	readonly versionId: number;
 };
 
-export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMimeEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
+export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMimeEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean };
 
 export enum SelectionStateType {
 	Handle = 0,
@@ -496,7 +496,7 @@ export interface NotebookData {
 
 
 export interface INotebookContributionData {
-	extension?: ExtensionIdentifier,
+	extension?: ExtensionIdentifier;
 	providerDisplayName: string;
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
@@ -517,7 +517,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parse(cell: URI): { notebook: URI, handle: number; } | undefined {
+	export function parse(cell: URI): { notebook: URI; handle: number } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
@@ -542,7 +542,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI, handle: number; outputId?: string } | undefined {
+	export function parseCellOutputUri(uri: URI): { notebook: URI; handle: number; outputId?: string } | undefined {
 		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
 			return;
 		}
@@ -848,7 +848,7 @@ export interface INotebookDocumentFilter {
 
 //TODO@rebornix test
 
-export function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
+export function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern } {
 	const arg = filenamePattern as INotebookExclusiveDocumentFilter;
 
 	if ((typeof arg.include === 'string' || glob.isRelativePattern(arg.include))
@@ -907,8 +907,8 @@ export class CellSequence implements ISequence {
 }
 
 export interface INotebookDiffResult {
-	cellsDiff: IDiffResult,
-	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[]; }[];
+	cellsDiff: IDiffResult;
+	linesDiff?: { originalCellhandle: number; modifiedCellhandle: number; lineChanges: ILineChange[] }[];
 }
 
 export interface INotebookCellStatusBarItem {

@@ -30,7 +30,7 @@ export class Askpass implements IIPCHandler {
 		}
 	}
 
-	async handle({ request, host }: { request: string, host: string }): Promise<string> {
+	async handle({ request, host }: { request: string; host: string }): Promise<string> {
 		const config = workspace.getConfiguration('git', null);
 		const enabled = config.get<boolean>('enabled');
 
@@ -72,7 +72,7 @@ export class Askpass implements IIPCHandler {
 		return await window.showInputBox(options) || '';
 	}
 
-	getEnv(): { [key: string]: string; } {
+	getEnv(): { [key: string]: string } {
 		if (!this.ipc) {
 			return {
 				GIT_ASKPASS: path.join(__dirname, 'askpass-empty.sh')

@@ -30,7 +30,7 @@ export interface LaunchOptions {
 }
 
 interface ICodeInstance {
-	kill: () => Promise<void>
+	kill: () => Promise<void>;
 }
 
 const instances = new Set<ICodeInstance>();

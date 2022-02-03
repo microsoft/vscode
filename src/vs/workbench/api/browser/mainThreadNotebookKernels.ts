@@ -22,7 +22,7 @@ import { ExtHostContext, ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, ICe
 abstract class MainThreadKernel implements INotebookKernel {
 
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
-	private readonly preloads: { uri: URI, provides: string[]; }[];
+	private readonly preloads: { uri: URI; provides: string[] }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;

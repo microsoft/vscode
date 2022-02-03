@@ -250,7 +250,7 @@ export interface IGalleryExtension {
 	publisherId: string;
 	publisher: string;
 	publisherDisplayName: string;
-	publisherDomain?: { link: string, verified: boolean };
+	publisherDomain?: { link: string; verified: boolean };
 	description: string;
 	installCount: number;
 	rating: number;
@@ -272,10 +272,10 @@ export interface IGalleryMetadata {
 	id: string;
 	publisherId: string;
 	publisherDisplayName: string;
-	isPreReleaseVersion: boolean,
+	isPreReleaseVersion: boolean;
 }
 
-export type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; preRelease: boolean, installedTimestamp: number }>;
+export type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; preRelease: boolean; installedTimestamp: number }>;
 
 export interface ILocalExtension extends IExtension {
 	isMachineScoped: boolean;
@@ -321,7 +321,7 @@ export const enum StatisticType {
 
 export interface IExtensionsControlManifest {
 	malicious: IExtensionIdentifier[];
-	unsupportedPreReleaseExtensions?: IStringDictionary<{ id: string, displayName: string, migrateStorage?: boolean }>;
+	unsupportedPreReleaseExtensions?: IStringDictionary<{ id: string; displayName: string; migrateStorage?: boolean }>;
 }
 
 export const enum InstallOperation {
@@ -409,9 +409,9 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
-export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean, donotIncludePackAndDependencies?: boolean, installGivenVersion?: boolean, installPreReleaseVersion?: boolean, operation?: InstallOperation };
+export type InstallOptions = { isBuiltin?: boolean; isMachineScoped?: boolean; donotIncludePackAndDependencies?: boolean; installGivenVersion?: boolean; installPreReleaseVersion?: boolean; operation?: InstallOperation };
 export type InstallVSIXOptions = Omit<InstallOptions, 'installGivenVersion'> & { installOnlyNewlyAddedFromExtensionPack?: boolean };
-export type UninstallOptions = { donotIncludePack?: boolean, donotCheckDependents?: boolean };
+export type UninstallOptions = { donotIncludePack?: boolean; donotCheckDependents?: boolean };
 
 export interface IExtensionManagementParticipant {
 	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions | InstallVSIXOptions, token: CancellationToken): Promise<void>;
@@ -451,7 +451,7 @@ export const IGlobalExtensionEnablementService = createDecorator<IGlobalExtensio
 
 export interface IGlobalExtensionEnablementService {
 	readonly _serviceBrand: undefined;
-	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[], readonly source?: string }>;
+	readonly onDidChangeEnablement: Event<{ readonly extensions: IExtensionIdentifier[]; readonly source?: string }>;
 
 	getDisabledExtensions(): IExtensionIdentifier[];
 	enableExtension(extension: IExtensionIdentifier, source?: string): Promise<boolean>;
@@ -460,23 +460,23 @@ export interface IGlobalExtensionEnablementService {
 }
 
 export type IConfigBasedExtensionTip = {
-	readonly extensionId: string,
-	readonly extensionName: string,
-	readonly isExtensionPack: boolean,
-	readonly configName: string,
-	readonly important: boolean,
+	readonly extensionId: string;
+	readonly extensionName: string;
+	readonly isExtensionPack: boolean;
+	readonly configName: string;
+	readonly important: boolean;
 };
 
 export type IExecutableBasedExtensionTip = {
-	readonly extensionId: string,
-	readonly extensionName: string,
-	readonly isExtensionPack: boolean,
-	readonly exeName: string,
-	readonly exeFriendlyName: string,
-	readonly windowsPath?: string,
+	readonly extensionId: string;
+	readonly extensionName: string;
+	readonly isExtensionPack: boolean;
+	readonly exeName: string;
+	readonly exeFriendlyName: string;
+	readonly windowsPath?: string;
 };
 
-export type IWorkspaceTips = { readonly remoteSet: string[]; readonly recommendations: string[]; };
+export type IWorkspaceTips = { readonly remoteSet: string[]; readonly recommendations: string[] };
 
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('IExtensionTipsService');
 export interface IExtensionTipsService {

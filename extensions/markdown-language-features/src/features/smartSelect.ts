@@ -68,7 +68,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	}
 }
 
-function getHeadersForPosition(toc: readonly TocEntry[], position: vscode.Position): { headers: TocEntry[], headerOnThisLine: boolean } {
+function getHeadersForPosition(toc: readonly TocEntry[], position: vscode.Position): { headers: TocEntry[]; headerOnThisLine: boolean } {
 	const enclosingHeaders = toc.filter(header => header.location.range.start.line <= position.line && header.location.range.end.line >= position.line);
 	const sortedHeaders = enclosingHeaders.sort((header1, header2) => (header1.line - position.line) - (header2.line - position.line));
 	const onThisLine = toc.find(header => header.line === position.line) !== undefined;

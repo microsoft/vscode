@@ -304,9 +304,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private _sendExtensionHostCrashTelemetry(code: number, signal: string | null, activatedExtensions: ExtensionIdentifier[]): void {
 		type ExtensionHostCrashClassification = {
-			code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			extensionIds: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			extensionIds: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 		};
 		type ExtensionHostCrashEvent = {
 			code: number;
@@ -321,9 +321,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		for (const extensionId of activatedExtensions) {
 			type ExtensionHostCrashExtensionClassification = {
-				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				signal: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			type ExtensionHostCrashExtensionEvent = {
 				code: number;

@@ -109,7 +109,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Restart the application with optional arguments (CLI). All lifecycle event handlers are triggered.
 	 */
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
+	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 
 	/**
 	 * Shutdown the application normally. All lifecycle event handlers are triggered.
@@ -548,7 +548,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		return this.pendingQuitPromise;
 	}
 
-	async relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+	async relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
 		this.logService.trace('Lifecycle#relaunch()');
 
 		const args = process.argv.slice(1);

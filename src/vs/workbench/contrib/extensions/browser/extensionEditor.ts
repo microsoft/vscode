@@ -74,8 +74,8 @@ import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensi
 
 class NavBar extends Disposable {
 
-	private _onChange = this._register(new Emitter<{ id: string | null, focus: boolean; }>());
-	get onChange(): Event<{ id: string | null, focus: boolean; }> { return this._onChange.event; }
+	private _onChange = this._register(new Emitter<{ id: string | null; focus: boolean }>());
+	get onChange(): Event<{ id: string | null; focus: boolean }> { return this._onChange.event; }
 
 	private _currentId: string | null = null;
 	get currentId(): string | null { return this._currentId; }
@@ -704,7 +704,7 @@ export class ExtensionEditor extends EditorPane {
 		return this.activeElement as IWebview;
 	}
 
-	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean; }, template: IExtensionEditorTemplate): void {
+	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null; focus: boolean }, template: IExtensionEditorTemplate): void {
 		this.contentDisposables.clear();
 		template.content.innerText = '';
 		this.activeElement = null;
@@ -1290,7 +1290,7 @@ export class ExtensionEditor extends EditorPane {
 			let viewContainersForLocation: IViewContainer[] = contrib[location];
 			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
 			return result;
-		}, [] as Array<{ id: string, title: string, location: string; }>);
+		}, [] as Array<{ id: string; title: string; location: string }>);
 
 		if (!viewContainers.length) {
 			return false;
@@ -1315,7 +1315,7 @@ export class ExtensionEditor extends EditorPane {
 			let viewsForLocation: IView[] = contrib[location];
 			result.push(...viewsForLocation.map(view => ({ ...view, location })));
 			return result;
-		}, [] as Array<{ id: string, name: string, location: string; }>);
+		}, [] as Array<{ id: string; name: string; location: string }>);
 
 		if (!views.length) {
 			return false;

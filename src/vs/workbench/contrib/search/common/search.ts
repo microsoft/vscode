@@ -124,8 +124,8 @@ export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigur
 		includeSymbols: boolean;
 		includeHistory: boolean;
 		history: {
-			filterSortOrder: 'default' | 'recency'
-		}
+			filterSortOrder: 'default' | 'recency';
+		};
 	};
 }
 

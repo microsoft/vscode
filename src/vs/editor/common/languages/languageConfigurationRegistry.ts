@@ -263,7 +263,7 @@ export class LanguageConfigurationRegistryImpl {
 	 *
 	 * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
 	 */
-	public getInheritIndentForLine(autoIndent: EditorAutoIndentStrategy, model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string; action: IndentAction | null; line?: number; } | null {
+	public getInheritIndentForLine(autoIndent: EditorAutoIndentStrategy, model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string; action: IndentAction | null; line?: number } | null {
 		if (autoIndent < EditorAutoIndentStrategy.Full) {
 			return null;
 		}
@@ -455,7 +455,7 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
-	public getIndentForEnter(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range, indentConverter: IIndentConverter): { beforeEnter: string, afterEnter: string } | null {
+	public getIndentForEnter(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range, indentConverter: IIndentConverter): { beforeEnter: string; afterEnter: string } | null {
 		if (autoIndent < EditorAutoIndentStrategy.Full) {
 			return null;
 		}

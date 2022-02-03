@@ -196,19 +196,19 @@ export const enum ProcessPropertyType {
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
-	type: T,
-	value: IProcessPropertyMap[T]
+	type: T;
+	value: IProcessPropertyMap[T];
 }
 
 export interface IProcessPropertyMap {
-	[ProcessPropertyType.Cwd]: string,
-	[ProcessPropertyType.InitialCwd]: string,
-	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions,
-	[ProcessPropertyType.Title]: string
-	[ProcessPropertyType.ShellType]: TerminalShellType | undefined,
-	[ProcessPropertyType.HasChildProcesses]: boolean,
-	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
-	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
+	[ProcessPropertyType.Cwd]: string;
+	[ProcessPropertyType.InitialCwd]: string;
+	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions;
+	[ProcessPropertyType.Title]: string;
+	[ProcessPropertyType.ShellType]: TerminalShellType | undefined;
+	[ProcessPropertyType.HasChildProcesses]: boolean;
+	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig;
+	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -237,13 +237,13 @@ export interface IPtyHostController {
 export interface IPtyService extends IPtyHostController {
 	readonly _serviceBrand: undefined;
 
-	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
-	readonly onProcessReady: Event<{ id: number, event: IProcessReadyEvent }>;
-	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
+	readonly onProcessData: Event<{ id: number; event: IProcessDataEvent | string }>;
+	readonly onProcessReady: Event<{ id: number; event: IProcessReadyEvent }>;
+	readonly onProcessReplay: Event<{ id: number; event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
-	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
-	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
-	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
+	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
+	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty<any> }>;
+	readonly onProcessExit: Event<{ id: number; event: number | undefined }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -437,7 +437,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean, fixedDimensions?: IFixedTerminalDimensions };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -506,9 +506,9 @@ export interface IShellLaunchConfig {
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	icon?: URI | string | { light: URI, dark: URI };
+	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
-	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean };
+	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
 }
 
 export enum TerminalLocation {
@@ -543,9 +543,9 @@ export interface ITerminalLaunchError {
 }
 
 export interface IProcessReadyEvent {
-	pid: number,
-	cwd: string,
-	requiresWindowsMode?: boolean
+	pid: number;
+	cwd: string;
+	requiresWindowsMode?: boolean;
 }
 
 /**
@@ -690,7 +690,7 @@ export interface ITerminalProfile {
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
 	color?: string;
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: ThemeIcon | URI | { light: URI; dark: URI };
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
@@ -709,7 +709,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
-	icon?: string | ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
 }
@@ -730,7 +730,7 @@ export interface ITerminalContributions {
 export interface ITerminalProfileContribution {
 	title: string;
 	id: string;
-	icon?: URI | { light: URI, dark: URI } | string;
+	icon?: URI | { light: URI; dark: URI } | string;
 	color?: string;
 }
 

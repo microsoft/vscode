@@ -56,10 +56,10 @@ function requestTypeToStr(type: RequestType): string {
 	}
 }
 
-type IRawPromiseRequest = { type: RequestType.Promise; id: number; channelName: string; name: string; arg: any; };
-type IRawPromiseCancelRequest = { type: RequestType.PromiseCancel, id: number };
-type IRawEventListenRequest = { type: RequestType.EventListen; id: number; channelName: string; name: string; arg: any; };
-type IRawEventDisposeRequest = { type: RequestType.EventDispose, id: number };
+type IRawPromiseRequest = { type: RequestType.Promise; id: number; channelName: string; name: string; arg: any };
+type IRawPromiseCancelRequest = { type: RequestType.PromiseCancel; id: number };
+type IRawEventListenRequest = { type: RequestType.EventListen; id: number; channelName: string; name: string; arg: any };
+type IRawEventDisposeRequest = { type: RequestType.EventDispose; id: number };
 type IRawRequest = IRawPromiseRequest | IRawPromiseCancelRequest | IRawEventListenRequest | IRawEventDisposeRequest;
 
 export const enum ResponseType {
@@ -86,7 +86,7 @@ function responseTypeToStr(type: ResponseType): string {
 
 type IRawInitializeResponse = { type: ResponseType.Initialize };
 type IRawPromiseSuccessResponse = { type: ResponseType.PromiseSuccess; id: number; data: any };
-type IRawPromiseErrorResponse = { type: ResponseType.PromiseError; id: number; data: { message: string, name: string, stack: string[] | undefined } };
+type IRawPromiseErrorResponse = { type: ResponseType.PromiseError; id: number; data: { message: string; name: string; stack: string[] | undefined } };
 type IRawPromiseErrorObjResponse = { type: ResponseType.PromiseErrorObj; id: number; data: any };
 type IRawEventFireResponse = { type: ResponseType.EventFire; id: number; data: any };
 type IRawResponse = IRawInitializeResponse | IRawPromiseSuccessResponse | IRawPromiseErrorResponse | IRawPromiseErrorObjResponse | IRawEventFireResponse;

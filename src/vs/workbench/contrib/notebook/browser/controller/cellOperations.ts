@@ -336,7 +336,7 @@ export async function copyCellRange(context: INotebookCellActionContext, directi
 	}
 }
 
-export async function joinNotebookCells(editor: IActiveNotebookEditor, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[], cell: ICellViewModel, endFocus: ICellRange, endSelections: ICellRange[]; } | null> {
+export async function joinNotebookCells(editor: IActiveNotebookEditor, range: ICellRange, direction: 'above' | 'below', constraint?: CellKind): Promise<{ edits: ResourceEdit[]; cell: ICellViewModel; endFocus: ICellRange; endSelections: ICellRange[] } | null> {
 	if (editor.isReadOnly) {
 		return null;
 	}

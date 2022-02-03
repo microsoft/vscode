@@ -12,12 +12,12 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { PanelAlignment, Position, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 
 interface IWorkbenchLayoutStateKey {
-	name: string,
-	runtime: boolean,
-	defaultValue: any,
-	scope: StorageScope,
-	target: StorageTarget
-	zenModeIgnore?: boolean,
+	name: string;
+	runtime: boolean;
+	defaultValue: any;
+	scope: StorageScope;
+	target: StorageTarget;
+	zenModeIgnore?: boolean;
 }
 
 type StorageKeyType = string | boolean | number | object;

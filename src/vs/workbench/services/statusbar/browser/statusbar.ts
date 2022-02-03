@@ -101,7 +101,7 @@ export interface IStatusbarService {
 	/**
 	 * An event that is triggered when an entry's visibility is changed.
 	 */
-	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
+	readonly onDidChangeEntryVisibility: Event<{ id: string; visible: boolean }>;
 
 	/**
 	 * Adds an entry to the statusbar with the given alignment and priority. Use the returned accessor

@@ -699,9 +699,9 @@ class SemanticTokensPreviousResult {
 	) { }
 }
 
-type RelaxedSemanticTokens = { readonly resultId?: string; readonly data: number[]; };
-type RelaxedSemanticTokensEdit = { readonly start: number; readonly deleteCount: number; readonly data?: number[]; };
-type RelaxedSemanticTokensEdits = { readonly resultId?: string; readonly edits: RelaxedSemanticTokensEdit[]; };
+type RelaxedSemanticTokens = { readonly resultId?: string; readonly data: number[] };
+type RelaxedSemanticTokensEdit = { readonly start: number; readonly deleteCount: number; readonly data?: number[] };
+type RelaxedSemanticTokensEdits = { readonly resultId?: string; readonly edits: RelaxedSemanticTokensEdit[] };
 
 type ProvidedSemanticTokens = vscode.SemanticTokens | RelaxedSemanticTokens;
 type ProvidedSemanticTokensEdits = vscode.SemanticTokensEdits | RelaxedSemanticTokensEdits;
@@ -1000,7 +1000,7 @@ class SuggestAdapter {
 		}
 
 		// 'overwrite[Before|After]'-logic
-		let range: vscode.Range | { inserting: vscode.Range, replacing: vscode.Range; } | undefined;
+		let range: vscode.Range | { inserting: vscode.Range; replacing: vscode.Range } | undefined;
 		if (item.textEdit) {
 			range = item.textEdit.range;
 		} else if (item.range) {
@@ -1668,7 +1668,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	private async _withAdapter<A, R>(
 		handle: number,
-		ctor: { new(...args: any[]): A; },
+		ctor: { new(...args: any[]): A },
 		callback: (adapter: A, extension: IExtensionDescription) => Promise<R>,
 		fallbackValue: R,
 		tokenToRaceAgainst: CancellationToken | undefined

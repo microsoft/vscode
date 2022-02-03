@@ -685,7 +685,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			}
 		]
 	},
-	handler: async (accessor, args?: { viewType: string; }) => {
+	handler: async (accessor, args?: { viewType: string }) => {
 		const editorService = accessor.get(IEditorService);
 
 		await editorService.openEditor({

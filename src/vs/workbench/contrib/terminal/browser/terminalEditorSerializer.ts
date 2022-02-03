@@ -61,9 +61,9 @@ interface TerminalEditorInputObject {
 }
 
 export interface SerializedTerminalEditorInput extends TerminalEditorInputObject {
-	readonly resource: string
+	readonly resource: string;
 }
 
 export interface DeserializedTerminalEditorInput extends TerminalEditorInputObject {
-	readonly resource: URI
+	readonly resource: URI;
 }

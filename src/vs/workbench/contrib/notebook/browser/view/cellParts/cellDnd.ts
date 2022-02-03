@@ -204,7 +204,7 @@ export class CellDragAndDropController extends Disposable {
 		}
 	}
 
-	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { ctrlKey: boolean, altKey: boolean; }, draggedOverCell: ICellViewModel) {
+	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { ctrlKey: boolean; altKey: boolean }, draggedOverCell: ICellViewModel) {
 		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
@@ -393,7 +393,7 @@ export class CellDragAndDropController extends Disposable {
 		this.setInsertIndicatorVisibility(false);
 	}
 
-	public explicitDrop(cell: ICellViewModel, ctx: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }) {
+	public explicitDrop(cell: ICellViewModel, ctx: { dragOffsetY: number; ctrlKey: boolean; altKey: boolean }) {
 		this.currentDraggedCell = undefined;
 		this.setInsertIndicatorVisibility(false);
 

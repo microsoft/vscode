@@ -305,7 +305,7 @@ class PaneDraggable extends Disposable {
 
 	private dragOverCounter = 0; // see https://github.com/microsoft/vscode/issues/14470
 
-	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
+	private _onDidDrop = this._register(new Emitter<{ from: Pane; to: Pane }>());
 	readonly onDidDrop = this._onDidDrop.event;
 
 	constructor(private pane: Pane, private dnd: IPaneDndController, private context: IDndContext) {
@@ -444,8 +444,8 @@ export class PaneView extends Disposable {
 	private splitview: SplitView;
 	private animationTimer: number | undefined = undefined;
 
-	private _onDidDrop = this._register(new Emitter<{ from: Pane, to: Pane }>());
-	readonly onDidDrop: Event<{ from: Pane, to: Pane }> = this._onDidDrop.event;
+	private _onDidDrop = this._register(new Emitter<{ from: Pane; to: Pane }>());
+	readonly onDidDrop: Event<{ from: Pane; to: Pane }> = this._onDidDrop.event;
 
 	orientation: Orientation;
 	readonly onDidSashChange: Event<number>;

@@ -116,7 +116,7 @@ suite('RipgrepTextSearchEngine', () => {
 			assert.deepStrictEqual(actualResults, expectedResults);
 		}
 
-		function makeRgMatch(relativePath: string, text: string, lineNumber: number, matchRanges: { start: number, end: number }[]): string {
+		function makeRgMatch(relativePath: string, text: string, lineNumber: number, matchRanges: { start: number; end: number }[]): string {
 			return JSON.stringify(<IRgMessage>{
 				type: 'match',
 				data: <IRgMatch>{

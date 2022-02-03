@@ -14,14 +14,14 @@ import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/vie
 
 declare module globalThis {
 	const acquireVsCodeApi: () => ({
-		getState(): { [key: string]: unknown; };
-		setState(data: { [key: string]: unknown; }): void;
+		getState(): { [key: string]: unknown };
+		setState(data: { [key: string]: unknown }): void;
 		postMessage: (msg: unknown) => void;
 	});
 }
 
 declare class ResizeObserver {
-	constructor(onChange: (entries: { target: HTMLElement, contentRect?: ClientRect; }[]) => void);
+	constructor(onChange: (entries: { target: HTMLElement; contentRect?: ClientRect }[]) => void);
 	observe(element: Element): void;
 	disconnect(): void;
 }
@@ -41,7 +41,7 @@ declare namespace CSS {
 }
 
 
-type Listener<T> = { fn: (evt: T) => void; thisArg: unknown; };
+type Listener<T> = { fn: (evt: T) => void; thisArg: unknown };
 
 interface EmitterLike<T> {
 	fire(data: T): void;
@@ -277,7 +277,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		private readonly _observer: ResizeObserver;
 
-		private readonly _observedElements = new WeakMap<Element, { id: string, output: boolean, lastKnownHeight: number }>();
+		private readonly _observedElements = new WeakMap<Element, { id: string; output: boolean; lastKnownHeight: number }>();
 
 		constructor() {
 			this._observer = new ResizeObserver(entries => {
@@ -340,7 +340,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return false;
 	}
 
-	const handleWheel = (event: WheelEvent & { wheelDeltaX?: number, wheelDeltaY?: number, wheelDelta?: number }) => {
+	const handleWheel = (event: WheelEvent & { wheelDeltaX?: number; wheelDeltaY?: number; wheelDelta?: number }) => {
 		if (event.defaultPrevented || scrollWillGoToParent(event)) {
 			return;
 		}
@@ -540,18 +540,18 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	interface ICommonRange {
-		collapsed: boolean,
-		commonAncestorContainer: Node,
-		endContainer: Node,
-		endOffset: number,
-		startContainer: Node,
-		startOffset: number
+		collapsed: boolean;
+		commonAncestorContainer: Node;
+		endContainer: Node;
+		endOffset: number;
+		startContainer: Node;
+		startOffset: number;
 
 	}
 
 	interface IHighlightResult {
 		range: ICommonRange;
-		dispose: () => void,
+		dispose: () => void;
 		update: (color: string | undefined, className: string | undefined) => void;
 	}
 
@@ -785,13 +785,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 	window.addEventListener('wheel', handleWheel);
 
 	interface IFindMatch {
-		type: 'preview' | 'output',
-		id: string,
-		cellId: string,
-		container: Node,
-		originalRange: Range,
-		isShadow: boolean,
-		highlightResult?: IHighlightResult
+		type: 'preview' | 'output';
+		id: string;
+		cellId: string;
+		container: Node;
+		originalRange: Range;
+		isShadow: boolean;
+		highlightResult?: IHighlightResult;
 	}
 
 	interface IHighlighter {
@@ -920,7 +920,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; }) => {
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }) => {
 		let find = true;
 		let matches: IFindMatch[] = [];
 
@@ -1060,7 +1060,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	window.addEventListener('message', async rawEvent => {
-		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage; });
+		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage });
 
 		switch (event.data.type) {
 			case 'initializeMarkup':
@@ -1785,7 +1785,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 			}
 
-			const codeBlocks: Array<{ value: string, lang: string, id: string }> = [];
+			const codeBlocks: Array<{ value: string; lang: string; id: string }> = [];
 			let i = 0;
 			for (const el of root.querySelectorAll('.vscode-code-block')) {
 				const lang = el.getAttribute('data-vscode-code-block-lang');
@@ -2001,7 +2001,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public readonly element: HTMLElement;
 
-		private _content?: { content: webviewMessages.ICreationContent, preloadsAndErrors: unknown[] };
+		private _content?: { content: webviewMessages.ICreationContent; preloadsAndErrors: unknown[] };
 		private hasResizeObserver = false;
 
 		constructor(
@@ -2072,7 +2072,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const markupCellDragManager = new class MarkupCellDragManager {
 
-		private currentDrag: { cellId: string, clientY: number } | undefined;
+		private currentDrag: { cellId: string; clientY: number } | undefined;
 
 		// Transparent overlay that prevents elements from inside the webview from eating
 		// drag events.

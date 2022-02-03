@@ -97,7 +97,7 @@ class SelectionClipboardPastePreventer implements IWorkbenchContribution {
 			document.addEventListener('mouseup', (e) => {
 				if (e.button === 1) {
 					// middle button
-					const config = configurationService.getValue<{ selectionClipboard: boolean; }>('editor');
+					const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
 					if (!config.selectionClipboard) {
 						// selection clipboard is disabled
 						// try to stop the upcoming paste

@@ -183,7 +183,7 @@ class DebugTerminalCollection {
 	 */
 	private static minUseDelay = 1000;
 
-	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
+	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number; config: string }>();
 
 	public async checkout(config: string, name: string) {
 		const entries = [...this._terminalInstances.entries()];

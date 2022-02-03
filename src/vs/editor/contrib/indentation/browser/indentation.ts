@@ -380,7 +380,7 @@ export class ReindentSelectedLinesAction extends EditorAction {
 
 export class AutoIndentOnPasteCommand implements ICommand {
 
-	private readonly _edits: { range: IRange; text: string; eol?: EndOfLineSequence; }[];
+	private readonly _edits: { range: IRange; text: string; eol?: EndOfLineSequence }[];
 
 	private readonly _initialSelection: Selection;
 	private _selectionId: string | null;
@@ -392,7 +392,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 
 		for (let edit of edits) {
 			if (edit.range && typeof edit.text === 'string') {
-				this._edits.push(edit as { range: IRange; text: string; eol?: EndOfLineSequence; });
+				this._edits.push(edit as { range: IRange; text: string; eol?: EndOfLineSequence });
 			}
 		}
 	}

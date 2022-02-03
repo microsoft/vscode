@@ -56,7 +56,7 @@ export interface ICommandMenuOptions {
 	order: number;
 	when?: ContextKeyExpression;
 	title: string;
-	icon?: ThemeIcon
+	icon?: ThemeIcon;
 }
 export interface ICommandOptions {
 	id: string;
@@ -338,8 +338,8 @@ export abstract class EditorAction extends EditorCommand {
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
 		type EditorActionInvokedClassification = {
-			name: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
-			id: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
+			name: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		type EditorActionInvokedEvent = {
 			name: string;
@@ -455,7 +455,7 @@ export function registerEditorCommand<T extends EditorCommand>(editorCommand: T)
 	return editorCommand;
 }
 
-export function registerEditorAction<T extends EditorAction>(ctor: { new(): T; }): T {
+export function registerEditorAction<T extends EditorAction>(ctor: { new(): T }): T {
 	const action = new ctor();
 	EditorContributionRegistry.INSTANCE.registerEditorAction(action);
 	return action;
@@ -513,7 +513,7 @@ class EditorContributionRegistry {
 	private readonly editorContributions: IEditorContributionDescription[];
 	private readonly diffEditorContributions: IDiffEditorContributionDescription[];
 	private readonly editorActions: EditorAction[];
-	private readonly editorCommands: { [commandId: string]: EditorCommand; };
+	private readonly editorCommands: { [commandId: string]: EditorCommand };
 
 	constructor() {
 		this.editorContributions = [];

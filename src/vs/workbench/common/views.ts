@@ -127,12 +127,12 @@ export interface IViewContainersRegistry {
 	/**
 	 * An event that is triggered when a view container is registered.
 	 */
-	readonly onDidRegister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
+	readonly onDidRegister: Event<{ viewContainer: ViewContainer; viewContainerLocation: ViewContainerLocation }>;
 
 	/**
 	 * An event that is triggered when a view container is deregistered.
 	 */
-	readonly onDidDeregister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>;
+	readonly onDidDeregister: Event<{ viewContainer: ViewContainer; viewContainerLocation: ViewContainerLocation }>;
 
 	/**
 	 * All registered view containers
@@ -148,7 +148,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer;
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, options?: { isDefault?: boolean; donotRegisterOpenCommand?: boolean }): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -192,11 +192,11 @@ interface RelaxedViewContainer extends ViewContainer {
 
 class ViewContainersRegistryImpl extends Disposable implements IViewContainersRegistry {
 
-	private readonly _onDidRegister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
-	readonly onDidRegister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }> = this._onDidRegister.event;
+	private readonly _onDidRegister = this._register(new Emitter<{ viewContainer: ViewContainer; viewContainerLocation: ViewContainerLocation }>());
+	readonly onDidRegister: Event<{ viewContainer: ViewContainer; viewContainerLocation: ViewContainerLocation }> = this._onDidRegister.event;
 
-	private readonly _onDidDeregister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
-	readonly onDidDeregister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }> = this._onDidDeregister.event;
+	private readonly _onDidDeregister = this._register(new Emitter<{ viewContainer: ViewContainer; viewContainerLocation: ViewContainerLocation }>());
+	readonly onDidDeregister: Event<{ viewContainer: ViewContainer; viewContainerLocation: ViewContainerLocation }> = this._onDidDeregister.event;
 
 	private readonly viewContainers: Map<ViewContainerLocation, ViewContainer[]> = new Map<ViewContainerLocation, ViewContainer[]>();
 	private readonly defaultViewContainers: ViewContainer[] = [];
@@ -205,7 +205,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return flatten([...this.viewContainers.values()]);
 	}
 
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean, donotRegisterOpenCommand?: boolean }): ViewContainer {
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean; donotRegisterOpenCommand?: boolean }): ViewContainer {
 		const existing = this.get(viewContainerDescriptor.id);
 		if (existing) {
 			return existing;
@@ -287,14 +287,14 @@ export interface IViewDescriptor {
 
 	readonly workspace?: boolean;
 
-	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
+	readonly focusCommand?: { id: string; keybindings?: IKeybindings };
 
 	// For contributed remote explorer views
 	readonly group?: string;
 
 	readonly remoteAuthority?: string | string[];
 
-	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor
+	readonly openCommandActionDescriptor?: OpenCommandActionDescriptor;
 }
 
 export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
@@ -320,7 +320,7 @@ export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
 }
 
 export interface IAddedViewDescriptorState {
-	viewDescriptor: IViewDescriptor,
+	viewDescriptor: IViewDescriptor;
 	collapsed?: boolean;
 	visible?: boolean;
 }
@@ -332,18 +332,18 @@ export interface IViewContainerModel {
 	readonly title: string;
 	readonly icon: ThemeIcon | URI | undefined;
 	readonly keybindingId: string | undefined;
-	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean, keybindingId?: boolean }>;
+	readonly onDidChangeContainerInfo: Event<{ title?: boolean; icon?: boolean; keybindingId?: boolean }>;
 
 	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
-	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;
+	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>;
 
 	readonly activeViewDescriptors: ReadonlyArray<IViewDescriptor>;
-	readonly onDidChangeActiveViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;
+	readonly onDidChangeActiveViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }>;
 
 	readonly visibleViewDescriptors: ReadonlyArray<IViewDescriptor>;
 	readonly onDidAddVisibleViewDescriptors: Event<IAddedViewDescriptorRef[]>;
-	readonly onDidRemoveVisibleViewDescriptors: Event<IViewDescriptorRef[]>
-	readonly onDidMoveVisibleViewDescriptors: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }>
+	readonly onDidRemoveVisibleViewDescriptors: Event<IViewDescriptorRef[]>;
+	readonly onDidMoveVisibleViewDescriptors: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef }>;
 
 	isVisible(id: string): boolean;
 	setVisible(id: string, visible: boolean, size?: number): void;
@@ -352,7 +352,7 @@ export interface IViewContainerModel {
 	setCollapsed(id: string, collapsed: boolean): void;
 
 	getSize(id: string): number | undefined;
-	setSize(id: string, size: number): void
+	setSize(id: string, size: number): void;
 
 	move(from: string, to: string): void;
 }
@@ -374,15 +374,15 @@ export interface IViewContentDescriptor {
 
 export interface IViewsRegistry {
 
-	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }[]>;
+	readonly onViewsRegistered: Event<{ views: IViewDescriptor[]; viewContainer: ViewContainer }[]>;
 
-	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
+	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[]; viewContainer: ViewContainer }>;
 
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>;
 
 	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	registerViews2(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void;
+	registerViews2(views: { views: IViewDescriptor[]; viewContainer: ViewContainer }[]): void;
 
 	deregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
@@ -411,14 +411,14 @@ function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewConten
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
 
-	private readonly _onViewsRegistered = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }[]>());
+	private readonly _onViewsRegistered = this._register(new Emitter<{ views: IViewDescriptor[]; viewContainer: ViewContainer }[]>());
 	readonly onViewsRegistered = this._onViewsRegistered.event;
 
-	private readonly _onViewsDeregistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>());
-	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsDeregistered.event;
+	private readonly _onViewsDeregistered: Emitter<{ views: IViewDescriptor[]; viewContainer: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[]; viewContainer: ViewContainer }>());
+	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[]; viewContainer: ViewContainer }> = this._onViewsDeregistered.event;
 
-	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>());
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._onDidChangeContainer.event;
+	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>());
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }> = this._onDidChangeContainer.event;
 
 	private readonly _onDidChangeViewWelcomeContent: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidChangeViewWelcomeContent: Event<string> = this._onDidChangeViewWelcomeContent.event;
@@ -431,7 +431,7 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 		this.registerViews2([{ views, viewContainer }]);
 	}
 
-	registerViews2(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void {
+	registerViews2(views: { views: IViewDescriptor[]; viewContainer: ViewContainer }[]): void {
 		views.forEach(({ views, viewContainer }) => this.addViews(views, viewContainer));
 		this._onViewsRegistered.fire(views);
 	}
@@ -575,7 +575,7 @@ export interface IViewsService {
 	readonly _serviceBrand: undefined;
 
 	// View Container APIs
-	readonly onDidChangeViewContainerVisibility: Event<{ id: string, visible: boolean, location: ViewContainerLocation }>;
+	readonly onDidChangeViewContainerVisibility: Event<{ id: string; visible: boolean; location: ViewContainerLocation }>;
 	isViewContainerVisible(id: string): boolean;
 	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null>;
 	closeViewContainer(id: string): void;
@@ -583,7 +583,7 @@ export interface IViewsService {
 	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null;
 
 	// View APIs
-	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }>;
+	readonly onDidChangeViewVisibility: Event<{ id: string; visible: boolean }>;
 	isViewVisible(id: string): boolean;
 	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
 	closeView(id: string): void;
@@ -605,7 +605,7 @@ export interface IViewDescriptorService {
 
 	// ViewContainers
 	readonly viewContainers: ReadonlyArray<ViewContainer>;
-	readonly onDidChangeViewContainers: Event<{ added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }> }>;
+	readonly onDidChangeViewContainers: Event<{ added: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>; removed: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }> }>;
 
 	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
 	getViewContainerById(id: string): ViewContainer | null;
@@ -615,7 +615,7 @@ export interface IViewDescriptorService {
 	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[];
 	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
 
-	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
+	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>;
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void;
 
 	// Views
@@ -624,10 +624,10 @@ export interface IViewDescriptorService {
 	getDefaultContainerById(id: string): ViewContainer | null;
 	getViewLocationById(id: string): ViewContainerLocation | null;
 
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>;
 	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState): void;
 
-	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
+	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[]; from: ViewContainerLocation; to: ViewContainerLocation }>;
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
 
 	reset(): void;
@@ -637,6 +637,7 @@ export interface IViewDescriptorService {
 
 export interface ITreeDataTransferItem {
 	asString(): Thenable<string>;
+	value: any;
 }
 
 export type ITreeDataTransfer = Map<string, ITreeDataTransferItem>;
@@ -713,8 +714,8 @@ export interface ITreeViewDescriptor extends IViewDescriptor {
 }
 
 export type TreeViewItemHandleArg = {
-	$treeViewId: string,
-	$treeItemHandle: string
+	$treeViewId: string;
+	$treeItemHandle: string;
 };
 
 export enum TreeItemCollapsibleState {
@@ -832,13 +833,14 @@ export interface ITreeViewDataProvider {
 }
 
 export interface ITreeViewDragAndDropController {
-	readonly supportedMimeTypes: string[];
-	handleDrag(sourceTreeItemHandles: string[], operationUuid: string): Promise<ITreeDataTransfer | undefined>;
-	handleDrop(elements: ITreeDataTransfer, target: ITreeItem, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
+	readonly dropMimeTypes: string[];
+	readonly dragMimeTypes: string[];
+	handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<ITreeDataTransfer | undefined>;
+	handleDrop(elements: ITreeDataTransfer, target: ITreeItem, token: CancellationToken, operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 }
 
 export interface IEditableData {
-	validationMessage: (value: string) => { content: string, severity: Severity } | null;
+	validationMessage: (value: string) => { content: string; severity: Severity } | null;
 	placeholder?: string | null;
 	startingValue?: string | null;
 	onFinish: (value: string, success: boolean) => Promise<void>;

@@ -35,7 +35,7 @@ suite('ExtHostTreeView', function () {
 			});
 		}
 
-		override $reveal(treeViewId: string, itemInfo: { item: ITreeItem, parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void> {
+		override $reveal(treeViewId: string, itemInfo: { item: ITreeItem; parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void> {
 			return Promise.resolve();
 		}
 

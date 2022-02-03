@@ -147,15 +147,15 @@ export class ModelService extends Disposable implements IModelService {
 	private readonly _onModelRemoved: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
 	public readonly onModelRemoved: Event<ITextModel> = this._onModelRemoved.event;
 
-	private readonly _onModelModeChanged = this._register(new Emitter<{ model: ITextModel; oldLanguageId: string; }>());
+	private readonly _onModelModeChanged = this._register(new Emitter<{ model: ITextModel; oldLanguageId: string }>());
 	public readonly onModelLanguageChanged = this._onModelModeChanged.event;
 
-	private _modelCreationOptionsByLanguageAndResource: { [languageAndResource: string]: ITextModelCreationOptions; };
+	private _modelCreationOptionsByLanguageAndResource: { [languageAndResource: string]: ITextModelCreationOptions };
 
 	/**
 	 * All the models known in the system.
 	 */
-	private readonly _models: { [modelId: string]: ModelData; };
+	private readonly _models: { [modelId: string]: ModelData };
 	private readonly _disposedModels: Map<string, DisposedModelInfo>;
 	private _disposedModelsHeapSize: number;
 	private readonly _semanticStyling: SemanticStyling;

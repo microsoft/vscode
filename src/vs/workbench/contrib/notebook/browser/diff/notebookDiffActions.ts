@@ -77,7 +77,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -132,7 +132,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -157,7 +157,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}
@@ -191,7 +191,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
 		if (!context) {
 			return;
 		}

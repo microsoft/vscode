@@ -58,7 +58,7 @@ export interface IWheelMessage extends BaseToWebviewMessage {
 
 export interface IScrollAckMessage extends BaseToWebviewMessage {
 	readonly type: 'scroll-ack';
-	readonly data: { top: number; };
+	readonly data: { top: number };
 	readonly version: number;
 }
 
@@ -167,22 +167,22 @@ export interface IOutputRequestMetadata {
 	/**
 	 * Additional attributes of a cell metadata.
 	 */
-	readonly custom?: { readonly [key: string]: unknown; };
+	readonly custom?: { readonly [key: string]: unknown };
 }
 
 export interface IOutputRequestDto {
 	/**
 	 * { mime_type: value }
 	 */
-	readonly data: { readonly [key: string]: unknown; };
+	readonly data: { readonly [key: string]: unknown };
 
 	readonly metadata?: IOutputRequestMetadata;
 	readonly outputId: string;
 }
 
 export type ICreationContent =
-	| { readonly type: RenderOutputType.Html; readonly htmlContent: string; }
-	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly valueBytes: Uint8Array; readonly metadata: unknown; readonly mimeType: string; };
+	| { readonly type: RenderOutputType.Html; readonly htmlContent: string }
+	| { readonly type: RenderOutputType.Extension; readonly outputId: string; readonly valueBytes: Uint8Array; readonly metadata: unknown; readonly mimeType: string };
 
 export interface ICreationRequestMessage {
 	readonly type: 'html';
@@ -367,7 +367,7 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; }
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean };
 }
 
 

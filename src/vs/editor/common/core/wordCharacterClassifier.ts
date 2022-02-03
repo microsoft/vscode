@@ -28,7 +28,7 @@ export class WordCharacterClassifier extends CharacterClassifier<WordCharacterCl
 }
 
 function once<R>(computeFn: (input: string) => R): (input: string) => R {
-	const cache: { [key: string]: R; } = {}; // TODO@Alex unbounded cache
+	const cache: { [key: string]: R } = {}; // TODO@Alex unbounded cache
 	return (input: string): R => {
 		if (!cache.hasOwnProperty(input)) {
 			cache[input] = computeFn(input);

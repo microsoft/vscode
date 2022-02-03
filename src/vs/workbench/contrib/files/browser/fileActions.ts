@@ -230,7 +230,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	}
 }
 
-function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
+function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string; detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
 		return {
 			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length),
@@ -259,7 +259,7 @@ function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: str
 	return { message: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
-function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
+function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string; detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
 		return {
 			message: nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length),
@@ -296,7 +296,7 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
+export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI; isDirectory?: boolean; allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
@@ -622,7 +622,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string, severity: Severity } | null {
+export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string; severity: Severity } | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 

@@ -210,7 +210,7 @@ registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
 export interface SelectionRangesOptions {
-	selectLeadingAndTrailingWhitespace: boolean
+	selectLeadingAndTrailingWhitespace: boolean;
 }
 
 export async function provideSelectionRanges(registry: LanguageFeatureRegistry<modes.SelectionRangeProvider>, model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {

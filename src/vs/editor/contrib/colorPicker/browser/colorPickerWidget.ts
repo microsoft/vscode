@@ -102,7 +102,7 @@ export class ColorPickerBody extends Disposable {
 		this.model.flushColor();
 	}
 
-	private onDidSaturationValueChange({ s, v }: { s: number, v: number }): void {
+	private onDidSaturationValueChange({ s, v }: { s: number; v: number }): void {
 		const hsva = this.model.color.hsva;
 		this.model.color = new Color(new HSVA(hsva.h, s, v, hsva.a));
 	}
@@ -135,8 +135,8 @@ class SaturationBox extends Disposable {
 	private height!: number;
 
 	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
-	private readonly _onDidChange = new Emitter<{ s: number, v: number }>();
-	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<{ s: number; v: number }>();
+	readonly onDidChange: Event<{ s: number; v: number }> = this._onDidChange.event;
 
 	private readonly _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
