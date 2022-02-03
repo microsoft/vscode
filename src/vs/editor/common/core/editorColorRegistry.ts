@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
-import { activeContrastBorder, editorBackground, editorForeground, registerColor, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, editorBackground, editorForeground, registerColor, registerColorWithSnippets, editorWarningForeground, editorInfoForeground, editorWarningBorder, editorInfoBorder, contrastBorder, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 /**
@@ -53,28 +53,37 @@ export const overviewRulerError = registerColor('editorOverviewRuler.errorForegr
 export const overviewRulerWarning = registerColor('editorOverviewRuler.warningForeground', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningBorder }, nls.localize('overviewRuleWarning', 'Overview ruler marker color for warnings.'));
 export const overviewRulerInfo = registerColor('editorOverviewRuler.infoForeground', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoBorder }, nls.localize('overviewRuleInfo', 'Overview ruler marker color for infos.'));
 
-export const editorBracketHighlightingForeground1 = registerColor('editorBracketHighlight.foreground1', { dark: '#FFD700', light: '#0431FAFF', hc: '#FFD700' }, nls.localize('editorBracketHighlightForeground1', 'Foreground color of brackets (1). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground2 = registerColor('editorBracketHighlight.foreground2', { dark: '#DA70D6', light: '#319331FF', hc: '#DA70D6' }, nls.localize('editorBracketHighlightForeground2', 'Foreground color of brackets (2). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground3 = registerColor('editorBracketHighlight.foreground3', { dark: '#179FFF', light: '#7B3814FF', hc: '#87CEFA' }, nls.localize('editorBracketHighlightForeground3', 'Foreground color of brackets (3). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground4 = registerColor('editorBracketHighlight.foreground4', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground4', 'Foreground color of brackets (4). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground5 = registerColor('editorBracketHighlight.foreground5', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground5', 'Foreground color of brackets (5). Requires enabling bracket pair colorization.'));
-export const editorBracketHighlightingForeground6 = registerColor('editorBracketHighlight.foreground6', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketHighlightForeground6', 'Foreground color of brackets (6). Requires enabling bracket pair colorization.'));
-
 export const editorBracketHighlightingUnexpectedBracketForeground = registerColor('editorBracketHighlight.unexpectedBracket.foreground', { dark: new Color(new RGBA(255, 18, 18, 0.8)), light: new Color(new RGBA(255, 18, 18, 0.8)), hc: new Color(new RGBA(255, 50, 50, 1)) }, nls.localize('editorBracketHighlightUnexpectedBracketForeground', 'Foreground color of unexpected brackets.'));
 
-export const editorBracketPairGuideBackground1 = registerColor('editorBracketPairGuide.background1', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.background1', 'Background color of inactive bracket pair guides (1). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideBackground2 = registerColor('editorBracketPairGuide.background2', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.background2', 'Background color of inactive bracket pair guides (2). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideBackground3 = registerColor('editorBracketPairGuide.background3', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.background3', 'Background color of inactive bracket pair guides (3). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideBackground4 = registerColor('editorBracketPairGuide.background4', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.background4', 'Background color of inactive bracket pair guides (4). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideBackground5 = registerColor('editorBracketPairGuide.background5', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.background5', 'Background color of inactive bracket pair guides (5). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideBackground6 = registerColor('editorBracketPairGuide.background6', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.background6', 'Background color of inactive bracket pair guides (6). Requires enabling bracket pair guides.'));
+export const editorBracketHighlightingForeground = registerColorWithSnippets('editorBracketHighlight.foreground',
+	{
+		dark: Color.fromHex(['#FFD700', '#DA70D6', '#179FFF']),
+		light: Color.fromHex(['#0431FAFF', '#319331FF', '#7B3814FF']),
+		hc: Color.fromHex(['#FFD700', '#DA70D6', '#87CEFA'])
+	},
+	nls.localize('editorBracketHighlightForeground', 'Foreground color of brackets. Requires enabling bracket pair colorization. Can be an array.'),
+	[{ body: ['#ff0000', '#ff8000', '#ffbf00', '#ffff00', '#bfff00', '#00ff00', '#00ffbf', '#00ffff', '#00bfff', '#0080ff', '#0066ff', '#0000ff', '#8000ff', '#bf00ff', '#ff00ff', '#ff00bf', '#ff0080'] }]
+);
 
-export const editorBracketPairGuideActiveBackground1 = registerColor('editorBracketPairGuide.activeBackground1', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground1', 'Background color of active bracket pair guides (1). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideActiveBackground2 = registerColor('editorBracketPairGuide.activeBackground2', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground2', 'Background color of active bracket pair guides (2). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideActiveBackground3 = registerColor('editorBracketPairGuide.activeBackground3', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground3', 'Background color of active bracket pair guides (3). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideActiveBackground4 = registerColor('editorBracketPairGuide.activeBackground4', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground4', 'Background color of active bracket pair guides (4). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideActiveBackground5 = registerColor('editorBracketPairGuide.activeBackground5', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground5', 'Background color of active bracket pair guides (5). Requires enabling bracket pair guides.'));
-export const editorBracketPairGuideActiveBackground6 = registerColor('editorBracketPairGuide.activeBackground6', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground6', 'Background color of active bracket pair guides (6). Requires enabling bracket pair guides.'));
+export const editorBracketPairGuideBackground = registerColorWithSnippets('editorBracketHighlight.background',
+	{
+		dark: Color.fromHex([]),
+		light: Color.fromHex([]),
+		hc: Color.fromHex([])
+	},
+	nls.localize('editorBracketPairGuide.background', 'Background color of inactive bracket pair guides. Requires enabling bracket pair guides. Can be an array.'),
+	[{ body: ['#FFD700', '#DA70D6', '#179FFF'] }]
+);
+
+export const editorBracketPairGuideActiveBackground = registerColorWithSnippets('editorBracketHighlight.activeBackground',
+	{
+		dark: Color.fromHex([]),
+		light: Color.fromHex([]),
+		hc: Color.fromHex([])
+	},
+	nls.localize('editorBracketPairGuide.activeBackground', 'Background color of active bracket pair guides. Requires enabling bracket pair guides. Can be an array.'),
+	[{ body: ['#FFD700', '#DA70D6', '#179FFF'] }]
+);
 
 export const editorUnicodeHighlightBorder = registerColor('editorUnicodeHighlight.border', { dark: '#BD9B03', light: '#CEA33D', hc: '#ff0000' }, nls.localize('editorUnicodeHighlight.border', 'Border color used to highlight unicode characters.'));
 

@@ -6,15 +6,15 @@
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import {
+	editorBracketHighlightingForeground, editorBracketHighlightingUnexpectedBracketForeground
+} from 'vs/editor/common/core/editorColorRegistry';
 import { Range } from 'vs/editor/common/core/range';
 import { BracketPairColorizationOptions, IModelDecoration } from 'vs/editor/common/model';
-import { BracketInfo } from 'vs/editor/common/textModelBracketPairs';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import {
-	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
-} from 'vs/editor/common/core/editorColorRegistry';
-import { IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { BracketInfo } from 'vs/editor/common/textModelBracketPairs';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class ColorizedBracketPairsDecorationProvider extends Disposable implements DecorationProvider {
 	private colorizationOptions: BracketPairColorizationOptions;
@@ -90,39 +90,8 @@ class ColorProvider {
 	}
 }
 
-function unpack(colors: string[], theme: IColorTheme): (Color | undefined)[] {
-	const result = colors.reduce((array: (Color | undefined)[], value) => {
-		const color = theme.getColor(value);
-
-		return array.concat(typeof color !== 'undefined' ? (color.array) : [color]);
-	}, []);
-
-	// // move undefined items to the end
-	// for (let index = 0; index < result.length; index++) {
-	// 	if (result[index] === undefined) {
-	// 		result.push(result.splice(index, 1)[0]);
-	// 	}
-	// }
-
-	// remove undefined items
-	for (let index = 0; index < result.length; index++) {
-		if (result[index] === undefined) {
-			result.splice(index, 1);
-		}
-	}
-
-	return result;
-}
-
 registerThemingParticipant((theme, collector) => {
-	const colors = unpack([
-		editorBracketHighlightingForeground1,
-		editorBracketHighlightingForeground2,
-		editorBracketHighlightingForeground3,
-		editorBracketHighlightingForeground4,
-		editorBracketHighlightingForeground5,
-		editorBracketHighlightingForeground6
-	], theme);
+	const colors = (theme.getColor(editorBracketHighlightingForeground) ?? { array: [] }).array;
 
 	const colorProvider = new ColorProvider();
 

@@ -5,7 +5,7 @@
 
 import 'vs/css!./indentGuides';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
-import { editorActiveIndentGuides, editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketPairGuideActiveBackground1, editorBracketPairGuideActiveBackground2, editorBracketPairGuideActiveBackground3, editorBracketPairGuideActiveBackground4, editorBracketPairGuideActiveBackground5, editorBracketPairGuideActiveBackground6, editorBracketPairGuideBackground1, editorBracketPairGuideBackground2, editorBracketPairGuideBackground3, editorBracketPairGuideBackground4, editorBracketPairGuideBackground5, editorBracketPairGuideBackground6, editorIndentGuides } from 'vs/editor/common/core/editorColorRegistry';
+import { editorActiveIndentGuides, editorBracketHighlightingForeground, editorBracketPairGuideActiveBackground, editorBracketPairGuideBackground, editorIndentGuides } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
@@ -17,6 +17,8 @@ import { Color } from 'vs/base/common/color';
 import { isDefined } from 'vs/base/common/types';
 import { BracketPairGuidesClassNames } from 'vs/editor/common/model/guidesTextModelPart';
 import { IndentGuide, HorizontalGuidesState } from 'vs/editor/common/textModelGuides';
+
+type BracketPairColorCollection = { bracketColor?: Color, guideColor?: Color, guideColorActive?: Color };
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
@@ -249,28 +251,15 @@ function transparentToUndefined(color: Color | undefined): Color | undefined {
 	return color;
 }
 
-function unpack(colors: string[], theme: IColorTheme): (Color | undefined)[] {
-	const result = colors.reduce((array: (Color | undefined)[], value) => {
-		const color = theme.getColor(value);
 
-		return array.concat(typeof color !== 'undefined' ? (color.array) : [color]);
-	}, []);
-
-	// // move undefined items to the end
-	// for (let index = 0; index < result.length; index++) {
-	// 	if (result[index] === undefined) {
-	// 		result.push(result.splice(index, 1)[0]);
-	// 	}
-	// }
-
-	// remove undefined items
-	for (let index = 0; index < result.length; index++) {
-		if (result[index] === undefined) {
-			result.splice(index, 1);
+function addToColorCollection(collectionArray: BracketPairColorCollection[], colorList: Color[], propName: keyof BracketPairColorCollection) {
+	colorList.forEach((value, index) => {
+		if (collectionArray[index] === undefined) {
+			collectionArray[index] = {};
 		}
-	}
 
-	return result;
+		collectionArray[index][propName] = value;
+	});
 }
 
 registerThemingParticipant((theme, collector) => {
@@ -283,78 +272,17 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .lines-content .core-guide-indent-active { box-shadow: 1px 0 0 0 ${editorActiveIndentGuidesColor} inset; }`);
 	}
 
-	const bracketColors = unpack([
-		editorBracketHighlightingForeground1,
-		editorBracketHighlightingForeground2,
-		editorBracketHighlightingForeground3,
-		editorBracketHighlightingForeground4,
-		editorBracketHighlightingForeground5,
-		editorBracketHighlightingForeground6,
-	], theme);
+	const bracketColors = theme.getColor(editorBracketHighlightingForeground) ?? { array: [] };
+	const guideColors = theme.getColor(editorBracketPairGuideBackground) ?? { array: [] };
+	const guideColorsActive = theme.getColor(editorBracketPairGuideActiveBackground) ?? { array: [] };
 
-	const guideColors = unpack([
-		editorBracketPairGuideBackground1,
-		editorBracketPairGuideBackground2,
-		editorBracketPairGuideBackground3,
-		editorBracketPairGuideBackground4,
-		editorBracketPairGuideBackground5,
-		editorBracketPairGuideBackground6,
-	], theme);
+	const colors: BracketPairColorCollection[] = [];
 
-	const guideColorsActive = unpack([
-		editorBracketPairGuideActiveBackground1,
-		editorBracketPairGuideActiveBackground2,
-		editorBracketPairGuideActiveBackground3,
-		editorBracketPairGuideActiveBackground4,
-		editorBracketPairGuideActiveBackground5,
-		editorBracketPairGuideActiveBackground6,
-	], theme);
-
-	const colors: { bracketColor?: Color, guideColor?: Color, guideColorActive?: Color }[] = [];
-
-	bracketColors.forEach((value, index) => {
-		if (colors[index] === undefined) {
-			colors[index] = {};
-		}
-
-		colors[index].bracketColor = value;
-	});
-
-	guideColors.forEach((value, index) => {
-		if (colors[index] === undefined) {
-			colors[index] = {};
-		}
-
-		colors[index].guideColor = value;
-	});
-
-	guideColorsActive.forEach((value, index) => {
-		if (colors[index] === undefined) {
-			colors[index] = {};
-		}
-
-		colors[index].guideColorActive = value;
-	});
-
-	// const colors = [
-	// 	{ bracketColor: editorBracketHighlightingForeground1, guideColor: editorBracketPairGuideBackground1, guideColorActive: editorBracketPairGuideActiveBackground1 },
-	// 	{ bracketColor: editorBracketHighlightingForeground2, guideColor: editorBracketPairGuideBackground2, guideColorActive: editorBracketPairGuideActiveBackground2 },
-	// 	{ bracketColor: editorBracketHighlightingForeground3, guideColor: editorBracketPairGuideBackground3, guideColorActive: editorBracketPairGuideActiveBackground3 },
-	// 	{ bracketColor: editorBracketHighlightingForeground4, guideColor: editorBracketPairGuideBackground4, guideColorActive: editorBracketPairGuideActiveBackground4 },
-	// 	{ bracketColor: editorBracketHighlightingForeground5, guideColor: editorBracketPairGuideBackground5, guideColorActive: editorBracketPairGuideActiveBackground5 },
-	// 	{ bracketColor: editorBracketHighlightingForeground6, guideColor: editorBracketPairGuideBackground6, guideColorActive: editorBracketPairGuideActiveBackground6 }
-	// ];
-
-	// const bracketColors: (Color | undefined)[] = [];
-
-	// const bracketColors = colors.reduce((array: (Color | undefined)[], value) => {
-	// 	const color = theme.getColor(value.bracketColor);
-
-	// 	return array.concat(typeof color !== 'undefined' ? (color.array) : [color]);
-	// }, []);
+	addToColorCollection(colors, bracketColors.array, 'bracketColor');
+	addToColorCollection(colors, guideColors.array, 'guideColor');
+	addToColorCollection(colors, guideColorsActive.array, 'guideColorActive');
 
 	const colorProvider = new BracketPairGuidesClassNames();
-
 
 	const colorValues = colors
 		.map(c => {

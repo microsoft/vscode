@@ -6,7 +6,7 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { assertNever } from 'vs/base/common/types';
 import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
@@ -121,9 +121,13 @@ class ColorRegistry implements IColorRegistry {
 	}
 
 	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
+		return this.registerColorWithSnippets(id, defaults, description, [{ body: '${1:#ff0000}' }], needsTransparency, deprecationMessage);
+	}
+
+	public registerColorWithSnippets(id: string, defaults: ColorDefaults | null, description: string, defaultSnippets: IJSONSchemaSnippet[], needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		let colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
-		let propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
+		let propertySchema: IJSONSchema = { type: ['string', 'array'], description, format: 'color-hex', defaultSnippets };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
@@ -188,6 +192,10 @@ platform.Registry.add(Extensions.ColorContribution, colorRegistry);
 
 export function registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
 	return colorRegistry.registerColor(id, defaults, description, needsTransparency, deprecationMessage);
+}
+
+export function registerColorWithSnippets(id: string, defaults: ColorDefaults | null, description: string, defaultSnippets: IJSONSchemaSnippet[], needsTransparency?: boolean, deprecationMessage?: string) {
+	return colorRegistry.registerColorWithSnippets(id, defaults, description, defaultSnippets, needsTransparency, deprecationMessage);
 }
 
 export function getColorRegistry(): IColorRegistry {
