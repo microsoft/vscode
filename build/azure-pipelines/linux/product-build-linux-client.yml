@@ -120,9 +120,9 @@ steps:
   - task: DownloadPipelineArtifact@2
     inputs:
       artifact: vscode_reh_node_modules-$(VSCODE_ARCH)
-      path: $(Agent.BuildDirectory)/remote/node_modules
+      path: $(Build.SourcesDirectory)/remote/node_modules
     displayName: Download server build dependencies
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
