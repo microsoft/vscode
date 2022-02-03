@@ -184,11 +184,12 @@ stages:
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: LinuxServerDependencies
+        dependsOn: [] # run in parallel to compile stage
         pool:
           vmImage: "Ubuntu-18.04"
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-              - job: LinuxServerx64
+              - job: x64
                 container: centos7-devtoolset8-x64
                 variables:
                   VSCODE_ARCH: x64
@@ -205,7 +206,7 @@ stages:
           vmImage: "Ubuntu-18.04"
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-              - job: LinuxClientx64
+              - job: Linuxx64
                 container: vscode-bionic-x64
                 variables:
                   VSCODE_ARCH: x64
@@ -217,7 +218,7 @@ stages:
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
               - job: LinuxSnap
                 dependsOn:
-                  - LinuxClientx64
+                  - Linuxx64
                 container: snapcraft
                 variables:
                   VSCODE_ARCH: x64
