@@ -200,13 +200,12 @@ stages:
       - stage: Linux
         dependsOn:
           - Compile
+          - LinuxServerDependencies
         pool:
           vmImage: "Ubuntu-18.04"
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - job: LinuxClientx64
-                dependsOn:
-                  - LinuxServerx64
                 container: vscode-bionic-x64
                 variables:
                   VSCODE_ARCH: x64
