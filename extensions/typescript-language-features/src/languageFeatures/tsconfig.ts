@@ -19,8 +19,8 @@ function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): 
 
 const openExtendsLinkCommandId = '_typescript.openExtendsLink';
 type OpenExtendsLinkCommandArgs = {
-	resourceUri: vscode.Uri
-	extendsValue: string
+	resourceUri: vscode.Uri;
+	extendsValue: string;
 };
 
 const localize = nls.loadMessageBundle();
