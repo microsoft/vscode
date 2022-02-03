@@ -24,6 +24,7 @@ else
 				compile-extension:typescript-language-features \
 				compile-extension:emmet \
 				compile-extension:git \
+				compile-extension:ipynb \
 				compile-extension-media
 fi
 
@@ -63,3 +64,9 @@ echo
 echo "### Git tests"
 echo
 node test/integration/browser/out/index.js --workspacePath $(mktemp -d 2>/dev/null) --enable-proposed-api=vscode.git --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test "$@"
+
+echo
+echo "### Ipynb tests"
+echo
+node test/integration/browser/out/index.js --workspacePath $(mktemp -d 2>/dev/null) --enable-proposed-api=vscode.ipynb --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test "$@"
+

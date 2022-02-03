@@ -113,7 +113,7 @@ class Extension implements IExtension {
 		return this.local!.manifest.publisher;
 	}
 
-	get publisherDomain(): { link: string, verified: boolean; } | undefined {
+	get publisherDomain(): { link: string; verified: boolean } | undefined {
 		return this.gallery?.publisherDomain;
 	}
 
@@ -187,7 +187,7 @@ class Extension implements IExtension {
 	}
 
 	public isMalicious: boolean = false;
-	public isUnsupported: boolean | { preReleaseExtension: { id: string, displayName: string; }; } = false;
+	public isUnsupported: boolean | { preReleaseExtension: { id: string; displayName: string } } = false;
 
 	get installCount(): number | undefined {
 		return this.gallery ? this.gallery.installCount : undefined;
@@ -374,8 +374,8 @@ class Extensions extends Disposable {
 		}
 	}
 
-	private readonly _onChange: Emitter<{ extension: Extension, operation?: InstallOperation; } | undefined> = this._register(new Emitter<{ extension: Extension, operation?: InstallOperation; } | undefined>());
-	get onChange(): Event<{ extension: Extension, operation?: InstallOperation; } | undefined> { return this._onChange.event; }
+	private readonly _onChange: Emitter<{ extension: Extension; operation?: InstallOperation } | undefined> = this._register(new Emitter<{ extension: Extension; operation?: InstallOperation } | undefined>());
+	get onChange(): Event<{ extension: Extension; operation?: InstallOperation } | undefined> { return this._onChange.event; }
 
 	private installing: Extension[] = [];
 	private uninstalling: Extension[] = [];
@@ -1307,7 +1307,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.doSetEnablement(allExtensions, enablementState);
 	}
 
-	private getExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, options: { dependencies: boolean, pack: boolean; }, checked: IExtension[] = []): IExtension[] {
+	private getExtensionsRecursively(extensions: IExtension[], installed: IExtension[], enablementState: EnablementState, options: { dependencies: boolean; pack: boolean }, checked: IExtension[] = []): IExtension[] {
 		const toCheck = extensions.filter(e => checked.indexOf(e) === -1);
 		if (toCheck.length) {
 			for (const extension of toCheck) {

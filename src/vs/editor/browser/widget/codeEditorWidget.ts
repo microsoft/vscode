@@ -227,8 +227,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
 
-	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
-	protected _actions: { [key: string]: editorCommon.IEditorAction; };
+	protected _contributions: { [key: string]: editorCommon.IEditorContribution };
+	protected _actions: { [key: string]: editorCommon.IEditorAction };
 
 	// --- Members logically associated to a model
 	protected _modelData: ModelData | null;
@@ -242,8 +242,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _focusTracker: CodeEditorWidgetFocusTracker;
 
-	private _contentWidgets: { [key: string]: IContentWidgetData; };
-	private _overlayWidgets: { [key: string]: IOverlayWidgetData; };
+	private _contentWidgets: { [key: string]: IContentWidgetData };
+	private _overlayWidgets: { [key: string]: IOverlayWidgetData };
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -421,7 +421,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return WordOperations.getWordAtPosition(this._modelData.model, this._configuration.options.get(EditorOption.wordSeparators), position);
 	}
 
-	public getValue(options: { preserveBOM: boolean; lineEnding: string; } | null = null): string {
+	public getValue(options: { preserveBOM: boolean; lineEnding: string } | null = null): string {
 		if (!this._modelData) {
 			return '';
 		}
@@ -1463,7 +1463,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.view.getTargetAtClientPoint(clientX, clientY);
 	}
 
-	public getScrolledVisiblePosition(rawPosition: IPosition): { top: number; left: number; height: number; } | null {
+	public getScrolledVisiblePosition(rawPosition: IPosition): { top: number; left: number; height: number } | null {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return null;
 		}
@@ -1754,7 +1754,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
 	}
 
-	public getTelemetryData(): { [key: string]: any; } | undefined {
+	public getTelemetryData(): { [key: string]: any } | undefined {
 		return this._telemetryData;
 	}
 

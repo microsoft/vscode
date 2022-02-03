@@ -124,10 +124,7 @@ export class CommentNode extends Disposable {
 
 	private updateCommentBody(body: string | IMarkdownString) {
 		this._body.innerText = '';
-		if (this._md) {
-			this._body.removeChild(this._md);
-			this._md = undefined;
-		}
+		this._md = undefined;
 		if (typeof body === 'string') {
 			this._body.innerText = body;
 		} else {
@@ -179,7 +176,7 @@ export class CommentNode extends Disposable {
 		this.createActionsToolbar();
 	}
 
-	private getToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[] } {
+	private getToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const contributedActions = menu.getActions({ shouldForwardArgs: true });
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -576,7 +573,7 @@ export class CommentNode extends Disposable {
 	}
 }
 
-function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[] }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (useAlternativeActions) {

@@ -79,9 +79,9 @@ suite('EditorGroupModel', () => {
 	}
 
 	interface GroupEvents {
-		locked: number[],
-		active: number[],
-		index: number[],
+		locked: number[];
+		active: number[];
+		index: number[];
 		opened: IEditorOpenEvent[];
 		activated: EditorInput[];
 		closed: IEditorCloseEvent[];

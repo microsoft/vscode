@@ -50,7 +50,7 @@ const ACTION_PADDING = 8;
 
 interface IActionLayoutStrategy {
 	actionProvider: IActionViewItemProvider;
-	calculateActions(leftToolbarContainerMaxWidth: number): { primaryActions: IAction[], secondaryActions: IAction[] };
+	calculateActions(leftToolbarContainerMaxWidth: number): { primaryActions: IAction[]; secondaryActions: IAction[] };
 }
 
 class FixedLabelStrategy implements IActionLayoutStrategy {

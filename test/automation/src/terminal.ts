@@ -55,10 +55,10 @@ export enum TerminalCommandId {
 	CreateNew = 'workbench.action.terminal.new'
 }
 interface TerminalLabel {
-	name?: string,
-	description?: string,
-	icon?: string,
-	color?: string
+	name?: string;
+	description?: string;
+	icon?: string;
+	color?: string;
 }
 type TerminalGroup = TerminalLabel[];
 

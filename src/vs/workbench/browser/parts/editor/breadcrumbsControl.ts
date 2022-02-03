@@ -362,7 +362,7 @@ export class BreadcrumbsControl {
 		this._editorGroup.focus();
 
 		type BreadcrumbSelect = { type: string };
-		type BreadcrumbSelectClassification = { type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }; };
+		type BreadcrumbSelectClassification = { type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' } };
 		this._telemetryService.publicLog2<BreadcrumbSelect, BreadcrumbSelectClassification>('breadcrumbs/select', { type: event.item instanceof OutlineItem ? 'symbol' : 'file' });
 
 		const group = this._getEditorGroup(event.payload);
@@ -386,7 +386,7 @@ export class BreadcrumbsControl {
 		let picker: BreadcrumbsPicker;
 		let pickerAnchor: { x: number; y: number };
 
-		interface IHideData { didPick?: boolean, source?: BreadcrumbsControl }
+		interface IHideData { didPick?: boolean; source?: BreadcrumbsControl }
 
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {

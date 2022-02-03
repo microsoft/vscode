@@ -28,12 +28,12 @@ import { TasksSynchroniser } from 'vs/platform/userDataSync/common/tasksSync';
 import { ALL_SYNC_RESOURCES, Change, createSyncHeaders, IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncResourcePreview, ISyncTask, IUserDataManifest, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncService, IUserDataSyncStoreManagementService, IUserDataSyncStoreService, MergeState, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, UserDataSyncStoreError, USER_DATA_SYNC_CONFIGURATION_SCOPE } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncErrorClassification = {
-	code: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	service: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	serverCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	url?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	executionId?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
@@ -309,7 +309,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return result || [];
 	}
 
-	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
+	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
 		const result = await this.performSynchronizerAction(async synchronizer => {
 			if (synchronizer.resource === resource) {
 				return synchronizer.getAssociatedResources(syncResourceHandle);
@@ -455,7 +455,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	}
 
 	private reportUserDataSyncError(userDataSyncError: UserDataSyncError, executionId: string) {
-		this.telemetryService.publicLog2<{ code: string, service: string, serverCode?: string, url?: string, resource?: string, executionId?: string }, SyncErrorClassification>('sync/error',
+		this.telemetryService.publicLog2<{ code: string; service: string; serverCode?: string; url?: string; resource?: string; executionId?: string }, SyncErrorClassification>('sync/error',
 			{
 				code: userDataSyncError.code,
 				serverCode: userDataSyncError instanceof UserDataSyncStoreError ? String(userDataSyncError.serverCode) : undefined,

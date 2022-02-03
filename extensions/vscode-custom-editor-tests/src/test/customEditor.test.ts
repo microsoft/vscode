@@ -21,7 +21,7 @@ const commands = Object.freeze({
 	undo: 'undo',
 });
 
-async function writeRandomFile(options: { ext: string; contents: string; }): Promise<vscode.Uri> {
+async function writeRandomFile(options: { ext: string; contents: string }): Promise<vscode.Uri> {
 	const fakeFile = randomFilePath({ root: testWorkspaceRoot, ext: options.ext });
 	await fs.promises.writeFile(fakeFile.fsPath, Buffer.from(options.contents));
 	return fakeFile;

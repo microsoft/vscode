@@ -413,7 +413,7 @@ export class ExplorerItem {
 	 * Tells this stat that it was renamed. This requires changes to all children of this stat (if any)
 	 * so that the path property can be updated properly.
 	 */
-	rename(renamedStat: { name: string, mtime?: number }): void {
+	rename(renamedStat: { name: string; mtime?: number }): void {
 
 		// Merge a subset of Properties that can change on rename
 		this.updateName(renamedStat.name);

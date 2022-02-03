@@ -61,7 +61,7 @@ suite('linked editing', () => {
 
 	function testCase(
 		name: string,
-		initialState: { text: string | string[], responseWordPattern?: RegExp },
+		initialState: { text: string | string[]; responseWordPattern?: RegExp },
 		operations: (editor: TestEditor) => Promise<void>,
 		expectedEndText: string | string[]
 	) {

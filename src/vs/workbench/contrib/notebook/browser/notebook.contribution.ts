@@ -148,7 +148,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number; };
+		type Data = { resource: URI; originalResource: URI; name: string; originalName: string; viewType: string; textDiffName: string | undefined; group: number };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
@@ -167,7 +167,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 	}
 
 }
-type SerializedNotebookEditorData = { resource: URI, viewType: string, options?: NotebookEditorInputOptions };
+type SerializedNotebookEditorData = { resource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
@@ -377,7 +377,7 @@ class CellInfoContentProvider {
 		return result;
 	}
 
-	private parseStreamOutput(op?: ICellOutput): { content: string, mode: ILanguageSelection } | undefined {
+	private parseStreamOutput(op?: ICellOutput): { content: string; mode: ILanguageSelection } | undefined {
 		if (!op) {
 			return;
 		}
@@ -398,7 +398,7 @@ class CellInfoContentProvider {
 		handle: number;
 		outputId?: string | undefined;
 	}, cell: NotebookCellTextModel) {
-		let result: { content: string, mode: ILanguageSelection } | undefined = undefined;
+		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
 
 		const mode = this._languageService.createById('json');
 		const op = cell.outputs.find(op => op.outputId === data.outputId);
@@ -636,7 +636,7 @@ registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingSe
 registerSingleton(INotebookKeymapService, NotebookKeymapService, true);
 
 const schemas: IJSONSchemaMap = {};
-function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }): x is IConfigurationPropertySchema {
+function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
 	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
 }
 for (const editorOption of editorOptionsRegistry) {

@@ -161,7 +161,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
-	private pendingSettingUpdate: { key: string, value: any; } | null = null;
+	private pendingSettingUpdate: { key: string; value: any } | null = null;
 
 	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel | null = null;
@@ -931,7 +931,7 @@ export class SettingsEditor2 extends EditorPane {
 			});
 	}
 
-	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[] | null, rawResults: ISearchResult[] | null, showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget; }): void {
+	private reportModifiedSetting(props: { key: string; query: string; searchResults: ISearchResult[] | null; rawResults: ISearchResult[] | null; showConfiguredOnly: boolean; isReset: boolean; settingsTarget: SettingsTarget }): void {
 		this.pendingSettingUpdate = null;
 
 		let groupId: string | undefined = undefined;
@@ -1291,7 +1291,7 @@ export class SettingsEditor2 extends EditorPane {
 		};
 
 		// Count unique results
-		const counts: { nlpResult?: number, filterResult?: number; } = {};
+		const counts: { nlpResult?: number; filterResult?: number } = {};
 		const filterResult = results[SearchResultIdx.Local];
 		if (filterResult) {
 			counts['filterResult'] = filterResult.filterMatches.length;

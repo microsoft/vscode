@@ -22,7 +22,7 @@ export interface INativeEnvironmentPaths {
 	 *
 	 * Only one instance of VSCode can use the same `userDataDir`.
 	 */
-	userDataDir: string
+	userDataDir: string;
 
 	/**
 	 * The user home directory mainly used for persisting extensions
@@ -34,7 +34,7 @@ export interface INativeEnvironmentPaths {
 	/**
 	 * OS tmp dir.
 	 */
-	tmpDir: string,
+	tmpDir: string;
 }
 
 export abstract class AbstractNativeEnvironmentService implements INativeEnvironmentService {

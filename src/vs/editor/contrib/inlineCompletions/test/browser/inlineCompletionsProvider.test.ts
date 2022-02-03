@@ -540,8 +540,8 @@ suite('Inline Completions', () => {
 
 async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 	text: string,
-	options: TestCodeEditorInstantiationOptions & { provider?: InlineCompletionsProvider, fakeClock?: boolean },
-	callback: (args: { editor: ITestCodeEditor, editorViewModel: ViewModel, model: InlineCompletionsModel, context: GhostTextContext }) => Promise<T>
+	options: TestCodeEditorInstantiationOptions & { provider?: InlineCompletionsProvider; fakeClock?: boolean },
+	callback: (args: { editor: ITestCodeEditor; editorViewModel: ViewModel; model: InlineCompletionsModel; context: GhostTextContext }) => Promise<T>
 ): Promise<T> {
 	return await runWithFakedTimers({
 		useFakeTimers: options.fakeClock,

@@ -265,7 +265,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return defaultUriScheme ?? this.pathService.defaultUriScheme;
 	}
 
-	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {
+	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[]; defaultUri?: URI }): string {
 		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow(options.defaultUri?.scheme);
 	}
 
@@ -295,7 +295,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			availableFileSystems
 		};
 
-		interface IFilter { name: string; extensions: string[]; }
+		interface IFilter { name: string; extensions: string[] }
 
 		// Build the file filter by using our known languages
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;

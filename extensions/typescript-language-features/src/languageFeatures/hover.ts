@@ -68,7 +68,8 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			displayParts.push(data.displayString);
 			parts.push(new vscode.MarkdownString().appendCodeblock(displayParts.join(' '), 'typescript'));
 		}
-		parts.push(markdownDocumentation(data.documentation, data.tags, this.client));
+		const md = markdownDocumentation(data.documentation, data.tags, this.client, resource);
+		parts.push(md);
 		return parts;
 	}
 }

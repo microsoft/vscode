@@ -181,7 +181,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 interface ISerializedCommandHistory {
 	usesLRU?: boolean;
-	entries: { key: string; value: number; }[];
+	entries: { key: string; value: number }[];
 }
 
 interface ICommandsQuickAccessConfiguration {
@@ -244,7 +244,7 @@ export class CommandsHistory extends Disposable {
 
 		const cache = CommandsHistory.cache = new LRUCache<string, number>(this.configuredCommandsHistoryLength, 1);
 		if (serializedCache) {
-			let entries: { key: string; value: number; }[];
+			let entries: { key: string; value: number }[];
 			if (serializedCache.usesLRU) {
 				entries = serializedCache.entries;
 			} else {

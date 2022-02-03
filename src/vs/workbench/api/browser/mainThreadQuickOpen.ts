@@ -14,7 +14,7 @@ interface QuickInputSession {
 	handlesToItems: Map<number, TransferQuickPickItem>;
 }
 
-function reviveIconPathUris(iconPath: { dark: URI; light?: URI | undefined; }) {
+function reviveIconPathUris(iconPath: { dark: URI; light?: URI | undefined }) {
 	iconPath.dark = URI.revive(iconPath.dark);
 	if (iconPath.light) {
 		iconPath.light = URI.revive(iconPath.light);

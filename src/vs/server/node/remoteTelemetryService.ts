@@ -11,7 +11,7 @@ import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry
 import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export interface IRemoteTelemetryService extends ITelemetryService {
-	updateInjectedTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>
+	updateInjectedTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>;
 }
 
 interface CachedTelemetryEvent {

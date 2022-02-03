@@ -285,7 +285,7 @@ export class HitTestContext {
 		return null;
 	}
 
-	public getFullLineRangeAtCoord(mouseVerticalOffset: number): { range: EditorRange; isAfterLines: boolean; } {
+	public getFullLineRangeAtCoord(mouseVerticalOffset: number): { range: EditorRange; isAfterLines: boolean } {
 		if (this._context.viewLayout.isAfterLines(mouseVerticalOffset)) {
 			// Below the last line
 			const lineNumber = this._context.viewModel.getLineCount();
@@ -794,7 +794,7 @@ export class MouseTargetFactory {
 		}
 
 		// Let's define a, b, c and check if the offset is in between them...
-		interface OffsetColumn { offset: number; column: number; }
+		interface OffsetColumn { offset: number; column: number }
 
 		const points: OffsetColumn[] = [];
 		points.push({ offset: visibleRange.left, column: column });
@@ -911,7 +911,7 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
-		const hitResult: { offsetNode: Node; offset: number; } = (<any>document).caretPositionFromPoint(coords.clientX, coords.clientY);
+		const hitResult: { offsetNode: Node; offset: number } = (<any>document).caretPositionFromPoint(coords.clientX, coords.clientY);
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
 			// offsetNode is expected to be the token text
@@ -1052,7 +1052,7 @@ class CharWidthReader {
 		return CharWidthReader._INSTANCE;
 	}
 
-	private readonly _cache: { [cacheKey: string]: number; };
+	private readonly _cache: { [cacheKey: string]: number };
 	private readonly _canvas: HTMLCanvasElement;
 
 	private constructor() {

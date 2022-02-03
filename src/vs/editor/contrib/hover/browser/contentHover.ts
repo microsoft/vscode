@@ -483,7 +483,7 @@ class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 		this.actionsElement = dom.append(this.hoverElement, $('div.actions'));
 	}
 
-	public addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IEditorHoverAction {
+	public addAction(actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }): IEditorHoverAction {
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
 		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
 		this._hasContent = true;

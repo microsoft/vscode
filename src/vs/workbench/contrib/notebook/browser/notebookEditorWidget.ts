@@ -327,7 +327,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _localCellStateListeners: DisposableStore[] = [];
 	private _fontInfo: FontInfo | undefined;
 	private _dimension: DOM.Dimension | null = null;
-	private _shadowElementViewInfo: { height: number, width: number, top: number; left: number; } | null = null;
+	private _shadowElementViewInfo: { height: number; width: number; top: number; left: number } | null = null;
 
 	private readonly _editorFocus: IContextKey<boolean>;
 	private readonly _outputFocus: IContextKey<boolean>;
@@ -1146,9 +1146,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
 			}
 			type WorkbenchNotebookOpenClassification = {
-				scheme: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-				ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-				viewType: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 
 			type WorkbenchNotebookOpenEvent = {
@@ -1631,7 +1631,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			// no cached view state so we are rendering the first viewport
 			// after above async call, we already get init height for markdown cells, we can update their offset
 			let offset = 0;
-			const offsetUpdateRequests: { id: string, top: number; }[] = [];
+			const offsetUpdateRequests: { id: string; top: number }[] = [];
 			const scrollBottom = Math.max(this._dimension?.height ?? 0, 1080);
 			for (const cell of viewModel.viewCells) {
 				if (cell.cellKind === CellKind.Markup) {
@@ -1708,7 +1708,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		if (this._list) {
 			state.scrollPosition = { left: this._list.scrollLeft, top: this._list.scrollTop };
-			const cellHeights: { [key: number]: number; } = {};
+			const cellHeights: { [key: number]: number } = {};
 			for (let i = 0; i < this.viewModel!.length; i++) {
 				const elm = this.viewModel!.cellAt(i) as CellViewModel;
 				if (elm.cellKind === CellKind.Code) {
@@ -1734,7 +1734,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		// Save contribution view states
-		const contributionsState: { [key: string]: unknown; } = {};
+		const contributionsState: { [key: string]: unknown } = {};
 		for (const [id, contribution] of this._contributions) {
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
@@ -2782,7 +2782,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._webview.removeInsets(removedItems);
 
-		const markdownUpdateItems: { id: string, top: number; }[] = [];
+		const markdownUpdateItems: { id: string; top: number }[] = [];
 		for (const cellId of this._webview.markupPreviewMapping.keys()) {
 			const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
 			if (cell) {
@@ -2857,7 +2857,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
-	private _didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
+	private _didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void {
 		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			const webviewOffset = this._list.webviewElement ? -parseInt(this._list.webviewElement.domNode.style.top, 10) : 0;
@@ -2865,7 +2865,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
-	private _didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
+	private _didDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void {
 		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			const webviewOffset = this._list.webviewElement ? -parseInt(this._list.webviewElement.domNode.style.top, 10) : 0;
@@ -2873,7 +2873,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 	}
 
-	private _didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void {
+	private _didDropMarkupCell(cellId: string, event: { dragOffsetY: number; ctrlKey: boolean; altKey: boolean }): void {
 		const cell = this._getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			const webviewOffset = this._list.webviewElement ? -parseInt(this._list.webviewElement.domNode.style.top, 10) : 0;
@@ -2931,7 +2931,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		super.dispose();
 	}
 
-	toJSON(): { notebookUri: URI | undefined; } {
+	toJSON(): { notebookUri: URI | undefined } {
 		return {
 			notebookUri: this.viewModel?.uri,
 		};

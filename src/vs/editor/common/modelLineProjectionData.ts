@@ -264,7 +264,7 @@ export class ModelLineProjectionData {
 		};
 	}
 
-	private getInjectedTextAtOffset(offsetInInputWithInjections: number): { injectedTextIndex: number, offsetInInputWithInjections: number, length: number } | undefined {
+	private getInjectedTextAtOffset(offsetInInputWithInjections: number): { injectedTextIndex: number; offsetInInputWithInjections: number; length: number } | undefined {
 		const injectionOffsets = this.injectionOffsets;
 		const injectionOptions = this.injectionOptions;
 

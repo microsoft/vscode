@@ -64,14 +64,14 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		context: vscode.ExtensionContext,
 		onCaseInsensitiveFileSystem: boolean,
 		services: {
-			pluginManager: PluginManager,
-			commandManager: CommandManager,
-			logDirectoryProvider: ILogDirectoryProvider,
-			cancellerFactory: OngoingRequestCancellerFactory,
-			versionProvider: ITypeScriptVersionProvider,
-			processFactory: TsServerProcessFactory,
-			activeJsTsEditorTracker: ActiveJsTsEditorTracker,
-			serviceConfigurationProvider: ServiceConfigurationProvider,
+			pluginManager: PluginManager;
+			commandManager: CommandManager;
+			logDirectoryProvider: ILogDirectoryProvider;
+			cancellerFactory: OngoingRequestCancellerFactory;
+			versionProvider: ITypeScriptVersionProvider;
+			processFactory: TsServerProcessFactory;
+			activeJsTsEditorTracker: ActiveJsTsEditorTracker;
+			serviceConfigurationProvider: ServiceConfigurationProvider;
 		},
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
@@ -268,11 +268,11 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private createMarkerDatas(
 		diagnostics: Proto.Diagnostic[],
 		source: string
-	): (vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any })[] {
+	): (vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any })[] {
 		return diagnostics.map(tsDiag => this.tsDiagnosticToVsDiagnostic(tsDiag, source));
 	}
 
-	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any } {
+	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
 		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));
@@ -299,7 +299,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		}
 		converted.tags = tags.length ? tags : undefined;
 
-		const resultConverted = converted as vscode.Diagnostic & { reportUnnecessary: any, reportDeprecated: any };
+		const resultConverted = converted as vscode.Diagnostic & { reportUnnecessary: any; reportDeprecated: any };
 		resultConverted.reportUnnecessary = diagnostic.reportsUnnecessary;
 		resultConverted.reportDeprecated = diagnostic.reportsDeprecated;
 		return resultConverted;

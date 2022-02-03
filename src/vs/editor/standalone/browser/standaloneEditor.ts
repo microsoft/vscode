@@ -112,7 +112,7 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
  *
  * @returns list of markers
  */
-export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
+export function getModelMarkers(filter: { owner?: string; resource?: URI; take?: number }): IMarker[] {
 	const markerService = StandaloneServices.get(IMarkerService);
 	return markerService.read(filter);
 }
@@ -164,7 +164,7 @@ export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisp
  * Emitted when a different language is set to a model.
  * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable {
+export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string }) => void): IDisposable {
 	const modelService = StandaloneServices.get(IModelService);
 	return modelService.onModelLanguageChanged((e) => {
 		listener({

@@ -35,10 +35,10 @@ export const manageTrustedDomainSettingsCommand = {
 	}
 };
 
-type ConfigureTrustedDomainsQuickPickItem = IQuickPickItem & ({ id: 'manage'; } | { id: 'trust'; toTrust: string });
+type ConfigureTrustedDomainsQuickPickItem = IQuickPickItem & ({ id: 'manage' } | { id: 'trust'; toTrust: string });
 
 type ConfigureTrustedDomainsChoiceClassification = {
-	choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	choice: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export async function configureOpenerTrustedDomainsHandler(

@@ -25,7 +25,7 @@ export class FileElement {
 	) { }
 }
 
-type FileInfo = { path: FileElement[], folder?: IWorkspaceFolder };
+type FileInfo = { path: FileElement[]; folder?: IWorkspaceFolder };
 
 export class OutlineElement2 {
 	constructor(

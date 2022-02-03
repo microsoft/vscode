@@ -13,7 +13,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { URI } from 'vs/base/common/uri';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
@@ -23,7 +22,6 @@ export interface IMarkdownRenderResult extends IDisposable {
 
 export interface IMarkdownRendererOptions {
 	editor?: ICodeEditor;
-	baseUrl?: URI;
 	codeBlockFontFamily?: string;
 }
 
@@ -68,7 +66,6 @@ export class MarkdownRenderer {
 
 	protected _getRenderOptions(markdown: IMarkdownString, disposeables: DisposableStore): MarkdownRenderOptions {
 		return {
-			baseUrl: this._options.baseUrl,
 			codeBlockRenderer: async (languageAlias, value) => {
 				// In markdown,
 				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)

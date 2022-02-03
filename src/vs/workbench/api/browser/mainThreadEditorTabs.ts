@@ -23,7 +23,7 @@ export class MainThreadEditorTabs {
 	private readonly _dispoables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
-	private _currentlyActiveTab: { groupId: number, tab: IEditorTabDto } | undefined = undefined;
+	private _currentlyActiveTab: { groupId: number; tab: IEditorTabDto } | undefined = undefined;
 
 	constructor(
 		extHostContext: IExtHostContext,

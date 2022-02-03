@@ -179,7 +179,7 @@ function depth(n: TreeNode): number {
 	return (n.color === NodeColor.Black ? 1 : 0) + depth(n.left);
 }
 
-function assertValidNode(n: TreeNode): { size: number, lf_cnt: number } {
+function assertValidNode(n: TreeNode): { size: number; lf_cnt: number } {
 	if (n === SENTINEL) {
 		return { size: 0, lf_cnt: 0 };
 	}

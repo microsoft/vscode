@@ -8,6 +8,7 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+// eslint-disable-next-line code-import-patterns
 import { ILocationDto } from 'vs/workbench/api/common/extHost.protocol';
 
 export const enum TestResultState {
@@ -76,7 +77,7 @@ export interface ExtensionRunTestsRequest {
 	include: string[];
 	exclude: string[];
 	controllerId: string;
-	profile?: { group: TestRunProfileBitset, id: number };
+	profile?: { group: TestRunProfileBitset; id: number };
 	persist: boolean;
 }
 
@@ -221,7 +222,7 @@ export interface TestResultItem extends InternalTestItem {
 }
 
 export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
-	& { children: string[], retired: undefined };
+	& { children: string[]; retired: undefined };
 
 /**
  * Test results serialized for transport and storage.

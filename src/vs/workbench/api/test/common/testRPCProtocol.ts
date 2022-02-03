@@ -37,8 +37,8 @@ export class TestRPCProtocol implements IExtHostContext, IExtHostRpcService {
 	private _idle?: Promise<any>;
 	private _completeIdle?: Function;
 
-	private readonly _locals: { [id: string]: any; };
-	private readonly _proxies: { [id: string]: any; };
+	private readonly _locals: { [id: string]: any };
+	private readonly _proxies: { [id: string]: any };
 
 	constructor() {
 		this._locals = Object.create(null);

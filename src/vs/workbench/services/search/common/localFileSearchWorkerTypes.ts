@@ -20,17 +20,17 @@ export type SearchWorkerFileSystemHandle = ISearchWorkerFileSystemDirectoryHandl
 
 // Minimal interface needed from DOM's FileSystemFileHandle, which is not available in this scope
 export interface ISearchWorkerFileSystemFileHandle {
-	name: string
-	kind: 'file'
-	getFile(): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>
+	name: string;
+	kind: 'file';
+	getFile(): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
 }
 
 // Minimal interface needed from DOM's FileSystemDirectoryHandle, which is not available in this scope
 export interface ISearchWorkerFileSystemDirectoryHandle {
-	name: string
-	kind: 'directory'
-	getFileHandle(name: string): Promise<ISearchWorkerFileSystemFileHandle>
-	entries(): AsyncIterable<[string, SearchWorkerFileSystemHandle]>
+	name: string;
+	kind: 'directory';
+	getFileHandle(name: string): Promise<ISearchWorkerFileSystemFileHandle>;
+	entries(): AsyncIterable<[string, SearchWorkerFileSystemHandle]>;
 }
 
 export interface ILocalFileSearchSimpleWorker {
@@ -38,10 +38,10 @@ export interface ILocalFileSearchSimpleWorker {
 
 	cancelQuery(queryId: number): void;
 
-	listDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, queryId: number): Promise<IWorkerFileSearchComplete>
-	searchDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, queryId: number): Promise<IWorkerTextSearchComplete>
+	listDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete>;
+	searchDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete>;
 }
 
 export interface ILocalFileSearchSimpleWorkerHost {
-	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void
+	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void;
 }

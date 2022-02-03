@@ -141,7 +141,7 @@ export class CodeActionMenu extends Disposable {
 		return result;
 	}
 
-	private _toCoords(position: IPosition): { x: number, y: number } {
+	private _toCoords(position: IPosition): { x: number; y: number } {
 		if (!this._editor.hasModel()) {
 			return { x: 0, y: 0 };
 		}
@@ -169,7 +169,7 @@ export class CodeActionKeybindingResolver {
 
 	constructor(
 		private readonly _keybindingProvider: {
-			getKeybindings(): readonly ResolvedKeybindingItem[],
+			getKeybindings(): readonly ResolvedKeybindingItem[];
 		},
 	) { }
 

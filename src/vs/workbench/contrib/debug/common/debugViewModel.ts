@@ -17,7 +17,7 @@ export class ViewModel implements IViewModel {
 	private _focusedThread: IThread | undefined;
 	private selectedExpression: { expression: IExpression; settingWatch: boolean } | undefined;
 	private readonly _onDidFocusSession = new Emitter<IDebugSession | undefined>();
-	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined, explicit: boolean }>();
+	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined; explicit: boolean }>();
 	private readonly _onDidSelectExpression = new Emitter<{ expression: IExpression; settingWatch: boolean } | undefined>();
 	private readonly _onWillUpdateViews = new Emitter<void>();
 	private expressionSelectedContextKey!: IContextKey<boolean>;
@@ -103,7 +103,7 @@ export class ViewModel implements IViewModel {
 		return this._onDidFocusSession.event;
 	}
 
-	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }> {
+	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame | undefined; explicit: boolean }> {
 		return this._onDidFocusStackFrame.event;
 	}
 

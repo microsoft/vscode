@@ -57,9 +57,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	private readonly _proxy: ExtHostEditorsShape;
 	private readonly _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private readonly _toDispose = new DisposableStore();
-	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
+	private _textEditorsListenersMap: { [editorId: string]: IDisposable[] };
 	private _editorPositionData: ITextEditorPositionData | null;
-	private _registeredDecorationTypes: { [decorationType: string]: boolean; };
+	private _registeredDecorationTypes: { [decorationType: string]: boolean };
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,

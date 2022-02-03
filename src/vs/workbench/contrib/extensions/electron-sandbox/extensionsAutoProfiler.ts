@@ -23,6 +23,7 @@ import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { timeout } from 'vs/base/common/async';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -75,10 +76,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 
 			// wait 5 seconds or until responsive again
-			await new Promise(resolve => {
-				cts.token.onCancellationRequested(resolve);
-				setTimeout(resolve, 5e3);
-			});
+			await timeout(5e3, cts.token);
 
 			try {
 				// stop profiling and analyse results

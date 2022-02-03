@@ -234,17 +234,17 @@ const DefaultQueryState: IQueryState = {
 };
 
 type GalleryServiceQueryClassification = {
-	readonly filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	readonly flags: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	readonly sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	readonly sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true; };
-	readonly success: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	readonly requestBodySize: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	readonly responseBodySize?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	readonly statusCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	readonly errorCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-	readonly count?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	readonly filterTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly flags: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly sortBy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly sortOrder: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true };
+	readonly success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly requestBodySize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly responseBodySize?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly statusCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly errorCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly count?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 type QueryTelemetryData = {
@@ -265,8 +265,8 @@ type GalleryServiceQueryEvent = QueryTelemetryData & {
 };
 
 type GalleryServiceAdditionalQueryClassification = {
-	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
-	readonly count: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true };
+	readonly count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 type GalleryServiceAdditionalQueryEvent = {
@@ -530,10 +530,10 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 	};
 }
 
-type PreReleaseMigrationInfo = { id: string, displayName: string, migrateStorage?: boolean, engine?: string };
+type PreReleaseMigrationInfo = { id: string; displayName: string; migrateStorage?: boolean; engine?: string };
 interface IRawExtensionsControlManifest {
 	malicious: string[];
-	unsupported?: IStringDictionary<boolean | { preReleaseExtension: { id: string, displayName: string }; }>;
+	unsupported?: IStringDictionary<boolean | { preReleaseExtension: { id: string; displayName: string } }>;
 	migrateToPreRelease?: IStringDictionary<PreReleaseMigrationInfo>;
 }
 
@@ -544,7 +544,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	private extensionsGalleryUrl: string | undefined;
 	private extensionsControlUrl: string | undefined;
 
-	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
+	private readonly commonHeadersPromise: Promise<{ [key: string]: string }>;
 
 	constructor(
 		storageService: IStorageService | undefined,
@@ -740,7 +740,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return { firstPage: extensions, total, pageSize: query.pageSize, getPage } as IPager<IGalleryExtension>;
 	}
 
-	private async queryGalleryExtensions(query: Query, criteria: IExtensionCriteria, token: CancellationToken): Promise<{ extensions: IGalleryExtension[], total: number; }> {
+	private async queryGalleryExtensions(query: Query, criteria: IExtensionCriteria, token: CancellationToken): Promise<{ extensions: IGalleryExtension[]; total: number }> {
 		const flags = query.flags;
 
 		/**
@@ -866,7 +866,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return toExtension(rawGalleryExtension, rawGalleryExtension.versions[0], allTargetPlatforms);
 	}
 
-	private async queryRawGalleryExtensions(query: Query, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+	private async queryRawGalleryExtensions(query: Query, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[]; total: number }> {
 		if (!this.isEnabled()) {
 			throw new Error('No extension gallery service configured.');
 		}
@@ -1085,8 +1085,8 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 			const message = getErrorMessage(err);
 			type GalleryServiceCDNFallbackClassification = {
-				url: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-				message: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				url: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				message: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 			type GalleryServiceCDNFallbackEvent = {
 				url: string;
@@ -1127,7 +1127,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 
 		const result = await asJson<IRawExtensionsControlManifest>(context);
 		const malicious: IExtensionIdentifier[] = [];
-		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string, displayName: string, migrateStorage?: boolean }> = {};
+		const unsupportedPreReleaseExtensions: IStringDictionary<{ id: string; displayName: string; migrateStorage?: boolean }> = {};
 
 		if (result) {
 			for (const id of result.malicious) {

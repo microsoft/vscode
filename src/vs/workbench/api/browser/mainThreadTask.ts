@@ -403,7 +403,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 
 	private readonly _extHostContext: IExtHostContext | undefined;
 	private readonly _proxy: ExtHostTaskShape;
-	private readonly _providers: Map<number, { disposable: IDisposable, provider: ITaskProvider }>;
+	private readonly _providers: Map<number, { disposable: IDisposable; provider: ITaskProvider }>;
 
 	constructor(
 		extHostContext: IExtHostContext,

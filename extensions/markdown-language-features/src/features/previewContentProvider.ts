@@ -52,7 +52,14 @@ export class MarkdownContentProvider {
 		private readonly cspArbiter: ContentSecurityPolicyArbiter,
 		private readonly contributionProvider: MarkdownContributionProvider,
 		private readonly logger: Logger
-	) { }
+	) {
+		this.iconPath = {
+			dark: vscode.Uri.joinPath(this.context.extensionUri, 'media', 'preview-dark.svg'),
+			light: vscode.Uri.joinPath(this.context.extensionUri, 'media', 'preview-light.svg'),
+		};
+	}
+
+	public readonly iconPath: { light: vscode.Uri; dark: vscode.Uri };
 
 	public async provideTextDocumentContent(
 		markdownDocument: vscode.TextDocument,

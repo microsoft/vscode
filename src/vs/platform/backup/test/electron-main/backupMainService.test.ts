@@ -94,7 +94,7 @@ flakySuite('BackupMainService', () => {
 	const fooFile = URI.file(platform.isWindows ? 'C:\\foo' : '/foo');
 	const barFile = URI.file(platform.isWindows ? 'C:\\bar' : '/bar');
 
-	let service: BackupMainService & { toBackupPath(arg: URI | string): string, getFolderHash(folder: IFolderBackupInfo): string };
+	let service: BackupMainService & { toBackupPath(arg: URI | string): string; getFolderHash(folder: IFolderBackupInfo): string };
 	let configService: TestConfigurationService;
 
 	let environmentService: EnvironmentMainService;

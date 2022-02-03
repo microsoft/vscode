@@ -346,7 +346,7 @@ function snippetDownComparator(a: CompletionItem, b: CompletionItem): number {
 	return defaultComparator(a, b);
 }
 
-interface Comparator<T> { (a: T, b: T): number; }
+interface Comparator<T> { (a: T, b: T): number }
 const _snippetComparators = new Map<SnippetSortOrder, Comparator<CompletionItem>>();
 _snippetComparators.set(SnippetSortOrder.Top, snippetUpComparator);
 _snippetComparators.set(SnippetSortOrder.Bottom, snippetDownComparator);

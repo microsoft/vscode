@@ -24,7 +24,7 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const config = <{ allowed: string[], verbs: string[] }>context.options[0];
+		const config = <{ allowed: string[]; verbs: string[] }>context.options[0];
 		const allowed = new Set(config.allowed);
 		const verbs = new Set(config.verbs);
 

@@ -60,7 +60,7 @@ interface CompletionContext {
 	/**
 	 * Info if the link looks like it is for an anchor: `[](#header)`
 	 */
-	readonly anchorInfo?: AnchorContext
+	readonly anchorInfo?: AnchorContext;
 }
 
 export class PathCompletionProvider implements vscode.CompletionItemProvider {

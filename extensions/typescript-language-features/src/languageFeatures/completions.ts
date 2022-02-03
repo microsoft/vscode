@@ -38,12 +38,12 @@ interface CompletionContext {
 	readonly dotAccessorContext?: DotAccessorContext;
 
 	readonly enableCallCompletions: boolean;
-	readonly useCodeSnippetsOnMethodSuggest: boolean,
+	readonly useCodeSnippetsOnMethodSuggest: boolean;
 
 	readonly wordRange: vscode.Range | undefined;
 	readonly line: string;
 
-	readonly useFuzzyWordRangeLogic: boolean,
+	readonly useFuzzyWordRangeLogic: boolean;
 }
 
 type ResolvedCompletionItem = {
@@ -209,7 +209,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			if (!this.detail && detail.displayParts.length) {
 				this.detail = Previewer.plainWithLinks(detail.displayParts, client);
 			}
-			this.documentation = this.getDocumentation(client, detail, this);
+			this.documentation = this.getDocumentation(client, detail, this, this.document.uri);
 
 			const codeAction = this.getCodeActions(detail, filepath);
 			const commands: vscode.Command[] = [{
@@ -252,7 +252,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 	private getDocumentation(
 		client: ITypeScriptServiceClient,
 		detail: Proto.CompletionEntryDetails,
-		item: MyCompletionItem
+		item: MyCompletionItem,
+		baseUri: vscode.Uri,
 	): vscode.MarkdownString | undefined {
 		const documentation = new vscode.MarkdownString();
 		if (detail.source) {
@@ -261,6 +262,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 			item.detail = `${autoImportLabel}\n${item.detail}`;
 		}
 		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags, client);
+
+		documentation.baseUri = baseUri;
 
 		return documentation.value.length ? documentation : undefined;
 	}
@@ -299,7 +302,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	private getCodeActions(
 		detail: Proto.CompletionEntryDetails,
 		filepath: string
-	): { command?: vscode.Command, additionalTextEdits?: vscode.TextEdit[] } {
+	): { command?: vscode.Command; additionalTextEdits?: vscode.TextEdit[] } {
 		if (!detail.codeActions || !detail.codeActions.length) {
 			return {};
 		}

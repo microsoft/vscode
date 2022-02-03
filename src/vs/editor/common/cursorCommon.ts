@@ -80,10 +80,10 @@ export class CursorConfiguration {
 	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
-	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
+	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean };
 
 	private readonly _languageId: string;
-	private _electricChars: { [key: string]: boolean; } | null;
+	private _electricChars: { [key: string]: boolean } | null;
 
 	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
 		return (

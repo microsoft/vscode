@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 export interface WebviewInitData {
 	readonly remote: {
 		readonly isRemote: boolean;
-		readonly authority: string | undefined
+		readonly authority: string | undefined;
 	};
 }
 
@@ -41,7 +41,7 @@ export const webviewGenericCspSource = `https://*.${webviewResourceBaseHost}`;
  */
 export function asWebviewUri(
 	resource: URI,
-	remoteInfo?: { authority: string | undefined, isRemote: boolean }
+	remoteInfo?: { authority: string | undefined; isRemote: boolean }
 ): URI {
 	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
 		return resource;

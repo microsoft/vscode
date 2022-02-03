@@ -202,7 +202,7 @@ suite('ObjectTree', function () {
 		};
 
 		const identityProvider = new class implements IIdentityProvider<number> {
-			getId(element: number): { toString(): string; } {
+			getId(element: number): { toString(): string } {
 				return `${element % 100}`;
 			}
 		};

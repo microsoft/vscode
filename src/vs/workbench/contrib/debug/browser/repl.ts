@@ -287,7 +287,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		await this.selectSession();
 	}
 
-	getFilterStats(): { total: number, filtered: number } {
+	getFilterStats(): { total: number; filtered: number } {
 		// This could be called before the tree is created when setting this.filterState.filterText value
 		return {
 			total: this.tree?.getNode().children.length ?? 0,

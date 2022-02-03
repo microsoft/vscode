@@ -348,7 +348,7 @@ function bytesOrTextToString(obj: any): string {
 		obj.text;
 }
 
-function getNumLinesAndLastNewlineLength(text: string): { numLines: number, lastLineLength: number } {
+function getNumLinesAndLastNewlineLength(text: string): { numLines: number; lastLineLength: number } {
 	const re = /\n/g;
 	let numLines = 0;
 	let lastNewlineIdx = -1;

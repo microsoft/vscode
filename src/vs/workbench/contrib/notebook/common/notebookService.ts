@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+// eslint-disable-next-line code-import-patterns
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
 import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -22,7 +23,7 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface INotebookContentProvider {
 	options: TransientOptions;
 
-	open(uri: URI, backupId: string | VSBuffer | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData, transientOptions: TransientOptions; }>;
+	open(uri: URI, backupId: string | VSBuffer | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData; transientOptions: TransientOptions }>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string | VSBuffer>;
@@ -30,7 +31,7 @@ export interface INotebookContentProvider {
 
 export interface INotebookSerializer {
 	options: TransientOptions;
-	dataToNotebook(data: VSBuffer): Promise<NotebookData>
+	dataToNotebook(data: VSBuffer): Promise<NotebookData>;
 	notebookToData(data: NotebookData): Promise<VSBuffer>;
 }
 
@@ -91,6 +92,6 @@ export interface INotebookService {
 	getNotebookProviderResourceRoots(): URI[];
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;
-	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
+	getToCopy(): { items: NotebookCellTextModel[]; isCopy: boolean } | undefined;
 	clearEditorCache(): void;
 }

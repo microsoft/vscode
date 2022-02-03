@@ -54,7 +54,7 @@ interface FoldingStateMemento {
 	collapsedRegions?: CollapseMemento;
 	lineCount?: number;
 	provider?: string;
-	foldedImports?: boolean
+	foldedImports?: boolean;
 }
 
 export class FoldingController extends Disposable implements IEditorContribution {
@@ -94,7 +94,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private cursorChangedScheduler: RunOnceScheduler | null;
 
 	private readonly localToDispose = this._register(new DisposableStore());
-	private mouseDownInfo: { lineNumber: number, iconClicked: boolean } | null;
+	private mouseDownInfo: { lineNumber: number; iconClicked: boolean } | null;
 
 	constructor(
 		editor: ICodeEditor,

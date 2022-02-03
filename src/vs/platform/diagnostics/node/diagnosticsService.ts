@@ -66,7 +66,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 
 	const MAX_FILES = 20000;
 
-	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
+	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
 
 		return Promises.withAsyncBody(async resolve => {
@@ -135,7 +135,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		});
 	}
 
-	const token: { count: number, maxReached: boolean } = { count: 0, maxReached: false };
+	const token: { count: number; maxReached: boolean } = { count: 0, maxReached: false };
 
 	await collect(folder, folder, filter, token);
 	const launchConfigs = await collectLaunchConfigs(folder);
@@ -507,8 +507,8 @@ export class DiagnosticsService implements IDiagnosticsService {
 			try {
 				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
 				type WorkspaceStatsClassification = {
-					'workspace.id': { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					'workspace.id': { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				};
 				type WorkspaceStatsEvent = {
 					'workspace.id': string | undefined;
@@ -519,9 +519,9 @@ export class DiagnosticsService implements IDiagnosticsService {
 					rendererSessionId: workspace.rendererSessionId
 				});
 				type WorkspaceStatsFileClassification = {
-					rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					type: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-					count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+					type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 				};
 				type WorkspaceStatsFileEvent = {
 					rendererSessionId: string;
