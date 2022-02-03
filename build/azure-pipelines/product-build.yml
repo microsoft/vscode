@@ -183,9 +183,7 @@ stages:
                   - template: win32/product-build-win32.yml
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
-      - stage: Linux
-        dependsOn:
-          - Compile
+      - stage: LinuxServerDependencies
         pool:
           vmImage: "Ubuntu-18.04"
         jobs:
@@ -198,6 +196,14 @@ stages:
                 steps:
                   - template: linux/product-build-linux-server.yml
 
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
+      - stage: Linux
+        dependsOn:
+          - Compile
+        pool:
+          vmImage: "Ubuntu-18.04"
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - job: LinuxClientx64
                 dependsOn:
                   - LinuxServerx64
