@@ -10,6 +10,7 @@
   "enabledApiProposals": [
     "inlayHints",
     "languageStatus",
+    "markdownStringBaseUri",
     "resolvers",
     "workspaceTrust"
   ],
