@@ -43,6 +43,11 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['editor.font*']
 				},
 				{
+					id: 'editor/webFont',
+					label: localize('webFont', "Web Font"),
+					settings: ['editor.webFont.*']
+				},
+				{
 					id: 'editor/format',
 					label: localize('formatting', "Formatting"),
 					settings: ['editor.format*']

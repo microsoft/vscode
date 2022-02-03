@@ -329,4 +329,7 @@ import 'vs/workbench/contrib/list/browser/list.contribution';
 // Audio Cues
 import 'vs/workbench/contrib/audioCues/browser/audioCues.contribution';
 
+// Web Font
+import 'vs/workbench/contrib/webFont/browser/webFont.contribution';
+
 //#endregion
