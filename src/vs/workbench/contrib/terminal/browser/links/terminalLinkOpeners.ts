@@ -146,23 +146,16 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		try {
 			const result = await this._getExactMatch(sanitizedLink);
 			if (result) {
-				const { uri, resourceType} = result;
+				const { uri, isDirectory } = result;
 				const linkToOpen = {
 					text: matchLink,
 					uri,
 					bufferRange: link.bufferRange,
 					type: link.type
 				};
-			if (resourceType === 'file' && uri) {
-				return this._localFileOpener.open(linkToOpen);
-			} else if (resourceType === 'dir' && uri) {
-				try {
-					this._localFolderInWorkspaceOpener.open(linkToOpen);
-					return;
-				} catch {
-					// this folder is outside of the workspace
+				if (uri) {
+					return isDirectory ? this._localFolderInWorkspaceOpener.open(linkToOpen) : this._localFileOpener.open(linkToOpen);
 				}
-			}
 			}
 		} catch {
 			// Fallback to searching quick access
@@ -206,11 +199,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			const uri = URI.from({ scheme, path: sanitizedLink });
 			try {
 				const fileStat = await this._fileService.resolve(uri);
-				if (fileStat.isFile) {
-					resourceMatch = { uri, resourceType: 'file'};
-				} else if (fileStat.isDirectory) {
-					resourceMatch = { uri, resourceType: 'dir' };
-				}
+				resourceMatch = { uri, isDirectory: fileStat.isDirectory };
 			} catch {
 				// File or dir doesn't exist, continue on
 			}
@@ -224,7 +213,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				})
 			);
 			if (results.results.length === 1) {
-				resourceMatch = { uri: results.results[0].resource, resourceType: 'file'};
+				resourceMatch = { uri: results.results[0].resource };
 			}
 		}
 		return resourceMatch;
@@ -233,7 +222,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 interface IResourceMatch {
 	uri: URI | undefined;
-	resourceType: 'file' | 'dir' | undefined;
+	isDirectory?: boolean;
 }
 
 export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
