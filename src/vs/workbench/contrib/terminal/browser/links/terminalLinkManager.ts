@@ -78,10 +78,11 @@ export class TerminalLinkManager extends DisposableStore {
 
 		// Setup link openers
 		const localFileOpener = this._instantiationService.createInstance(TerminalLocalFileLinkOpener, this._processManager.os || OS);
+		const localFolderInWorkspaceOpener = this._instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFile, localFileOpener);
-		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, this._instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener));
+		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, localFolderInWorkspaceOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
-		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, this._processManager.os || OS));
+		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, localFolderInWorkspaceOpener, this._processManager.os || OS));
 		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
 
 		this._registerStandardLinkProviders();
