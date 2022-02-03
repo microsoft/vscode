@@ -8,7 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPartsSplash, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
 
 export interface ICPUProperties {
 	model: string;

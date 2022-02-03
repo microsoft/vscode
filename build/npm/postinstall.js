@@ -48,6 +48,11 @@ for (let dir of dirs) {
 		continue;
 	}
 
+	if (/^remote/.test(dir) && process.platform === 'linux' && (process.arch === 'x64' || process.env['npm_config_arch'] === 'x64')) {
+		// linux x64: do not execute `yarn` on remote folder
+		continue;
+	}
+
 	if (dir === 'build/lib/watch') {
 		// node modules for watching, specific to host node version, not electron
 		yarnInstallBuildDependencies();

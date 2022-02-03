@@ -16,6 +16,13 @@ steps:
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
 
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: reh_node_modules-$(VSCODE_ARCH)
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download server build dependencies
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
   - script: |
       set -e
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
@@ -99,8 +106,6 @@ steps:
       export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
       export CFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
       export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
-      export VSCODE_REMOTE_CC=$(which gcc-4.9)
-      export VSCODE_REMOTE_CXX=$(which g++-4.9)
 
       if [ "$VSCODE_ARCH" == "arm64" ]; then
         export CXXFLAGS="${CXXFLAGS} --target=aarch64-linux-gnu -fwhole-program-vtables"
@@ -132,6 +137,13 @@ steps:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - script: |
+      set -e
+      rm -rf remote/node_modules
+      tar -xzf $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz --directory $(Build.SourcesDirectory)/remote
+    displayName: Extract server node_modules output
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
