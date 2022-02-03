@@ -77,7 +77,10 @@ exports.vscodeWebEntryPoints = vscodeWebEntryPoints;
 
 const buildDate = new Date().toISOString();
 
-const createVSCodeWebProductConfigurationPatcher = () => {
+/**
+ * @param {object} product The parsed product.json file contents
+ */
+const createVSCodeWebProductConfigurationPatcher = (product) => {
 	/**
 	 * @param content {string} The contens of the file
 	 * @param path {string} The absolute file path, always using `/`, even on Windows
@@ -139,10 +142,11 @@ const combineContentPatchers = (...patchers) => {
 
 /**
  * @param extensionsRoot {string} The location where extension will be read from
+ * @param {object} product The parsed product.json file contents
  */
-const createVSCodeWebFileContentMapper = (extensionsRoot) => {
+const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
 	return combineContentPatchers(
-		createVSCodeWebProductConfigurationPatcher(),
+		createVSCodeWebProductConfigurationPatcher(product),
 		createVSCodeWebBuiltinExtensionsPatcher(extensionsRoot)
 	);
 };
@@ -160,7 +164,7 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 		out: 'out-vscode-web',
 		inlineAmdImages: true,
 		bundleInfo: undefined,
-		fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions')
+		fileContentMapper: createVSCodeWebFileContentMapper('.build/web/extensions', product)
 	})
 ));
 
