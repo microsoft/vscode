@@ -10,20 +10,25 @@ steps:
       KeyVaultName: vscode
       SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
-  - task: Docker@1
-    displayName: "Pull image"
-    inputs:
-      azureSubscriptionEndpoint: "vscode-builds-subscription"
-      azureContainerRegistry: vscodehub.azurecr.io
-      command: "Run an image"
-      imageName: "vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)"
-      containerCommand: uname
-
   - task: DownloadPipelineArtifact@2
     inputs:
       artifact: Compilation
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: vscode-reh-linux-$(VSCODE_ARCH)
+      path: $(Agent.BuildDirectory)
+    displayName: Download server archive
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: vscode-reh-web-linux-$(VSCODE_ARCH)
+      path: $(Agent.BuildDirectory)
+    displayName: Download web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
@@ -106,11 +111,6 @@ steps:
         export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
       fi
 
-      if [ "$VSCODE_ARCH" == "x64" ]; then
-        export VSCODE_REMOTE_CC=$(which gcc-4.8)
-        export VSCODE_REMOTE_CXX=$(which g++-4.8)
-      fi
-
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
         if [ $i -eq 3 ]; then
@@ -128,22 +128,16 @@ steps:
 
   - script: |
       set -e
-      node build/azure-pipelines/mixin
-    displayName: Mix in quality
-
-  - script: |
-      set -e
-      docker run -e VSCODE_QUALITY -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH) /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
-    displayName: Rebuild remote modules
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-  - script: |
-      set -e
       node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
       mkdir -p .build/node_modules_cache
       tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
+
+  - script: |
+      set -e
+      node build/azure-pipelines/mixin
+    displayName: Mix in quality
 
   - script: |
       set -e
@@ -155,6 +149,7 @@ steps:
       set -e
       node build/azure-pipelines/mixin --server
     displayName: Mix in server quality
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
@@ -163,6 +158,7 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
     displayName: Build Server
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
