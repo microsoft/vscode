@@ -608,8 +608,16 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 	$closeTab(tab: IEditorTabDto): Promise<void>;
 }
 
+export interface IEditorTabGroupDto {
+	isActive: boolean;
+	viewColumn: EditorGroupColumn;
+	activeTabIndex: number | undefined;
+	tabs: IEditorTabDto[];
+}
+
 export interface IEditorTabDto {
 	viewColumn: EditorGroupColumn;
+	index: number;
 	label: string;
 	resource?: UriComponents;
 	editorId?: string;
@@ -618,7 +626,7 @@ export interface IEditorTabDto {
 }
 
 export interface IExtHostEditorTabsShape {
-	$acceptEditorTabs(tabs: IEditorTabDto[]): void;
+	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void;
 }
 
 //#endregion
