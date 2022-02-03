@@ -16,20 +16,6 @@ steps:
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
 
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: vscode-reh-linux-$(VSCODE_ARCH)
-      path: $(Agent.BuildDirectory)
-    displayName: Download server archive
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
-
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: vscode-reh-web-linux-$(VSCODE_ARCH)
-      path: $(Agent.BuildDirectory)
-    displayName: Download web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
-
   - script: |
       set -e
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
@@ -119,12 +105,24 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
+
+      # Remove remote node_modules
+      if [ "$VSCODE_ARCH" == "x64" ]; then
+        rm -rf remote/node_modules
+      fi
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: vscode_reh_node_modules-$(VSCODE_ARCH)
+      path: $(Agent.BuildDirectory)/remote/node_modules
+    displayName: Download server build dependencies
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
@@ -149,7 +147,6 @@ steps:
       set -e
       node build/azure-pipelines/mixin --server
     displayName: Mix in server quality
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
@@ -158,7 +155,6 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
     displayName: Build Server
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
       set -e
