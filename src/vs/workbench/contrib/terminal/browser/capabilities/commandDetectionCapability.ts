@@ -152,7 +152,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				marker: this._currentCommand.commandStartMarker
 			};
 			this._commands.push(newCommand);
-			this._registerOutputDecoration(this._currentCommand, newCommand);
+			this._registerOutputDecoration(newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();
@@ -165,11 +165,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._currentCommand.command = commandLine;
 	}
 
-	private _registerOutputDecoration(currentCommand: ICurrentPartialCommand, newCommand: ITerminalCommand): void {
+	private _registerOutputDecoration(newCommand: ITerminalCommand): void {
 		if (!this._currentCommand.commandStartMarker) {
 			return;
 		}
-		const decoration = this._terminal.registerDecoration({ marker: this._currentCommand.commandStartMarker!, anchor: 'left' });
+		//TODO: look at font code and do something with cell scaled width instead of negative
+		const decoration = this._terminal.registerDecoration({ marker: this._currentCommand.commandStartMarker!, anchor: 'left', x: -2 });
 		const outputLineCount = (this._currentCommand.commandFinishedMarker?.line || 0) - (this._currentCommand.commandExecutedMarker?.line || 0) > 0;
 		if (decoration && newCommand && outputLineCount) {
 			this._currentCommand.outputDecoration = decoration;
@@ -178,13 +179,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				dom.addDisposableListener(this._currentCommand.outputDecoration.element, 'click', async () => {
 					await this._clipboardService.writeText(output);
 				});
-				//TODO: add class
-				this._currentCommand.outputDecoration.element.style.backgroundColor = 'blue';
+				this._currentCommand.outputDecoration.element.classList.add('prompt-xterm-decoration');
 				// negative scaled cell width pixels
 				// look at font size code
-				this._currentCommand.outputDecoration.element.style.marginLeft = '-1%';
-				const outputHover = document.createElement('span');
-				this._currentCommand.outputDecoration.element.appendChild(outputHover);
 			}
 			decoration.onRender(() => console.log('on render'));
 		}
