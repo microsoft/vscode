@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
+// eslint-disable-next-line code-import-patterns
 import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
 

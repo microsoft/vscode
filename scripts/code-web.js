@@ -34,6 +34,7 @@ async function main() {
 			'host',
 			'port',
 			'extensionPath',
+			'browser',
 			'browserType'
 		],
 	});
@@ -66,13 +67,9 @@ async function main() {
 	}
 
 	let openSystemBrowser = false;
-	if (!args['browserType']) {
-		serverArgs.push('--browserType', 'none');
+	if (!args['browser'] && !args['browserType']) {
+		serverArgs.push('--browser', 'none');
 		openSystemBrowser = true;
-	}
-
-	if (!args['verbose'] && args['hideServerLog'] === undefined) {
-		serverArgs.push('--hideServerLog');
 	}
 
 	serverArgs.push('--sourcesPath', APP_ROOT);
