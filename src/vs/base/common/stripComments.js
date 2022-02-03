@@ -30,7 +30,7 @@
 				} else if (m4) {
 					// Since m4 is a single line comment is is at least of length 2 (e.g. //)
 					// If it ends in \r?\n then keep it.
-					const length = m4.length
+					const length = m4.length;
 					if (m4[length - 1] === '\n') {
 						return m4[length - 2] === '\r' ? '\r\n' : '\n';
 					}
