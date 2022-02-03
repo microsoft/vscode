@@ -739,10 +739,10 @@ export class AzureActiveDirectoryService {
 
 	private async migrate() {
 		Logger.info('Attempting to migrate stored sessions.');
-		// const migrated = this._context.globalState.get<{ migrated: boolean }>('microsoft-better-storage-layout-migrated');
-		// if (migrated?.migrated) {
-		// 	return [];
-		// }
+		const migrated = this._context.globalState.get<{ migrated: boolean }>('microsoft-better-storage-layout-migrated');
+		if (migrated?.migrated) {
+			return [];
+		}
 		await this._context.globalState.update('microsoft-better-storage-layout-migrated', { migrated: true });
 		const keychain = new Keychain(this._context);
 		const storedData = await keychain.getToken();
@@ -759,7 +759,7 @@ export class AzureActiveDirectoryService {
 			Logger.info('Failed to parse stored sessions. Migrating no sessions.');
 			return [];
 		} finally {
-			// await keychain.deleteToken();
+			await keychain.deleteToken();
 		}
 	}
 
