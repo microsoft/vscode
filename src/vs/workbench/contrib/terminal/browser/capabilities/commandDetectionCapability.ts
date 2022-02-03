@@ -178,7 +178,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				dom.addDisposableListener(this._currentCommand.outputDecoration.element, 'click', async () => {
 					await this._clipboardService.writeText(output);
 				});
+				//TODO: add class
 				this._currentCommand.outputDecoration.element.style.backgroundColor = 'blue';
+				// negative scaled cell width pixels
+				// look at font size code
 				this._currentCommand.outputDecoration.element.style.marginLeft = '-1%';
 				const outputHover = document.createElement('span');
 				this._currentCommand.outputDecoration.element.appendChild(outputHover);
