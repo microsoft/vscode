@@ -447,7 +447,6 @@
 							"vs/editor/~",
 							"vs/editor/contrib/*/~",
 							"vs/workbench/~",
-							"vs/workbench/api/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
 							{

@@ -8,6 +8,7 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+// eslint-disable-next-line code-import-patterns
 import { ILocationDto } from 'vs/workbench/api/common/extHost.protocol';
 
 export const enum TestResultState {
