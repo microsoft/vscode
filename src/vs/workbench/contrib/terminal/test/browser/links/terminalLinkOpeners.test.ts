@@ -16,7 +16,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { TerminalLocalFileLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
+import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalCommand, IXtermMarker } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -103,7 +103,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		suite('macOS/Linux', () => {
 			setup(() => {
 				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Linux);
-				opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, OperatingSystem.Linux);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, localFolderOpener, OperatingSystem.Linux);
 			});
 
 			test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
@@ -150,7 +151,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 		suite('Windows', () => {
 			setup(() => {
 				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener, OperatingSystem.Windows);
-				opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, OperatingSystem.Windows);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, localFileOpener, localFolderOpener, OperatingSystem.Windows);
 			});
 
 			test('should apply the cwd to the link only when the file exists and cwdDetection is enabled', async () => {
