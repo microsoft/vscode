@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { toResource } from 'vs/base/test/common/utils';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart, registerTestFileEditor, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -14,18 +15,19 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IResolvedTextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 suite('HistoryService', function () {
 
 	const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
 
-	async function createServices(): Promise<[EditorPart, HistoryService, EditorService]> {
+	async function createServices(): Promise<[EditorPart, HistoryService, EditorService, ITextFileService]> {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const part = await createEditorPart(instantiationService, disposables);
@@ -37,13 +39,16 @@ suite('HistoryService', function () {
 		const historyService = instantiationService.createInstance(HistoryService);
 		instantiationService.stub(IHistoryService, historyService);
 
-		return [part, historyService, editorService];
+		const accessor = instantiationService.createInstance(TestServiceAccessor);
+
+		return [part, historyService, editorService, accessor.textFileService];
 	}
 
 	const disposables = new DisposableStore();
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)]));
+		disposables.add(registerTestFileEditor());
 	});
 
 	teardown(() => {
@@ -92,6 +97,30 @@ suite('HistoryService', function () {
 		await editorChangePromise;
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 		assert.strictEqual(part.activeGroup, input2Group);
+	});
+
+	test('go to last edit location', async function () {
+		const [, historyService, editorService, textFileService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+		const otherResource = toResource.call(this, '/path/index.html');
+		await editorService.openEditor({ resource });
+
+		const model = await textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
+		model.textEditorModel.setValue('Hello World');
+		await timeout(10); // history debounces change events
+
+		await editorService.openEditor({ resource: otherResource });
+
+		const onDidActiveEditorChange = new DeferredPromise<void>();
+		editorService.onDidActiveEditorChange(e => {
+			onDidActiveEditorChange.complete(e);
+		});
+
+		historyService.openLastEditLocation();
+		await onDidActiveEditorChange.p;
+
+		assert.strictEqual(editorService.activeEditor?.resource?.toString(), resource.toString());
 	});
 
 	test('getHistory', async () => {
