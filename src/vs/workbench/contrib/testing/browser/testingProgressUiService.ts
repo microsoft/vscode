@@ -10,6 +10,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProgressLocation, UnmanagedProgress } from 'vs/platform/progress/common/progress';
+// eslint-disable-next-line code-import-patterns
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { AutoOpenTesting, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';

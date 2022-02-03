@@ -290,7 +290,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	// The onExit event is special in that it fires and is disposed after the terminal instance
 	// itself is disposed
-	private readonly _onExit = new Emitter<number | undefined>();
+	private readonly _onExit = new Emitter<number | ITerminalLaunchError | undefined>();
 	readonly onExit = this._onExit.event;
 	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
 	readonly onDisposed = this._onDisposed.event;
@@ -1471,7 +1471,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// First onExit to consumers, this can happen after the terminal has already been disposed.
-		this._onExit.fire(this._exitCode);
+		this._onExit.fire(exitCodeOrError);
 
 		// Dispose of the onExit event if the terminal will not be reused again
 		if (this._isDisposed) {
