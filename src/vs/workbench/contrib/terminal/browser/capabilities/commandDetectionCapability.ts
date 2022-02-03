@@ -169,7 +169,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		if (!this._currentCommand.commandStartMarker) {
 			return;
 		}
-		const decoration = this._terminal.registerDecoration({ marker: this._currentCommand.commandStartMarker, anchor: 'right' });
+		const decoration = this._terminal.registerDecoration({ marker: this._currentCommand.commandStartMarker!, anchor: 'left' });
 		const outputLineCount = (this._currentCommand.commandFinishedMarker?.line || 0) - (this._currentCommand.commandExecutedMarker?.line || 0) > 0;
 		if (decoration && newCommand && outputLineCount) {
 			this._currentCommand.outputDecoration = decoration;
@@ -178,9 +178,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				dom.addDisposableListener(this._currentCommand.outputDecoration.element, 'click', async () => {
 					await this._clipboardService.writeText(output);
 				});
+				this._currentCommand.outputDecoration.element.style.backgroundColor = 'blue';
+				this._currentCommand.outputDecoration.element.style.marginLeft = '-1%';
 				const outputHover = document.createElement('span');
-				outputHover.textContent = 'Copy';
-				outputHover.id = 'button-buffer-decoration-textContent';
 				this._currentCommand.outputDecoration.element.appendChild(outputHover);
 			}
 			decoration.onRender(() => console.log('on render'));
