@@ -112,7 +112,6 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
 		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
-		private readonly _localFolderOutsideWorkspaceOpener: TerminalLocalFolderOutsideWorkspaceLinkOpener,
 		private readonly _os: OperatingSystem,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -166,7 +165,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 					this._localFolderInWorkspaceOpener.open(link);
 					return;
 				} catch {
-					this._localFolderOutsideWorkspaceOpener.open(link);
+					// this folder is outside of the workspace
 				}
 			}
 			}
