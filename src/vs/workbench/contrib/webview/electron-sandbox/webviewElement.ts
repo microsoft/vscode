@@ -98,17 +98,17 @@ export class ElectronWebviewElement extends WebviewElement {
 
 	protected override streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
 		// Join buffers from stream without using the Node.js backing pool.
-		// This lets us transfer the buffer to the webview.
+		// This lets us transfer the resulting buffer to the webview.
 		return consumeStream<VSBuffer, ArrayBufferLike>(stream, (buffers: readonly VSBuffer[]) => {
 			const totalLength = buffers.reduce((prev, curr) => prev + curr.byteLength, 0);
-			const ret = Buffer.alloc(totalLength);
+			const ret = new ArrayBuffer(totalLength);
+			const view = new Uint8Array(ret);
 			let offset = 0;
-			for (let i = 0, len = buffers.length; i < len; i++) {
-				const element = buffers[i];
-				ret.set(element.buffer, offset);
+			for (const element of buffers) {
+				view.set(element.buffer, offset);
 				offset += element.byteLength;
 			}
-			return ret.buffer;
+			return ret;
 		});
 	}
 
