@@ -290,7 +290,7 @@ export class FileIconThemeLoader {
 
 				const folderNames = associations.folderNames;
 				if (folderNames) {
-					for (let key in folderNames) {
+					for (const key in folderNames) {
 						const selectors: string[] = [];
 						const name = handleParentFolder(key.toLowerCase(), selectors);
 						selectors.push(`.${escapeCSS(name)}-name-folder-icon`);
@@ -300,7 +300,7 @@ export class FileIconThemeLoader {
 				}
 				const folderNamesExpanded = associations.folderNamesExpanded;
 				if (folderNamesExpanded) {
-					for (let key in folderNamesExpanded) {
+					for (const key in folderNamesExpanded) {
 						const selectors: string[] = [];
 						const name = handleParentFolder(key.toLowerCase(), selectors);
 						selectors.push(`.${escapeCSS(name)}-name-folder-icon`);
@@ -323,7 +323,7 @@ export class FileIconThemeLoader {
 				}
 				const fileExtensions = associations.fileExtensions;
 				if (fileExtensions) {
-					for (let key in fileExtensions) {
+					for (const key in fileExtensions) {
 						const selectors: string[] = [];
 						const name = handleParentFolder(key.toLowerCase(), selectors);
 						const segments = name.split('.');
@@ -340,7 +340,7 @@ export class FileIconThemeLoader {
 				}
 				const fileNames = associations.fileNames;
 				if (fileNames) {
-					for (let key in fileNames) {
+					for (const key in fileNames) {
 						const selectors: string[] = [];
 						const fileName = handleParentFolder(key.toLowerCase(), selectors);
 						selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
