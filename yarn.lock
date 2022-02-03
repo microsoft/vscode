@@ -4303,10 +4303,10 @@ electron-to-chromium@^1.4.17:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.45.tgz#cf1144091d6683cbd45a231954a745f02fb24598"
   integrity sha512-czF9eYVuOmlY/vxyMQz2rGlNSjZpxNQYBe1gmQv7al171qOIhgyO9k7D5AKlgeTCSPKk+LHhj5ZyIdmEub9oNg==
 
-electron@13.5.1:
-  version "13.5.1"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-13.5.1.tgz#76c02c39be228532f886a170b472cbd3d93f0d0f"
-  integrity sha512-ZyxhIhmdaeE3xiIGObf0zqEyCyuIDqZQBv9NKX8w5FNzGm87j4qR0H1+GQg6vz+cA1Nnv1x175Zvimzc0/UwEQ==
+electron@14.2.5:
+  version "14.2.5"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-14.2.5.tgz#3303283f582535a09f079bbeb25fc7ce127cccbd"
+  integrity sha512-L5Y0s3LOAKtHYFQanxULZxfZzxkldNvCyfsFiiNwo7rMi1M+THKfSHCgDarHluSIGc4NvOEomV7P1RL97qpr6A==
   dependencies:
     "@electron/get" "^1.0.1"
     "@types/node" "^14.6.2"
