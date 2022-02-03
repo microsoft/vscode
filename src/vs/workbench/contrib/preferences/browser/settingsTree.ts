@@ -2104,7 +2104,7 @@ class SettingsTreeMiscLabel {
 		return syncIgnoredElement;
 	}
 
-	private createDefaultOverrideIndicator(): { element: HTMLElement, label: SimpleIconLabel } {
+	private createDefaultOverrideIndicator(): { element: HTMLElement; label: SimpleIconLabel } {
 		const defaultOverrideIndicator = $('span.setting-item-default-overridden');
 		const defaultOverrideLabel = new SimpleIconLabel(defaultOverrideIndicator);
 		return { element: defaultOverrideIndicator, label: defaultOverrideLabel };
