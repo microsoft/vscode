@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Strips single and multiline comments JavaScript comments from JSON
+ * Strips single and multi line JavaScript comments from JSON
  * content. Ignores characters in strings BUT doesn't support
- * string continuation across multiple lines since it is not supported
- * in JSON.
+ * string continuation across multiple lines since it is not
+ * supported in JSON.
  * @param content the content to strip comments from
  * @returns the content without comments
  */
