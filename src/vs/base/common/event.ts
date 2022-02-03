@@ -390,8 +390,6 @@ export namespace Event {
 	}
 }
 
-export type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
-
 export interface EmitterOptions {
 	onFirstListenerAdd?: Function;
 	onFirstListenerDidAdd?: Function;
@@ -507,6 +505,27 @@ class LeakageMonitor {
 	}
 }
 
+class SafeDisposable {
+
+	private _actual?: IDisposable;
+
+	set(d: IDisposable) {
+		this._actual = d;
+		return this;
+	}
+
+	unset() {
+		this._actual = undefined;
+	}
+
+	dispose(): void {
+		this._actual?.dispose();
+		this.unset();
+	}
+}
+
+type Listener<T> = [(e: T) => void, any | undefined, SafeDisposable];
+
 /**
  * The Emitter can be used to expose an Event to the public
  * to fire it from the insides.
@@ -560,7 +579,8 @@ export class Emitter<T> {
 					this._options.onFirstListenerAdd(this);
 				}
 
-				const remove = this._listeners.push(!thisArgs ? listener : [listener, thisArgs]);
+				const circuitBreaker = new SafeDisposable();
+				const remove = this._listeners.push([listener, thisArgs, circuitBreaker]);
 
 				if (firstListener && this._options && this._options.onFirstListenerDidAdd) {
 					this._options.onFirstListenerDidAdd(this);
@@ -573,7 +593,7 @@ export class Emitter<T> {
 				// check and record this emitter for potential leakage
 				const removeMonitor = this._leakageMon?.check(this._listeners.size);
 
-				const result = toDisposable(() => {
+				const result = circuitBreaker.set(toDisposable(() => {
 					if (removeMonitor) {
 						removeMonitor();
 					}
@@ -586,7 +606,7 @@ export class Emitter<T> {
 							}
 						}
 					}
-				});
+				}));
 
 				if (disposables instanceof DisposableStore) {
 					disposables.add(result);
@@ -622,13 +642,9 @@ export class Emitter<T> {
 			this._perfMon?.start(this._deliveryQueue.size);
 
 			while (this._deliveryQueue.size > 0) {
-				const [listener, event] = this._deliveryQueue.shift()!;
+				const [[listener, listenerThis], event] = this._deliveryQueue.shift()!;
 				try {
-					if (typeof listener === 'function') {
-						listener.call(undefined, event);
-					} else {
-						listener[0].call(listener[1], event);
-					}
+					listener.call(listenerThis, event);
 				} catch (e) {
 					onUnexpectedError(e);
 				}
@@ -641,7 +657,17 @@ export class Emitter<T> {
 	dispose() {
 		if (!this._disposed) {
 			this._disposed = true;
-			this._listeners?.clear();
+
+			// It is bad to have listeners at the time of disposing an emitter, it is worst to have listeners keep the emitter
+			// alive via the reference that's embedded their disposables. Therefore we loop over all remaining listeners and
+			// unset their subscriptions/disposables
+			if (this._listeners) {
+				for (let [_listener, _listenerThis, circuitBreaker] of this._listeners) {
+					// this disposes the actual disposable AND unsets it
+					circuitBreaker.dispose();
+				}
+				this._listeners.clear();
+			}
 			this._deliveryQueue?.clear();
 			this._options?.onLastListenerRemove?.();
 			this._leakageMon?.dispose();
@@ -676,7 +702,7 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 
 		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
 
-			const [listener, data] = this._asyncDeliveryQueue.shift()!;
+			const [[listener, listenerThis], data] = this._asyncDeliveryQueue.shift()!;
 			const thenables: Promise<unknown>[] = [];
 
 			const event = <T>{
@@ -687,18 +713,14 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 						throw new Error('waitUntil can NOT be called asynchronous');
 					}
 					if (promiseJoin) {
-						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
+						p = promiseJoin(p, listener);
 					}
 					thenables.push(p);
 				}
 			};
 
 			try {
-				if (typeof listener === 'function') {
-					listener.call(undefined, event);
-				} else {
-					listener[0].call(listener[1], event);
-				}
+				listener.call(listenerThis, event);
 			} catch (e) {
 				onUnexpectedError(e);
 				continue;
