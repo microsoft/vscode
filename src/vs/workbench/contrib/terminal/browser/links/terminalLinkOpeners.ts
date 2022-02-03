@@ -146,18 +146,18 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		try {
 			const result = await this._getExactMatch(sanitizedLink);
 			if (result) {
-				const { uri: resource, type} = result;
-			if (type === 'file' && resource) {
+				const { uri, type} = result;
+			if (type === 'file' && uri) {
 				return this._localFileOpener.open({
 					text: matchLink,
-					uri: resource,
+					uri,
 					bufferRange: link.bufferRange,
 					type: link.type
 				});
-			} else if (type === 'dir' && resource) {
+			} else if (type === 'dir' && uri) {
 				link = {
 					text: matchLink,
-					uri: resource,
+					uri,
 					bufferRange: link.bufferRange,
 					type: link.type
 				};
