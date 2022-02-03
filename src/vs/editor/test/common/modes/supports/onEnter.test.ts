@@ -183,7 +183,7 @@ suite('OnEnter', () => {
 		};
 
 		testIndentAction('const r = /{/;', '', IndentAction.None);
-		testIndentAction('const r = /{[0-9]/gmu;', '', IndentAction.None);
+		testIndentAction('const r = /{[0-9]/;', '', IndentAction.None);
 		testIndentAction('const r = /[a-zA-Z]{/;', '', IndentAction.None);
 	});
 });
