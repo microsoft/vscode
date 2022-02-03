@@ -139,7 +139,7 @@ export function getCodeActions(
 				documentation
 			};
 		} catch (err) {
-			if (!isCancellationError(err)) {
+			if (isCancellationError(err)) {
 				throw err;
 			}
 			onUnexpectedExternalError(err);
