@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as jsonc from 'jsonc-parser';
-import * as nls from 'vscode-nls';
-import * as vscode from 'vscode';
 import { basename, dirname, join, posix } from 'path';
+import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
+import { Utils } from 'vscode-uri';
 import { coalesce, flatten } from '../utils/arrays';
 import { exists } from '../utils/fs';
-import { Utils } from 'vscode-uri';
 
 function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
 	return node && node.type === 'array' && node.children
@@ -53,11 +53,11 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 		if (extendsValue.startsWith('/')) {
 			return undefined;
 		}
+
 		const args: OpenExtendsLinkCommandArgs = {
 			resourceUri: document.uri,
 			extendsValue: extendsValue
 		};
-
 		return new vscode.DocumentLink(
 			this.getRange(document, extendsNode),
 			vscode.Uri.parse(`command:${openExtendsLinkCommandId}?${JSON.stringify(args)}`)
@@ -118,7 +118,7 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 	}
 }
 
-const resolveNodeModulesPath = async (baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> => {
+async function resolveNodeModulesPath(baseDirUri: vscode.Uri, pathCandidates: string[]): Promise<vscode.Uri | undefined> {
 	let currentUri = baseDirUri;
 	const baseCandidate = pathCandidates[0];
 	const sepIndex = baseCandidate.startsWith('@') ? 2 : 1;
@@ -128,7 +128,10 @@ const resolveNodeModulesPath = async (baseDirUri: vscode.Uri, pathCandidates: st
 		let moduleStat: vscode.FileStat | undefined;
 		try {
 			moduleStat = await vscode.workspace.fs.stat(moduleAbsoluteUrl);
-		} catch (err) { }
+		} catch (err) {
+			// noop
+		}
+
 		if (moduleStat && (moduleStat.type & vscode.FileType.Directory)) {
 			for (const uriCandidate of pathCandidates
 				.map((relativePath) => relativePath.split(posix.sep).slice(sepIndex).join(posix.sep))
@@ -140,23 +143,24 @@ const resolveNodeModulesPath = async (baseDirUri: vscode.Uri, pathCandidates: st
 					return uriCandidate;
 				}
 			}
-			// Continue to loocking for potentially another version
+			// Continue to looking for potentially another version
 		}
 
 		const oldUri = currentUri;
 		currentUri = vscode.Uri.joinPath(currentUri, '..');
+
 		// Can't go next. Reached the system root
 		if (oldUri.path === currentUri.path) {
 			return;
 		}
 	}
-};
+}
 
 // Reference: https://github.com/microsoft/TypeScript/blob/febfd442cdba343771f478cf433b0892f213ad2f/src/compiler/commandLineParser.ts#L3005
 /**
 * @returns Returns undefined in case of lack of result while trying to resolve from node_modules
 */
-const getTsconfigPath = async (baseDirUri: vscode.Uri, extendsValue: string): Promise<vscode.Uri | undefined> => {
+async function getTsconfigPath(baseDirUri: vscode.Uri, extendsValue: string): Promise<vscode.Uri | undefined> {
 	// Don't take into account a case, where tsconfig might be resolved from the root (see the reference)
 	// e.g. C:/projects/shared-tsconfig/tsconfig.json (note that C: prefix is optional)
 
@@ -177,7 +181,7 @@ const getTsconfigPath = async (baseDirUri: vscode.Uri, extendsValue: string): Pr
 		...extendsValue.endsWith('.json') ? [] : [`${extendsValue}.json`],
 		`${extendsValue}/tsconfig.json`,
 	]);
-};
+}
 
 export function register() {
 	const patterns: vscode.GlobPattern[] = [
