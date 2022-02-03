@@ -99,7 +99,7 @@ export interface IEditorPane extends IComposite {
 	 * For example, in a text editor the selection changes whenever
 	 * the cursor is set to a new location.
 	 */
-	readonly onDidChangeSelection?: Event<void>;
+	readonly onDidChangeSelection?: Event<IEditorPaneSelectionChangeEvent>;
 
 	/**
 	 * The assigned input of this editor.
@@ -182,9 +182,87 @@ export interface IEditorPane extends IComposite {
 	isVisible(): boolean;
 }
 
+export interface IEditorPaneSelectionChangeEvent {
+
+	/**
+	 * More details for how the selection was made.
+	 */
+	reason: EditorPaneSelectionChangeReason;
+}
+
+export const enum EditorPaneSelectionChangeReason {
+
+	/**
+	 * The selection was changed for no particular reason.
+	 */
+	NONE,
+
+	/**
+	 * The selection was changed as a result of editing in
+	 * the editor pane.
+	 *
+	 * For a text editor, this for example can be typing in
+	 * the text of the editor.
+	 */
+	EDIT,
+
+	/**
+	 * The selection was changed as a result of a navigation
+	 * action.
+	 *
+	 * For a text editor, this for example can be invoking
+	 * "Go to definition" on a symbol.
+	 */
+	NAVIGATION
+}
+
+export interface IEditorPaneSelection {
+
+	/**
+	 * Asks to compare this selection to another selection.
+	 */
+	compare(otherSelection: IEditorPaneSelection): EditorPaneSelectionCompareResult;
+
+	/**
+	 * Asks to massage the provided `options` in a way
+	 * that the selection can be restored when the editor
+	 * is opened again.
+	 *
+	 * For a text editor this means to apply the selected
+	 * line and column as text editor options.
+	 */
+	restore(options: IEditorOptions): void;
+}
+
+export const enum EditorPaneSelectionCompareResult {
+
+	/**
+	 * The selections are identical.
+	 */
+	IDENTICAL = 1,
+
+	/**
+	 * The selections are similar.
+	 *
+	 * For a text editor this can mean that the one
+	 * selection is in close proximity to the other
+	 * selection.
+	 *
+	 * Upstream clients may decide in this case to
+	 * not treat the selection different from the
+	 * previous one because it is not distinct enough.
+	 */
+	SIMILAR = 2,
+
+	/**
+	 * The selections are entirely different.
+	 */
+	DIFFERENT = 3
+}
+
 export interface IEditorPaneWithSelection extends IEditorPane {
 
-	readonly onDidChangeSelection: Event<void>;
+	readonly onDidChangeSelection: Event<IEditorPaneSelectionChangeEvent>;
 
 	getSelection(): IEditorPaneSelection | undefined;
 }
@@ -850,81 +928,6 @@ export const enum GroupModelChangeKind {
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
 	EDITOR_WILL_DISPOSE
-}
-
-export const enum EditorPaneSelectionCompareResult {
-
-	/**
-	 * The selections are identical.
-	 */
-	IDENTICAL = 1,
-
-	/**
-	 * The selections are similar.
-	 *
-	 * For a text editor this can mean that the one
-	 * selection is in close proximity to the other
-	 * selection.
-	 *
-	 * Upstream clients may decide in this case to
-	 * not treat the selection different from the
-	 * previous one because it is not distinct enough.
-	 */
-	SIMILAR = 2,
-
-	/**
-	 * The selections are entirely different.
-	 */
-	DIFFERENT = 3
-}
-
-export const enum EditorPaneSelectionReason {
-
-	/**
-	 * The selection was changed for no particular reason.
-	 */
-	NONE,
-
-	/**
-	 * The selection was changed as a result of editing in
-	 * the editor pane.
-	 *
-	 * For a text editor, this for example can be typing in
-	 * the text of the editor.
-	 */
-	EDIT,
-
-	/**
-	 * The selection was changed as a result of a navigation
-	 * action.
-	 *
-	 * For a text editor, this for example can be invoking
-	 * "Go to definition" on a symbol.
-	 */
-	NAVIGATION
-}
-
-export interface IEditorPaneSelection {
-
-	/**
-	 * More details for how the selection was made.
-	 */
-	reason: EditorPaneSelectionReason;
-
-	/**
-	 * Asks to compare this selection to another selection.
-	 */
-	compare(otherSelection: IEditorPaneSelection): EditorPaneSelectionCompareResult;
-
-	/**
-	 * Asks to massage the provided `options` in a way
-	 * that the selection can be restored when the editor
-	 * is opened again.
-	 *
-	 * For a text editor this means to apply the selected
-	 * line and column as text editor options.
-	 */
-	restore(options: IEditorOptions): void;
 }
 
 export interface IWorkbenchEditorConfiguration {

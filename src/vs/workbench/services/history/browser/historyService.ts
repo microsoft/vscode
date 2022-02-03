@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionReason, isEditorPaneWithSelection, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -39,11 +39,12 @@ class EditorSelectionState {
 
 	constructor(
 		readonly editor: EditorInput,
-		readonly selection: IEditorPaneSelection | undefined
+		readonly selection: IEditorPaneSelection | undefined,
+		readonly reason: EditorPaneSelectionChangeReason | undefined
 	) { }
 
 	justifiesNewNavigationEntry(other: EditorSelectionState): boolean {
-		if (other.selection?.reason === EditorPaneSelectionReason.NAVIGATION) {
+		if (other.reason === EditorPaneSelectionChangeReason.NAVIGATION) {
 			return true; // always let navigation sources win (e.g. "Go to definition" should add a history entry)
 		}
 
@@ -190,18 +191,29 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// Debounce the selection event with a timeout of 0ms so that
 			// multiple selection change events are folded into one.
 
-			this.activeEditorListeners.add(Event.debouncedListener<void, { isEditing: boolean }>(activeEditorPane.onDidChangeSelection, mergedEvent => {
+			this.activeEditorListeners.add(Event.debouncedListener<IEditorPaneSelectionChangeEvent>(activeEditorPane.onDidChangeSelection, mergedEvent => {
 
 				// Handle in editor navigation stack
-				this.handleActiveEditorSelectionChangeEvent(activeEditorPane);
+				this.handleActiveEditorSelectionChangeEvent(activeEditorPane, mergedEvent);
 
 				// Handle as last edit location (if editing)
-				if (mergedEvent.isEditing) {
+				if (mergedEvent.reason === EditorPaneSelectionChangeReason.EDIT) {
 					this.rememberLastEditLocation(activeEditorPane);
 				}
-			}, last => {
-				// Track if any event has `EDIT` reason
-				return { isEditing: last?.isEditing ?? activeEditorPane.getSelection()?.reason === EditorPaneSelectionReason.EDIT };
+			}, (last, current) => {
+
+				// Since we specially handle selection changes from edits,
+				// make sure to preserve that reason when handling multiple
+				// events at once.
+
+				let reason: EditorPaneSelectionChangeReason;
+				if (last?.reason === EditorPaneSelectionChangeReason.EDIT) {
+					reason = last.reason;
+				} else {
+					reason = current.reason;
+				}
+
+				return { reason };
 			}, 0));
 		}
 	}
@@ -247,8 +259,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.handleEventInEditorNavigationStack(editorPane);
 	}
 
-	private handleActiveEditorSelectionChangeEvent(editorPane: IEditorPane): void {
-		this.handleEventInEditorNavigationStack(editorPane);
+	private handleActiveEditorSelectionChangeEvent(editorPane: IEditorPane, event: IEditorPaneSelectionChangeEvent): void {
+		this.handleEventInEditorNavigationStack(editorPane, event);
 	}
 
 	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
@@ -421,7 +433,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		});
 	}
 
-	private handleEventInEditorNavigationStack(editorPane: IEditorPane | undefined): void {
+	private handleEventInEditorNavigationStack(editorPane: IEditorPane | undefined, event?: IEditorPaneSelectionChangeEvent): void {
 		const isSelectionAwareEditorPane = editorPane && isEditorPaneWithSelection(editorPane);
 
 		// Treat editor changes that happen as part of stack navigation specially
@@ -430,7 +442,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// with the navigtion that occurs.
 		if (this.navigatingInEditorStack) {
 			if (isSelectionAwareEditorPane && editorPane?.input && !editorPane.input.isDisposed()) {
-				this.currentEditorSelectionState = new EditorSelectionState(editorPane.input, editorPane.getSelection());
+				this.currentEditorSelectionState = new EditorSelectionState(editorPane.input, editorPane.getSelection(), event?.reason);
 			} else {
 				this.currentEditorSelectionState = undefined; // we navigated to a non-selection aware or disposed editor
 			}
@@ -441,7 +453,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// Navigation inside selection aware editor
 			if (isSelectionAwareEditorPane && editorPane?.input && !editorPane.input.isDisposed()) {
-				this.handleSelectionAwareEditorEventInEditorNavigationStack(editorPane, editorPane.input);
+				this.handleSelectionAwareEditorEventInEditorNavigationStack(editorPane, editorPane.input, event);
 			}
 
 			// Navigation to non-selection aware or disposed editor
@@ -455,8 +467,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private handleSelectionAwareEditorEventInEditorNavigationStack(editorPane: IEditorPaneWithSelection, editor: EditorInput): void {
-		const stateCandidate = new EditorSelectionState(editor, editorPane.getSelection());
+	private handleSelectionAwareEditorEventInEditorNavigationStack(editorPane: IEditorPaneWithSelection, editor: EditorInput, event?: IEditorPaneSelectionChangeEvent): void {
+		const stateCandidate = new EditorSelectionState(editor, editorPane.getSelection(), event?.reason);
 
 		// Add to stack if we dont have a current state or this new state justifies a push
 		if (!this.currentEditorSelectionState || this.currentEditorSelectionState.justifiesNewNavigationEntry(stateCandidate)) {

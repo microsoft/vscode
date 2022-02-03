@@ -10,7 +10,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionReason, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
@@ -44,7 +44,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	private static readonly VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
-	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
+	private readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	private editorControl: IEditor | undefined;
@@ -143,31 +143,21 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		if (codeEditor) {
 			this._register(codeEditor.onDidChangeModelLanguage(() => this.updateEditorConfiguration()));
 			this._register(codeEditor.onDidChangeModel(() => this.updateEditorConfiguration()));
-			this._register(codeEditor.onDidChangeCursorPosition(e => this.updateSelection(new TextEditorPaneSelection(withNullAsUndefined(codeEditor.getSelection()), e.source === 'api' ? EditorPaneSelectionReason.NAVIGATION : EditorPaneSelectionReason.NONE))));
-			this._register(codeEditor.onDidChangeModelContent(() => this.updateSelection(new TextEditorPaneSelection(withNullAsUndefined(codeEditor.getSelection()), EditorPaneSelectionReason.EDIT))));
-			this._register(codeEditor.onDidChangeModel(() => this.updateSelection(new TextEditorPaneSelection(withNullAsUndefined(codeEditor.getSelection()), EditorPaneSelectionReason.NONE))));
+			this._register(codeEditor.onDidChangeCursorPosition(e => this._onDidChangeSelection.fire({ reason: e.source === 'api' ? EditorPaneSelectionChangeReason.NAVIGATION : EditorPaneSelectionChangeReason.NONE })));
+			this._register(codeEditor.onDidChangeModelContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
 		}
-	}
-
-	private selection: IEditorPaneSelection | undefined = undefined;
-
-	private updateSelection(newSelection: TextEditorPaneSelection): void {
-		const oldSelection = this.selection;
-
-		// Update current selection object
-		this.selection = newSelection;
-
-		// Return early if selections are the same
-		if (oldSelection && newSelection.compare(oldSelection) === EditorPaneSelectionCompareResult.IDENTICAL) {
-			return;
-		}
-
-		// Indicate as event
-		this._onDidChangeSelection.fire();
 	}
 
 	getSelection(): IEditorPaneSelection | undefined {
-		return this.selection;
+		const codeEditor = getCodeEditor(this.editorControl);
+		if (codeEditor) {
+			const selection = codeEditor.getSelection();
+			if (selection) {
+				return new TextEditorPaneSelection(selection);
+			}
+		}
+
+		return undefined;
 	}
 
 	/**
@@ -315,7 +305,6 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	override dispose(): void {
 		this.lastAppliedEditorOptions = undefined;
-		this.selection = undefined;
 
 		super.dispose();
 	}
@@ -326,25 +315,12 @@ class TextEditorPaneSelection implements IEditorPaneSelection {
 	private static readonly TEXT_EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for significant change
 
 	constructor(
-		private readonly textSelection: Selection | undefined,
-		readonly reason: EditorPaneSelectionReason
+		private readonly textSelection: Selection
 	) { }
 
 	compare(other: IEditorPaneSelection): EditorPaneSelectionCompareResult {
-		if (this === other) {
-			return EditorPaneSelectionCompareResult.IDENTICAL;
-		}
-
 		if (!(other instanceof TextEditorPaneSelection)) {
 			return EditorPaneSelectionCompareResult.DIFFERENT;
-		}
-
-		if (!Selection.isISelection(this.textSelection) || !Selection.isISelection(other.textSelection)) {
-			return EditorPaneSelectionCompareResult.DIFFERENT; // unknown selections
-		}
-
-		if (this.reason !== other.reason) {
-			return EditorPaneSelectionCompareResult.DIFFERENT; // different reasons
 		}
 
 		const thisLineNumber = Math.min(this.textSelection.selectionStartLineNumber, this.textSelection.positionLineNumber);
@@ -362,10 +338,6 @@ class TextEditorPaneSelection implements IEditorPaneSelection {
 	}
 
 	restore(options: IEditorOptions): void {
-		if (!this.textSelection) {
-			return;
-		}
-
 		const textOptions = options as ITextEditorOptions;
 		textOptions.selectionRevealType = TextEditorSelectionRevealType.CenterIfOutsideViewport;
 		textOptions.selection = this.textSelection;
