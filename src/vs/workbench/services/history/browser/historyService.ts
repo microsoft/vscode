@@ -6,30 +6,25 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
-import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext } from 'vs/workbench/common/editor';
+import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionReason, isEditorPaneWithSelection, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
-import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from 'vs/workbench/services/search/common/search';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, remove } from 'vs/base/common/arrays';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
@@ -40,35 +35,27 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-class TextEditorState {
-
-	private static readonly EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for new state
+class EditorSelectionState {
 
 	constructor(
-		readonly editorInput: EditorInput,
-		readonly selection: Selection | undefined
+		readonly editor: EditorInput,
+		readonly selection: IEditorPaneSelection | undefined
 	) { }
 
-	justifiesNewPushState(other: TextEditorState, event?: ICursorPositionChangedEvent): boolean {
-		if (event?.source === 'api') {
-			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
+	justifiesNewNavigationEntry(other: EditorSelectionState): boolean {
+		if (other.selection?.reason === EditorPaneSelectionReason.NAVIGATION) {
+			return true; // always let navigation sources win (e.g. "Go to definition" should add a history entry)
 		}
 
-		if (!this.editorInput.matches(other.editorInput)) {
-			return true; // different editor inputs
+		if (!this.editor.matches(other.editor)) {
+			return true; // different editors
 		}
 
-		if (!Selection.isISelection(this.selection) || !Selection.isISelection(other.selection)) {
+		if (!this.selection || !other.selection) {
 			return true; // unknown selections
 		}
 
-		const thisLineNumber = Math.min(this.selection.selectionStartLineNumber, this.selection.positionLineNumber);
-		const otherLineNumber = Math.min(other.selection.selectionStartLineNumber, other.selection.positionLineNumber);
-		if (Math.abs(thisLineNumber - otherLineNumber) < TextEditorState.EDITOR_SELECTION_THRESHOLD) {
-			return false; // ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
-		}
-
-		return true;
+		return other.selection.compare(this.selection) === EditorPaneSelectionCompareResult.DIFFERENT;
 	}
 }
 
@@ -78,7 +65,7 @@ interface ISerializedEditorHistoryEntry {
 
 interface IEditorWithSelection {
 	editor: EditorInput | IResourceEditorInput;
-	selection?: Selection;
+	selection?: IEditorPaneSelection;
 }
 
 interface IRecentlyClosedEditor {
@@ -196,39 +183,39 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Handle editor change
 		this.handleActiveEditorChange(activeEditorPane);
 
-		// Apply listener for selection changes if this is a text editor
-		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
-		const activeEditor = this.editorService.activeEditor;
-		if (activeTextEditorControl) {
+		// Listen to selection changes if the editor pane
+		// is having a selection concept.
+		if (activeEditorPane && isEditorPaneWithSelection(activeEditorPane)) {
 
-			// Debounce the event with a timeout of 0ms so that multiple calls to
-			// editor.setSelection() are folded into one. We do not want to record
-			// subsequent history navigations for such API calls.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorControl.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
-				this.handleEditorSelectionChangeEvent(activeEditorPane, event);
-			})));
+			// Debounce the selection event with a timeout of 0ms so that
+			// multiple selection change events are folded into one.
 
-			// Track the last edit location by tracking model content change events
-			// Use a debouncer to make sure to capture the correct cursor position
-			// after the model content has changed.
-			this.activeEditorListeners.add(Event.debounce(activeTextEditorControl.onDidChangeModelContent, (last, event) => event, 0)((event => {
-				if (activeEditor) {
-					this.rememberLastEditLocation(activeEditor, activeTextEditorControl);
+			this.activeEditorListeners.add(Event.debouncedListener<void, { isEditing: boolean }>(activeEditorPane.onDidChangeSelection, mergedEvent => {
+
+				// Handle in editor navigation stack
+				this.handleActiveEditorSelectionChangeEvent(activeEditorPane);
+
+				// Handle as last edit location (if editing)
+				if (mergedEvent.isEditing) {
+					this.rememberLastEditLocation(activeEditorPane);
 				}
-			})));
+			}, last => {
+				// Track if any event has `EDIT` reason
+				return { isEditing: last?.isEditing ?? activeEditorPane.getSelection()?.reason === EditorPaneSelectionReason.EDIT };
+			}, 0));
 		}
 	}
 
-	private matchesEditor(identifier: IEditorIdentifier, editor?: IEditorPane): boolean {
-		if (!editor || !editor.group) {
+	private matchesEditor(identifier: IEditorIdentifier, editorPane?: IEditorPane): boolean {
+		if (!editorPane || !editorPane.group) {
 			return false;
 		}
 
-		if (identifier.groupId !== editor.group.id) {
+		if (identifier.groupId !== editorPane.group.id) {
 			return false;
 		}
 
-		return editor.input ? identifier.editor.matches(editor.input) : false;
+		return editorPane.input ? identifier.editor.matches(editorPane.input) : false;
 	}
 
 	private onDidFilesChange(event: FileChangesEvent | FileOperationEvent): void {
@@ -255,13 +242,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private handleEditorSelectionChangeEvent(editor?: IEditorPane, event?: ICursorPositionChangedEvent): void {
-		this.handleEventInEditorNavigationStack(editor, event);
+	private handleActiveEditorChange(editorPane?: IEditorPane): void {
+		this.handleEditorEventInHistory(editorPane);
+		this.handleEventInEditorNavigationStack(editorPane);
 	}
 
-	private handleActiveEditorChange(editor?: IEditorPane): void {
-		this.handleEditorEventInHistory(editor);
-		this.handleEventInEditorNavigationStack(editor);
+	private handleActiveEditorSelectionChangeEvent(editorPane: IEditorPane): void {
+		this.handleEventInEditorNavigationStack(editorPane);
 	}
 
 	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
@@ -293,7 +280,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.moveInEditorNavigationStack(event);
 	}
 
-	private remove(input: EditorInput): void;
+	private remove(editor: EditorInput): void;
 	private remove(event: FileChangesEvent): void;
 	private remove(event: FileOperationEvent): void;
 	private remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent): void {
@@ -370,7 +357,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private navigatingInEditorStack = false;
 
-	private currentTextEditorState: TextEditorState | null = null;
+	private currentEditorSelectionState: EditorSelectionState | undefined = undefined;
 
 	forward(): void {
 		if (this.editorNavigationStack.length > this.editorNavigationStackIndex + 1) {
@@ -414,11 +401,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private doNavigate(location: IEditorWithSelection): Promise<IEditorPane | undefined> {
-		const options: ITextEditorOptions = {
-			revealIfOpened: true, // support to navigate across editor groups
-			selection: location.selection,
-			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
+		const options: IEditorOptions = {
+			revealIfOpened: true // support to navigate across editor groups
 		};
+
+		// Apply selection if any
+		location.selection?.restore(options);
 
 		if (isEditorInput(location.editor)) {
 			return this.editorService.openEditor(location.editor, options);
@@ -433,87 +421,83 @@ export class HistoryService extends Disposable implements IHistoryService {
 		});
 	}
 
-	private handleEventInEditorNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {
-		const codeEditor = control ? getCodeEditor(control.getControl()) : undefined;
+	private handleEventInEditorNavigationStack(editorPane: IEditorPane | undefined): void {
+		const isSelectionAwareEditorPane = editorPane && isEditorPaneWithSelection(editorPane);
 
-		// treat editor changes that happen as part of stack navigation specially
+		// Treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
-		// stack but we need to keep our currentTextEditorState up to date with
-		// the navigtion that occurs.
+		// stack but we need to keep our currentEditorSelectionState up to date
+		// with the navigtion that occurs.
 		if (this.navigatingInEditorStack) {
-			if (codeEditor && control?.input && !control.input.isDisposed()) {
-				this.currentTextEditorState = new TextEditorState(control.input, withNullAsUndefined(codeEditor.getSelection()));
+			if (isSelectionAwareEditorPane && editorPane?.input && !editorPane.input.isDisposed()) {
+				this.currentEditorSelectionState = new EditorSelectionState(editorPane.input, editorPane.getSelection());
 			} else {
-				this.currentTextEditorState = null; // we navigated to a non text or disposed editor
+				this.currentEditorSelectionState = undefined; // we navigated to a non-selection aware or disposed editor
 			}
 		}
 
-		// normal navigation not part of history navigation
+		// Normal navigation not part of stack navigation
 		else {
 
-			// navigation inside text editor
-			if (codeEditor && control?.input && !control.input.isDisposed()) {
-				this.handleTextEditorEventInEditorNavigationStack(control, codeEditor, event);
+			// Navigation inside selection aware editor
+			if (isSelectionAwareEditorPane && editorPane?.input && !editorPane.input.isDisposed()) {
+				this.handleSelectionAwareEditorEventInEditorNavigationStack(editorPane, editorPane.input);
 			}
 
-			// navigation to non-text disposed editor
+			// Navigation to non-selection aware or disposed editor
 			else {
-				this.currentTextEditorState = null; // at this time we have no active text editor view state
+				this.currentEditorSelectionState = undefined; // at this time we have no active selection aware editor
 
-				if (control?.input && !control.input.isDisposed()) {
-					this.handleNonTextEditorEventInEditorNavigationStack(control);
+				if (editorPane?.input && !editorPane.input.isDisposed()) {
+					this.handleNonSelectionAwareEditorEventInEditorNavigationStack(editorPane);
 				}
 			}
 		}
 	}
 
-	private handleTextEditorEventInEditorNavigationStack(editor: IEditorPane, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
-		if (!editor.input) {
-			return;
-		}
-
-		const stateCandidate = new TextEditorState(editor.input, withNullAsUndefined(editorControl.getSelection()));
+	private handleSelectionAwareEditorEventInEditorNavigationStack(editorPane: IEditorPaneWithSelection, editor: EditorInput): void {
+		const stateCandidate = new EditorSelectionState(editor, editorPane.getSelection());
 
 		// Add to stack if we dont have a current state or this new state justifies a push
-		if (!this.currentTextEditorState || this.currentTextEditorState.justifiesNewPushState(stateCandidate, event)) {
-			this.addToEditorNavigationStack(editor.input, stateCandidate.selection);
+		if (!this.currentEditorSelectionState || this.currentEditorSelectionState.justifiesNewNavigationEntry(stateCandidate)) {
+			this.addToEditorNavigationStack(editor, stateCandidate.selection);
 		}
 
 		// Otherwise we replace the current stack entry with this one
 		else {
-			this.replaceInEditorNavigationStack(editor.input, stateCandidate.selection);
+			this.replaceInEditorNavigationStack(editor, stateCandidate.selection);
 		}
 
 		// Update our current text editor state
-		this.currentTextEditorState = stateCandidate;
+		this.currentEditorSelectionState = stateCandidate;
 	}
 
-	private handleNonTextEditorEventInEditorNavigationStack(editor: IEditorPane): void {
-		if (!editor.input) {
+	private handleNonSelectionAwareEditorEventInEditorNavigationStack(editorPane: IEditorPane): void {
+		if (!editorPane.input) {
 			return;
 		}
 
 		const currentStack = this.editorNavigationStack[this.editorNavigationStackIndex];
-		if (currentStack && this.matches(editor.input, currentStack.editor)) {
+		if (currentStack && this.matches(editorPane.input, currentStack.editor)) {
 			return; // do not push same editor input again
 		}
 
-		this.addToEditorNavigationStack(editor.input);
+		this.addToEditorNavigationStack(editorPane.input);
 	}
 
-	private addToEditorNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection): void {
+	private addToEditorNavigationStack(editor: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection): void {
 		if (!this.navigatingInEditorStack) {
-			this.doAddOrReplaceInEditorNavigationStack(input, selection);
+			this.doAddOrReplaceInEditorNavigationStack(editor, selection);
 		}
 	}
 
-	private replaceInEditorNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection): void {
+	private replaceInEditorNavigationStack(editor: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection): void {
 		if (!this.navigatingInEditorStack) {
-			this.doAddOrReplaceInEditorNavigationStack(input, selection, true /* force replace */);
+			this.doAddOrReplaceInEditorNavigationStack(editor, selection, true /* force replace */);
 		}
 	}
 
-	private doAddOrReplaceInEditorNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection, forceReplace?: boolean): void {
+	private doAddOrReplaceInEditorNavigationStack(editor: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection, forceReplace?: boolean): void {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific. Also
@@ -529,12 +513,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (currentEntry) {
 			if (forceReplace) {
 				replace = true; // replace if we are forced to
-			} else if (this.matches(input, currentEntry.editor) && this.sameSelection(currentEntry.selection, selection)) {
+			} else if (this.matches(editor, currentEntry.editor) && this.sameEditorPaneSelection(currentEntry.selection, selection)) {
 				replace = true; // replace if the input is the same as the current one and the selection as well
 			}
 		}
 
-		const stackEditorInput = this.preferResourceEditorInput(input);
+		const stackEditorInput = this.preferResourceEditorInput(editor);
 		if (!stackEditorInput) {
 			return;
 		}
@@ -589,11 +573,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.updateContextKeys();
 	}
 
-	private preferResourceEditorInput(input: EditorInput): EditorInput | IResourceEditorInput;
-	private preferResourceEditorInput(input: IResourceEditorInput): IResourceEditorInput | undefined;
-	private preferResourceEditorInput(input: EditorInput | IResourceEditorInput): EditorInput | IResourceEditorInput | undefined;
-	private preferResourceEditorInput(input: EditorInput | IResourceEditorInput): EditorInput | IResourceEditorInput | undefined {
-		const resource = EditorResourceAccessor.getOriginalUri(input);
+	private preferResourceEditorInput(editor: EditorInput): EditorInput | IResourceEditorInput;
+	private preferResourceEditorInput(editor: IResourceEditorInput): IResourceEditorInput | undefined;
+	private preferResourceEditorInput(editor: EditorInput | IResourceEditorInput): EditorInput | IResourceEditorInput | undefined;
+	private preferResourceEditorInput(editor: EditorInput | IResourceEditorInput): EditorInput | IResourceEditorInput | undefined {
+		const resource = EditorResourceAccessor.getOriginalUri(editor);
 
 		// For now, only prefer well known schemes that we control to prevent
 		// issues such as https://github.com/microsoft/vscode/issues/85204
@@ -610,33 +594,33 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// over the typed input if possible to keep
 		// the entry across restarts
 		if (hasValidResourceEditorInputScheme) {
-			if (isEditorInput(input)) {
-				const untypedInput = input.toUntyped();
+			if (isEditorInput(editor)) {
+				const untypedInput = editor.toUntyped();
 				if (isResourceEditorInput(untypedInput)) {
 					return untypedInput;
 				}
 			}
 
-			return input;
+			return editor;
 		}
 
 		// Scheme is invalid: allow the editor input
 		// for as long as it is not disposed
 		else {
-			return isEditorInput(input) ? input : undefined;
+			return isEditorInput(editor) ? editor : undefined;
 		}
 	}
 
-	private sameSelection(selectionA?: Selection, selectionB?: Selection): boolean {
-		if (!selectionA && !selectionB) {
+	private sameEditorPaneSelection(selection?: IEditorPaneSelection, other?: IEditorPaneSelection): boolean {
+		if (!selection && !other) {
 			return true;
 		}
 
-		if (!selectionA || !selectionB) {
+		if (!selection || !other) {
 			return false;
 		}
 
-		return selectionA.startLineNumber === selectionB.startLineNumber; // we consider the history entry same if we are on the same line
+		return selection.compare(other) === EditorPaneSelectionCompareResult.IDENTICAL;
 	}
 
 	private moveInEditorNavigationStack(event: FileOperationEvent): void {
@@ -905,11 +889,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Re-open editor unless already opened
 		let editorPane: IEditorPane | undefined = undefined;
 		if (!this.editorGroupService.activeGroup.contains(lastClosedEditor.editor)) {
+
 			// Fix for https://github.com/microsoft/vscode/issues/107850
 			// If opening an editor fails, it is possible that we get
 			// another editor-close event as a result. But we really do
 			// want to ignore that in our list of recently closed editors
 			//  to prevent endless loops.
+
 			this.ignoreEditorCloseEvent = true;
 			try {
 				editorPane = await this.editorService.openEditor({
@@ -926,6 +912,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// If no editor was opened, try with the next one
 		if (!editorPane) {
+
 			// Fix for https://github.com/microsoft/vscode/issues/67882
 			// If opening of the editor fails, make sure to try the next one
 			// but make sure to remove this one from the list to prevent
@@ -964,14 +951,14 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private lastEditLocation: IEditorWithSelection | undefined;
 
-	private rememberLastEditLocation(activeEditor: EditorInput, activeTextEditorControl: ICodeEditor): void {
-		this.lastEditLocation = { editor: activeEditor };
-		this.canNavigateToLastEditLocationContextKey.set(true);
-
-		const position = activeTextEditorControl.getPosition();
-		if (position) {
-			this.lastEditLocation.selection = new Selection(position.lineNumber, position.column, position.lineNumber, position.column);
+	private rememberLastEditLocation(editorPane: IEditorPane): void {
+		const editor = editorPane.input;
+		if (!editor || editor.isDisposed()) {
+			return;
 		}
+
+		this.lastEditLocation = { editor, selection: editorPane.getSelection?.() };
+		this.canNavigateToLastEditLocationContextKey.set(true);
 	}
 
 	openLastEditLocation(): void {
@@ -1003,23 +990,23 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return matcher;
 	}));
 
-	private handleEditorEventInHistory(editor?: IEditorPane): void {
+	private handleEditorEventInHistory(editorPane?: IEditorPane): void {
 
 		// Ensure we have not configured to exclude input and don't track invalid inputs
-		const input = editor?.input;
-		if (!input || input.isDisposed() || !this.includeInHistory(input)) {
+		const editor = editorPane?.input;
+		if (!editor || editor.isDisposed() || !this.includeInHistory(editor)) {
 			return;
 		}
 
 		// Remove any existing entry and add to the beginning
-		this.removeFromHistory(input);
-		this.addToHistory(input);
+		this.removeFromHistory(editor);
+		this.addToHistory(editor);
 	}
 
-	private addToHistory(input: EditorInput | IResourceEditorInput, insertFirst = true): void {
+	private addToHistory(editor: EditorInput | IResourceEditorInput, insertFirst = true): void {
 		this.ensureHistoryLoaded(this.history);
 
-		const historyInput = this.preferResourceEditorInput(input);
+		const historyInput = this.preferResourceEditorInput(editor);
 		if (!historyInput) {
 			return;
 		}
@@ -1042,11 +1029,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private updateHistoryOnEditorDispose(historyInput: EditorInput): void {
+	private updateHistoryOnEditorDispose(editor: EditorInput): void {
 
 		// Any non side-by-side editor input gets removed directly on dispose
-		if (!isSideBySideEditorInput(historyInput)) {
-			this.removeFromHistory(historyInput);
+		if (!isSideBySideEditorInput(editor)) {
+			this.removeFromHistory(editor);
 		}
 
 		// Side-by-side editors get special treatment: we try to distill the
@@ -1054,7 +1041,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// offer these entries from the history to the user still.
 		else {
 			const resourceInputs: IResourceEditorInput[] = [];
-			const sideInputs = historyInput.primary.matches(historyInput.secondary) ? [historyInput.primary] : [historyInput.primary, historyInput.secondary];
+			const sideInputs = editor.primary.matches(editor.secondary) ? [editor.primary] : [editor.primary, editor.secondary];
 			for (const sideInput of sideInputs) {
 				const candidateResourceInput = this.preferResourceEditorInput(sideInput);
 				if (isResourceEditorInput(candidateResourceInput)) {
@@ -1064,16 +1051,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// Insert the untyped resource inputs where our disposed
 			// side-by-side editor input is in the history stack
-			this.replaceInHistory(historyInput, ...resourceInputs);
+			this.replaceInHistory(editor, ...resourceInputs);
 		}
 	}
 
-	private includeInHistory(input: EditorInput | IResourceEditorInput): boolean {
-		if (isEditorInput(input)) {
+	private includeInHistory(editor: EditorInput | IResourceEditorInput): boolean {
+		if (isEditorInput(editor)) {
 			return true; // include any non files
 		}
 
-		return !this.resourceExcludeMatcher.value.matches(input.resource);
+		return !this.resourceExcludeMatcher.value.matches(editor.resource);
 	}
 
 	private removeExcludedFromHistory(): void {
@@ -1310,7 +1297,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 		}
 
-		// fallback to first workspace matching scheme filter if any
+		// Fallback to first workspace matching scheme filter if any
 		for (const folder of folders) {
 			const resource = folder.uri;
 			if (!schemeFilter || resource.scheme === schemeFilter) {
