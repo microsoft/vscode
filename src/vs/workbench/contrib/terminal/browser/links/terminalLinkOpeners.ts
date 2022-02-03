@@ -146,23 +146,18 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		try {
 			const result = await this._getExactMatch(sanitizedLink);
 			if (result) {
-				const { uri, type} = result;
-			if (type === 'file' && uri) {
-				return this._localFileOpener.open({
-					text: matchLink,
-					uri,
-					bufferRange: link.bufferRange,
-					type: link.type
-				});
-			} else if (type === 'dir' && uri) {
-				link = {
+				const { uri, resourceType} = result;
+				const linkToOpen = {
 					text: matchLink,
 					uri,
 					bufferRange: link.bufferRange,
 					type: link.type
 				};
+			if (resourceType === 'file' && uri) {
+				return this._localFileOpener.open(linkToOpen);
+			} else if (resourceType === 'dir' && uri) {
 				try {
-					this._localFolderInWorkspaceOpener.open(link);
+					this._localFolderInWorkspaceOpener.open(linkToOpen);
 					return;
 				} catch {
 					// this folder is outside of the workspace
@@ -212,9 +207,9 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			try {
 				const fileStat = await this._fileService.resolve(uri);
 				if (fileStat.isFile) {
-					resourceMatch = { uri, type: 'file'};
+					resourceMatch = { uri, resourceType: 'file'};
 				} else if (fileStat.isDirectory) {
-					resourceMatch = { uri, type: 'dir' };
+					resourceMatch = { uri, resourceType: 'dir' };
 				}
 			} catch {
 				// File or dir doesn't exist, continue on
@@ -229,7 +224,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				})
 			);
 			if (results.results.length === 1) {
-				resourceMatch = { uri: results.results[0].resource, type: 'file'};
+				resourceMatch = { uri: results.results[0].resource, resourceType: 'file'};
 			}
 		}
 		return resourceMatch;
@@ -238,7 +233,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 
 interface IResourceMatch {
 	uri: URI | undefined;
-	type: 'file' | 'dir' | undefined;
+	resourceType: 'file' | 'dir' | undefined;
 }
 
 export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
