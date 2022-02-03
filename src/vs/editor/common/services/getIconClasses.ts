@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { DataUri, basenameOrAuthority } from 'vs/base/common/resources';
+import { DataUri } from 'vs/base/common/resources';
 import { URI as uri } from 'vs/base/common/uri';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/services/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { FileKind } from 'vs/platform/files/common/files';
 
-const fileIconDirectoryRegex = /(?:\/|^)((?!\.\/)[^\/]+\/)([^\/]+)$/;
-
-type FileIconDirectoryRegexMatch = RegExpMatchArray & [string, string, string] | null;
+const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 
 export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind): string[] {
 
@@ -27,13 +25,15 @@ export function getIconClasses(modelService: IModelService, languageService: ILa
 			const metadata = DataUri.parseMetaData(resource);
 			name = metadata.get(DataUri.META_DATA_LABEL);
 		} else {
-			name = cssEscape(basenameOrAuthority(resource).toLowerCase());
+			const match = resource.path.match(fileIconDirectoryRegex);
+			if (match) {
+				name = cssEscape(match[2].toLowerCase());
+				if (match[1]) {
+					classes.push(`${cssEscape(match[1].toLowerCase())}-name-dir-icon`); // parent directory
+				}
 
-			// Directory
-			let fileIconDirectoryRegexMatch = resource.path.match(fileIconDirectoryRegex) as FileIconDirectoryRegexMatch;
-			if (fileIconDirectoryRegexMatch) {
-				const directoryName = fileIconDirectoryRegexMatch[1];
-				classes.push(`${cssEscape(directoryName.toLowerCase())}-name-dir-icon`);
+			} else {
+				name = cssEscape(resource.authority.toLowerCase());
 			}
 		}
 

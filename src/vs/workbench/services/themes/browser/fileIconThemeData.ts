@@ -15,10 +15,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { ILanguageService } from 'vs/editor/common/services/language';
 
-const fileIconDirectoryRegex = /(?:\/|^)((?!\.\/)[^\/]+\/)([^\/]+)$/;
-
-type FileIconDirectoryRegexMatch = RegExpMatchArray & [string, string, string] | null;
-
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 
 	static readonly STORAGE_KEY = 'iconThemeData';
@@ -294,31 +290,21 @@ export class FileIconThemeLoader {
 
 				const folderNames = associations.folderNames;
 				if (folderNames) {
-					for (let folderName in folderNames) {
-						folderName = folderName.toLowerCase();
-						const fileIconDirectoryRegexMatch = folderName.match(fileIconDirectoryRegex) as FileIconDirectoryRegexMatch;
-						if (fileIconDirectoryRegexMatch) {
-							const directoryName = fileIconDirectoryRegexMatch[1];
-							folderName = fileIconDirectoryRegexMatch[2];
-							addSelector(`${qualifier} .${escapeCSS(directoryName)}-name-dir-icon.${escapeCSS(folderName)}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
-						} else {
-							addSelector(`${qualifier} .${escapeCSS(folderName)}-name-folder-icon.folder-icon::before`, folderNames[folderName]);
-						}
+					for (let key in folderNames) {
+						const selectors: string[] = [];
+						const name = handleParentFolder(key.toLowerCase(), selectors);
+						selectors.push(`.${escapeCSS(name)}-name-folder-icon`);
+						addSelector(`${qualifier} ${selectors.join('')}.folder-icon::before`, folderNames[key]);
 						result.hasFolderIcons = true;
 					}
 				}
 				const folderNamesExpanded = associations.folderNamesExpanded;
 				if (folderNamesExpanded) {
-					for (let folderName in folderNamesExpanded) {
-						folderName = folderName.toLowerCase();
-						const fileIconDirectoryRegexMatch = folderName.match(fileIconDirectoryRegex) as FileIconDirectoryRegexMatch;
-						if (fileIconDirectoryRegexMatch) {
-							const directoryName = fileIconDirectoryRegexMatch[1];
-							folderName = fileIconDirectoryRegexMatch[2];
-							addSelector(`${qualifier} .${escapeCSS(directoryName)}-name-dir-icon.${escapeCSS(folderName)}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
-						} else {
-							addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName)}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
-						}
+					for (let key in folderNamesExpanded) {
+						const selectors: string[] = [];
+						const name = handleParentFolder(key.toLowerCase(), selectors);
+						selectors.push(`.${escapeCSS(name)}-name-folder-icon`);
+						addSelector(`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
 						result.hasFolderIcons = true;
 					}
 				}
@@ -337,37 +323,26 @@ export class FileIconThemeLoader {
 				}
 				const fileExtensions = associations.fileExtensions;
 				if (fileExtensions) {
-					for (let fileExtension in fileExtensions) {
+					for (let key in fileExtensions) {
 						const selectors: string[] = [];
-						const fileIconDirectoryRegexMatch = fileExtension.match(fileIconDirectoryRegex) as FileIconDirectoryRegexMatch;
-						if (fileIconDirectoryRegexMatch) {
-							const directoryName = fileIconDirectoryRegexMatch[1];
-							selectors.push(`.${escapeCSS(directoryName.toLowerCase())}-name-dir-icon`);
-							fileExtension = fileIconDirectoryRegexMatch[2];
-						}
-						const segments = fileExtension.toLowerCase().split('.');
+						const name = handleParentFolder(key.toLowerCase(), selectors);
+						const segments = name.split('.');
 						if (segments.length) {
 							for (let i = 0; i < segments.length; i++) {
 								selectors.push(`.${escapeCSS(segments.slice(i).join('.'))}-ext-file-icon`);
 							}
 							selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 						}
-						addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[fileExtension]);
+						addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileExtensions[key]);
 						result.hasFileIcons = true;
 						hasSpecificFileIcons = true;
 					}
 				}
 				const fileNames = associations.fileNames;
 				if (fileNames) {
-					for (let fileName in fileNames) {
+					for (let key in fileNames) {
 						const selectors: string[] = [];
-						fileName = fileName.toLowerCase();
-						const fileIconDirectoryRegexMatch = fileName.match(fileIconDirectoryRegex) as FileIconDirectoryRegexMatch;
-						if (fileIconDirectoryRegexMatch) {
-							const directoryName = fileIconDirectoryRegexMatch[1];
-							selectors.push(`.${escapeCSS(directoryName)}-name-dir-icon`);
-							fileName = fileIconDirectoryRegexMatch[2];
-						}
+						const fileName = handleParentFolder(key.toLowerCase(), selectors);
 						selectors.push(`.${escapeCSS(fileName)}-name-file-icon`);
 						selectors.push('.name-file-icon'); // extra segment to increase file-name score
 						const segments = fileName.split('.');
@@ -377,7 +352,7 @@ export class FileIconThemeLoader {
 							}
 							selectors.push('.ext-file-icon'); // extra segment to increase file-ext score
 						}
-						addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[fileName]);
+						addSelector(`${qualifier} ${selectors.join('')}.file-icon::before`, fileNames[key]);
 						result.hasFileIcons = true;
 						hasSpecificFileIcons = true;
 					}
@@ -450,6 +425,16 @@ export class FileIconThemeLoader {
 		return result;
 	}
 
+}
+
+function handleParentFolder(key: string, selectors: string[]): string {
+	const lastIndexOfSlash = key.lastIndexOf('/');
+	if (lastIndexOfSlash >= 0) {
+		const parentFolder = key.substring(0, lastIndexOfSlash);
+		selectors.push(`.${escapeCSS(parentFolder)}-name-dir-icon`);
+		return key.substring(lastIndexOfSlash + 1);
+	}
+	return key;
 }
 
 function escapeCSS(str: string) {
