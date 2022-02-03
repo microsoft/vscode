@@ -511,22 +511,14 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private doAddOrReplaceInEditorNavigationStack(editor: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection, forceReplace?: boolean): void {
 
-		// Overwrite an entry in the stack if we have a matching input that comes
-		// with editor options to indicate that this entry is more specific. Also
-		// prevent entries that have the exact same options. Finally, overwrite
-		// entries if we detect that the change came in very fast which indicates
-		// that it was not coming in from a user change but rather rapid programmatic
-		// changes. We just take the last of the changes to not cause too many entries
-		// on the stack.
-		// We can also be instructed to force replace the last entry.
-
+		// Check whether to replace an existing entry or not
 		let replace = false;
 		const currentEntry = this.editorNavigationStack[this.editorNavigationStackIndex];
 		if (currentEntry) {
 			if (forceReplace) {
 				replace = true; // replace if we are forced to
-			} else if (this.matches(editor, currentEntry.editor) && this.sameEditorPaneSelection(currentEntry.selection, selection)) {
-				replace = true; // replace if the input is the same as the current one and the selection as well
+			} else if (this.matches(currentEntry.editor, editor) && this.shouldReplaceEditorPaneSelection(currentEntry, selection)) {
+				replace = true; // replace if the input is the same and selection indicates as such
 			}
 		}
 
@@ -623,16 +615,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private sameEditorPaneSelection(selection?: IEditorPaneSelection, other?: IEditorPaneSelection): boolean {
-		if (!selection && !other) {
-			return true;
+	private shouldReplaceEditorPaneSelection(stackEntry: IEditorWithSelection, newSelection?: IEditorPaneSelection): boolean {
+		if (!stackEntry.selection) {
+			return true; // always replace when we have no specific selection yet
 		}
 
-		if (!selection || !other) {
-			return false;
+		if (!newSelection) {
+			return false; // otherwise, prefer to keep existing specific selection over new unspecific one
 		}
 
-		return selection.compare(other) === EditorPaneSelectionCompareResult.IDENTICAL;
+		// Finally, replace when selections are considered identical
+		return stackEntry.selection.compare(newSelection) === EditorPaneSelectionCompareResult.IDENTICAL;
 	}
 
 	private moveInEditorNavigationStack(event: FileOperationEvent): void {
