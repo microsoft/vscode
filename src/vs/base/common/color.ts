@@ -258,6 +258,10 @@ export class Color {
 
 	static fromHex(hex: string | string[]): Color {
 		if (isArray(hex)) {
+			if (hex.length === 0) {
+				return Color.fromHex('');
+			}
+
 			const [first, ...rest] = hex;
 			const result = Color.fromHex(first);
 			result.array = rest.map(Color.fromHex);
@@ -297,7 +301,7 @@ export class Color {
 	}
 
 	isArray() {
-		return !!this._array;
+		return this.array.length > 1;
 	}
 
 	constructor(arg: RGBA | HSLA | HSVA) {
