@@ -18,7 +18,7 @@ import { isDefined } from 'vs/base/common/types';
 import { BracketPairGuidesClassNames } from 'vs/editor/common/model/guidesTextModelPart';
 import { IndentGuide, HorizontalGuidesState } from 'vs/editor/common/textModelGuides';
 
-type BracketPairColorCollection = { bracketColor?: Color, guideColor?: Color, guideColorActive?: Color };
+type BracketPairColorCollection = { bracketColor?: Color; guideColor?: Color; guideColorActive?: Color };
 
 export class IndentGuidesOverlay extends DynamicViewOverlay {
 
