@@ -314,10 +314,6 @@
 	display: inline-block; /* size to contents for hover to show context button */
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .comma {
-	padding-right: 4px;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-modified-indicator {
 	display: none;
 }
