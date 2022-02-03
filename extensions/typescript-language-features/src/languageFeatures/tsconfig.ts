@@ -178,8 +178,10 @@ async function getTsconfigPath(baseDirUri: vscode.Uri, extendsValue: string): Pr
 	// Otherwise resolve like a module
 	return resolveNodeModulesPath(baseDirUri, [
 		extendsValue,
-		...extendsValue.endsWith('.json') ? [] : [`${extendsValue}.json`],
-		`${extendsValue}/tsconfig.json`,
+		...extendsValue.endsWith('.json') ? [] : [
+			`${extendsValue}.json`,
+			`${extendsValue}/tsconfig.json`,
+		]
 	]);
 }
 
