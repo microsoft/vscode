@@ -52,7 +52,7 @@ steps:
 
   - script: |
       set -e
-      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz $(Build.SourcesDirectory)/remote/node_modules
+      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz -C $(Build.SourcesDirectory)/remote node_modules
     displayName: Compress node_modules output
 
   - task: PublishPipelineArtifact@0

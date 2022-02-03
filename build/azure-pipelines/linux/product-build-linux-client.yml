@@ -112,11 +112,6 @@ steps:
         fi
         echo "Yarn failed $i, trying again..."
       done
-
-      # Remove remote node_modules
-      if [ "$VSCODE_ARCH" == "x64" ]; then
-        rm -rf remote/node_modules
-      fi
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
@@ -126,7 +121,8 @@ steps:
 
   - script: |
       set -e
-      tar -xzf $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz --directory $(Build.SourcesDirectory)/remote/node_modules
+      rm -rf remote/node_modules
+      tar -xzf $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz --directory $(Build.SourcesDirectory)/remote
     displayName: Extract server node_modules output
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
