@@ -2122,7 +2122,7 @@ class SettingsTreeMiscLabel {
 			DOM.append(this.labelElement, $('span', undefined, '('));
 			for (let i = 0; i < elementsToShow.length - 1; i++) {
 				DOM.append(this.labelElement, elementsToShow[i]);
-				DOM.append(this.labelElement, $('span', undefined, ','));
+				DOM.append(this.labelElement, $('span.comma', undefined, ','));
 			}
 			DOM.append(this.labelElement, elementsToShow[elementsToShow.length - 1]);
 			DOM.append(this.labelElement, $('span', undefined, ')'));
