@@ -310,7 +310,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 }
 
-class TextEditorPaneSelection implements IEditorPaneSelection {
+export class TextEditorPaneSelection implements IEditorPaneSelection {
 
 	private static readonly TEXT_EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for significant change
 
