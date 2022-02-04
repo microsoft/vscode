@@ -787,6 +787,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					tooltip: nls.localize('viewCommandOutput', "View Command Output"),
 					alwaysVisible: true
 				}];
+				// Merge consecutive commands
+				if (items.length > 0 && items[items.length - 1].label === label) {
+					items[items.length - 1].id = timestamp.toString();
+					items[items.length - 1].detail = detail;
+					continue;
+				}
 				items.push({
 					label,
 					description: fromNow(timestamp, true),
