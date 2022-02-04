@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
+import {homedir} from 'os';
 import * as platform from 'vs/base/common/platform';
 import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
@@ -25,7 +26,6 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -41,9 +41,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
-		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
-		@IPathService private readonly pathService: IPathService,
-
+		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
 	) {
 		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
 	}
@@ -156,7 +154,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this.pathService, this._editorTabs, this._workspaceService);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs, this._workspaceService, homedir());
 	}
 }
 

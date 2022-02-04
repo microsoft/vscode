@@ -15,8 +15,6 @@ import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-
 
 export interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
@@ -29,7 +27,9 @@ export interface IVariableResolveContext {
 	getSelectedText(): string | undefined;
 	getLineNumber(): string | undefined;
 }
-type Environment = { env?: IProcessEnvironment; userHome?: uri };
+
+type Environment = { env?: IProcessEnvironment; userHome?: string };
+
 export class AbstractVariableResolverService implements IConfigurationResolverService {
 
 	static readonly VARIABLE_LHS = '${';
@@ -40,13 +40,13 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	private _context: IVariableResolveContext;
 	private _labelService?: ILabelService;
 	private _envVariablesPromise?: Promise<IProcessEnvironment>;
-	protected _pathService: IPathService | undefined;
+	private _userHomePromise?: Promise<string>;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
-	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _pathService?: IPathService, _envVariablesPromise?: Promise<IProcessEnvironment>) {
+	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _userHomePromise?: Promise<string>, _envVariablesPromise?: Promise<IProcessEnvironment>) {
 		this._context = _context;
 		this._labelService = _labelService;
-		this._pathService = _pathService;
+		this._userHomePromise = _userHomePromise;
 		if (_envVariablesPromise) {
 			this._envVariablesPromise = _envVariablesPromise.then(envVariables => {
 				return this.prepareEnv(envVariables);
@@ -76,7 +76,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	public async resolveAsync(root: IWorkspaceFolder | undefined, value: any): Promise<any> {
 		const environment: Environment = {
 			env: await this._envVariablesPromise,
-			userHome: this._pathService ? await this._pathService.userHome() : undefined
+			userHome: await this._userHomePromise
 		};
 		return this.recursiveResolve(environment, root ? root.uri : undefined, value);
 	}
@@ -102,7 +102,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		// substitute all variables recursively in string values
 		const environmentPromises: Environment = {
 			env: await this._envVariablesPromise,
-			userHome: this._pathService ? await this._pathService.userHome() : undefined
+			userHome: await this._userHomePromise
 		};
 		return this.recursiveResolve(environmentPromises, workspaceFolder ? workspaceFolder.uri : undefined, result, commandValueMapping, resolvedVariables);
 	}
@@ -149,7 +149,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return value;
 	}
 
-	private resolveString(environment: Environment | undefined, folderUri: uri | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, string>): string {
+	private resolveString(environment: Environment, folderUri: uri | undefined, value: string, commandValueMapping: IStringDictionary<string> | undefined, resolvedVariables?: Map<string, string>): string {
 
 		// loop through all variables occurrences in 'value'
 		const replaced = value.replace(AbstractVariableResolverService.VARIABLE_REGEXP, (match: string, variable: string) => {
@@ -178,7 +178,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
 
-	private evaluateSingleVariable(environment: Environment | undefined, match: string, variable: string, folderUri: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
+	private evaluateSingleVariable(environment: Environment, match: string, variable: string, folderUri: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
 
 		// try to separate variable arguments from variable name
 		let argument: string | undefined;
@@ -237,12 +237,12 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			case 'env':
 				if (argument) {
-					if (environment?.env) {
+					if (environment.env) {
 						// Depending on the source of the environment, on Windows, the values may all be lowercase.
-							const env = environment.env[isWindows ? argument.toLowerCase() : argument];
-							if (types.isString(env)) {
-								return env;
-							}
+						const env = environment.env[isWindows ? argument.toLowerCase() : argument];
+						if (types.isString(env)) {
+							return env;
+						}
 					}
 					// For `env` we should do the same as a normal shell does - evaluates undefined envs to an empty string #46436
 					return '';
@@ -283,13 +283,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return paths.basename(this.fsPath(getFolderUri()));
 
 					case 'userHome': {
-						if (environment) {
-							if (environment.userHome) {
-								return environment.userHome.path;
-							}
+						if (environment.userHome) {
+							return environment.userHome;
 						}
 						throw new Error(localize('canNotResolveUserHome', "Variable {0} can not be resolved. UserHome path is not defined", match));
-
 					}
 
 					case 'lineNumber': {

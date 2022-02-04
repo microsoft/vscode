@@ -26,7 +26,6 @@ import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostAp
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import * as resources from 'vs/base/common/resources';
 import { homedir } from 'os';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export class ExtHostTask extends ExtHostTaskBase {
 	private _variableResolver: ExtHostVariableResolverService | undefined;
@@ -41,8 +40,6 @@ export class ExtHostTask extends ExtHostTaskBase {
 		@ILogService logService: ILogService,
 		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService,
 		@IExtHostEditorTabs private readonly editorTabs: IExtHostEditorTabs,
-		@IPathService private readonly pathService: IPathService
-
 	) {
 		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
 		if (initData.remote.isRemote && initData.remote.authority) {
@@ -134,7 +131,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 	private async getVariableResolver(workspaceFolders: vscode.WorkspaceFolder[]): Promise<ExtHostVariableResolverService> {
 		if (this._variableResolver === undefined) {
 			const configProvider = await this._configurationService.getConfigProvider();
-			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, this.pathService, this.editorTabs, this.workspaceService);
+			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, this.editorTabs, this.workspaceService, homedir());
 		}
 		return this._variableResolver;
 	}

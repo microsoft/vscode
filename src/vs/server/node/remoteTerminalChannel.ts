@@ -29,15 +29,13 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { buildUserEnvironment } from 'vs/server/node/extensionHostConnection';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
 		env: platform.IProcessEnvironment,
 		workspaceFolders: IWorkspaceFolder[],
 		activeFileResource: URI | undefined,
-		resolvedVariables: { [name: string]: string; },
-		pathService: IPathService
+		resolvedVariables: { [name: string]: string; }
 	) {
 		super({
 			getFolderUri: (folderName: string): URI | undefined => {
@@ -71,7 +69,7 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 			getLineNumber: (): string | undefined => {
 				return resolvedVariables['lineNumber'];
 			}
-		}, undefined, pathService, Promise.resolve(env));
+		}, undefined, Promise.resolve(os.homedir()), Promise.resolve(env));
 	}
 }
 
@@ -91,9 +89,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		private readonly _environmentService: IServerEnvironmentService,
 		private readonly _logService: ILogService,
 		private readonly _ptyService: IPtyService,
-		private readonly _productService: IProductService,
-		protected readonly _pathService: IPathService
-
+		private readonly _productService: IProductService
 	) {
 		super();
 	}
@@ -206,7 +202,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		const workspaceFolders = args.workspaceFolders.map(reviveWorkspaceFolder);
 		const activeWorkspaceFolder = args.activeWorkspaceFolder ? reviveWorkspaceFolder(args.activeWorkspaceFolder) : undefined;
 		const activeFileResource = args.activeFileResource ? URI.revive(uriTransformer.transformIncoming(args.activeFileResource)) : undefined;
-		const customVariableResolver = new CustomVariableResolver(baseEnv, workspaceFolders, activeFileResource, args.resolvedVariables, this._pathService);
+		const customVariableResolver = new CustomVariableResolver(baseEnv, workspaceFolders, activeFileResource, args.resolvedVariables);
 		const variableResolver = terminalEnvironment.createVariableResolver(activeWorkspaceFolder, process.env, customVariableResolver);
 
 		// Get the initial cwd
