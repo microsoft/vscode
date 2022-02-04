@@ -76,7 +76,13 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 			}
 
 			// wait 5 seconds or until responsive again
-			await timeout(5e3, cts.token);
+			try {
+				await timeout(5e3, cts.token);
+			} catch {
+				// can throw cancellation error. that is
+				// OK, we stop profiling and analyse the
+				// profile anyways
+			}
 
 			try {
 				// stop profiling and analyse results
