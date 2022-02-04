@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
-import {homedir} from 'os';
+import { homedir } from 'os';
 import * as platform from 'vs/base/common/platform';
 import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
