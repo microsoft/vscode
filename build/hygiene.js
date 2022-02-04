@@ -167,7 +167,7 @@ function hygiene(some, linting = true) {
 
 	if (linting) {
 		streams.push(
-			result
+			input
 				.pipe(filter(eslintFilter))
 				.pipe(
 					gulpeslint({
