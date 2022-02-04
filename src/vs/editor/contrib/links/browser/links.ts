@@ -31,89 +31,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
-function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
-	const executeCmd = link.url && /^command:/i.test(link.url.toString());
-
-	const label = link.tooltip
-		? link.tooltip
-		: executeCmd
-			? nls.localize('links.navigate.executeCmd', 'Execute command')
-			: nls.localize('links.navigate.follow', 'Follow link');
-
-	const kb = useMetaKey
-		? platform.isMacintosh
-			? nls.localize('links.navigate.kb.meta.mac', "cmd + click")
-			: nls.localize('links.navigate.kb.meta', "ctrl + click")
-		: platform.isMacintosh
-			? nls.localize('links.navigate.kb.alt.mac', "option + click")
-			: nls.localize('links.navigate.kb.alt', "alt + click");
-
-	if (link.url) {
-		let nativeLabel = '';
-		if (/^command:/i.test(link.url.toString())) {
-			// Don't show complete command arguments in the native tooltip
-			const match = link.url.toString().match(/^command:([^?#]+)/);
-			if (match) {
-				const commandId = match[1];
-				const nativeLabelText = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
-				nativeLabel = ` "${nativeLabelText}"`;
-			}
-		}
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true).replace(/ /g, '%20')}${nativeLabel}) (${kb})`);
-		return hoverMessage;
-	} else {
-		return new MarkdownString().appendText(`${label} (${kb})`);
-	}
-}
-
-const decoration = {
-	general: ModelDecorationOptions.register({
-		description: 'detected-link',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		collapseOnReplaceEdit: true,
-		inlineClassName: 'detected-link'
-	}),
-	active: ModelDecorationOptions.register({
-		description: 'detected-link-active',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		collapseOnReplaceEdit: true,
-		inlineClassName: 'detected-link-active'
-	})
-};
-
-
-class LinkOccurrence {
-
-	public static decoration(link: Link, useMetaKey: boolean): IModelDeltaDecoration {
-		return {
-			range: link.range,
-			options: LinkOccurrence._getOptions(link, useMetaKey, false)
-		};
-	}
-
-	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
-		const options = { ... (isActive ? decoration.active : decoration.general) };
-		options.hoverMessage = getHoverMessage(link, useMetaKey);
-		return options;
-	}
-
-	public decorationId: string;
-	public link: Link;
-
-	constructor(link: Link, decorationId: string) {
-		this.link = link;
-		this.decorationId = decorationId;
-	}
-
-	public activate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, true));
-	}
-
-	public deactivate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
-		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, false));
-	}
-}
-
 export class LinkDetector implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.linkDetector';
@@ -394,6 +311,88 @@ export class LinkDetector implements IEditorContribution {
 		this.listenersToRemove.dispose();
 		this.stop();
 		this.timeout.dispose();
+	}
+}
+
+const decoration = {
+	general: ModelDecorationOptions.register({
+		description: 'detected-link',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
+		inlineClassName: 'detected-link'
+	}),
+	active: ModelDecorationOptions.register({
+		description: 'detected-link-active',
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		collapseOnReplaceEdit: true,
+		inlineClassName: 'detected-link-active'
+	})
+};
+
+class LinkOccurrence {
+
+	public static decoration(link: Link, useMetaKey: boolean): IModelDeltaDecoration {
+		return {
+			range: link.range,
+			options: LinkOccurrence._getOptions(link, useMetaKey, false)
+		};
+	}
+
+	private static _getOptions(link: Link, useMetaKey: boolean, isActive: boolean): ModelDecorationOptions {
+		const options = { ... (isActive ? decoration.active : decoration.general) };
+		options.hoverMessage = getHoverMessage(link, useMetaKey);
+		return options;
+	}
+
+	public decorationId: string;
+	public link: Link;
+
+	constructor(link: Link, decorationId: string) {
+		this.link = link;
+		this.decorationId = decorationId;
+	}
+
+	public activate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, true));
+	}
+
+	public deactivate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
+		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, false));
+	}
+}
+
+function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
+	const executeCmd = link.url && /^command:/i.test(link.url.toString());
+
+	const label = link.tooltip
+		? link.tooltip
+		: executeCmd
+			? nls.localize('links.navigate.executeCmd', 'Execute command')
+			: nls.localize('links.navigate.follow', 'Follow link');
+
+	const kb = useMetaKey
+		? platform.isMacintosh
+			? nls.localize('links.navigate.kb.meta.mac', "cmd + click")
+			: nls.localize('links.navigate.kb.meta', "ctrl + click")
+		: platform.isMacintosh
+			? nls.localize('links.navigate.kb.alt.mac', "option + click")
+			: nls.localize('links.navigate.kb.alt', "alt + click");
+
+	if (link.url) {
+		let nativeLabel = '';
+		if (/^command:/i.test(link.url.toString())) {
+			// Don't show complete command arguments in the native tooltip
+			const match = link.url.toString().match(/^command:([^?#]+)/);
+			if (match) {
+				const commandId = match[1];
+				const nativeLabelText = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
+				nativeLabel = ` "${nativeLabelText}"`;
+			}
+		}
+		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true).replace(/ /g, '%20')}${nativeLabel}) (${kb})`);
+		return hoverMessage;
+	} else {
+		return new MarkdownString().appendText(`${label} (${kb})`);
 	}
 }
 
