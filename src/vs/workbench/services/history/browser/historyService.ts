@@ -160,11 +160,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 		switch (event.button) {
 			case 3:
 				EventHelper.stop(event);
-				this.back();
+				this.goBack();
 				break;
 			case 4:
 				EventHelper.stop(event);
-				this.forward();
+				this.goForward();
 				break;
 		}
 	}
@@ -371,23 +371,23 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private currentEditorSelectionState: EditorSelectionState | undefined = undefined;
 
-	forward(): void {
+	goForward(): void {
 		if (this.editorNavigationStack.length > this.editorNavigationStackIndex + 1) {
 			this.setIndex(this.editorNavigationStackIndex + 1);
 			this.navigate();
 		}
 	}
 
-	back(): void {
+	goBack(): void {
 		if (this.editorNavigationStackIndex > 0) {
 			this.setIndex(this.editorNavigationStackIndex - 1);
 			this.navigate();
 		}
 	}
 
-	last(): void {
+	goToggle(): void {
 		if (this.lastEditorNavigationStackIndex === -1) {
-			this.back();
+			this.goBack();
 		} else {
 			this.setIndex(this.lastEditorNavigationStackIndex);
 			this.navigate();

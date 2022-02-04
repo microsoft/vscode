@@ -1271,7 +1271,7 @@ export class NavigateForwardAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.forward();
+		this.historyService.goForward();
 	}
 }
 
@@ -1289,11 +1289,11 @@ export class NavigateBackwardsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.back();
+		this.historyService.goBack();
 	}
 }
 
-export class NavigateLastAction extends Action {
+export class NavigateToggleAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateLast';
 	static readonly LABEL = localize('navigateLast', "Go Last");
@@ -1307,7 +1307,7 @@ export class NavigateLastAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.last();
+		this.historyService.goToggle();
 	}
 }
 

@@ -67,12 +67,12 @@ suite('HistoryService', function () {
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 
 		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.back();
+		historyService.goBack();
 		await editorChangePromise;
 		assert.strictEqual(part.activeGroup.activeEditor, input1);
 
 		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.forward();
+		historyService.goForward();
 		await editorChangePromise;
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 	});
@@ -87,13 +87,13 @@ suite('HistoryService', function () {
 		const input2Group = (await part.sideGroup.openEditor(input2, { pinned: true }))?.group;
 
 		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.back();
+		historyService.goBack();
 		await editorChangePromise;
 		assert.strictEqual(part.activeGroup.activeEditor, input1);
 		assert.strictEqual(part.activeGroup, input1Group);
 
 		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.forward();
+		historyService.goForward();
 		await editorChangePromise;
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 		assert.strictEqual(part.activeGroup, input2Group);

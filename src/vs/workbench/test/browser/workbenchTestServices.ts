@@ -490,9 +490,9 @@ export class TestHistoryService implements IHistoryService {
 	constructor(private root?: URI) { }
 
 	reopenLastClosedEditor(): void { }
-	forward(): void { }
-	back(): void { }
-	last(): void { }
+	goForward(): void { }
+	goBack(): void { }
+	goToggle(): void { }
 	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
