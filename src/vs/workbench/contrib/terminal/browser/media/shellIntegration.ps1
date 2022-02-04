@@ -7,10 +7,10 @@ $Global:__VSCodeOriginalPrompt = (Get-Command Prompt).ScriptBlock
 
 function Global:__VSCode-Get-LastExitCode {
   if ($? -eq $True) {
-      return "0"
+      return 0
   }
 	# TODO: Should we just return a string instead?
-  return "-1"
+  return -1
 }
 
 function Global:Prompt() {
@@ -23,7 +23,8 @@ function Global:Prompt() {
 	# TODO: There are probably better serializable strings to use
 	# TODO: This doesn't work for empty commands of ^C
 	# TODO: Check ID against last to see if no command ran
-	$Result += $(Get-History -Count 1).CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
+	$CommandLine = $(Get-History -Count 1).CommandLine ?? ""
+	$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
 	$Result += "`u{7}"
 	# Command finished exit code
 	# OSC 133 ; D ; <ExitCode> ST
