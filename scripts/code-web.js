@@ -60,7 +60,7 @@ async function main() {
 		serverArgs.push('--port', PORT);
 	}
 
-	if (args['playground'] === true || (args['playground'] !== false && args['_'].length === 0)) {
+	if (args['playground'] === true || (args['playground'] === undefined && args['_'].length === 0 && !args['--folder-uri'])) {
 		serverArgs.push('--extensionPath', WEB_DEV_EXTENSIONS_ROOT);
 		serverArgs.push('--folder-uri', 'memfs:///sample-folder');
 		await ensureWebDevExtensions(args['verbose']);
