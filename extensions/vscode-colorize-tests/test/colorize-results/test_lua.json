@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "(",
-		"t": "source.lua meta.function.lua punctuation.definition.parameters.begin.lua",
+		"t": "source.lua meta.function.lua meta.parameter.lua punctuation.definition.parameters.begin.lua",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "n",
-		"t": "source.lua meta.function.lua variable.parameter.function.lua",
+		"t": "source.lua meta.function.lua meta.parameter.lua variable.parameter.function.lua",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": ")",
-		"t": "source.lua meta.function.lua punctuation.definition.parameters.end.lua",
+		"t": "source.lua meta.function.lua meta.parameter.lua punctuation.definition.parameters.finish.lua",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -143,7 +143,29 @@
 		}
 	},
 	{
-		"c": " n ",
+		"c": " ",
+		"t": "source.lua",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "n",
+		"t": "source.lua variable.other.lua",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.lua",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -177,7 +199,7 @@
 	},
 	{
 		"c": "0",
-		"t": "source.lua constant.numeric.integer.lua",
+		"t": "source.lua constant.numeric.float.lua",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -243,7 +265,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.lua constant.numeric.integer.lua",
+		"t": "source.lua constant.numeric.float.lua",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -297,7 +319,29 @@
 		}
 	},
 	{
-		"c": " n ",
+		"c": " ",
+		"t": "source.lua",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "n",
+		"t": "source.lua variable.other.lua",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.lua",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -331,17 +375,17 @@
 	},
 	{
 		"c": "fact",
-		"t": "source.lua support.function.any-method.lua",
+		"t": "source.lua entity.name.function.lua",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
-		"c": "(n",
+		"c": "(",
 		"t": "source.lua",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -349,6 +393,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "n",
+		"t": "source.lua variable.other.lua",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
 		}
 	},
 	{
@@ -364,7 +419,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.lua constant.numeric.integer.lua",
+		"t": "source.lua constant.numeric.float.lua",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -506,7 +561,29 @@
 		}
 	},
 	{
-		"c": "    a ",
+		"c": "    ",
+		"t": "source.lua",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "a",
+		"t": "source.lua variable.other.lua",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.lua",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -661,17 +738,39 @@
 	},
 	{
 		"c": "fact",
-		"t": "source.lua support.function.any-method.lua",
+		"t": "source.lua entity.name.function.lua",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA"
 		}
 	},
 	{
-		"c": "(a))",
+		"c": "(",
+		"t": "source.lua",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "a",
+		"t": "source.lua variable.other.lua",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "))",
 		"t": "source.lua",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

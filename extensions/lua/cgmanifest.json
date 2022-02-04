@@ -10,7 +10,7 @@
 				}
 			},
 			"licenseDetail": [
-				"Copyright (c) textmate-lua.tmbundle project authors",
+				"Copyright (c) sumneko-lua.tmbundle project authors",
 				"",
 				"If not otherwise specified (see below), files in this repository fall under the following license:",
 				"",
@@ -25,7 +25,7 @@
 				"\"tidy\" is accompanied by \"tidy-license.txt\"."
 			],
 			"license": "TextMate Bundle License",
-			"version": "0.0.0"
+			"version": "1.0.0"
 		}
 	],
 	"version": 1
