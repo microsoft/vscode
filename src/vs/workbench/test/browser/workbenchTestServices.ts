@@ -493,6 +493,7 @@ export class TestHistoryService implements IHistoryService {
 	goForward(): void { }
 	goBack(): void { }
 	goToggle(): void { }
+	goLast(): void { }
 	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
@@ -501,7 +502,6 @@ export class TestHistoryService implements IHistoryService {
 	openPreviouslyUsedEditor(group?: GroupIdentifier): void { }
 	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
 	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
-	openLastEditLocation(): void { }
 }
 
 export class TestFileDialogService implements IFileDialogService {

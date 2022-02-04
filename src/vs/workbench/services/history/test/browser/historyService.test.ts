@@ -14,7 +14,7 @@ import { HistoryService } from 'vs/workbench/services/history/browser/historySer
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -117,7 +117,7 @@ suite('HistoryService', function () {
 			onDidActiveEditorChange.complete(e);
 		});
 
-		historyService.openLastEditLocation();
+		historyService.goLast(GoFilter.EDITS);
 		await onDidActiveEditorChange.p;
 
 		assert.strictEqual(editorService.activeEditor?.resource?.toString(), resource.toString());

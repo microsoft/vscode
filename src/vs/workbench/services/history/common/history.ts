@@ -11,36 +11,49 @@ import { URI } from 'vs/base/common/uri';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
+/**
+ * Limit editor navigation to certain kinds.
+ */
+export const enum GoFilter {
+
+	/**
+	 * Only navigate between editor navigation history
+	 * entries that were resulting from edits.
+	 */
+	EDITS = 1
+}
+
 export interface IHistoryService {
 
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Navigate forwards in history.
+	 * Navigate forwards in editor navigation history.
 	 */
-	goForward(): void;
+	goForward(filter?: GoFilter): void;
 
 	/**
-	 * Navigate backwards in history.
+	 * Navigate backwards in editor navigation history.
 	 */
-	goBack(): void;
+	goBack(filter?: GoFilter): void;
 
 	/**
-	 * Navigate between the current history entry and the previous
-	 * one that was navigated to. This commands is like a toggle for
-	 * `forward` and `back` to jump between 2 points in history.
+	 * Navigate between the current editor navigtion history entry
+	 * and the previous one that was navigated to. This commands is
+	 * like a toggle for `forward` and `back` to jump between 2 points
+	 * in editor navigation history.
 	 */
-	goToggle(): void;
+	goToggle(filter?: GoFilter): void;
+
+	/**
+	 * Navigate to the last entry in editor navigation history.
+	 */
+	goLast(filter?: GoFilter): void;
 
 	/**
 	 * Re-opens the last closed editor if any.
 	 */
 	reopenLastClosedEditor(): void;
-
-	/**
-	 * Navigates to the last location where an edit happened.
-	 */
-	openLastEditLocation(): void;
 
 	/**
 	 * Get the entire history of editors that were opened.
