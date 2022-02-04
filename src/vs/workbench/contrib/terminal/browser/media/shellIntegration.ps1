@@ -3,14 +3,14 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-$Global:__VSCodeOriginalPrompt = (Get-Command Prompt).ScriptBlock
+$Global:__VSCodeOriginalPrompt = $function:Prompt
 
 function Global:__VSCode-Get-LastExitCode {
-  if ($? -eq $True) {
-      return "0"
-  }
+	if ($? -eq $True) {
+		return 0
+	}
 	# TODO: Should we just return a string instead?
-  return "-1"
+	return -1
 }
 
 function Global:Prompt() {
@@ -23,31 +23,32 @@ function Global:Prompt() {
 	# TODO: There are probably better serializable strings to use
 	# TODO: This doesn't work for empty commands of ^C
 	# TODO: Check ID against last to see if no command ran
-	$Result += $(Get-History -Count 1).CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
-	$Result += "`u{7}"
+	$CommandLine = $(Get-History -Count 1).CommandLine ?? ""
+	$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
+	$Result += "`a"
 	# Command finished exit code
 	# OSC 133 ; D ; <ExitCode> ST
-	$Result += "`e]133;D;$(__VSCode-Get-LastExitCode)`u{7}"
+	$Result += "`e]133;D;$(__VSCode-Get-LastExitCode)`a"
 	# Prompt started
 	# OSC 133 ; A ST
-	$Result += "`e]133;A`u{7}"
+	$Result += "`e]133;A`a"
 	# Current working directory
 	# OSC 1337 ; CurrentDir=<CurrentDir> ST
-	$Result += "`e]1337;CurrentDir=$(Get-Location)`u{7}"
+	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"`e]1337;CurrentDir=$($pwd.ProviderPath)`a"}
 	# Write original prompt
-	$Result += Invoke-Command -ScriptBlock $Global:__VSCodeOriginalPrompt
+	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
 	# Write command started
-	$Result += "`e]133;B`u{7}"
-  return $Result
+	$Result += "`e]133;B`a"
+	return $Result
 }
 
 # TODO: Gracefully fallback when PSReadLine is not loaded
 function Global:PSConsoleHostReadLine {
-    [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext)
-    # Write command executed sequence directly to Console to avoid the new line from Write-Host
-    [Console]::Write("`e]133;C`u{7}")
+	[Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($Host.Runspace, $ExecutionContext)
+	# Write command executed sequence directly to Console to avoid the new line from Write-Host
+	[Console]::Write("`e]133;C`u{7}")
 }
 
 # Set IsWindows property
-Write-Output "`e]633;P;IsWindows=$($IsWindows)`u{7}"
-Write-Host "`e[1mShell integration activated!" -ForegroundColor Green -NoNewline
+[Console]::Write("`e]633;P;IsWindows=$($IsWindows)`a")
+Write-Host "`e[1mShell integration activated!" -ForegroundColor Green
