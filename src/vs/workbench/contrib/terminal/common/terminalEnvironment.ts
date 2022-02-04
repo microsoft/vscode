@@ -12,6 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { format } from 'vs/base/common/strings';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -411,8 +412,8 @@ export enum ShellIntegrationExecutable {
 }
 
 export const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-zsh.sh"; zsh -i']);
@@ -452,10 +453,9 @@ export function injectShellIntegrationArgs(
 		}
 		if (newArgs) {
 			const showWelcome = configurationService.getValue(TerminalSettingId.ShowShellIntegrationWelcome);
-			if (!showWelcome) {
-				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-				newArgs[newArgs.length - 1] += ' -HideWelcome';
-			}
+			const additionalArgs = showWelcome ? '' : ' -HideWelcome';
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], additionalArgs);
 		}
 	} else {
 		switch (shell) {
