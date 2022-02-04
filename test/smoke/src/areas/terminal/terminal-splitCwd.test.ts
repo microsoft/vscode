@@ -6,7 +6,7 @@
 import { Application, Terminal } from '../../../../automation';
 
 export function setup() {
-	describe.only('Terminal splitCwd', () => {
+	describe('Terminal splitCwd', () => {
 		// Acquire automation API
 		let terminal: Terminal;
 		before(async function () {
@@ -16,18 +16,16 @@ export function setup() {
 			await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
 		});
 
-		it('should inherit cwd when split and update the tab description', async () => {
+		it('should inherit cwd when split and update the tab description - alt click', async () => {
 			await terminal.createTerminal();
 			const cwd = 'test';
-			const name = await terminal.getSingleTabName();
-			await terminal.assertSingleTab({ name, description: cwd });
 			await terminal.runCommandInTerminal(`mkdir ${cwd}`);
 			await terminal.runCommandInTerminal(`cd ${cwd}`);
 			const page = await terminal.getPage();
 			page.keyboard.down('Alt');
 			await terminal.clickSingleTab();
 			page.keyboard.up('Alt');
-			await terminal.assertTerminalGroups([[{ description: 'test' }, { description: cwd }]]);
+			await terminal.assertTerminalGroups([[{ description: cwd }, { description: cwd }]]);
 		});
 	});
 }
