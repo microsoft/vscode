@@ -34,6 +34,7 @@ import * as process from 'vs/base/common/process';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
+
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
 export interface IExtHostDebugService extends ExtHostDebugServiceShape {
@@ -111,7 +112,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		@IExtHostExtensionService private _extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors private _editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration protected _configurationService: IExtHostConfiguration,
-		@IExtHostEditorTabs protected _editorTabs: IExtHostEditorTabs
+		@IExtHostEditorTabs protected _editorTabs: IExtHostEditorTabs,
 	) {
 		this._configProviderHandleCounter = 0;
 		this._configProviders = [];
@@ -1019,7 +1020,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			}
-		}, undefined, Promise.resolve(process.env));
+		}, undefined, undefined, Promise.resolve(process.env));
 	}
 }
 
