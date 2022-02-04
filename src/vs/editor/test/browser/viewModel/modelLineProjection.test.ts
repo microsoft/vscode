@@ -11,7 +11,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 import { ViewLineData } from 'vs/editor/common/viewModel';

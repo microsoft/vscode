@@ -10,7 +10,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 // --------- utils

@@ -17,7 +17,7 @@ import { EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState, nullTokenize } from 'vs/editor/common/languages/nullMode';
+import { NullState, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
