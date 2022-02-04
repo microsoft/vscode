@@ -522,22 +522,22 @@ class Stacktrace {
 	}
 }
 
-class SafeDisposable {
+class SafeDisposable implements IDisposable {
 
-	private _actual?: IDisposable;
+	private static _noop = () => { };
+
+	dispose: () => void = SafeDisposable._noop;
 
 	set(d: IDisposable) {
-		this._actual = d;
+		this.dispose = d.dispose.bind(d);
 		return this;
 	}
 
 	unset() {
-		this._actual = undefined;
-	}
-
-	dispose(): void {
-		this._actual?.dispose();
-		this.unset();
+		if (this.dispose) {
+			this.dispose();
+			this.dispose = SafeDisposable._noop;
+		}
 	}
 }
 
@@ -699,7 +699,7 @@ export class Emitter<T> {
 			if (this._listeners) {
 				for (const listener of this._listeners) {
 					// this disposes the actual disposable AND unsets it
-					listener.subscription.dispose();
+					listener.subscription.unset();
 
 					// enable this to blame listeners that are still here
 					// listener.stack?.print();
