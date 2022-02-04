@@ -245,7 +245,7 @@ export class TypeScriptServerSpawner {
 			const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
 			for (const plugin of pluginManager.plugins) {
 				if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
-					pluginPaths.push(isWeb() ? plugin.uri.toString() : plugin.uri.path);
+					pluginPaths.push(isWeb() ? plugin.uri.toString() : plugin.uri.fsPath);
 				}
 			}
 		}
