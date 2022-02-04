@@ -7,6 +7,7 @@ import 'vs/editor/common/languages/languageConfigurationRegistry';
 import 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import 'vs/editor/standalone/browser/standaloneLayoutService';
 import 'vs/platform/undoRedo/common/undoRedoService';
+import 'vs/editor/common/services/languageFeatureDebounce';
 
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -1001,6 +1002,13 @@ export module StandaloneServices {
 			return instantiationService;
 		}
 		initialized = true;
+
+		// Add singletons that were registered after this module loaded
+		for (const [id, descriptor] of getSingletonServiceDescriptors()) {
+			if (!serviceCollection.get(id)) {
+				serviceCollection.set(id, descriptor);
+			}
+		}
 
 		// Initialize the service collection with the overrides, but only if the
 		// service was not instantiated in the meantime.
