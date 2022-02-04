@@ -150,15 +150,6 @@ export interface IRenderedMarkupMessage extends BaseToWebviewMessage {
 	}>;
 }
 
-export interface ITelemetryFoundRenderedMarkdownMath extends BaseToWebviewMessage {
-	readonly type: 'telemetryFoundRenderedMarkdownMath';
-}
-
-export interface ITelemetryFoundUnrenderedMarkdownMath extends BaseToWebviewMessage {
-	readonly type: 'telemetryFoundUnrenderedMarkdownMath';
-	readonly latexDirective: string;
-}
-
 export interface IClearMessage {
 	readonly type: 'clear';
 }
@@ -427,8 +418,6 @@ export type FromWebviewMessage = WebviewInitialized |
 	ICellDragEndMessage |
 	IInitializedMarkupMessage |
 	IRenderedMarkupMessage |
-	ITelemetryFoundRenderedMarkdownMath |
-	ITelemetryFoundUnrenderedMarkdownMath |
 	IDidFindMessage |
 	IDidFindHighlightMessage;
 

@@ -648,6 +648,8 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 		contributionProvider: MarkdownContributionProvider,
 		engine: MarkdownEngine,
 	): DynamicMarkdownPreview {
+		webview.iconPath = contentProvider.iconPath;
+
 		return new DynamicMarkdownPreview(webview, input,
 			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, engine);
 	}
@@ -666,6 +668,8 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 			DynamicMarkdownPreview.viewType,
 			DynamicMarkdownPreview.getPreviewTitle(input.resource, input.locked),
 			previewColumn, { enableFindWidget: true, });
+
+		webview.iconPath = contentProvider.iconPath;
 
 		return new DynamicMarkdownPreview(webview, input,
 			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, engine);

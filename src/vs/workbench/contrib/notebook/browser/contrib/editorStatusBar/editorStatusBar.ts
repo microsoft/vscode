@@ -17,8 +17,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-// eslint-disable-next-line code-import-patterns
-import type { SelectKernelReturnArgs } from 'vs/workbench/api/common/extHostNotebookKernels';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -96,7 +94,13 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: SelectKernelReturnArgs | { ui?: boolean; notebookEditor?: NotebookEditorWidget }): Promise<boolean> {
+	async run(accessor: ServicesAccessor, context?:
+		{ id: string; extension: string } |
+		{ notebookEditorId: string } |
+		{ id: string; extension: string; notebookEditorId: string } |
+		{ ui?: boolean; notebookEditor?: NotebookEditorWidget } |
+		undefined
+	): Promise<boolean> {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);

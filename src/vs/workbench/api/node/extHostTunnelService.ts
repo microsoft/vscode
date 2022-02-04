@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadTunnelServiceShape, MainContext, PortAttributesProviderSelector } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTunnelServiceShape, MainContext, PortAttributesProviderSelector, TunnelDto } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import type * as vscode from 'vscode';
 import * as nls from 'vs/nls';
@@ -15,7 +15,7 @@ import * as resources from 'vs/base/common/resources';
 import * as pfs from 'vs/base/node/pfs';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isLinux } from 'vs/base/common/platform';
-import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
+import { IExtHostTunnelService, TunnelDtoConverter } from 'vs/workbench/api/common/extHostTunnelService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward, isLocalhost, isAllInterfaces } from 'vs/platform/tunnel/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -362,7 +362,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 						return this._proxy.$closeTunnel(tunnel.remoteAddress);
 					}));
 					this._extensionTunnels.get(tunnelOptions.remoteAddress.host)!.set(tunnelOptions.remoteAddress.port, { tunnel, disposeListener });
-					return TunnelDto.fromApiTunnel(tunnel);
+					return TunnelDtoConverter.fromApiTunnel(tunnel);
 				} else {
 					this.logService.trace('ForwardedPorts: (ExtHostTunnelService) Tunnel is undefined');
 				}

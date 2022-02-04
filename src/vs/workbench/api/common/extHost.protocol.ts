@@ -35,14 +35,13 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
 import { IRemoteConnectionData, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
+import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
-import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -453,7 +452,7 @@ export interface TerminalLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	location?: TerminalLocation | { viewColumn: number; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
-	disablePersistence?: boolean;
+	isTransient?: boolean;
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
@@ -633,11 +632,6 @@ export interface WebviewPanelShowOptions {
 export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents;
-}
-
-export interface NotebookExtensionDescription {
-	readonly id: ExtensionIdentifier;
-	readonly location: UriComponents | undefined;
 }
 
 export enum WebviewEditorCapabilities {
@@ -844,11 +838,11 @@ export interface INotebookCellStatusBarListDto {
 }
 
 export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): Promise<void>;
+	$registerNotebookProvider(extension: notebookCommon.NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): Promise<void>;
 	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: notebookCommon.TransientCellMetadata; transientDocumentMetadata: notebookCommon.TransientDocumentMetadata }): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 
-	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): void;
+	$registerNotebookSerializer(handle: number, extension: notebookCommon.NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): void;
 	$unregisterNotebookSerializer(handle: number): void;
 
 	$registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, viewType: string): Promise<void>;
@@ -2018,6 +2012,15 @@ export interface ExtHostThemingShape {
 
 export interface MainThreadThemingShape extends IDisposable {
 }
+
+export interface TunnelDto {
+	remoteAddress: { port: number; host: string };
+	localAddress: { port: number; host: string } | string;
+	public: boolean;
+	privacy: TunnelPrivacyId | string;
+	protocol: string | undefined;
+}
+
 
 export interface ExtHostTunnelServiceShape {
 	$forwardPort(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions): Promise<TunnelDto | undefined>;

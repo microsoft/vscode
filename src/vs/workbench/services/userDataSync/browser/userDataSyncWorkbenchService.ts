@@ -267,7 +267,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			return;
 		}
 		if (this.userDataSyncService.status !== SyncStatus.Idle) {
-			throw new Error('Cannont turn on sync while syncing');
+			throw new Error('Cannot turn on sync while syncing');
 		}
 
 		const picked = await this.pick();
@@ -289,7 +289,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		if (this.userDataSyncService.status !== SyncStatus.Idle) {
-			throw new Error('Cannont turn on sync while syncing');
+			throw new Error('Cannot turn on sync while syncing');
 		}
 
 		if (this.accountStatus !== AccountStatus.Available) {

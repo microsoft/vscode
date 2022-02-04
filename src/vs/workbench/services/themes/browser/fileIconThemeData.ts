@@ -382,7 +382,7 @@ export class FileIconThemeLoader {
 					fontSizes.set(font.id, font.size);
 				}
 			});
-			cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${defaultFontSize}}; }`);
+			cssRules.push(`.show-file-icons .file-icon::before, .show-file-icons .folder-icon::before, .show-file-icons .rootfolder-icon::before { font-family: '${fonts[0].id}'; font-size: ${defaultFontSize}; }`);
 		}
 
 		for (const defId in selectorByDefinitionId) {
