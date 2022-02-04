@@ -44,12 +44,9 @@ function Global:Prompt() {
 
 # TODO: Gracefully fallback when PSReadLine is not loaded
 function Global:PSConsoleHostReadLine {
-	$lastRunStatus = $?
-	Microsoft.PowerShell.Core\Set-StrictMode -Off
-	$tmp = [Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($host.Runspace, $ExecutionContext, $lastRunStatus)
+	[Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($host.Runspace, $ExecutionContext)
 	# Write command executed sequence directly to Console to avoid the new line from Write-Host
 	[Console]::Write("`e]133;C`a")
-	return $tmp
 }
 
 # Set IsWindows property
