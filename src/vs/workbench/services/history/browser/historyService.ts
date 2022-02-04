@@ -56,7 +56,7 @@ class EditorSelectionState {
 			return true; // unknown selections
 		}
 
-		return other.selection.compare(this.selection) === EditorPaneSelectionCompareResult.DIFFERENT;
+		return this.selection.compare(other.selection) === EditorPaneSelectionCompareResult.DIFFERENT;
 	}
 }
 
@@ -186,7 +186,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Listen to selection changes if the editor pane
 		// is having a selection concept.
-		if (activeEditorPane && isEditorPaneWithSelection(activeEditorPane)) {
+		if (isEditorPaneWithSelection(activeEditorPane)) {
 
 			// Debounce the selection event with a timeout of 0ms so that
 			// multiple selection change events are folded into one.
@@ -434,7 +434,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleEventInEditorNavigationStack(editorPane: IEditorPane | undefined, event?: IEditorPaneSelectionChangeEvent): void {
-		const isSelectionAwareEditorPane = editorPane && isEditorPaneWithSelection(editorPane);
+		const isSelectionAwareEditorPane = isEditorPaneWithSelection(editorPane);
 
 		// Treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the

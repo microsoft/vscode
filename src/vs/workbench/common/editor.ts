@@ -96,7 +96,7 @@ export interface IEditorPane extends IComposite {
 	 * An optional event to notify when the selection inside the editor
 	 * pane changed in case the editor has a selection concept.
 	 *
-	 * For example, in a text editor the selection changes whenever
+	 * For example, in a text editor pane, the selection changes whenever
 	 * the cursor is set to a new location.
 	 */
 	readonly onDidChangeSelection?: Event<IEditorPaneSelectionChangeEvent>;
@@ -168,7 +168,8 @@ export interface IEditorPane extends IComposite {
 
 	/**
 	 * An optional method to return the current selection in
-	 * the editor in case the editor has a selection concept.
+	 * the editor pane in case the editor pane has a selection
+	 * concept.
 	 *
 	 * Clients of this method will typically react to the
 	 * `onDidChangeSelection` event to receive the current
@@ -201,8 +202,8 @@ export const enum EditorPaneSelectionChangeReason {
 	 * The selection was changed as a result of editing in
 	 * the editor pane.
 	 *
-	 * For a text editor, this for example can be typing in
-	 * the text of the editor.
+	 * For a text editor pane, this for example can be typing
+	 * in the text of the editor pane.
 	 */
 	EDIT,
 
@@ -210,7 +211,7 @@ export const enum EditorPaneSelectionChangeReason {
 	 * The selection was changed as a result of a navigation
 	 * action.
 	 *
-	 * For a text editor, this for example can be invoking
+	 * For a text editor pane, this for example can be invoking
 	 * "Go to definition" on a symbol.
 	 */
 	NAVIGATION
@@ -267,10 +268,10 @@ export interface IEditorPaneWithSelection extends IEditorPane {
 	getSelection(): IEditorPaneSelection | undefined;
 }
 
-export function isEditorPaneWithSelection(editorPane: IEditorPane): editorPane is IEditorPaneWithSelection {
-	const candidate = editorPane as IEditorPaneWithSelection;
+export function isEditorPaneWithSelection(editorPane: IEditorPane | undefined): editorPane is IEditorPaneWithSelection {
+	const candidate = editorPane as IEditorPaneWithSelection | undefined;
 
-	return typeof candidate.getSelection === 'function' && !!candidate.onDidChangeSelection;
+	return !!candidate && typeof candidate.getSelection === 'function' && !!candidate.onDidChangeSelection;
 }
 
 /**

@@ -123,6 +123,25 @@ suite('HistoryService', function () {
 		assert.strictEqual(editorService.activeEditor?.resource?.toString(), resource.toString());
 	});
 
+	test('reopen closed editor', async function () {
+		const [, historyService, editorService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+		const pane = await editorService.openEditor({ resource });
+
+		await pane?.group?.closeAllEditors();
+
+		const onDidActiveEditorChange = new DeferredPromise<void>();
+		editorService.onDidActiveEditorChange(e => {
+			onDidActiveEditorChange.complete(e);
+		});
+
+		historyService.reopenLastClosedEditor();
+		await onDidActiveEditorChange.p;
+
+		assert.strictEqual(editorService.activeEditor?.resource?.toString(), resource.toString());
+	});
+
 	test('getHistory', async () => {
 
 		class TestFileEditorInputWithUntyped extends TestFileEditorInput {
