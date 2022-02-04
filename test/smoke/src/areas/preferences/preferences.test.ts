@@ -7,7 +7,7 @@ import { Application, ActivityBarPosition, Logger } from '../../../../automation
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe.only('Preferences', () => {
+	describe('Preferences', () => {
 
 		// Shared before/after handling
 		installAllHandlers(logger);

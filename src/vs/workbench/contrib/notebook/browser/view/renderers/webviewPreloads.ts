@@ -1457,9 +1457,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}();
 
-	let hasPostedRenderedMathTelemetry = false;
-	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
-
 	const viewModel = new class ViewModel {
 
 		private readonly _markupCells = new Map<string, MarkupCell>();
@@ -1747,27 +1744,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._content = newContent;
 
 			await renderers.render(this, this.element);
-
-			if (this.mime === 'text/markdown' || this.mime === 'text/latex') {
-				const root = this.element.shadowRoot;
-				if (root) {
-					if (!hasPostedRenderedMathTelemetry) {
-						const hasRenderedMath = root.querySelector('.katex');
-						if (hasRenderedMath) {
-							hasPostedRenderedMathTelemetry = true;
-							postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
-						}
-					}
-
-					const innerText = root.querySelector<HTMLElement>('#preview')?.innerText;
-					const matches = innerText?.match(unsupportedKatexTermsRegex);
-					if (matches) {
-						postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
-							latexDirective: matches[0],
-						});
-					}
-				}
-			}
 
 			const root = (this.element.shadowRoot ?? this.element);
 			const html = [];

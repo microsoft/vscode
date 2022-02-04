@@ -981,3 +981,8 @@ export class NotebookWorkingCopyTypeIdentifier {
 		return undefined;
 	}
 }
+
+export interface NotebookExtensionDescription {
+	readonly id: ExtensionIdentifier;
+	readonly location: UriComponents | undefined;
+}

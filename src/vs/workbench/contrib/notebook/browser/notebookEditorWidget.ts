@@ -2273,7 +2273,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			cell.updateEditState(CellEditState.Editing, 'focusNotebookCell');
 			cell.focusMode = CellFocusMode.Editor;
 			if (!options?.skipReveal) {
-				this.revealInCenterIfOutsideViewport(cell);
+				const selectionsStartPosition = cell.getSelectionsStartPosition();
+				if (selectionsStartPosition?.length) {
+					const firstSelectionPosition = selectionsStartPosition[0];
+					this.revealRangeInCenterIfOutsideViewportAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
+				} else {
+					this.revealInCenterIfOutsideViewport(cell);
+				}
 			}
 		} else if (focusItem === 'output') {
 			this.focusElement(cell);

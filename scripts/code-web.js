@@ -68,7 +68,7 @@ async function main() {
 
 	let openSystemBrowser = false;
 	if (!args['browser'] && !args['browserType']) {
-		serverArgs.push('--browser', 'none');
+		serverArgs.push('--browserType', 'none');
 		openSystemBrowser = true;
 	}
 
