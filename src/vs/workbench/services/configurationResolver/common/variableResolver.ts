@@ -40,7 +40,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	private _context: IVariableResolveContext;
 	private _labelService?: ILabelService;
 	private _envVariablesPromise?: Promise<IProcessEnvironment>;
-	private _pathService: IPathService | undefined;
+	protected _pathService: IPathService | undefined;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
 	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _pathService?: IPathService, _envVariablesPromise?: Promise<IProcessEnvironment>) {
