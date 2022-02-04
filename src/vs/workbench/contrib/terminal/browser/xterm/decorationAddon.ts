@@ -23,21 +23,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerOutputDecoration(currentCommand: ICurrentPartialCommand, newCommand: ITerminalCommand): void {
-		if (!currentCommand.commandStartMarker || !this._terminal) {
+		const output = newCommand.getOutput();
+		if (!currentCommand.commandStartMarker || !this._terminal || !output) {
 			return;
 		}
-		//TODO: look at font code and do something with cell scaled width instead of negative
-		const decoration = this._terminal.registerDecoration({ marker: currentCommand.commandStartMarker!, anchor: 'left', x: -2 });
-		const outputLineCount = (currentCommand.commandFinishedMarker?.line || 0) - (currentCommand.commandExecutedMarker?.line || 0) > 0;
-		if (decoration && newCommand && outputLineCount) {
+		const decoration = this._terminal.registerDecoration({ marker: currentCommand.commandStartMarker, anchor: 'left', x: -2 });
+		if (decoration?.element) {
+			dom.addDisposableListener(decoration.element, 'click', async () => {
+				await this._clipboardService.writeText(output);
+			});
+			decoration.element.classList.add('prompt-xterm-decoration');
 			currentCommand.outputDecoration = decoration;
-			const output = newCommand.getOutput();
-			if (output?.length && currentCommand.outputDecoration.element) {
-				dom.addDisposableListener(currentCommand.outputDecoration.element, 'click', async () => {
-					await this._clipboardService.writeText(output);
-				});
-				currentCommand.outputDecoration.element.classList.add('prompt-xterm-decoration');
-			}
 		}
 	}
 }
