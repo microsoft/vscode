@@ -314,8 +314,8 @@ export class BreadcrumbsControl {
 		const configListener = this._cfShowIcons.onDidChange(updateBreadcrumbs);
 		updateBreadcrumbs();
 		this._breadcrumbsDisposables.clear();
-		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(listener);
+		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(configListener);
 		this._breadcrumbsDisposables.add(toDisposable(() => this._widget.setItems([])));
 
