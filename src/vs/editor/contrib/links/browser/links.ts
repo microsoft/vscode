@@ -7,7 +7,7 @@ import * as async from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
@@ -31,7 +31,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
-export class LinkDetector implements IEditorContribution {
+export class LinkDetector extends Disposable implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.linkDetector';
 
@@ -41,50 +41,43 @@ export class LinkDetector implements IEditorContribution {
 
 	static readonly RECOMPUTE_TIME = 1000; // ms
 
-	private readonly editor: ICodeEditor;
 	private readonly providers: LanguageFeatureRegistry<LinkProvider>;
-	private enabled: boolean;
-	private readonly listenersToRemove = new DisposableStore();
 	private readonly timeout: async.TimeoutTimer;
 	private computePromise: async.CancelablePromise<LinksList> | null;
 	private activeLinksList: LinksList | null;
 	private activeLinkDecorationId: string | null;
-	private readonly openerService: IOpenerService;
-	private readonly notificationService: INotificationService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence };
 
 	constructor(
-		editor: ICodeEditor,
-		@IOpenerService openerService: IOpenerService,
-		@INotificationService notificationService: INotificationService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+		private readonly editor: ICodeEditor,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
-		this.editor = editor;
-		this.providers = languageFeaturesService.linkProvider;
-		this.openerService = openerService;
-		this.notificationService = notificationService;
+		super();
 
-		let clickLinkGesture = new ClickLinkGesture(editor);
-		this.listenersToRemove.add(clickLinkGesture);
-		this.listenersToRemove.add(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
+		this.providers = this.languageFeaturesService.linkProvider;
+		this.timeout = new async.TimeoutTimer();
+		this.computePromise = null;
+		this.activeLinksList = null;
+		this.currentOccurrences = {};
+		this.activeLinkDecorationId = null;
+
+		const clickLinkGesture = this._register(new ClickLinkGesture(editor));
+
+		this._register(clickLinkGesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, keyboardEvent]) => {
 			this._onEditorMouseMove(mouseEvent, keyboardEvent);
 		}));
-		this.listenersToRemove.add(clickLinkGesture.onExecute((e) => {
+		this._register(clickLinkGesture.onExecute((e) => {
 			this.onEditorMouseUp(e);
 		}));
-		this.listenersToRemove.add(clickLinkGesture.onCancel((e) => {
+		this._register(clickLinkGesture.onCancel((e) => {
 			this.cleanUpActiveLinkDecoration();
 		}));
-
-		this.enabled = editor.getOption(EditorOption.links);
-		this.listenersToRemove.add(editor.onDidChangeConfiguration((e) => {
-			const enabled = editor.getOption(EditorOption.links);
-			if (this.enabled === enabled) {
-				// No change in our configuration option
+		this._register(editor.onDidChangeConfiguration((e) => {
+			if (!e.hasChanged(EditorOption.links)) {
 				return;
 			}
-			this.enabled = enabled;
-
 			// Remove any links (for the getting disabled case)
 			this.updateDecorations([]);
 
@@ -94,16 +87,11 @@ export class LinkDetector implements IEditorContribution {
 			// Start computing (for the getting enabled case)
 			this.beginCompute();
 		}));
-		this.listenersToRemove.add(editor.onDidChangeModelContent((e) => this.onChange()));
-		this.listenersToRemove.add(editor.onDidChangeModel((e) => this.onModelChanged()));
-		this.listenersToRemove.add(editor.onDidChangeModelLanguage((e) => this.onModelLanguageChanged()));
-		this.listenersToRemove.add(this.providers.onDidChange((e) => this.onModelLanguageChanged()));
+		this._register(editor.onDidChangeModelContent((e) => this.onChange()));
+		this._register(editor.onDidChangeModel((e) => this.onModelChanged()));
+		this._register(editor.onDidChangeModelLanguage((e) => this.onModelLanguageChanged()));
+		this._register(this.providers.onDidChange((e) => this.onModelLanguageChanged()));
 
-		this.timeout = new async.TimeoutTimer();
-		this.computePromise = null;
-		this.activeLinksList = null;
-		this.currentOccurrences = {};
-		this.activeLinkDecorationId = null;
 		this.beginCompute();
 	}
 
@@ -124,7 +112,7 @@ export class LinkDetector implements IEditorContribution {
 	}
 
 	private async beginCompute(): Promise<void> {
-		if (!this.editor.hasModel() || !this.enabled) {
+		if (!this.editor.hasModel() || !this.editor.getOption(EditorOption.links)) {
 			return;
 		}
 
@@ -152,15 +140,14 @@ export class LinkDetector implements IEditorContribution {
 
 	private updateDecorations(links: Link[]): void {
 		const useMetaKey = (this.editor.getOption(EditorOption.multiCursorModifier) === 'altKey');
-		let oldDecorations: string[] = [];
-		let keys = Object.keys(this.currentOccurrences);
-		for (let i = 0, len = keys.length; i < len; i++) {
-			let decorationId = keys[i];
-			let occurance = this.currentOccurrences[decorationId];
-			oldDecorations.push(occurance.decorationId);
+		const oldDecorations: string[] = [];
+		const keys = Object.keys(this.currentOccurrences);
+		for (const decorationId of keys) {
+			const occurence = this.currentOccurrences[decorationId];
+			oldDecorations.push(occurence.decorationId);
 		}
 
-		let newDecorations: IModelDeltaDecoration[] = [];
+		const newDecorations: IModelDeltaDecoration[] = [];
 		if (links) {
 			// Not sure why this is sometimes null
 			for (const link of links) {
@@ -168,13 +155,13 @@ export class LinkDetector implements IEditorContribution {
 			}
 		}
 
-		let decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
+		const decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
 
 		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;
 		for (let i = 0, len = decorations.length; i < len; i++) {
-			let occurance = new LinkOccurrence(links[i], decorations[i]);
-			this.currentOccurrences[occurance.decorationId] = occurance;
+			const occurence = new LinkOccurrence(links[i], decorations[i]);
+			this.currentOccurrences[occurence.decorationId] = occurence;
 		}
 	}
 
@@ -307,8 +294,8 @@ export class LinkDetector implements IEditorContribution {
 		}
 	}
 
-	public dispose(): void {
-		this.listenersToRemove.dispose();
+	public override dispose(): void {
+		super.dispose();
 		this.stop();
 		this.timeout.dispose();
 	}
@@ -416,11 +403,9 @@ class OpenLinkAction extends EditorAction {
 			return;
 		}
 
-		let selections = editor.getSelections();
-
-		for (let sel of selections) {
-			let link = linkDetector.getLinkOccurrence(sel.getEndPosition());
-
+		const selections = editor.getSelections();
+		for (const sel of selections) {
+			const link = linkDetector.getLinkOccurrence(sel.getEndPosition());
 			if (link) {
 				linkDetector.openLinkOccurrence(link, false);
 			}
