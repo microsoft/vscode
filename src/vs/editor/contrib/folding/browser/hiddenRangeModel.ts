@@ -11,7 +11,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
-import { FoldingModel } from './foldingModel';
+import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
 
 export class HiddenRangeModel {
 
