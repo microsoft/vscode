@@ -36,7 +36,7 @@ function Global:Prompt() {
 	# OSC 1337 ; CurrentDir=<CurrentDir> ST
 	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"`e]1337;CurrentDir=$($pwd.ProviderPath)`u{7}"}
 	# Write original prompt
-	$Result += Invoke-Command -ScriptBlock $Global:__VSCodeOriginalPrompt
+	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
 	# Write command started
 	$Result += "`e]133;B`u{7}"
   return $Result
