@@ -14,12 +14,13 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ITextModel } from 'vs/editor/common/model';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -82,12 +83,22 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			},
 			getSelectedText: (): string | undefined => {
 				const activeTextEditorControl = editorService.activeTextEditorControl;
+
+				let activeModel: ITextModel | null = null;
 				if (isCodeEditor(activeTextEditorControl)) {
-					const editorModel = activeTextEditorControl.getModel();
-					const editorSelection = activeTextEditorControl.getSelection();
-					if (editorModel && editorSelection) {
-						return editorModel.getValueInRange(editorSelection);
+					activeModel = activeTextEditorControl.getModel();
+				}
+				if (isDiffEditor(activeTextEditorControl)) {
+					if (activeTextEditorControl.getOriginalEditor().hasTextFocus()) {
+						activeModel = activeTextEditorControl.getOriginalEditor().getModel();
+					} else {
+						activeModel = activeTextEditorControl.getModifiedEditor().getModel();
 					}
+				}
+
+				const activeSelection = activeTextEditorControl?.getSelection();
+				if (activeModel && activeSelection) {
+					return activeModel.getValueInRange(activeSelection);
 				}
 				return undefined;
 			},
