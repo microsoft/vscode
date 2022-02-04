@@ -520,7 +520,7 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.EnableShellIntegration]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable the experimental shell integration feature which will turn on certain feature such enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
+			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable the experimental shell integration feature which will turn on certain features like enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
 			type: 'boolean',
 			default: false
 		},
