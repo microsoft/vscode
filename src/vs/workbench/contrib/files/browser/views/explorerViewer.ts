@@ -529,7 +529,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 }
 
-export interface CachedParsedExpression {
+interface CachedParsedExpression {
 	original: glob.IExpression;
 	parsed: glob.ParsedExpression;
 }

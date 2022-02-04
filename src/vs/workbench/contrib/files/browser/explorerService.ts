@@ -138,7 +138,6 @@ export class ExplorerService implements IExplorerService {
 			(event) => event.affectsConfiguration('explorer.autoRevealExclude'),
 			contextService, configurationService);
 		this.disposables.add(this.revealExcludeMatcher);
-		this.disposables.add(this.revealExcludeMatcher.onExpressionChange(() => this.refresh()));
 	}
 
 	get roots(): ExplorerItem[] {
@@ -248,7 +247,7 @@ export class ExplorerService implements IExplorerService {
 
 		const fileStat = this.findClosest(resource);
 		// If file or parent matches exclude patterns, do not reveal
-		if (fileStat && !this.matchesUpToRoot(fileStat)) {
+		if (fileStat && !this.shouldAutoRevealItem(fileStat)) {
 			await this.view.selectResource(fileStat.resource, reveal);
 			return Promise.resolve(undefined);
 		}
@@ -270,8 +269,8 @@ export class ExplorerService implements IExplorerService {
 			const item = root.find(resource);
 			await this.view.refresh(true, root);
 
-			// Select and Reveal, unless matching exclude patterns
-			if (item && reveal && this.matchesUpToRoot(item)) {
+			//
+			if (item && !this.shouldAutoRevealItem(item)) {
 				return;
 			}
 			await this.view.selectResource(item ? item.resource : undefined, reveal);
@@ -378,18 +377,21 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	// Reveal excludes
-	private matchesUpToRoot(item: ExplorerItem | undefined): boolean {
+	private shouldAutoRevealItem(item: ExplorerItem | undefined): boolean {
 		if (item === undefined) {
 			return false;
 		}
+		if (this.revealExcludeMatcher.matches(item.resource, name => !!(item.parent && item.parent.getChild(name)))) {
+			return true;
+		}
 		const root = item.root;
-		let currentItem = item;
+		let currentItem = item.parent;
 		while (currentItem !== root) {
-			if (this.revealExcludeMatcher.matches(currentItem.resource, name => !!(currentItem.parent && currentItem.parent.getChild(name)))) {
-				return true;
+			if (currentItem === undefined) {
+				return false
 			}
-			if (currentItem.parent === undefined) {
-				return false;
+			if (this.revealExcludeMatcher.matches(currentItem.resource)) {
+				return true;
 			}
 			currentItem = currentItem.parent;
 		}
