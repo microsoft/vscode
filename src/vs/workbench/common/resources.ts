@@ -89,7 +89,7 @@ export class ResourceGlobMatcher extends Disposable {
 
 	matches(
 		resource: URI,
-		hasSibling?: (name: string) => boolean | Promise<boolean>
+		hasSibling?: (name: string) => boolean
 	): boolean {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 
