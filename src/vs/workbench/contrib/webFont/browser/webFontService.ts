@@ -19,8 +19,6 @@ export class WebFontService implements IWebFontService {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		console.log('web font service instance');
-
 		this.createStyleElement();
 
 		this.loadWebFont();
