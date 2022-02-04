@@ -413,5 +413,34 @@ suite('ExtHostAuthentication', () => {
 		}
 	});
 
+	test('Can get multiple sessions (with different scopes) in one extension', async () => {
+		let session: AuthenticationSession | undefined = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			['foo'],
+			{
+				createIfNone: true
+			});
+		session = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			['bar'],
+			{
+				createIfNone: true
+			});
+		assert.strictEqual(session?.id, '2');
+		assert.strictEqual(session?.scopes[0], 'bar');
+
+		session = await extHostAuthentication.getSession(
+			extensionDescription,
+			'test-multiple',
+			['foo'],
+			{
+				createIfNone: false
+			});
+		assert.strictEqual(session?.id, '1');
+		assert.strictEqual(session?.scopes[0], 'foo');
+	});
+
 	//#endregion
 });
