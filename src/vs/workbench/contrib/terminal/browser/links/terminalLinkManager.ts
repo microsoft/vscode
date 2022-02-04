@@ -16,14 +16,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
-import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, OmitFirstArg, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalSimpleLink, OmitFirstArg, ResolvedLink, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalExternalLinkDetector';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { TerminalLinkDetectorAdapter } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkDetectorAdapter';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
-import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
+import { lineAndColumnClause, TerminalLocalLinkDetector, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalUriLinkDetector';
-import { lineAndColumnClause, unixLocalLinkClause, winDrivePrefix, winLocalLinkClause } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkDetector';
 import { ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
@@ -52,6 +51,10 @@ export class TerminalLinkManager extends DisposableStore {
 	private readonly _linkProvidersDisposables: IDisposable[] = [];
 	private readonly _externalLinkProviders: IDisposable[] = [];
 	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
+
+	// Link cache could be shared across all terminals, but that could lead to weird results when
+	// both local and remote terminals are present
+	private readonly _resolvedLinkCache = new LinkCache();
 
 	constructor(
 		private readonly _xterm: Terminal,
@@ -365,30 +368,41 @@ export class TerminalLinkManager extends DisposableStore {
 		return link;
 	}
 
-	private async _resolvePath(link: string, uri?: URI): Promise<{ uri: URI; link: string; isDirectory: boolean } | undefined> {
+	private async _resolvePath(link: string, uri?: URI): Promise<ResolvedLink> {
 		if (!this._processManager) {
 			throw new Error('Process manager is required');
+		}
+
+		// Check resolved link cache first
+		const cached = this._resolvedLinkCache.get(uri || link);
+		if (cached !== undefined) {
+			return cached;
 		}
 
 		if (uri) {
 			try {
 				const stat = await this._fileService.resolve(uri);
-				return { uri, link, isDirectory: stat.isDirectory };
+				const result = { uri, link, isDirectory: stat.isDirectory };
+				this._resolvedLinkCache.set(uri, result);
+				return result;
 			}
 			catch (e) {
 				// Does not exist
-				return undefined;
+				this._resolvedLinkCache.set(uri, null);
+				return null;
 			}
 		}
 
 		const preprocessedLink = this._preprocessPath(link);
 		if (!preprocessedLink) {
-			return undefined;
+			this._resolvedLinkCache.set(link, null);
+			return null;
 		}
 
 		const linkUrl = this.extractLinkUrl(preprocessedLink);
 		if (!linkUrl) {
-			return undefined;
+			this._resolvedLinkCache.set(link, null);
+			return null;
 		}
 
 		try {
@@ -405,15 +419,19 @@ export class TerminalLinkManager extends DisposableStore {
 
 			try {
 				const stat = await this._fileService.resolve(uri);
-				return { uri, link, isDirectory: stat.isDirectory };
+				const result = { uri, link, isDirectory: stat.isDirectory };
+				this._resolvedLinkCache.set(link, result);
+				return result;
 			}
 			catch (e) {
 				// Does not exist
-				return undefined;
+				this._resolvedLinkCache.set(link, null);
+				return null;
 			}
 		} catch {
 			// Errors in parsing the path
-			return undefined;
+			this._resolvedLinkCache.set(link, null);
+			return null;
 		}
 	}
 
@@ -440,4 +458,37 @@ export interface IDetectedLinks {
 	wordLinks?: ILink[];
 	webLinks?: ILink[];
 	fileLinks?: ILink[];
+}
+
+const enum LinkCacheConstants {
+	/**
+	 * How long to cache links for in milliseconds, the TTL resets whenever a new value is set in
+	 * the cache.
+	 */
+	TTL = 10000
+}
+
+class LinkCache {
+	private readonly _cache = new Map<string, ResolvedLink>();
+	private _cacheTilTimeout = 0;
+
+	set(link: string | URI, value: ResolvedLink) {
+		// Reset cached link TTL on any set
+		if (this._cacheTilTimeout) {
+			window.clearTimeout(this._cacheTilTimeout);
+		}
+		this._cacheTilTimeout = window.setTimeout(() => this._cache.clear(), LinkCacheConstants.TTL);
+		this._cache.set(this._getKey(link), value);
+	}
+
+	get(link: string | URI): ResolvedLink | undefined {
+		return this._cache.get(this._getKey(link));
+	}
+
+	private _getKey(link: string | URI): string {
+		if (URI.isUri(link)) {
+			return link.toString();
+		}
+		return link;
+	}
 }

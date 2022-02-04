@@ -95,4 +95,12 @@ export interface ITerminalLinkOpener {
 	open(link: ITerminalSimpleLink): Promise<void>;
 }
 
+export type ResolvedLink = IResolvedValidLink | null;
+
+export interface IResolvedValidLink {
+	uri: URI;
+	link: string;
+	isDirectory: boolean;
+}
+
 export type OmitFirstArg<F> = F extends (x: any, ...args: infer P) => infer R ? (...args: P) => R : never;
