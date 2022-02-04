@@ -77,4 +77,8 @@ else
 fi
 
 trap 'preexec' DEBUG
-echo -e "\033[1;32mShell integration activated!\033[0m"
+if [ -z "$VSCODE_SHELL_HIDE_WELCOME" ]; then
+	echo -e "\033[1;32mShell integration activated!\033[0m"
+else
+	VSCODE_SHELL_HIDE_WELCOME=""
+fi

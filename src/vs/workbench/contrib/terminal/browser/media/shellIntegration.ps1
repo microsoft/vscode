@@ -3,6 +3,11 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
+param(
+	[Parameter(HelpMessage="Hides the shell integration welcome message")]
+	[switch] $HideWelcome = $False
+)
+
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 function Global:__VSCode-Get-LastExitCode {
@@ -51,4 +56,8 @@ function Global:PSConsoleHostReadLine {
 
 # Set IsWindows property
 [Console]::Write("`e]633;P;IsWindows=$($IsWindows)`a")
-Write-Host "`e[1mShell integration activated!" -ForegroundColor Green
+
+# Show the welcome message
+if ($HideWelcome -eq $False) {
+	Write-Host "`e[1mShell integration activated!`e[0m" -ForegroundColor Green
+}
