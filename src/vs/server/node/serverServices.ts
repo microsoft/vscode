@@ -58,8 +58,8 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { RemoteAgentEnvironmentChannel } from 'vs/server/node/remoteAgentEnvironmentImpl';
 import { RemoteAgentFileSystemProviderChannel } from 'vs/server/node/remoteFileSystemProviderServer';
-import { RemoteTelemetryChannel } from 'vs/server/node/remoteTelemetryChannel';
-import { IRemoteTelemetryService, RemoteNullTelemetryService, RemoteTelemetryService } from 'vs/server/node/remoteTelemetryService';
+import { ServerTelemetryChannel } from 'vs/platform/telemetry/common/remoteTelemetryChannel';
+import { IServerTelemetryService, ServerNullTelemetryService, ServerTelemetryService } from 'vs/platform/telemetry/common/serverTelemetryService';
 import { RemoteTerminalChannel } from 'vs/server/node/remoteTerminalChannel';
 import { createRemoteURITransformer } from 'vs/server/node/remoteUriTransformer';
 import { ServerConnectionToken } from 'vs/server/node/serverConnectionToken';
@@ -148,9 +148,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		} else if (initialTelemetryLevelArg !== undefined) {
 			injectedTelemetryLevel = TelemetryLevel.NONE;
 		}
-		services.set(IRemoteTelemetryService, new SyncDescriptor(RemoteTelemetryService, [config, injectedTelemetryLevel]));
+		services.set(IServerTelemetryService, new SyncDescriptor(ServerTelemetryService, [config, injectedTelemetryLevel]));
 	} else {
-		services.set(IRemoteTelemetryService, RemoteNullTelemetryService);
+		services.set(IServerTelemetryService, ServerNullTelemetryService);
 	}
 
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
@@ -184,7 +184,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, logService, productService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
-		const telemetryChannel = new RemoteTelemetryChannel(accessor.get(IRemoteTelemetryService), appInsightsAppender);
+		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), appInsightsAppender);
 		socketServer.registerChannel('telemetry', telemetryChannel);
 
 		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyService, productService));

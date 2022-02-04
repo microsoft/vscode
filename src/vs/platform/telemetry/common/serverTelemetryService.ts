@@ -10,7 +10,7 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from 'vs/platform/t
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
 
-export interface IRemoteTelemetryService extends ITelemetryService {
+export interface IServerTelemetryService extends ITelemetryService {
 	updateInjectedTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>;
 }
 
@@ -21,10 +21,10 @@ interface CachedTelemetryEvent {
 	eventType: 'usage' | 'error';
 }
 
-export class RemoteTelemetryService extends TelemetryService implements IRemoteTelemetryService {
+export class ServerTelemetryService extends TelemetryService implements IServerTelemetryService {
 	private _telemetryCache: CachedTelemetryEvent[] = [];
 	// Because we cannot read the workspace config on the remote site
-	// the RemoteTeelemtryService is respeonsible for knowing its telemetry level
+	// the ServerTelemetryService is responsible for knowing its telemetry level
 	// this is done through IPC calls and initial value injections
 	private _injectedTelemetryLevel: TelemetryLevel | undefined;
 	constructor(
@@ -100,8 +100,8 @@ export class RemoteTelemetryService extends TelemetryService implements IRemoteT
 	}
 }
 
-export const RemoteNullTelemetryService = new class extends NullTelemetryServiceShape implements IRemoteTelemetryService {
+export const ServerNullTelemetryService = new class extends NullTelemetryServiceShape implements IServerTelemetryService {
 	async updateInjectedTelemetryLevel(): Promise<void> { return; } // No-op, telemetry is already disabled
 };
 
-export const IRemoteTelemetryService = refineServiceDecorator<ITelemetryService, IRemoteTelemetryService>(ITelemetryService);
+export const IServerTelemetryService = refineServiceDecorator<ITelemetryService, IServerTelemetryService>(ITelemetryService);
