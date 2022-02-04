@@ -48,10 +48,12 @@ function Global:Prompt() {
 }
 
 # TODO: Gracefully fallback when PSReadLine is not loaded
+$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 function Global:PSConsoleHostReadLine {
-	[Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($host.Runspace, $ExecutionContext)
+	$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
 	# Write command executed sequence directly to Console to avoid the new line from Write-Host
 	[Console]::Write("`e]133;C`a")
+	$tmp
 }
 
 # Set IsWindows property
