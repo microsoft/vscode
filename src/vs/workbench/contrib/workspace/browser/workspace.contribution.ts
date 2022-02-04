@@ -29,7 +29,6 @@ import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, IWorkspaceFoldersWillChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWeb } from 'vs/base/common/platform';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { dirname, resolve } from 'vs/base/common/path';
@@ -87,7 +86,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService) {
@@ -114,7 +112,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			];
 
 			// Dialog
-			const startTime = Date.now();
 			const result = await this.dialogService.show(
 				Severity.Info,
 				localize('openLooseFileMesssage', "Do you trust the authors of these files?"),
@@ -130,9 +127,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 						markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
 					}
 				});
-
-			// Log dialog result
-			this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustOpenFileRequestDialogResult', { duration: Date.now() - startTime, ...result });
 
 			switch (result.choice) {
 				case 0:
@@ -170,7 +164,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 
 			// Dialog
-			const startTime = Date.now();
 			const result = await this.dialogService.show(
 				Severity.Info,
 				title,
@@ -187,8 +180,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				}
 			);
 
-			// Log dialog result
-			this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustRequestDialogResult', { duration: Date.now() - startTime, ...result });
 
 			// Dialog result
 			switch (buttons[result.choice].type) {
@@ -228,7 +219,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IBannerService private readonly bannerService: IBannerService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -279,7 +269,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 					const addedFoldersTrustInfo = await Promise.all(e.changes.added.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder.uri)));
 
 					if (!addedFoldersTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
-						const startTime = Date.now();
 						const result = await this.dialogService.show(
 							Severity.Info,
 							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
@@ -290,9 +279,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 								custom: { icon: Codicon.shield }
 							}
 						);
-
-						// Log dialog result
-						this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustAddWorkspaceFolderDialogResult', { duration: Date.now() - startTime, ...result });
 
 						// Mark added/changed folders as trusted
 						await this.workspaceTrustManagementService.setUrisTrust(addedFoldersTrustInfo.map(i => i.uri), result.choice === 0);
@@ -354,7 +340,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	//#region Dialog
 
 	private async doShowModal(question: string, trustedOption: { label: string; sublabel: string }, untrustedOption: { label: string; sublabel: string }, markdownStrings: string[], trustParentString?: string): Promise<void> {
-		const startTime = Date.now();
 		const result = await this.dialogService.show(
 			Severity.Info,
 			question,
@@ -377,9 +362,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				},
 			}
 		);
-
-		// Log dialog result
-		this.telemetryService.publicLog2<WorkspaceTrustDialogResultEvent, WorkspaceTrustDialogResultEventClassification>('workspaceTrustStartupDialogResult', { duration: Date.now() - startTime, ...result });
 
 		// Dialog result
 		switch (result.choice) {
@@ -763,31 +745,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		}
 	});
 
-
-/**
- * Telemetry
- */
-type WorkspaceTrustDialogResultEventClassification = {
-	duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; expiration: '1.64'; isMeasurement: true };
-	choice: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; expiration: '1.64'; isMeasurement: true };
-	checkboxChecked?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; expiration: '1.64'; isMeasurement: true };
-};
-
-type WorkspaceTrustDialogResultEvent = {
-	duration: number;
-	choice: number;
-	checkboxChecked?: boolean;
-};
-
 class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustEnablementService private readonly workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		super();
 
@@ -797,7 +761,6 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 				this.logWorkspaceTrust(this.workspaceTrustManagementService.isWorkspaceTrusted());
 
 				this._register(this.workspaceTrustManagementService.onDidChangeTrust(isTrusted => this.logWorkspaceTrust(isTrusted)));
-				this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(_ => this.logWorkspaceTrustRequest()));
 			});
 	}
 
@@ -890,27 +853,6 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 				this.telemetryService.publicLog2<WorkspaceTrustFolderInfoEvent, WorkspaceTrustFolderInfoEventClassification>('workspaceFolderDepthBelowTrustedFolder', { workspaceFolderDepth, trustedFolderDepth, delta });
 			}
 		}
-	}
-
-	private async logWorkspaceTrustRequest(): Promise<void> {
-		if (!this.workspaceTrustEnablementService.isWorkspaceTrustEnabled()) {
-			return;
-		}
-
-		type WorkspaceTrustRequestedEventClassification = {
-			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			extensions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-		};
-
-		type WorkspaceTrustRequestedEvent = {
-			workspaceId: string;
-			extensions: string[];
-		};
-
-		this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {
-			workspaceId: this.workspaceContextService.getWorkspace().id,
-			extensions: (await this.extensionService.getExtensions()).filter(ext => !!ext.capabilities?.untrustedWorkspaces).map(ext => ext.identifier.value)
-		});
 	}
 }
 

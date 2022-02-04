@@ -10,7 +10,6 @@ import { revive } from 'vs/base/common/marshalling';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, SerializedTestMessage, TestDiffOpType, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
@@ -18,6 +17,7 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 const reviveDiff = (diff: TestsDiff) => {
@@ -182,12 +182,13 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		const r = this.resultService.getResult(runId);
 		if (r && r instanceof LiveTestResult) {
 			for (const message of messages) {
+				const cast = message as ITestMessage;
 				if (message.location) {
-					message.location.uri = URI.revive(message.location.uri);
-					message.location.range = Range.lift(message.location.range);
+					cast.location!.uri = URI.revive(message.location.uri);
+					cast.location!.range = Range.lift(message.location.range);
 				}
 
-				r.appendMessage(testId, taskId, message as ITestMessage);
+				r.appendMessage(testId, taskId, cast);
 			}
 		}
 	}

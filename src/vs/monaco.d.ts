@@ -732,6 +732,7 @@ declare namespace monaco {
 		 * Test if the range spans multiple lines.
 		 */
 		static spansMultipleLines(range: IRange): boolean;
+		toJSON(): IRange;
 	}
 
 	/**

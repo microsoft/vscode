@@ -632,7 +632,7 @@ export class HydratedTestResult implements ITestResult {
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const cast: TestResultItem = { ...item, retired: true };
+			const cast: TestResultItem = { ...item, retired: true } as any;
 			cast.item.uri = URI.revive(cast.item.uri);
 
 			for (const task of cast.tasks) {

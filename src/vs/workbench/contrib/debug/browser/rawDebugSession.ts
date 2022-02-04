@@ -8,7 +8,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
 import { Action } from 'vs/base/common/actions';
 import * as errors from 'vs/base/common/errors';
-import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
@@ -83,8 +82,6 @@ export class RawDebugSession implements IDisposable {
 		debugAdapter: IDebugAdapter,
 		public readonly dbgr: IDebugger,
 		private readonly sessionId: string,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ICustomEndpointTelemetryService private readonly customTelemetryService: ICustomEndpointTelemetryService,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -733,11 +730,6 @@ export class RawDebugSession implements IDisposable {
 		const error: DebugProtocol.Message | undefined = errorResponse?.body?.error;
 		const errorMessage = errorResponse?.message || '';
 
-		if (error && error.sendTelemetry) {
-			const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
-			this.telemetryDebugProtocolErrorResponse(telemetryMessage);
-		}
-
 		const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
 		const url = error?.url;
 		if (error && url) {
@@ -776,23 +768,6 @@ export class RawDebugSession implements IDisposable {
 			},
 			seq: undefined!
 		});
-	}
-
-	private telemetryDebugProtocolErrorResponse(telemetryMessage: string | undefined) {
-		/* __GDPR__
-			"debugProtocolErrorResponse" : {
-				"error" : { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
-		const telemetryEndpoint = this.dbgr.getCustomTelemetryEndpoint();
-		if (telemetryEndpoint) {
-			/* __GDPR__TODO__
-				The message is sent in the name of the adapter but the adapter doesn't know about it.
-				However, since adapters are an open-ended set, we can not declared the events statically either.
-			*/
-			this.customTelemetryService.publicLogError(telemetryEndpoint, 'debugProtocolErrorResponse', { error: telemetryMessage });
-		}
 	}
 
 	dispose(): void {

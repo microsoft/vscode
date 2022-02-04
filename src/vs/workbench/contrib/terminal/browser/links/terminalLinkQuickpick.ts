@@ -29,7 +29,7 @@ export class TerminalLinkQuickpick {
 			picks.push(...webPicks);
 		}
 		if (filePicks) {
-			picks.push({ type: 'separator', label: localize('terminal.integrated.fileLinks', "Local File") });
+			picks.push({ type: 'separator', label: localize('terminal.integrated.localFileLinks', "Local File") });
 			picks.push(...filePicks);
 		}
 		if (wordPicks) {
