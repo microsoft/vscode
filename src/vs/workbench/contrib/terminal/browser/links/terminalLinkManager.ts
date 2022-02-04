@@ -122,7 +122,7 @@ export class TerminalLinkManager extends DisposableStore {
 		await opener.open(link);
 	}
 
-	async openRecentLink(type: 'file' | 'web'): Promise<ILink | undefined> {
+	async openRecentLink(type: 'localFile' | 'url'): Promise<ILink | undefined> {
 		let links;
 		let i = this._xterm.buffer.active.length;
 		while ((!links || links.length === 0) && i >= this._xterm.buffer.active.viewportY) {
@@ -163,8 +163,8 @@ export class TerminalLinkManager extends DisposableStore {
 
 	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
 		let unfilteredWordLinks = await this._getLinksForType(y, 'word');
-		const webLinks = await this._getLinksForType(y, 'web');
-		const fileLinks = await this._getLinksForType(y, 'file');
+		const webLinks = await this._getLinksForType(y, 'url');
+		const fileLinks = await this._getLinksForType(y, 'localFile');
 		const words = new Set();
 		let wordLinks;
 		if (unfilteredWordLinks) {
@@ -179,14 +179,16 @@ export class TerminalLinkManager extends DisposableStore {
 		return { wordLinks, webLinks, fileLinks };
 	}
 
-	protected async _getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
+	protected async _getLinksForType(y: number, type: 'word' | 'url' | 'localFile'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
 				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkDetector.id)?.provideLinks(y, r)));
-			case 'web':
+			case 'url':
 				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalUriLinkDetector.id)?.provideLinks(y, r)));
-			case 'file':
-				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalLocalLinkDetector.id)?.provideLinks(y, r)));
+			case 'localFile': {
+				const links = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalLocalLinkDetector.id)?.provideLinks(y, r)));
+				return links?.filter(link => (link as TerminalLink).type === TerminalBuiltinLinkType.LocalFile);
+			}
 		}
 	}
 

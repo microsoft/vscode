@@ -20,20 +20,20 @@ export class TerminalLinkQuickpick {
 		const filePicks = links.fileLinks ? await this._generatePicks(links.fileLinks) : undefined;
 		const webPicks = links.webLinks ? await this._generatePicks(links.webLinks) : undefined;
 		const options = {
-			placeHolder: localize('terminal.integrated.openWebLink', "Select the link to open"),
+			placeHolder: localize('terminal.integrated.openDetectedLink', "Select the link to open"),
 			canPickMany: false
 		};
 		const picks: LinkQuickPickItem[] = [];
 		if (webPicks) {
-			picks.push({ type: 'separator', label: localize('terminal.integrated.webLinks', "Web") });
+			picks.push({ type: 'separator', label: localize('terminal.integrated.urlLinks', "Url") });
 			picks.push(...webPicks);
 		}
 		if (filePicks) {
-			picks.push({ type: 'separator', label: localize('terminal.integrated.fileLinks', "File") });
+			picks.push({ type: 'separator', label: localize('terminal.integrated.localFileLinks', "Local File") });
 			picks.push(...filePicks);
 		}
 		if (wordPicks) {
-			picks.push({ type: 'separator', label: localize('terminal.integrated.wordLinks', "Word") });
+			picks.push({ type: 'separator', label: localize('terminal.integrated.searchLinks', "Workspace Search") });
 			picks.push(...wordPicks);
 		}
 

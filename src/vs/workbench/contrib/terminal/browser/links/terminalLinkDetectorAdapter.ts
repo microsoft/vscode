@@ -99,7 +99,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 				modifierUpCallback
 			}),
 			l.type !== TerminalBuiltinLinkType.Search, // Only search is low confidence
-			l.label || this._getLabel(l.type)
+			l.label || this._getLabel(l.type),
+			l.type
 		);
 	}
 
