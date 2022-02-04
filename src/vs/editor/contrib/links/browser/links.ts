@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as async from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -11,6 +12,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./links';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -22,6 +24,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistr
 import { LinkProvider } from 'vs/editor/common/languages';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/browser/getLinks';
@@ -39,10 +42,9 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 		return editor.getContribution<LinkDetector>(LinkDetector.ID);
 	}
 
-	static readonly RECOMPUTE_TIME = 1000; // ms
-
 	private readonly providers: LanguageFeatureRegistry<LinkProvider>;
-	private readonly timeout: async.TimeoutTimer;
+	private readonly debounceInformation: IFeatureDebounceInformation;
+	private readonly computeLinks: RunOnceScheduler;
 	private computePromise: async.CancelablePromise<LinksList> | null;
 	private activeLinksList: LinksList | null;
 	private activeLinkDecorationId: string | null;
@@ -53,11 +55,13 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 	) {
 		super();
 
 		this.providers = this.languageFeaturesService.linkProvider;
-		this.timeout = new async.TimeoutTimer();
+		this.debounceInformation = languageFeatureDebounceService.for(this.providers, 'Links', { min: 1000, max: 4000 });
+		this.computeLinks = this._register(new RunOnceScheduler(() => this.computeLinksNow(), 1000));
 		this.computePromise = null;
 		this.activeLinksList = null;
 		this.currentOccurrences = {};
@@ -85,33 +89,33 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 			this.stop();
 
 			// Start computing (for the getting enabled case)
-			this.beginCompute();
+			this.computeLinks.schedule(0);
 		}));
-		this._register(editor.onDidChangeModelContent((e) => this.onChange()));
-		this._register(editor.onDidChangeModel((e) => this.onModelChanged()));
-		this._register(editor.onDidChangeModelLanguage((e) => this.onModelLanguageChanged()));
-		this._register(this.providers.onDidChange((e) => this.onModelLanguageChanged()));
+		this._register(editor.onDidChangeModelContent((e) => {
+			if (!this.editor.hasModel()) {
+				return;
+			}
+			this.computeLinks.schedule(this.debounceInformation.get(this.editor.getModel()));
+		}));
+		this._register(editor.onDidChangeModel((e) => {
+			this.currentOccurrences = {};
+			this.activeLinkDecorationId = null;
+			this.stop();
+			this.computeLinks.schedule(0);
+		}));
+		this._register(editor.onDidChangeModelLanguage((e) => {
+			this.stop();
+			this.computeLinks.schedule(0);
+		}));
+		this._register(this.providers.onDidChange((e) => {
+			this.stop();
+			this.computeLinks.schedule(0);
+		}));
 
-		this.beginCompute();
+		this.computeLinks.schedule(0);
 	}
 
-	private onModelChanged(): void {
-		this.currentOccurrences = {};
-		this.activeLinkDecorationId = null;
-		this.stop();
-		this.beginCompute();
-	}
-
-	private onModelLanguageChanged(): void {
-		this.stop();
-		this.beginCompute();
-	}
-
-	private onChange(): void {
-		this.timeout.setIfNotSet(() => this.beginCompute(), LinkDetector.RECOMPUTE_TIME);
-	}
-
-	private async beginCompute(): Promise<void> {
+	private async computeLinksNow(): Promise<void> {
 		if (!this.editor.hasModel() || !this.editor.getOption(EditorOption.links)) {
 			return;
 		}
@@ -129,7 +133,12 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 		this.computePromise = async.createCancelablePromise(token => getLinks(this.providers, model, token));
 		try {
+			const sw = new StopWatch(false);
 			this.activeLinksList = await this.computePromise;
+			this.debounceInformation.update(model, sw.elapsed());
+			if (model.isDisposed()) {
+				return;
+			}
 			this.updateDecorations(this.activeLinksList.links);
 		} catch (err) {
 			onUnexpectedError(err);
@@ -283,7 +292,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 	}
 
 	private stop(): void {
-		this.timeout.cancel();
+		this.computeLinks.cancel();
 		if (this.activeLinksList) {
 			this.activeLinksList?.dispose();
 			this.activeLinksList = null;
@@ -297,7 +306,6 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 	public override dispose(): void {
 		super.dispose();
 		this.stop();
-		this.timeout.dispose();
 	}
 }
 
