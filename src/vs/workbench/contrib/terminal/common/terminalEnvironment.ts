@@ -11,6 +11,7 @@ import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.
@@ -419,7 +420,14 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-c', '"${execIns
 shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
 const loginArgs = ['-login', '-l'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
-export function injectShellIntegrationArgs(logService: ILogService, env: IProcessEnvironment, enableShellIntegration: boolean, shellLaunchConfig: IShellLaunchConfig, os?: OperatingSystem): { args: string | string[] | undefined; enableShellIntegration: boolean } {
+export function injectShellIntegrationArgs(
+	logService: ILogService,
+	configurationService: IConfigurationService,
+	env: IProcessEnvironment,
+	enableShellIntegration: boolean,
+	shellLaunchConfig: IShellLaunchConfig,
+	os?: OperatingSystem
+): { args: string | string[] | undefined; enableShellIntegration: boolean } {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
@@ -430,7 +438,7 @@ export function injectShellIntegrationArgs(logService: ILogService, env: IProces
 
 	const originalArgs = shellLaunchConfig.args;
 	const shell = path.basename(shellLaunchConfig.executable).toLowerCase();
-	let newArgs: string | string[] | undefined;
+	let newArgs: string[] | undefined;
 
 	if (os === OperatingSystem.Windows) {
 		if (shell === 'pwsh.exe') {
@@ -440,6 +448,13 @@ export function injectShellIntegrationArgs(logService: ILogService, env: IProces
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwshLogin);
 			} else {
 				logService.warn(`Shell integration cannot be enabled when custom args ${originalArgs} are provided for ${shell} on Windows.`);
+			}
+		}
+		if (newArgs) {
+			const showWelcome = configurationService.getValue(TerminalSettingId.ShowShellIntegrationWelcome);
+			if (!showWelcome) {
+				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+				newArgs[newArgs.length - 1] += ' -HideWelcome';
 			}
 		}
 	} else {
