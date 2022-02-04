@@ -532,7 +532,7 @@ class ResourceLabelWidget extends IconLabel {
 				(!this.options?.title)
 				|| ((typeof this.options.title !== 'string') && !this.options.title.markdownNotSupportedFallback)
 			)) {
-				
+
 			if (!this.computedPathLabel) {
 				this.computedPathLabel = this.labelService.getUriLabel(resource);
 			}

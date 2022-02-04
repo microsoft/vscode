@@ -320,7 +320,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return resolvedKeybinding.getDispatchParts().map(x => x || '[null]').join(' ');
 	}
 
-	private _printResolvedKeybindings(output:string[], input: string, resolvedKeybindings: ResolvedKeybinding[]): void {
+	private _printResolvedKeybindings(output: string[], input: string, resolvedKeybindings: ResolvedKeybinding[]): void {
 		const padLength = 35;
 		const firstRow = `${input.padStart(padLength, ' ')} => `;
 		if (resolvedKeybindings.length === 0) {

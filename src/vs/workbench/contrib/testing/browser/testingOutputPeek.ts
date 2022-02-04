@@ -767,8 +767,8 @@ class TestingOutputPeek extends PeekViewWidget {
 	}
 
 	protected override _relayout(newHeightInLines: number): void {
-			super._relayout(newHeightInLines);
-			TestingOutputPeek.lastHeightInLines = newHeightInLines;
+		super._relayout(newHeightInLines);
+		TestingOutputPeek.lastHeightInLines = newHeightInLines;
 	}
 
 	/** @override */
