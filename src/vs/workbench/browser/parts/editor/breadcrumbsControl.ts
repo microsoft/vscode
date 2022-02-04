@@ -34,7 +34,6 @@ import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } fr
 import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { PixelRatio } from 'vs/base/browser/browser';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -197,7 +196,6 @@ export class BreadcrumbsControl {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IFileService private readonly _fileService: IFileService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -360,10 +358,6 @@ export class BreadcrumbsControl {
 
 		const { element } = event.item as FileItem | OutlineItem;
 		this._editorGroup.focus();
-
-		type BreadcrumbSelect = { type: string };
-		type BreadcrumbSelectClassification = { type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' } };
-		this._telemetryService.publicLog2<BreadcrumbSelect, BreadcrumbSelectClassification>('breadcrumbs/select', { type: event.item instanceof OutlineItem ? 'symbol' : 'file' });
 
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {

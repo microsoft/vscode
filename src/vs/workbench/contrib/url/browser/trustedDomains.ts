@@ -37,10 +37,6 @@ export const manageTrustedDomainSettingsCommand = {
 
 type ConfigureTrustedDomainsQuickPickItem = IQuickPickItem & ({ id: 'manage' } | { id: 'trust'; toTrust: string });
 
-type ConfigureTrustedDomainsChoiceClassification = {
-	choice: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-};
-
 export async function configureOpenerTrustedDomainsHandler(
 	trustedDomains: string[],
 	domainToConfigure: string,
@@ -105,11 +101,6 @@ export async function configureOpenerTrustedDomainsHandler(
 	);
 
 	if (pickedResult && pickedResult.id) {
-		telemetryService.publicLog2<{ choice: string }, ConfigureTrustedDomainsChoiceClassification>(
-			'trustedDomains.configureTrustedDomainsQuickPickChoice',
-			{ choice: pickedResult.id }
-		);
-
 		switch (pickedResult.id) {
 			case 'manage':
 				await editorService.openEditor({

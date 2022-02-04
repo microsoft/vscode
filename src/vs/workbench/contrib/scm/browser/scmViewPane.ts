@@ -2503,7 +2503,7 @@ export class SCMActionButton implements IDisposable {
 
 		if (button.description) {
 			// ButtonWithDescription
-			this.button = new ButtonWithDescription(this.container, { supportIcons: true });
+			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });
 			(this.button as ButtonWithDescription).description = button.description;
 		} else {
 			// Button

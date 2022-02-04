@@ -15,7 +15,6 @@ import { parsePtyHostPort } from 'vs/platform/environment/common/environmentServ
 import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { HeartbeatConstants, IHeartbeatService, IProcessDataEvent, IPtyService, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, TerminalIcon, TerminalIpcChannels, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, TerminalSettingId, ISerializedTerminalState } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
@@ -82,7 +81,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -166,10 +164,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 
 		// Handle exit
 		this._register(client.onDidProcessExit(e => {
-			/* __GDPR__
-				"ptyHost/exit" : {}
-			*/
-			this._telemetryService.publicLog('ptyHost/exit');
 			this._onPtyHostExit.fire(e.code);
 			if (!this._isDisposed) {
 				if (this._restartCount <= Constants.MaxRestarts) {
@@ -322,10 +316,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	}
 
 	async restartPtyHost(): Promise<void> {
-		/* __GDPR__
-			"ptyHost/restart" : {}
-		*/
-		this._telemetryService.publicLog('ptyHost/restart');
 		this._isResponsive = true;
 		this._disposePtyHost();
 		[this._client, this._proxy] = this._startPtyHost();
@@ -340,10 +330,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._clearHeartbeatTimeouts();
 		this._heartbeatFirstTimeout = setTimeout(() => this._handleHeartbeatFirstTimeout(), HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier);
 		if (!this._isResponsive) {
-			/* __GDPR__
-				"ptyHost/responsive" : {}
-			*/
-			this._telemetryService.publicLog('ptyHost/responsive');
 			this._isResponsive = true;
 		}
 		this._onPtyHostResponsive.fire();
@@ -359,10 +345,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 		this._logService.error(`No ptyHost heartbeat after ${(HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier + HeartbeatConstants.BeatInterval * HeartbeatConstants.FirstWaitMultiplier) / 1000} seconds`);
 		this._heartbeatSecondTimeout = undefined;
 		if (this._isResponsive) {
-			/* __GDPR__
-				"ptyHost/responsive" : {}
-			*/
-			this._telemetryService.publicLog('ptyHost/unresponsive');
 			this._isResponsive = false;
 		}
 		this._onPtyHostUnresponsive.fire();
@@ -371,10 +353,6 @@ export class PtyHostService extends Disposable implements IPtyService {
 	private _handleUnresponsiveCreateProcess() {
 		this._clearHeartbeatTimeouts();
 		this._logService.error(`No ptyHost response to createProcess after ${HeartbeatConstants.CreateProcessTimeout / 1000} seconds`);
-		/* __GDPR__
-			"ptyHost/responsive" : {}
-		*/
-		this._telemetryService.publicLog('ptyHost/responsive');
 		this._onPtyHostUnresponsive.fire();
 	}
 
