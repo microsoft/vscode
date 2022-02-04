@@ -700,7 +700,7 @@ export class SettingsEditor2 extends EditorPane {
 			layout: (width) => {
 				this.tocTreeContainer.style.width = `${width}px`;
 			}
-		}, startingWidth);
+		}, startingWidth, undefined, true);
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: this.settingsTreeContainer,
@@ -709,7 +709,7 @@ export class SettingsEditor2 extends EditorPane {
 			layout: (width) => {
 				this.settingsTreeContainer.style.width = `${width}px`;
 			}
-		}, Sizing.Distribute);
+		}, Sizing.Distribute, undefined, true);
 		this._register(this.splitView.onDidSashReset(() => {
 			const totalSize = this.splitView.getViewSize(0) + this.splitView.getViewSize(1);
 			this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
@@ -1521,11 +1521,16 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.splitView.el.style.height = `${settingsTreeHeight}px`;
 		const firstViewVisible = dimension.width >= SettingsEditor2.NARROW_TOTAL_WIDTH;
+
+		// We call layout first so the splitView has an idea of how much
+		// space it has, otherwise setViewVisible results in the first panel
+		// showing up at the minimum size whenever the Settings editor
+		// opens for the first time.
+		this.splitView.layout(this.bodyContainer.clientWidth);
 		this.splitView.setViewVisible(0, firstViewVisible);
 		this.splitView.style({
 			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder)! : Color.transparent
 		});
-		this.splitView.layout(this.bodyContainer.clientWidth);
 	}
 
 	protected override saveState(): void {
