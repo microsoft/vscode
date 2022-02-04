@@ -59,6 +59,8 @@ function hygiene(some, linting = true) {
 				errorCount++;
 			}
 		});
+
+		this.emit('data', file);
 	});
 
 	const indentation = es.through(function (file) {
@@ -167,7 +169,7 @@ function hygiene(some, linting = true) {
 
 	if (linting) {
 		streams.push(
-			input
+			result
 				.pipe(filter(eslintFilter))
 				.pipe(
 					gulpeslint({
