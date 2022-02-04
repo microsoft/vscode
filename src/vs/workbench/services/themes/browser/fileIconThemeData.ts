@@ -192,7 +192,7 @@ export class FileIconThemeLoader {
 
 	constructor(
 		private readonly fileService: IExtensionResourceLoaderService,
-		private readonly modeService: ILanguageService
+		private readonly languageService: ILanguageService
 	) {
 	}
 
@@ -415,9 +415,9 @@ export class FileIconThemeLoader {
 		}
 
 		if (showLanguageModeIcons) {
-			for (const languageId of this.modeService.getRegisteredLanguageIds()) {
+			for (const languageId of this.languageService.getRegisteredLanguageIds()) {
 				if (!coveredLanguages[languageId]) {
-					const icon = this.modeService.getIcon(languageId);
+					const icon = this.languageService.getIcon(languageId);
 					if (icon) {
 						const selector = `.show-file-icons .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`;
 						cssRules.push(`${selector} { content: ' '; background-image: ${asCSSUrl(icon.dark)}; }`);

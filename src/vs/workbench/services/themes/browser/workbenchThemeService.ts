@@ -114,7 +114,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService,
-		@ILanguageService readonly modeService: ILanguageService
+		@ILanguageService readonly languageService: ILanguageService
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -127,7 +127,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.fileIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this));
 		this.fileIconThemeRegistry = new ThemeRegistry(fileIconThemesExtPoint, FileIconThemeData.fromExtensionTheme, true, FileIconThemeData.noIconTheme);
-		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, modeService);
+		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, languageService);
 		this.onFileIconThemeChange = new Emitter<IWorkbenchFileIconTheme>();
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
 		this.fileIconThemeSequencer = new Sequencer();
