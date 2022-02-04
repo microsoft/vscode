@@ -85,7 +85,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			l.text = l.text.slice(0, -1);
 			l.bufferRange.end.x--;
 		}
-		return this._instantiationService.createInstance(TerminalLink,
+		const link = this._instantiationService.createInstance(TerminalLink,
 			this._detector.xterm,
 			l.bufferRange,
 			l.text,
@@ -98,8 +98,10 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 				modifierUpCallback
 			}),
 			l.type !== TerminalBuiltinLinkType.Search, // Only search is low confidence
-			l.label || this._getLabel(l.type)
+			l.label || this._getLabel(l.type),
+			l.type
 		);
+		return link;
 	}
 
 	private _getLabel(type: TerminalLinkType): string {

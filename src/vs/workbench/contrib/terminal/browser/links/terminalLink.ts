@@ -12,6 +12,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 
 export const OPEN_FILE_LABEL = localize('openFile', 'Open file in editor');
 export const FOLDER_IN_WORKSPACE_LABEL = localize('focusFolder', 'Focus folder in explorer');
@@ -27,6 +28,8 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private readonly _onInvalidated = new Emitter<void>();
 	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
+	get type(): TerminalLinkType { return this._type; }
+
 	constructor(
 		private readonly _xterm: Terminal,
 		readonly range: IBufferRange,
@@ -36,6 +39,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _isHighConfidenceLink: boolean,
 		readonly label: string | undefined,
+		private readonly _type: TerminalLinkType,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();

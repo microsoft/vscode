@@ -743,7 +743,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._linkManager.getLinks();
 	}
 
-	async openRecentLink(type: 'file' | 'web'): Promise<void> {
+	async openRecentLink(type: 'localFile' | 'url'): Promise<void> {
 		if (!this.areLinksReady || !this._linkManager) {
 			throw new Error('terminal links are not ready, cannot open a link');
 		}

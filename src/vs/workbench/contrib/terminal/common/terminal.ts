@@ -481,7 +481,7 @@ export const enum TerminalCommandId {
 	OpenDetectedLink = 'workbench.action.terminal.openDetectedLink',
 	OpenWordLink = 'workbench.action.terminal.openWordLink',
 	OpenFileLink = 'workbench.action.terminal.openFileLink',
-	OpenWebLink = 'workbench.action.terminal.openWebLink',
+	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopySelection = 'workbench.action.terminal.copySelection',
