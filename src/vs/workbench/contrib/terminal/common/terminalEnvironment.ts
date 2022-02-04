@@ -459,14 +459,19 @@ export function injectShellIntegrationArgs(
 		}
 	} else {
 		switch (shell) {
-			case 'bash':
+			case 'bash': {
 				if (!originalArgs || originalArgs.length === 0) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 				} else if (areZshBashLoginArgs(originalArgs)) {
 					env['VSCODE_SHELL_LOGIN'] = '1';
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 				}
+				const showWelcome = configurationService.getValue(TerminalSettingId.ShowShellIntegrationWelcome);
+				if (!showWelcome) {
+					env['VSCODE_SHELL_HIDE_WELCOME'] = '1';
+				}
 				break;
+			}
 			case 'pwsh':
 				if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
