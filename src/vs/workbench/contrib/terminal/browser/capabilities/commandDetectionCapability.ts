@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IBuffer, IDecoration, IMarker, Terminal } from 'xterm';
 
-interface ICurrentPartialCommand {
+export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
 
 	promptStartMarker?: IMarker;
@@ -38,6 +38,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _currentCommand: ICurrentPartialCommand = {};
 	private _isWindowsPty: boolean = false;
 
+	private _decorationAddon: DecorationAddon;
+
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
@@ -46,8 +48,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	constructor(
 		private readonly _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService,
-		@IClipboardService private readonly _clipboardService: IClipboardService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
+		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon);
+		this._decorationAddon.activate(_terminal);
 	}
 
 	setCwd(value: string) {
@@ -137,6 +141,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		const command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
 		this._exitCode = exitCode;
+
 		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
 			return;
 		}
@@ -152,7 +157,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				marker: this._currentCommand.commandStartMarker
 			};
 			this._commands.push(newCommand);
-			this._registerOutputDecoration(newCommand);
+			this._decorationAddon.registerOutputDecoration(this._currentCommand, newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();
@@ -163,28 +168,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	setCommandLine(commandLine: string) {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
 		this._currentCommand.command = commandLine;
-	}
-
-	private _registerOutputDecoration(newCommand: ITerminalCommand): void {
-		if (!this._currentCommand.commandStartMarker) {
-			return;
-		}
-		//TODO: look at font code and do something with cell scaled width instead of negative
-		const decoration = this._terminal.registerDecoration({ marker: this._currentCommand.commandStartMarker!, anchor: 'left', x: -2 });
-		const outputLineCount = (this._currentCommand.commandFinishedMarker?.line || 0) - (this._currentCommand.commandExecutedMarker?.line || 0) > 0;
-		if (decoration && newCommand && outputLineCount) {
-			this._currentCommand.outputDecoration = decoration;
-			const output = newCommand.getOutput();
-			if (output?.length && this._currentCommand.outputDecoration.element) {
-				dom.addDisposableListener(this._currentCommand.outputDecoration.element, 'click', async () => {
-					await this._clipboardService.writeText(output);
-				});
-				this._currentCommand.outputDecoration.element.classList.add('prompt-xterm-decoration');
-				// negative scaled cell width pixels
-				// look at font size code
-			}
-			decoration.onRender(() => console.log('on render'));
-		}
 	}
 }
 

@@ -139,7 +139,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		capabilities = new TerminalCapabilityStore();
 		xterm = instantiationService.createInstance(XtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, capabilities);
-		commandDetection = new TestCommandDetectionCapability(xterm.raw, new NullLogService(), new TestClipboardService());
+		commandDetection = new TestCommandDetectionCapability(xterm.raw, new NullLogService(), instantiationService);
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 	});
 
