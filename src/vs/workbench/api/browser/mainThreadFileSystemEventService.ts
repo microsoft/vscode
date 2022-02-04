@@ -165,6 +165,8 @@ export class MainThreadFileSystemEventService {
 						return localize('msg-copy', "Running 'File Copy' participants...");
 					case FileOperation.DELETE:
 						return localize('msg-delete', "Running 'File Delete' participants...");
+					case FileOperation.WRITE:
+						return localize('msg-write', "Running 'File Write' participants...");
 				}
 			}
 		};
