@@ -238,5 +238,5 @@ suite('Workbench - TerminalProfiles', () => {
 
 export interface ITestTerminalConfig {
 	profiles: ITerminalProfiles;
-	useWslProfiles: boolean
+	useWslProfiles: boolean;
 }

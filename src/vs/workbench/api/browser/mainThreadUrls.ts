@@ -32,7 +32,7 @@ class ExtensionUrlHandler implements IURLHandler {
 export class MainThreadUrls implements MainThreadUrlsShape {
 
 	private readonly proxy: ExtHostUrlsShape;
-	private handlers = new Map<number, { extensionId: ExtensionIdentifier, disposable: IDisposable }>();
+	private handlers = new Map<number, { extensionId: ExtensionIdentifier; disposable: IDisposable }>();
 
 	constructor(
 		context: IExtHostContext,

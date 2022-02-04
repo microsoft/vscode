@@ -89,7 +89,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 	}
 
-	private parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
+	private parseOpenUrl(args: NativeParsedArgs): { uri: URI; url: string }[] {
 		if (args['open-url'] && args._urls && args._urls.length > 0) {
 			// --open-url must contain -- followed by the url(s)
 			// process.argv is used over args._ as args._ are resolved to file paths at this point

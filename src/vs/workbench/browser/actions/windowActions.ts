@@ -37,7 +37,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
 interface IRecentlyOpenedPick extends IQuickPickItem {
-	resource: URI,
+	resource: URI;
 	openable: IWindowOpenable;
 	remoteAuthority: string | undefined;
 }

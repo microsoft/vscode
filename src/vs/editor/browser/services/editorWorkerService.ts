@@ -25,6 +25,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { canceled } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -59,7 +60,8 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		@IModelService modelService: IModelService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this._modelService = modelService;
@@ -67,7 +69,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		this._logService = logService;
 
 		// register default link-provider and default completions-provider
-		this._register(modes.LinkProviderRegistry.register({ language: '*', hasAccessToAllModels: true }, {
+		this._register(languageFeaturesService.linkProvider.register({ language: '*', hasAccessToAllModels: true }, {
 			provideLinks: (model, token) => {
 				if (!canSyncModel(this._modelService, model.uri)) {
 					return Promise.resolve({ links: [] }); // File too large
@@ -77,7 +79,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 				});
 			}
 		}));
-		this._register(modes.CompletionProviderRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, languageConfigurationService)));
+		this._register(languageFeaturesService.completionProvider.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService, languageConfigurationService)));
 	}
 
 	public override dispose(): void {
@@ -157,8 +159,8 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 
 	async provideCompletionItems(model: ITextModel, position: Position): Promise<modes.CompletionList | undefined> {
 		type WordBasedSuggestionsConfig = {
-			wordBasedSuggestions?: boolean,
-			wordBasedSuggestionsMode?: 'currentDocument' | 'matchingDocuments' | 'allDocuments'
+			wordBasedSuggestions?: boolean;
+			wordBasedSuggestionsMode?: 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 		};
 		const config = this._configurationService.getValue<WordBasedSuggestionsConfig>(model.uri, position, 'editor');
 		if (!config.wordBasedSuggestions) {
@@ -285,8 +287,8 @@ class EditorModelManager extends Disposable {
 
 	private readonly _proxy: EditorSimpleWorker;
 	private readonly _modelService: IModelService;
-	private _syncedModels: { [modelUrl: string]: IDisposable; } = Object.create(null);
-	private _syncedModelsLastUsedTime: { [modelUrl: string]: number; } = Object.create(null);
+	private _syncedModels: { [modelUrl: string]: IDisposable } = Object.create(null);
+	private _syncedModelsLastUsedTime: { [modelUrl: string]: number } = Object.create(null);
 
 	constructor(proxy: EditorSimpleWorker, modelService: IModelService, keepIdleModels: boolean) {
 		super();
@@ -513,7 +515,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		});
 	}
 
-	public async textualSuggest(resources: URI[], leadingWord: string | undefined, wordDefRegExp: RegExp): Promise<{ words: string[], duration: number } | null> {
+	public async textualSuggest(resources: URI[], leadingWord: string | undefined, wordDefRegExp: RegExp): Promise<{ words: string[]; duration: number } | null> {
 		const proxy = await this._withSyncedResources(resources);
 		const wordDef = wordDefRegExp.source;
 		const wordDefFlags = regExpFlags(wordDefRegExp);

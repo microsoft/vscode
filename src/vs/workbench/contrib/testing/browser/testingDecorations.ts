@@ -198,7 +198,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		const newDecorations = new TestDecorations<ITestDecoration>();
 
 		model.changeDecorations(accessor => {
-			const runDecorations = new TestDecorations<{ line: number; id: ''; test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined }>();
+			const runDecorations = new TestDecorations<{ line: number; id: ''; test: IncrementalTestCollectionItem; resultItem: TestResultItem | undefined }>();
 			for (const test of this.testService.collection.all) {
 				if (!test.item.range || test.item.uri?.toString() !== uriStr) {
 					continue;
@@ -607,8 +607,8 @@ abstract class RunTestDecoration {
 
 	constructor(
 		protected tests: readonly {
-			test: IncrementalTestCollectionItem,
-			resultItem: TestResultItem | undefined,
+			test: IncrementalTestCollectionItem;
+			resultItem: TestResultItem | undefined;
 		}[],
 		private visible: boolean,
 		protected readonly model: ITextModel,
@@ -657,8 +657,8 @@ abstract class RunTestDecoration {
 	 * @returns true if options were changed, false otherwise
 	 */
 	public replaceOptions(newTests: readonly {
-		test: IncrementalTestCollectionItem,
-		resultItem: TestResultItem | undefined,
+		test: IncrementalTestCollectionItem;
+		resultItem: TestResultItem | undefined;
 	}[], visible: boolean): boolean {
 		if (visible === this.visible
 			&& equals(this.tests.map(t => t.test.item.extId), newTests.map(t => t.test.item.extId))

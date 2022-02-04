@@ -40,39 +40,30 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-/**
- * Stores the selection & view state of an editor and allows to compare it to other selection states.
- */
 class TextEditorState {
 
 	private static readonly EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for new state
 
-	constructor(private _editorInput: EditorInput, private _selection: Selection | null) { }
-
-	get editorInput(): EditorInput {
-		return this._editorInput;
-	}
-
-	get selection(): Selection | undefined {
-		return withNullAsUndefined(this._selection);
-	}
+	constructor(
+		readonly editorInput: EditorInput,
+		readonly selection: Selection | undefined
+	) { }
 
 	justifiesNewPushState(other: TextEditorState, event?: ICursorPositionChangedEvent): boolean {
 		if (event?.source === 'api') {
 			return true; // always let API source win (e.g. "Go to definition" should add a history entry)
 		}
 
-		if (!this._editorInput.matches(other._editorInput)) {
+		if (!this.editorInput.matches(other.editorInput)) {
 			return true; // different editor inputs
 		}
 
-		if (!Selection.isISelection(this._selection) || !Selection.isISelection(other._selection)) {
+		if (!Selection.isISelection(this.selection) || !Selection.isISelection(other.selection)) {
 			return true; // unknown selections
 		}
 
-		const thisLineNumber = Math.min(this._selection.selectionStartLineNumber, this._selection.positionLineNumber);
-		const otherLineNumber = Math.min(other._selection.selectionStartLineNumber, other._selection.positionLineNumber);
-
+		const thisLineNumber = Math.min(this.selection.selectionStartLineNumber, this.selection.positionLineNumber);
+		const otherLineNumber = Math.min(other.selection.selectionStartLineNumber, other.selection.positionLineNumber);
 		if (Math.abs(thisLineNumber - otherLineNumber) < TextEditorState.EDITOR_SELECTION_THRESHOLD) {
 			return false; // ignore selection changes in the range of EditorState.EDITOR_SELECTION_THRESHOLD lines
 		}
@@ -82,15 +73,10 @@ class TextEditorState {
 }
 
 interface ISerializedEditorHistoryEntry {
-
-	/**
-	 * The editor for the history entry. We currently only
-	 * support untyped editor inputs with `resource`.
-	 */
 	editor: IResourceEditorInput;
 }
 
-interface IStackEntry {
+interface IEditorWithSelection {
 	editor: EditorInput | IResourceEditorInput;
 	selection?: Selection;
 }
@@ -110,10 +96,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly activeEditorListeners = this._register(new DisposableStore());
-	private lastActiveEditor?: IEditorIdentifier;
+	private static readonly MOUSE_NAVIGATION_SETTING = 'workbench.editor.mouseBackForwardToNavigate';
 
-	private readonly editorStackListeners = new Map<EditorInput, DisposableStore>();
+	private readonly activeEditorListeners = this._register(new DisposableStore());
+	private lastActiveEditor: IEditorIdentifier | undefined = undefined;
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -133,18 +119,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		super();
 
 		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
-		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
-		this._register(this.editorService.onDidCloseEditor(event => this.onDidCloseEditor(event)));
-		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
-
-		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
-		this._register(this.fileService.onDidRunOperation(event => this.onDidFilesChange(event)));
-
-		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 
 		// if the service is created late enough that an editor is already opened
 		// make sure to trigger the onActiveEditorChanged() to track the editor
@@ -152,19 +126,39 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (this.editorService.activeEditorPane) {
 			this.onDidActiveEditorChange();
 		}
+	}
+
+	private registerListeners(): void {
 
 		// Mouse back/forward support
+		this.registerMouseNavigationListener();
+
+		// Editor changes
+		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
+		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
+		this._register(this.editorService.onDidCloseEditor(event => this.onDidCloseEditor(event)));
+		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
+
+		// File changes
+		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
+		this._register(this.fileService.onDidRunOperation(event => this.onDidFilesChange(event)));
+
+		// Storage
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
+	}
+
+	private registerMouseNavigationListener(): void {
 		const mouseBackForwardSupportListener = this._register(new DisposableStore());
 		const handleMouseBackForwardSupport = () => {
 			mouseBackForwardSupportListener.clear();
 
-			if (this.configurationService.getValue('workbench.editor.mouseBackForwardToNavigate')) {
+			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
 				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
 			}
 		};
 
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration('workbench.editor.mouseBackForwardToNavigate')) {
+			if (event.affectsConfiguration(HistoryService.MOUSE_NAVIGATION_SETTING)) {
 				handleMouseBackForwardSupport();
 			}
 		}));
@@ -262,12 +256,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleEditorSelectionChangeEvent(editor?: IEditorPane, event?: ICursorPositionChangedEvent): void {
-		this.handleEditorEventInNavigationStack(editor, event);
+		this.handleEventInEditorNavigationStack(editor, event);
 	}
 
 	private handleActiveEditorChange(editor?: IEditorPane): void {
 		this.handleEditorEventInHistory(editor);
-		this.handleEditorEventInNavigationStack(editor);
+		this.handleEventInEditorNavigationStack(editor);
 	}
 
 	private onEditorDispose(editor: EditorInput, listener: Function, mapEditorToDispose: Map<EditorInput, DisposableStore>): void {
@@ -296,7 +290,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private move(event: FileOperationEvent): void {
 		this.moveInHistory(event);
-		this.moveInNavigationStack(event);
+		this.moveInEditorNavigationStack(event);
 	}
 
 	private remove(input: EditorInput): void;
@@ -304,7 +298,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private remove(event: FileOperationEvent): void;
 	private remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.removeFromHistory(arg1);
-		this.removeFromNavigationStack(arg1);
+		this.removeFromEditorNavigationStack(arg1);
 		this.removeFromRecentlyClosedEditors(arg1);
 		this.removeFromRecentlyOpened(arg1);
 	}
@@ -330,11 +324,14 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.clearRecentlyOpened();
 
 		// Navigation (next, previous)
-		this.navigationStackIndex = -1;
-		this.lastNavigationStackIndex = -1;
-		this.navigationStack.splice(0);
-		this.editorStackListeners.forEach(listeners => dispose(listeners));
-		this.editorStackListeners.clear();
+		this.editorNavigationStackIndex = -1;
+		this.lastEditorNavigationStackIndex = -1;
+		this.editorNavigationStack.splice(0);
+
+		for (const [, disposable] of this.editorNavigationStackListeners) {
+			dispose(disposable);
+		}
+		this.editorNavigationStackListeners.clear();
 
 		// Recently closed editors
 		this.recentlyClosedEditors = [];
@@ -343,62 +340,80 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.updateContextKeys();
 	}
 
-	//#region Navigation (Go Forward, Go Backward)
+	//#region History Context Keys
 
-	private static readonly MAX_NAVIGATION_STACK_ITEMS = 50;
+	private readonly canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false, localize('canNavigateBack', "Whether it is possible to navigate back in editor history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false, localize('canNavigateForward', "Whether it is possible to navigate forward in editor history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last edit location"))).bindTo(this.contextKeyService);
+	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
 
-	private navigationStack: IStackEntry[] = [];
-	private navigationStackIndex = -1;
-	private lastNavigationStackIndex = -1;
+	private updateContextKeys(): void {
+		this.contextKeyService.bufferChangeEvents(() => {
+			this.canNavigateBackContextKey.set(this.editorNavigationStack.length > 0 && this.editorNavigationStackIndex > 0);
+			this.canNavigateForwardContextKey.set(this.editorNavigationStack.length > 0 && this.editorNavigationStackIndex < this.editorNavigationStack.length - 1);
+			this.canNavigateToLastEditLocationContextKey.set(!!this.lastEditLocation);
+			this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
+		});
+	}
 
-	private navigatingInStack = false;
+	//#endregion
+
+	//#region Navigation: Go Forward, Go Backward (limit: 50)
+
+	private static readonly MAX_EDITOR_NAVIGATION_STACK_ITEMS = 50;
+
+	private readonly editorNavigationStackListeners = new Map<EditorInput, DisposableStore>();
+
+	private editorNavigationStack: IEditorWithSelection[] = [];
+	private editorNavigationStackIndex = -1;
+	private lastEditorNavigationStackIndex = -1;
+
+	private navigatingInEditorStack = false;
 
 	private currentTextEditorState: TextEditorState | null = null;
 
 	forward(): void {
-		if (this.navigationStack.length > this.navigationStackIndex + 1) {
-			this.setIndex(this.navigationStackIndex + 1);
+		if (this.editorNavigationStack.length > this.editorNavigationStackIndex + 1) {
+			this.setIndex(this.editorNavigationStackIndex + 1);
 			this.navigate();
 		}
 	}
 
 	back(): void {
-		if (this.navigationStackIndex > 0) {
-			this.setIndex(this.navigationStackIndex - 1);
+		if (this.editorNavigationStackIndex > 0) {
+			this.setIndex(this.editorNavigationStackIndex - 1);
 			this.navigate();
 		}
 	}
 
 	last(): void {
-		if (this.lastNavigationStackIndex === -1) {
+		if (this.lastEditorNavigationStackIndex === -1) {
 			this.back();
 		} else {
-			this.setIndex(this.lastNavigationStackIndex);
+			this.setIndex(this.lastEditorNavigationStackIndex);
 			this.navigate();
 		}
 	}
 
 	private setIndex(value: number): void {
-		this.lastNavigationStackIndex = this.navigationStackIndex;
-		this.navigationStackIndex = value;
+		this.lastEditorNavigationStackIndex = this.editorNavigationStackIndex;
+		this.editorNavigationStackIndex = value;
 
 		// Context Keys
 		this.updateContextKeys();
 	}
 
 	private async navigate(): Promise<void> {
-		this.navigatingInStack = true;
-
-		const navigateToStackEntry = this.navigationStack[this.navigationStackIndex];
+		this.navigatingInEditorStack = true;
 
 		try {
-			await this.doNavigate(navigateToStackEntry);
+			await this.doNavigate(this.editorNavigationStack[this.editorNavigationStackIndex]);
 		} finally {
-			this.navigatingInStack = false;
+			this.navigatingInEditorStack = false;
 		}
 	}
 
-	private doNavigate(location: IStackEntry): Promise<IEditorPane | undefined> {
+	private doNavigate(location: IEditorWithSelection): Promise<IEditorPane | undefined> {
 		const options: ITextEditorOptions = {
 			revealIfOpened: true, // support to navigate across editor groups
 			selection: location.selection,
@@ -418,16 +433,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 		});
 	}
 
-	private handleEditorEventInNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {
+	private handleEventInEditorNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {
 		const codeEditor = control ? getCodeEditor(control.getControl()) : undefined;
 
 		// treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
 		// stack but we need to keep our currentTextEditorState up to date with
 		// the navigtion that occurs.
-		if (this.navigatingInStack) {
+		if (this.navigatingInEditorStack) {
 			if (codeEditor && control?.input && !control.input.isDisposed()) {
-				this.currentTextEditorState = new TextEditorState(control.input, codeEditor.getSelection());
+				this.currentTextEditorState = new TextEditorState(control.input, withNullAsUndefined(codeEditor.getSelection()));
 			} else {
 				this.currentTextEditorState = null; // we navigated to a non text or disposed editor
 			}
@@ -438,7 +453,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// navigation inside text editor
 			if (codeEditor && control?.input && !control.input.isDisposed()) {
-				this.handleTextEditorEventInNavigationStack(control, codeEditor, event);
+				this.handleTextEditorEventInEditorNavigationStack(control, codeEditor, event);
 			}
 
 			// navigation to non-text disposed editor
@@ -446,70 +461,71 @@ export class HistoryService extends Disposable implements IHistoryService {
 				this.currentTextEditorState = null; // at this time we have no active text editor view state
 
 				if (control?.input && !control.input.isDisposed()) {
-					this.handleNonTextEditorEventInNavigationStack(control);
+					this.handleNonTextEditorEventInEditorNavigationStack(control);
 				}
 			}
 		}
 	}
 
-	private handleTextEditorEventInNavigationStack(editor: IEditorPane, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
+	private handleTextEditorEventInEditorNavigationStack(editor: IEditorPane, editorControl: IEditor, event?: ICursorPositionChangedEvent): void {
 		if (!editor.input) {
 			return;
 		}
 
-		const stateCandidate = new TextEditorState(editor.input, editorControl.getSelection());
+		const stateCandidate = new TextEditorState(editor.input, withNullAsUndefined(editorControl.getSelection()));
 
 		// Add to stack if we dont have a current state or this new state justifies a push
 		if (!this.currentTextEditorState || this.currentTextEditorState.justifiesNewPushState(stateCandidate, event)) {
-			this.addToNavigationStack(editor.input, stateCandidate.selection);
+			this.addToEditorNavigationStack(editor.input, stateCandidate.selection);
 		}
 
 		// Otherwise we replace the current stack entry with this one
 		else {
-			this.replaceInNavigationStack(editor.input, stateCandidate.selection);
+			this.replaceInEditorNavigationStack(editor.input, stateCandidate.selection);
 		}
 
 		// Update our current text editor state
 		this.currentTextEditorState = stateCandidate;
 	}
 
-	private handleNonTextEditorEventInNavigationStack(editor: IEditorPane): void {
+	private handleNonTextEditorEventInEditorNavigationStack(editor: IEditorPane): void {
 		if (!editor.input) {
 			return;
 		}
 
-		const currentStack = this.navigationStack[this.navigationStackIndex];
+		const currentStack = this.editorNavigationStack[this.editorNavigationStackIndex];
 		if (currentStack && this.matches(editor.input, currentStack.editor)) {
 			return; // do not push same editor input again
 		}
 
-		this.addToNavigationStack(editor.input);
+		this.addToEditorNavigationStack(editor.input);
 	}
 
-	private addToNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection): void {
-		if (!this.navigatingInStack) {
-			this.doAddOrReplaceInNavigationStack(input, selection);
+	private addToEditorNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection): void {
+		if (!this.navigatingInEditorStack) {
+			this.doAddOrReplaceInEditorNavigationStack(input, selection);
 		}
 	}
 
-	private replaceInNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection): void {
-		if (!this.navigatingInStack) {
-			this.doAddOrReplaceInNavigationStack(input, selection, true /* force replace */);
+	private replaceInEditorNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection): void {
+		if (!this.navigatingInEditorStack) {
+			this.doAddOrReplaceInEditorNavigationStack(input, selection, true /* force replace */);
 		}
 	}
 
-	private doAddOrReplaceInNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection, forceReplace?: boolean): void {
+	private doAddOrReplaceInEditorNavigationStack(input: EditorInput | IResourceEditorInput, selection?: Selection, forceReplace?: boolean): void {
 
 		// Overwrite an entry in the stack if we have a matching input that comes
 		// with editor options to indicate that this entry is more specific. Also
-		// prevent entries that have the exact same options. Finally, Overwrite
+		// prevent entries that have the exact same options. Finally, overwrite
 		// entries if we detect that the change came in very fast which indicates
 		// that it was not coming in from a user change but rather rapid programmatic
 		// changes. We just take the last of the changes to not cause too many entries
 		// on the stack.
 		// We can also be instructed to force replace the last entry.
+
 		let replace = false;
-		const currentEntry = this.navigationStack[this.navigationStackIndex];
+		const currentEntry = this.editorNavigationStack[this.editorNavigationStackIndex];
 		if (currentEntry) {
 			if (forceReplace) {
 				replace = true; // replace if we are forced to
@@ -526,47 +542,47 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const entry = { editor: stackEditorInput, selection };
 
 		// Replace at current position
-		let removedEntries: IStackEntry[] = [];
+		let removedEntries: IEditorWithSelection[] = [];
 		if (replace) {
-			removedEntries.push(this.navigationStack[this.navigationStackIndex]);
-			this.navigationStack[this.navigationStackIndex] = entry;
+			removedEntries.push(this.editorNavigationStack[this.editorNavigationStackIndex]);
+			this.editorNavigationStack[this.editorNavigationStackIndex] = entry;
 		}
 
 		// Add to stack at current position
 		else {
 
 			// If we are not at the end of history, we remove anything after
-			if (this.navigationStack.length > this.navigationStackIndex + 1) {
-				for (let i = this.navigationStackIndex + 1; i < this.navigationStack.length; i++) {
-					removedEntries.push(this.navigationStack[i]);
+			if (this.editorNavigationStack.length > this.editorNavigationStackIndex + 1) {
+				for (let i = this.editorNavigationStackIndex + 1; i < this.editorNavigationStack.length; i++) {
+					removedEntries.push(this.editorNavigationStack[i]);
 				}
 
-				this.navigationStack = this.navigationStack.slice(0, this.navigationStackIndex + 1);
+				this.editorNavigationStack = this.editorNavigationStack.slice(0, this.editorNavigationStackIndex + 1);
 			}
 
 			// Insert entry at index
-			this.navigationStack.splice(this.navigationStackIndex + 1, 0, entry);
+			this.editorNavigationStack.splice(this.editorNavigationStackIndex + 1, 0, entry);
 
 			// Check for limit
-			if (this.navigationStack.length > HistoryService.MAX_NAVIGATION_STACK_ITEMS) {
-				removedEntries.push(this.navigationStack.shift()!); // remove first
-				if (this.lastNavigationStackIndex >= 0) {
-					this.lastNavigationStackIndex--;
+			if (this.editorNavigationStack.length > HistoryService.MAX_EDITOR_NAVIGATION_STACK_ITEMS) {
+				removedEntries.push(this.editorNavigationStack.shift()!); // remove first
+				if (this.lastEditorNavigationStackIndex >= 0) {
+					this.lastEditorNavigationStackIndex--;
 				}
 			} else {
-				this.setIndex(this.navigationStackIndex + 1);
+				this.setIndex(this.editorNavigationStackIndex + 1);
 			}
 		}
 
 		// Clear editor listeners from removed entries
 		for (const removedEntry of removedEntries) {
-			this.clearOnEditorDispose(removedEntry.editor, this.editorStackListeners);
+			this.clearOnEditorDispose(removedEntry.editor, this.editorNavigationStackListeners);
 		}
 
 		// Remove this from the stack unless the stack input is a resource
 		// that can easily be restored even when the input gets disposed
 		if (isEditorInput(stackEditorInput)) {
-			this.onEditorDispose(stackEditorInput, () => this.removeFromNavigationStack(stackEditorInput), this.editorStackListeners);
+			this.onEditorDispose(stackEditorInput, () => this.removeFromEditorNavigationStack(stackEditorInput), this.editorNavigationStackListeners);
 		}
 
 		// Context Keys
@@ -623,29 +639,29 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return selectionA.startLineNumber === selectionB.startLineNumber; // we consider the history entry same if we are on the same line
 	}
 
-	private moveInNavigationStack(event: FileOperationEvent): void {
-		const removed = this.removeFromNavigationStack(event);
+	private moveInEditorNavigationStack(event: FileOperationEvent): void {
+		const removed = this.removeFromEditorNavigationStack(event);
 		if (removed && event.target) {
-			this.addToNavigationStack({ resource: event.target.resource });
+			this.addToEditorNavigationStack({ resource: event.target.resource });
 		}
 	}
 
-	private removeFromNavigationStack(arg1: EditorInput | FileChangesEvent | FileOperationEvent): boolean {
+	private removeFromEditorNavigationStack(arg1: EditorInput | FileChangesEvent | FileOperationEvent): boolean {
 		let removed = false;
 
-		this.navigationStack = this.navigationStack.filter(entry => {
+		this.editorNavigationStack = this.editorNavigationStack.filter(entry => {
 			const matches = this.matches(arg1, entry.editor);
 
 			// Cleanup any listeners associated with the input when removing
 			if (matches) {
-				this.clearOnEditorDispose(arg1, this.editorStackListeners);
+				this.clearOnEditorDispose(arg1, this.editorNavigationStackListeners);
 				removed = true;
 			}
 
 			return !matches;
 		});
-		this.navigationStackIndex = this.navigationStack.length - 1; // reset index
-		this.lastNavigationStackIndex = -1;
+		this.editorNavigationStackIndex = this.editorNavigationStack.length - 1; // reset index
+		this.lastEditorNavigationStackIndex = -1;
 
 		// Context Keys
 		this.updateContextKeys();
@@ -708,7 +724,108 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#endregion
 
-	//#region Recently Closed Editors
+	//#region Navigation: Next/Previous Used Editor
+
+	private recentlyUsedEditorsStack: readonly IEditorIdentifier[] | undefined = undefined;
+	private recentlyUsedEditorsStackIndex = 0;
+
+	private recentlyUsedEditorsInGroupStack: readonly IEditorIdentifier[] | undefined = undefined;
+	private recentlyUsedEditorsInGroupStackIndex = 0;
+
+	private navigatingInRecentlyUsedEditorsStack = false;
+	private navigatingInRecentlyUsedEditorsInGroupStack = false;
+
+	openNextRecentlyUsedEditor(groupId?: GroupIdentifier): void {
+		const [stack, index] = this.ensureRecentlyUsedStack(index => index - 1, groupId);
+
+		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
+	}
+
+	openPreviouslyUsedEditor(groupId?: GroupIdentifier): void {
+		const [stack, index] = this.ensureRecentlyUsedStack(index => index + 1, groupId);
+
+		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
+	}
+
+	private async doNavigateInRecentlyUsedEditorsStack(editorIdentifier: IEditorIdentifier | undefined, groupId?: GroupIdentifier): Promise<void> {
+		if (editorIdentifier) {
+			const acrossGroups = typeof groupId !== 'number' || !this.editorGroupService.getGroup(groupId);
+
+			if (acrossGroups) {
+				this.navigatingInRecentlyUsedEditorsStack = true;
+			} else {
+				this.navigatingInRecentlyUsedEditorsInGroupStack = true;
+			}
+
+			const group = this.editorGroupService.getGroup(editorIdentifier.groupId) ?? this.editorGroupService.activeGroup;
+			try {
+				await group.openEditor(editorIdentifier.editor);
+			} finally {
+				if (acrossGroups) {
+					this.navigatingInRecentlyUsedEditorsStack = false;
+				} else {
+					this.navigatingInRecentlyUsedEditorsInGroupStack = false;
+				}
+			}
+		}
+	}
+
+	private ensureRecentlyUsedStack(indexModifier: (index: number) => number, groupId?: GroupIdentifier): [readonly IEditorIdentifier[], number] {
+		let editors: readonly IEditorIdentifier[];
+		let index: number;
+
+		const group = typeof groupId === 'number' ? this.editorGroupService.getGroup(groupId) : undefined;
+
+		// Across groups
+		if (!group) {
+			editors = this.recentlyUsedEditorsStack || this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+			index = this.recentlyUsedEditorsStackIndex;
+		}
+
+		// Within group
+		else {
+			editors = this.recentlyUsedEditorsInGroupStack || group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ groupId: group.id, editor }));
+			index = this.recentlyUsedEditorsInGroupStackIndex;
+		}
+
+		// Adjust index
+		let newIndex = indexModifier(index);
+		if (newIndex < 0) {
+			newIndex = 0;
+		} else if (newIndex > editors.length - 1) {
+			newIndex = editors.length - 1;
+		}
+
+		// Remember index and editors
+		if (!group) {
+			this.recentlyUsedEditorsStack = editors;
+			this.recentlyUsedEditorsStackIndex = newIndex;
+		} else {
+			this.recentlyUsedEditorsInGroupStack = editors;
+			this.recentlyUsedEditorsInGroupStackIndex = newIndex;
+		}
+
+		return [editors, newIndex];
+	}
+
+	private handleEditorEventInRecentEditorsStack(): void {
+
+		// Drop all-editors stack unless navigating in all editors
+		if (!this.navigatingInRecentlyUsedEditorsStack) {
+			this.recentlyUsedEditorsStack = undefined;
+			this.recentlyUsedEditorsStackIndex = 0;
+		}
+
+		// Drop in-group-editors stack unless navigating in group
+		if (!this.navigatingInRecentlyUsedEditorsInGroupStack) {
+			this.recentlyUsedEditorsInGroupStack = undefined;
+			this.recentlyUsedEditorsInGroupStackIndex = 0;
+		}
+	}
+
+	//#endregion
+
+	//#region File: Reopen Closed Editor (limit: 20)
 
 	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
 
@@ -843,9 +960,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#endregion
 
-	//#region Last Edit Location
+	//#region Go to: Last Edit Location (limit: 1)
 
-	private lastEditLocation: IStackEntry | undefined;
+	private lastEditLocation: IEditorWithSelection | undefined;
 
 	private rememberLastEditLocation(activeEditor: EditorInput, activeTextEditorControl: ICodeEditor): void {
 		this.lastEditLocation = { editor: activeEditor };
@@ -865,25 +982,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#endregion
 
-	//#region Context Keys
-
-	private readonly canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false, localize('canNavigateBack', "Whether it is possible to navigate back in editor history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false, localize('canNavigateForward', "Whether it is possible to navigate forward in editor history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last edit location"))).bindTo(this.contextKeyService);
-	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
-
-	private updateContextKeys(): void {
-		this.contextKeyService.bufferChangeEvents(() => {
-			this.canNavigateBackContextKey.set(this.navigationStack.length > 0 && this.navigationStackIndex > 0);
-			this.canNavigateForwardContextKey.set(this.navigationStack.length > 0 && this.navigationStackIndex < this.navigationStack.length - 1);
-			this.canNavigateToLastEditLocationContextKey.set(!!this.lastEditLocation);
-			this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
-		});
-	}
-
-	//#endregion
-
-	//#region History
+	//#region Go to: Recently Opened Editor (limit: 200, persisted)
 
 	private static readonly MAX_HISTORY_ITEMS = 200;
 	private static readonly HISTORY_STORAGE_KEY = 'history.entries';
@@ -1059,7 +1158,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 	clearRecentlyOpened(): void {
 		this.history = [];
 
-		this.editorHistoryListeners.forEach(listeners => dispose(listeners));
+		for (const [, disposable] of this.editorHistoryListeners) {
+			dispose(disposable);
+		}
 		this.editorHistoryListeners.clear();
 	}
 
@@ -1235,107 +1336,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		return undefined;
-	}
-
-	//#endregion
-
-	//#region Editor Most Recently Used History
-
-	private recentlyUsedEditorsStack: readonly IEditorIdentifier[] | undefined = undefined;
-	private recentlyUsedEditorsStackIndex = 0;
-
-	private recentlyUsedEditorsInGroupStack: readonly IEditorIdentifier[] | undefined = undefined;
-	private recentlyUsedEditorsInGroupStackIndex = 0;
-
-	private navigatingInRecentlyUsedEditorsStack = false;
-	private navigatingInRecentlyUsedEditorsInGroupStack = false;
-
-	openNextRecentlyUsedEditor(groupId?: GroupIdentifier): void {
-		const [stack, index] = this.ensureRecentlyUsedStack(index => index - 1, groupId);
-
-		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
-	}
-
-	openPreviouslyUsedEditor(groupId?: GroupIdentifier): void {
-		const [stack, index] = this.ensureRecentlyUsedStack(index => index + 1, groupId);
-
-		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
-	}
-
-	private async doNavigateInRecentlyUsedEditorsStack(editorIdentifier: IEditorIdentifier | undefined, groupId?: GroupIdentifier): Promise<void> {
-		if (editorIdentifier) {
-			const acrossGroups = typeof groupId !== 'number' || !this.editorGroupService.getGroup(groupId);
-
-			if (acrossGroups) {
-				this.navigatingInRecentlyUsedEditorsStack = true;
-			} else {
-				this.navigatingInRecentlyUsedEditorsInGroupStack = true;
-			}
-
-			const group = this.editorGroupService.getGroup(editorIdentifier.groupId) ?? this.editorGroupService.activeGroup;
-			try {
-				await group.openEditor(editorIdentifier.editor);
-			} finally {
-				if (acrossGroups) {
-					this.navigatingInRecentlyUsedEditorsStack = false;
-				} else {
-					this.navigatingInRecentlyUsedEditorsInGroupStack = false;
-				}
-			}
-		}
-	}
-
-	private ensureRecentlyUsedStack(indexModifier: (index: number) => number, groupId?: GroupIdentifier): [readonly IEditorIdentifier[], number] {
-		let editors: readonly IEditorIdentifier[];
-		let index: number;
-
-		const group = typeof groupId === 'number' ? this.editorGroupService.getGroup(groupId) : undefined;
-
-		// Across groups
-		if (!group) {
-			editors = this.recentlyUsedEditorsStack || this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
-			index = this.recentlyUsedEditorsStackIndex;
-		}
-
-		// Within group
-		else {
-			editors = this.recentlyUsedEditorsInGroupStack || group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ groupId: group.id, editor }));
-			index = this.recentlyUsedEditorsInGroupStackIndex;
-		}
-
-		// Adjust index
-		let newIndex = indexModifier(index);
-		if (newIndex < 0) {
-			newIndex = 0;
-		} else if (newIndex > editors.length - 1) {
-			newIndex = editors.length - 1;
-		}
-
-		// Remember index and editors
-		if (!group) {
-			this.recentlyUsedEditorsStack = editors;
-			this.recentlyUsedEditorsStackIndex = newIndex;
-		} else {
-			this.recentlyUsedEditorsInGroupStack = editors;
-			this.recentlyUsedEditorsInGroupStackIndex = newIndex;
-		}
-
-		return [editors, newIndex];
-	}
-
-	private handleEditorEventInRecentEditorsStack(): void {
-
-		// Drop all-editors stack unless navigating in all editors
-		if (!this.navigatingInRecentlyUsedEditorsStack) {
-			this.recentlyUsedEditorsStack = undefined;
-			this.recentlyUsedEditorsStackIndex = 0;
-		}
-
-		// Drop in-group-editors stack unless navigating in group
-		if (!this.navigatingInRecentlyUsedEditorsInGroupStack) {
-			this.recentlyUsedEditorsInGroupStack = undefined;
-			this.recentlyUsedEditorsInGroupStackIndex = 0;
-		}
 	}
 
 	//#endregion

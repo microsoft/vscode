@@ -1207,8 +1207,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const toggledOn = await terminalService.activeInstance?.toggleEscapeSequenceLogging();
-			terminalService.toggleDevTools(toggledOn);
+			await terminalService.toggleEscapeSequenceLogging();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -2232,7 +2231,7 @@ function focusNext(accessor: ServicesAccessor): void {
 	listService.lastFocusedList?.focusNext();
 }
 
-export function validateTerminalName(name: string): { content: string, severity: Severity } | null {
+export function validateTerminalName(name: string): { content: string; severity: Severity } | null {
 	if (!name || name.trim().length === 0) {
 		return {
 			content: localize('emptyTerminalNameInfo', "Providing no name will reset it to the default value"),

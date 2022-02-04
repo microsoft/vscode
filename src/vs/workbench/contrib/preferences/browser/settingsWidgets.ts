@@ -324,9 +324,9 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	protected abstract isItemNew(item: TDataItem): boolean;
 	protected abstract addTooltipsToRow(rowElement: RowElementGroup, item: TDataItem): void;
 	protected abstract getLocalizedStrings(): {
-		deleteActionTooltip: string
-		editActionTooltip: string
-		addButtonLabel: string
+		deleteActionTooltip: string;
+		editActionTooltip: string;
+		addButtonLabel: string;
 	};
 
 	protected renderHeader(): HTMLElement | undefined {
@@ -528,8 +528,8 @@ interface IListSetValueOptions {
 }
 
 export interface IListDataItem {
-	value: ObjectKey,
-	sibling?: string
+	value: ObjectKey;
+	sibling?: string;
 }
 
 interface ListSettingWidgetDragDetails {
@@ -897,7 +897,7 @@ interface IObjectStringData {
 
 export interface IObjectEnumOption {
 	value: string;
-	description?: string
+	description?: string;
 }
 
 interface IObjectEnumData {

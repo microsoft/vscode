@@ -18,9 +18,11 @@ import { EditorAction, registerEditorAction, registerEditorContribution, Service
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { LinkProvider } from 'vs/editor/common/languages';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { LinkProviderRegistry } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { getLinks, Link, LinksList } from 'vs/editor/contrib/links/browser/getLinks';
 import * as nls from 'vs/nls';
@@ -123,6 +125,7 @@ export class LinkDetector implements IEditorContribution {
 	static readonly RECOMPUTE_TIME = 1000; // ms
 
 	private readonly editor: ICodeEditor;
+	private readonly providers: LanguageFeatureRegistry<LinkProvider>;
 	private enabled: boolean;
 	private readonly listenersToRemove = new DisposableStore();
 	private readonly timeout: async.TimeoutTimer;
@@ -131,14 +134,16 @@ export class LinkDetector implements IEditorContribution {
 	private activeLinkDecorationId: string | null;
 	private readonly openerService: IOpenerService;
 	private readonly notificationService: INotificationService;
-	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
+	private currentOccurrences: { [decorationId: string]: LinkOccurrence };
 
 	constructor(
 		editor: ICodeEditor,
 		@IOpenerService openerService: IOpenerService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this.editor = editor;
+		this.providers = languageFeaturesService.linkProvider;
 		this.openerService = openerService;
 		this.notificationService = notificationService;
 
@@ -175,7 +180,7 @@ export class LinkDetector implements IEditorContribution {
 		this.listenersToRemove.add(editor.onDidChangeModelContent((e) => this.onChange()));
 		this.listenersToRemove.add(editor.onDidChangeModel((e) => this.onModelChanged()));
 		this.listenersToRemove.add(editor.onDidChangeModelLanguage((e) => this.onModelLanguageChanged()));
-		this.listenersToRemove.add(LinkProviderRegistry.onDidChange((e) => this.onModelLanguageChanged()));
+		this.listenersToRemove.add(this.providers.onDidChange((e) => this.onModelLanguageChanged()));
 
 		this.timeout = new async.TimeoutTimer();
 		this.computePromise = null;
@@ -208,7 +213,7 @@ export class LinkDetector implements IEditorContribution {
 
 		const model = this.editor.getModel();
 
-		if (!LinkProviderRegistry.has(model)) {
+		if (!this.providers.has(model)) {
 			return;
 		}
 
@@ -217,7 +222,7 @@ export class LinkDetector implements IEditorContribution {
 			this.activeLinksList = null;
 		}
 
-		this.computePromise = async.createCancelablePromise(token => getLinks(model, token));
+		this.computePromise = async.createCancelablePromise(token => getLinks(this.providers, model, token));
 		try {
 			this.activeLinksList = await this.computePromise;
 			this.updateDecorations(this.activeLinksList.links);

@@ -147,7 +147,7 @@ export class TextMateService extends AbstractTextMateService {
 
 	private _worker: MonacoWebWorker<TextMateWorker> | null;
 	private _workerProxy: TextMateWorker | null;
-	private _tokenizers: { [uri: string]: ModelWorkerTextMateTokenizer; };
+	private _tokenizers: { [uri: string]: ModelWorkerTextMateTokenizer };
 
 	constructor(
 		@ILanguageService languageService: ILanguageService,

@@ -26,7 +26,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { RenderingContext, RestrictedRenderingContext, HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
@@ -58,10 +58,10 @@ class VisibleTextAreaData {
 
 	prepareRender(visibleRangeProvider: IVisibleRangeProvider): void {
 		const startModelPosition = new Position(this.modelLineNumber, this.distanceToModelLineStart + 1);
-		const endModelPosition = new Position(this.modelLineNumber, this._context.model.getModelLineMaxColumn(this.modelLineNumber) - this.distanceToModelLineEnd);
+		const endModelPosition = new Position(this.modelLineNumber, this._context.viewModel.model.getLineMaxColumn(this.modelLineNumber) - this.distanceToModelLineEnd);
 
-		this.startPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(startModelPosition);
-		this.endPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(endModelPosition);
+		this.startPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(startModelPosition);
+		this.endPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(endModelPosition);
 
 		if (this.startPosition.lineNumber === this.endPosition.lineNumber) {
 			this.visibleTextareaStart = visibleRangeProvider.visibleRangeForPosition(this.startPosition);
@@ -161,20 +161,20 @@ export class TextAreaHandler extends ViewPart {
 
 		const simpleModel: ISimpleModel = {
 			getLineCount: (): number => {
-				return this._context.model.getLineCount();
+				return this._context.viewModel.getLineCount();
 			},
 			getLineMaxColumn: (lineNumber: number): number => {
-				return this._context.model.getLineMaxColumn(lineNumber);
+				return this._context.viewModel.getLineMaxColumn(lineNumber);
 			},
 			getValueInRange: (range: Range, eol: EndOfLinePreference): string => {
-				return this._context.model.getValueInRange(range, eol);
+				return this._context.viewModel.getValueInRange(range, eol);
 			}
 		};
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getDataToCopy: (): ClipboardDataToCopy => {
-				const rawTextToCopy = this._context.model.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
-				const newLineCharacter = this._context.model.getEOL();
+				const rawTextToCopy = this._context.viewModel.getPlainTextToCopy(this._modelSelections, this._emptySelectionClipboard, platform.isWindows);
+				const newLineCharacter = this._context.viewModel.model.getEOL();
 
 				const isFromEmptySelection = (this._emptySelectionClipboard && this._modelSelections.length === 1 && this._modelSelections[0].isEmpty());
 				const multicursorText = (Array.isArray(rawTextToCopy) ? rawTextToCopy : null);
@@ -183,7 +183,7 @@ export class TextAreaHandler extends ViewPart {
 				let html: string | null | undefined = undefined;
 				let mode: string | null = null;
 				if (CopyOptions.forceCopyWithSyntaxHighlighting || (this._copyWithSyntaxHighlighting && text.length < 65536)) {
-					const richText = this._context.model.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
+					const richText = this._context.viewModel.getRichTextToCopy(this._modelSelections, this._emptySelectionClipboard);
 					if (richText) {
 						html = richText.html;
 						mode = richText.mode;
@@ -240,7 +240,7 @@ export class TextAreaHandler extends ViewPart {
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
-				return this._context.model.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
+				return this._context.viewModel.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
 			}
 		};
 
@@ -340,14 +340,14 @@ export class TextAreaHandler extends ViewPart {
 				const tabOffset2 = lineTextAfterSelection.indexOf('\t');
 				const desiredVisibleAfterCharCount = (tabOffset2 === -1 ? lineTextAfterSelection.length : lineTextAfterSelection.length - tabOffset2 - 1);
 				const endModelPosition = modelSelection.getEndPosition();
-				const visibleAfterCharCount = Math.min(this._context.model.getModelLineMaxColumn(endModelPosition.lineNumber) - endModelPosition.column, desiredVisibleAfterCharCount);
-				const distanceToModelLineEnd = this._context.model.getModelLineMaxColumn(endModelPosition.lineNumber) - endModelPosition.column - visibleAfterCharCount;
+				const visibleAfterCharCount = Math.min(this._context.viewModel.model.getLineMaxColumn(endModelPosition.lineNumber) - endModelPosition.column, desiredVisibleAfterCharCount);
+				const distanceToModelLineEnd = this._context.viewModel.model.getLineMaxColumn(endModelPosition.lineNumber) - endModelPosition.column - visibleAfterCharCount;
 
 				return { distanceToModelLineEnd };
 			})();
 
 			// Scroll to reveal the location in the editor
-			this._context.model.revealRange(
+			this._context.viewModel.revealRange(
 				'keyboard',
 				true,
 				Range.fromPositions(this._selections[0].getStartPosition()),
@@ -370,7 +370,7 @@ export class TextAreaHandler extends ViewPart {
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 
 			this._viewController.compositionStart();
-			this._context.model.onCompositionStart();
+			this._context.viewModel.onCompositionStart();
 		}));
 
 		this._register(this._textAreaInput.onCompositionUpdate((e: ICompositionData) => {
@@ -389,15 +389,15 @@ export class TextAreaHandler extends ViewPart {
 
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 			this._viewController.compositionEnd();
-			this._context.model.onCompositionEnd();
+			this._context.viewModel.onCompositionEnd();
 		}));
 
 		this._register(this._textAreaInput.onFocus(() => {
-			this._context.model.setHasFocus(true);
+			this._context.viewModel.setHasFocus(true);
 		}));
 
 		this._register(this._textAreaInput.onBlur(() => {
-			this._context.model.setHasFocus(false);
+			this._context.viewModel.setHasFocus(false);
 		}));
 	}
 
@@ -407,7 +407,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private _getAndroidWordAtPosition(position: Position): [string, number] {
 		const ANDROID_WORD_SEPARATORS = '`~!@#$%^&*()-=+[{]}\\|;:",.<>/?';
-		const lineContent = this._context.model.getLineContent(position.lineNumber);
+		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 		const wordSeparators = getMapForWordSeparators(ANDROID_WORD_SEPARATORS);
 
 		let goingLeft = true;
@@ -447,7 +447,7 @@ export class TextAreaHandler extends ViewPart {
 	}
 
 	private _getWordBeforePosition(position: Position): string {
-		const lineContent = this._context.model.getLineContent(position.lineNumber);
+		const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 		const wordSeparators = getMapForWordSeparators(this._context.configuration.options.get(EditorOption.wordSeparators));
 
 		let column = position.column;
@@ -466,7 +466,7 @@ export class TextAreaHandler extends ViewPart {
 
 	private _getCharacterBeforePosition(position: Position): string {
 		if (position.column > 1) {
-			const lineContent = this._context.model.getLineContent(position.lineNumber);
+			const lineContent = this._context.viewModel.getLineContent(position.lineNumber);
 			const charBefore = lineContent.charAt(position.column - 2);
 			if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
 				return charBefore;
@@ -651,7 +651,7 @@ export class TextAreaHandler extends ViewPart {
 				);
 
 				// Try to render the textarea with the color/font style to match the text under it
-				const viewLineData = this._context.model.getViewLineData(startPosition.lineNumber);
+				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
 				let presentation: ITokenPresentation;

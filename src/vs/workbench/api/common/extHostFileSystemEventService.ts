@@ -248,7 +248,10 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		// concat all WorkspaceEdits collected via waitUntil-call and send them over to the renderer
 		const dto: IWorkspaceEditDto = { edits: [] };
 		for (let edit of edits) {
-			let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+			let { edits } = typeConverter.WorkspaceEdit.from(edit, {
+				getTextDocumentVersion: uri => this._extHostDocumentsAndEditors.getDocument(uri)?.version,
+				getNotebookDocumentVersion: () => undefined,
+			});
 			dto.edits = dto.edits.concat(edits);
 		}
 		return { edit: dto, extensionNames: Array.from(extensionNames) };

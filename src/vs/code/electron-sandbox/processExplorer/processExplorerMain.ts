@@ -201,7 +201,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 
 interface MachineProcessInformation {
 	name: string;
-	rootProcess: ProcessItem | IRemoteDiagnosticError
+	rootProcess: ProcessItem | IRemoteDiagnosticError;
 }
 
 interface ProcessInformation {

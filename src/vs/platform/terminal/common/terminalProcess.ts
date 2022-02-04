@@ -63,7 +63,7 @@ export interface IProcessDetails {
 
 export type ITerminalTabLayoutInfoDto = IRawTerminalTabLayoutInfo<IProcessDetails>;
 
-export interface ReplayEntry { cols: number; rows: number; data: string; }
+export interface ReplayEntry { cols: number; rows: number; data: string }
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];
 }

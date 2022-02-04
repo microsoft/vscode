@@ -36,7 +36,9 @@ export interface IHistoryService {
 	back(): void;
 
 	/**
-	 * Navigate forward or backwards to previous entry in history.
+	 * Navigate between the current history entry and the previous
+	 * one that was navigated to. This commands is like a toggle for
+	 * `forward` and `back` to jump between 2 points in history.
 	 */
 	last(): void;
 

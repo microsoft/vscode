@@ -76,7 +76,7 @@ class PositionOffsetTransformer {
 	}
 }
 
-function applyEdits(text: string, edits: { range: IRange, text: string }[]): string {
+function applyEdits(text: string, edits: { range: IRange; text: string }[]): string {
 	const transformer = new PositionOffsetTransformer(text);
 	const offsetEdits = edits.map(e => {
 		const range = Range.lift(e.range);

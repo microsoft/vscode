@@ -57,12 +57,12 @@ export function createExtensionHostManager(instantiationService: IInstantiationS
 }
 
 export type ExtensionHostStartupClassification = {
-	time: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	action: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	errorName?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	errorMessage?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-	errorStack?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+	time: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+	kind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+	errorName?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+	errorMessage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+	errorStack?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 };
 
 export type ExtensionHostStartupEvent = {
@@ -561,7 +561,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		const actual = await this._getOrCreateActualAndStart(`execute tests.`);
 		return actual.extensionTestsSendExit(exitCode);
 	}
-	public async setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void> {
+	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
 		await this._startCalled.wait();
 		if (this._actual) {
 			return this._actual.setRemoteEnvironment(env);

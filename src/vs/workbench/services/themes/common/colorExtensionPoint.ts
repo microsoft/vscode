@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 interface IColorExtensionPoint {
 	id: string;
 	description: string;
-	defaults: { light: string, dark: string, highContrast: string };
+	defaults: { light: string; dark: string; highContrast: string };
 }
 
 const colorRegistry: IColorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);

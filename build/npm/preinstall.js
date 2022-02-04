@@ -86,19 +86,24 @@ function installHeaders() {
 		return;
 	}
 
+	// The node gyp package got installed using the above yarn command using the gyp/package.json
+	// file checked into our repository. So from that point it is save to construct the path
+	// to that executable
 	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
-	const result = cp.execSync(`${node_gyp} list`, { encoding: 'utf8' });
-	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => `"${value}"`));
+	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8' });
+	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 
 	const local = getHeaderInfo(path.join(__dirname, '..', '..', '.yarnrc'));
 	const remote = getHeaderInfo(path.join(__dirname, '..', '..', 'remote', '.yarnrc'));
 
 	if (local !== undefined && !versions.has(local.target)) {
-		cp.execSync(`${node_gyp} install --dist-url ${local.disturl} ${local.target}`);
+		// Both disturl and target come from a file checked into our repository
+		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target]);
 	}
 
 	if (remote !== undefined && !versions.has(remote.target)) {
-		cp.execSync(`${node_gyp} install --dist-url ${remote.disturl} ${remote.target}`);
+		// Both disturl and target come from a file checked into our repository
+		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target]);
 	}
 }
 
@@ -110,11 +115,11 @@ function getHeaderInfo(rcFile) {
 	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n?/g);
 	let disturl, target;
 	for (const line of lines) {
-		let match = line.match(/\s*disturl\s*(.*)$/);
+		let match = line.match(/\s*disturl\s*\"(.*)\"\s*$/);
 		if (match !== null && match.length >= 1) {
 			disturl = match[1];
 		}
-		match = line.match(/\s*target\s*(.*)$/);
+		match = line.match(/\s*target\s*\"(.*)\"\s*$/);
 		if (match !== null && match.length >= 1) {
 			target = match[1];
 		}

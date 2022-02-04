@@ -51,10 +51,10 @@ async function main() {
 	await fs.writeJson(productJsonPath, productJson);
 
 	// Verify if native module architecture is correct
-	const findOutput = await spawn('find', [outAppPath, '-name', 'keytar.node'])
-	const lipoOutput = await spawn('lipo', ['-archs', findOutput.replace(/\n$/, "")]);
-	if (lipoOutput.replace(/\n$/, "") !== 'x86_64 arm64') {
-		throw new Error(`Invalid arch, got : ${lipoOutput}`)
+	const findOutput = await spawn('find', [outAppPath, '-name', 'keytar.node']);
+	const lipoOutput = await spawn('lipo', ['-archs', findOutput.replace(/\n$/, '')]);
+	if (lipoOutput.replace(/\n$/, '') !== 'x86_64 arm64') {
+		throw new Error(`Invalid arch, got : ${lipoOutput}`);
 	}
 }
 

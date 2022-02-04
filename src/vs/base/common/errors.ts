@@ -157,7 +157,7 @@ export class CancellationError extends Error {
 }
 
 /**
- * @deprecated uses {@link CancellationError}
+ * @deprecated use {@link CancellationError `new CancellationError()`} instead
  */
 export function canceled(): Error {
 	const error = new Error(canceledName);

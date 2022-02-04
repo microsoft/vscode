@@ -9,8 +9,8 @@ import { IExtensionTerminalProfile, ITerminalProfile, TerminalIcon } from 'vs/pl
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export function createProfileSchemaEnums(detectedProfiles: ITerminalProfile[], extensionProfiles?: readonly IExtensionTerminalProfile[]): {
-	values: string[] | undefined,
-	markdownDescriptions: string[] | undefined
+	values: string[] | undefined;
+	markdownDescriptions: string[] | undefined;
 } {
 	const result = detectedProfiles.map(e => {
 		return {
@@ -90,16 +90,16 @@ export function terminalIconsEqual(iconOne?: TerminalIcon, iconTwo?: TerminalIco
 	}
 	if (typeof iconOne === 'object' && iconOne && 'light' in iconOne && 'dark' in iconOne
 		&& typeof iconTwo === 'object' && iconTwo && 'light' in iconTwo && 'dark' in iconTwo) {
-		const castedIcon = (iconOne as { light: unknown, dark: unknown });
-		const castedIconTwo = (iconTwo as { light: unknown, dark: unknown });
+		const castedIcon = (iconOne as { light: unknown; dark: unknown });
+		const castedIconTwo = (iconTwo as { light: unknown; dark: unknown });
 		if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))
 			&& (URI.isUri(castedIconTwo.light) || isUriComponents(castedIconTwo.light)) && (URI.isUri(castedIconTwo.dark) || isUriComponents(castedIconTwo.dark))) {
 			return castedIcon.light.path === castedIconTwo.light.path && castedIcon.dark.path === castedIconTwo.dark.path;
 		}
 	}
 	if ((URI.isUri(iconOne) && URI.isUri(iconTwo)) || (isUriComponents(iconOne) || isUriComponents(iconTwo))) {
-		const castedIcon = (iconOne as { scheme: unknown, path: unknown });
-		const castedIconTwo = (iconTwo as { scheme: unknown, path: unknown });
+		const castedIcon = (iconOne as { scheme: unknown; path: unknown });
+		const castedIconTwo = (iconTwo as { scheme: unknown; path: unknown });
 		return castedIcon.path === castedIconTwo.path && castedIcon.scheme === castedIconTwo.scheme;
 	}
 

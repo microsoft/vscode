@@ -18,7 +18,7 @@ const localize = nls.loadMessageBundle();
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
 export interface Runtime {
-	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
+	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
 	fs?: RequestService;
 }
 

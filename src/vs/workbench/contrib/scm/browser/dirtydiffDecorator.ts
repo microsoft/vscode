@@ -890,7 +890,7 @@ export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler
 
 class DirtyDiffDecorator extends Disposable {
 
-	static createDecoration(className: string, options: { gutter: boolean, overview: { active: boolean, color: string }, minimap: { active: boolean, color: string }, isWholeLine: boolean }): ModelDecorationOptions {
+	static createDecoration(className: string, options: { gutter: boolean; overview: { active: boolean; color: string }; minimap: { active: boolean; color: string }; isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
 			description: 'dirty-diff-decoration',
 			isWholeLine: options.isWholeLine,
@@ -1078,8 +1078,8 @@ export class DirtyDiffModel extends Disposable {
 	private readonly originalModelDisposables = this._register(new DisposableStore());
 	private _disposed = false;
 
-	private readonly _onDidChange = new Emitter<{ changes: IChange[], diff: ISplice<IChange>[] }>();
-	readonly onDidChange: Event<{ changes: IChange[], diff: ISplice<IChange>[] }> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<{ changes: IChange[]; diff: ISplice<IChange>[] }>();
+	readonly onDidChange: Event<{ changes: IChange[]; diff: ISplice<IChange>[] }> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];
 	get changes(): IChange[] { return this._changes; }

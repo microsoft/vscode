@@ -98,7 +98,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		});
 	}
 
-	static getLocalizedText(text: string | { [key: string]: string; }, displayLanguage: string): string {
+	static getLocalizedText(text: string | { [key: string]: string }, displayLanguage: string): string {
 		if (typeof text === 'string') {
 			return text;
 		}

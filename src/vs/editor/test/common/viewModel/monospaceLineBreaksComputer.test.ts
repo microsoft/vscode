@@ -8,7 +8,7 @@ import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/m
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { ModelLineProjectionData, ILineBreaksComputerFactory } from 'vs/editor/common/modelLineProjectionData';
 
-function parseAnnotatedText(annotatedText: string): { text: string; indices: number[]; } {
+function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
 	let currentLineIndex = 0;
 	const indices: number[] = [];

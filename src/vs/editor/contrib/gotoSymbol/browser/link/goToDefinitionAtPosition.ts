@@ -20,7 +20,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
-import { DefinitionProviderRegistry, LocationLink } from 'vs/editor/common/languages';
+import { LocationLink } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkKeyboardEvent, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
@@ -33,6 +33,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { DefinitionAction } from '../goToCommands';
 import { getDefinitionsAtPosition } from '../goToSymbol';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
@@ -49,7 +50,8 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 	constructor(
 		editor: ICodeEditor,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@ILanguageService private readonly languageService: ILanguageService
+		@ILanguageService private readonly languageService: ILanguageService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		this.editor = editor;
 
@@ -327,7 +329,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			mouseEvent.isNoneOrSingleMouseDown &&
 			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT) &&
 			(mouseEvent.hasTriggerModifier || (withKey ? withKey.keyCodeIsTriggerKey : false)) &&
-			DefinitionProviderRegistry.has(this.editor.getModel());
+			this.languageFeaturesService.definitionProvider.has(this.editor.getModel());
 	}
 
 	private findDefinition(position: Position, token: CancellationToken): Promise<LocationLink[] | null> {
@@ -336,7 +338,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			return Promise.resolve(null);
 		}
 
-		return getDefinitionsAtPosition(model, position, token);
+		return getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, position, token);
 	}
 
 	private gotoDefinition(position: Position, openToSide: boolean): Promise<any> {

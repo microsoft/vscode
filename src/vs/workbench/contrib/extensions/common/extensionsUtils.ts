@@ -57,7 +57,7 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 
 	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): void {
 		const onPrompt = (confirmed: boolean) => {
-			const telemetryData: { [key: string]: any; } = {
+			const telemetryData: { [key: string]: any } = {
 				newKeymap: newKeymap.identifier,
 				oldKeymaps: oldKeymaps.map(k => k.identifier),
 				confirmed

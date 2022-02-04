@@ -29,7 +29,7 @@ class MonarchStackElementFactory {
 	}
 
 	private readonly _maxCacheDepth: number;
-	private readonly _entries: { [stackElementId: string]: MonarchStackElement; };
+	private readonly _entries: { [stackElementId: string]: MonarchStackElement };
 
 	constructor(maxCacheDepth: number) {
 		this._maxCacheDepth = maxCacheDepth;
@@ -160,7 +160,7 @@ class MonarchLineStateFactory {
 	}
 
 	private readonly _maxCacheDepth: number;
-	private readonly _entries: { [stackElementId: string]: MonarchLineState; };
+	private readonly _entries: { [stackElementId: string]: MonarchLineState };
 
 	constructor(maxCacheDepth: number) {
 		this._maxCacheDepth = maxCacheDepth;
@@ -383,7 +383,7 @@ class MonarchModernTokensCollector implements IMonarchTokensCollector {
 	}
 }
 
-export type ILoadStatus = { loaded: true; } | { loaded: false; promise: Promise<void>; };
+export type ILoadStatus = { loaded: true } | { loaded: false; promise: Promise<void> };
 
 export class MonarchTokenizer implements languages.ITokenizationSupport {
 
@@ -391,7 +391,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 	private readonly _standaloneThemeService: IStandaloneThemeService;
 	private readonly _languageId: string;
 	private readonly _lexer: monarchCommon.ILexer;
-	private readonly _embeddedLanguages: { [languageId: string]: boolean; };
+	private readonly _embeddedLanguages: { [languageId: string]: boolean };
 	public embeddedLoaded: Promise<void>;
 	private readonly _tokenizationRegistryListener: IDisposable;
 
@@ -571,7 +571,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 		interface GroupMatching {
 			matches: string[];
 			rule: monarchCommon.IRule | null;
-			groups: { action: monarchCommon.FuzzyAction; matched: string; }[];
+			groups: { action: monarchCommon.FuzzyAction; matched: string }[];
 		}
 		let groupMatching: GroupMatching | null = null;
 

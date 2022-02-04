@@ -39,6 +39,7 @@ import { HistoryNavigator } from 'vs/base/common/history';
 import { createAndBindHistoryNavigationWidgetScopedContextKeyService, IHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export interface SuggestResultsProvider {
 	/**
@@ -125,6 +126,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		@IInstantiationService defaultInstantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
@@ -195,7 +197,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		this.setValue(options.value || '');
 
-		this._register(modes.CompletionProviderRegistry.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
@@ -297,13 +299,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 }
 
 export interface ISuggestEnabledHistoryOptions {
-	id: string,
-	ariaLabel: string,
-	parent: HTMLElement,
-	suggestionProvider: SuggestResultsProvider,
-	resourceHandle: string,
-	suggestOptions: SuggestEnabledInputOptions,
-	history: string[],
+	id: string;
+	ariaLabel: string;
+	parent: HTMLElement;
+	suggestionProvider: SuggestResultsProvider;
+	resourceHandle: string;
+	suggestOptions: SuggestEnabledInputOptions;
+	history: string[];
 }
 
 export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implements IHistoryNavigationWidget {
@@ -314,8 +316,9 @@ export class SuggestEnabledInputWithHistory extends SuggestEnabledInput implemen
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService);
+		super(id, parent, suggestionProvider, ariaLabel, resourceHandle, suggestOptions, instantiationService, modelService, contextKeyService, languageFeaturesService);
 		this.history = new HistoryNavigator<string>(history, 100);
 	}
 
@@ -391,8 +394,9 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		super(options, instantiationService, modelService, contextKeyService);
+		super(options, instantiationService, modelService, contextKeyService, languageFeaturesService);
 
 		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this.historyContext;
 		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {

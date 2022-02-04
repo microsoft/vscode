@@ -20,9 +20,9 @@ const commit = util.getVersion(root);
 const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
 interface NlsMetadata {
-	keys: { [module: string]: string },
-	messages: { [module: string]: string },
-	bundles: { [bundle: string]: string[] },
+	keys: { [module: string]: string };
+	messages: { [module: string]: string };
+	bundles: { [bundle: string]: string[] };
 }
 
 function main(): Promise<void> {
@@ -65,7 +65,7 @@ function main(): Promise<void> {
 							parsedJson = { header: parsedJson };
 							break;
 
-						case 'nls.metadata.json':
+						case 'nls.metadata.json': {
 							// put nls.metadata.json content in Core NlsMetadata format
 							const modules = Object.keys(parsedJson);
 
@@ -83,6 +83,7 @@ function main(): Promise<void> {
 							}
 							parsedJson = json;
 							break;
+						}
 					}
 					key = 'vscode.' + file.relative.split('/')[0];
 					return { [key]: parsedJson };

@@ -419,7 +419,7 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-c', '"${execIns
 shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
 const loginArgs = ['-login', '-l'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
-export function injectShellIntegrationArgs(logService: ILogService, env: IProcessEnvironment, enableShellIntegration: boolean, shellLaunchConfig: IShellLaunchConfig, os?: OperatingSystem): { args: string | string[] | undefined, enableShellIntegration: boolean } {
+export function injectShellIntegrationArgs(logService: ILogService, env: IProcessEnvironment, enableShellIntegration: boolean, shellLaunchConfig: IShellLaunchConfig, os?: OperatingSystem): { args: string | string[] | undefined; enableShellIntegration: boolean } {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)

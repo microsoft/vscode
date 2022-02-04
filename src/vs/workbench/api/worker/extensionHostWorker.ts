@@ -30,8 +30,8 @@ declare namespace self {
 	let addEventListener: any;
 	let removeEventListener: any;
 	let dispatchEvent: any;
-	let indexedDB: { open: any, [k: string]: any };
-	let caches: { open: any, [k: string]: any };
+	let indexedDB: { open: any; [k: string]: any };
+	let caches: { open: any; [k: string]: any };
 	let importScripts: any;
 	let fetch: _Fetch;
 	let XMLHttpRequest: any;

@@ -32,7 +32,7 @@ else if (typeof require?.__$__nodeRequire === 'function') {
 	const rootPath = dirname(FileAccess.asFileUri('', require));
 
 	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
-	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
+	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string };
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {

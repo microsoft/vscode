@@ -33,7 +33,7 @@ interface ILaunchVSCodeArgument {
 interface ILaunchVSCodeArguments {
 	args: ILaunchVSCodeArgument[];
 	debugRenderer?: boolean;
-	env?: { [key: string]: string | null; };
+	env?: { [key: string]: string | null };
 }
 
 /**

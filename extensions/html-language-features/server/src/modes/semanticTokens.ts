@@ -20,7 +20,7 @@ export interface SemanticTokenProvider {
 export function newSemanticTokenProvider(languageModes: LanguageModes): SemanticTokenProvider {
 
 	// combined legend across modes
-	const legend: { types: string[], modifiers: string[] } = { types: [], modifiers: [] };
+	const legend: { types: string[]; modifiers: string[] } = { types: [], modifiers: [] };
 	const legendMappings: { [modeId: string]: LegendMapping } = {};
 
 	for (let mode of languageModes.getAllModes()) {

@@ -16,7 +16,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
-	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor, alignment: MainThreadStatusBarAlignment, priority: number }> = new Map();
+	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor; alignment: MainThreadStatusBarAlignment; priority: number }> = new Map();
 
 	constructor(
 		_extHostContext: IExtHostContext,

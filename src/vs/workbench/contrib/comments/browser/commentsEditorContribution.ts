@@ -77,7 +77,7 @@ class CommentingRangeDecoration {
 		this._decorationId = this._editor.deltaDecorations([], commentingRangeDecorations)[0];
 	}
 
-	public getCommentAction(): { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges } {
+	public getCommentAction(): { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: modes.CommentingRanges } {
 		return {
 			extensionId: this._extensionId,
 			label: this._label,
@@ -496,7 +496,7 @@ export class CommentController implements IEditorContribution {
 		return Promise.resolve();
 	}
 
-	private getCommentProvidersQuickPicks(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges | undefined }[]) {
+	private getCommentProvidersQuickPicks(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: modes.CommentingRanges | undefined }[]) {
 		const picks: QuickPickInput[] = commentInfos.map((commentInfo) => {
 			const { ownerId, extensionId, label } = commentInfo;
 
@@ -509,7 +509,7 @@ export class CommentController implements IEditorContribution {
 		return picks;
 	}
 
-	private getContextMenuActions(commentInfos: { ownerId: string, extensionId: string | undefined, label: string | undefined, commentingRangesInfo: modes.CommentingRanges }[], lineNumber: number): IAction[] {
+	private getContextMenuActions(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: modes.CommentingRanges }[], lineNumber: number): IAction[] {
 		const actions: IAction[] = [];
 
 		commentInfos.forEach(commentInfo => {

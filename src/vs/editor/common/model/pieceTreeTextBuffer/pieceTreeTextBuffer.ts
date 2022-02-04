@@ -308,7 +308,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 
 		// Delta encode operations
 		const reverseRanges = (computeUndoEdits || recordTrimAutoWhitespace ? PieceTreeTextBuffer._getInverseEditRanges(operations) : []);
-		const newTrimAutoWhitespaceCandidates: { lineNumber: number, oldContent: string }[] = [];
+		const newTrimAutoWhitespaceCandidates: { lineNumber: number; oldContent: string }[] = [];
 		if (recordTrimAutoWhitespace) {
 			for (let i = 0; i < operations.length; i++) {
 				const op = operations[i];

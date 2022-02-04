@@ -32,7 +32,7 @@ export interface TypeHierarchyItem {
 	uri: URI;
 	range: IRange;
 	selectionRange: IRange;
-	tags?: SymbolTag[]
+	tags?: SymbolTag[];
 }
 
 export interface TypeHierarchySession {

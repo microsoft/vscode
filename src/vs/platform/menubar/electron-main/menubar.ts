@@ -33,8 +33,8 @@ interface IMenuItemClickHandler {
 }
 
 type IMenuItemInvocation = (
-	{ type: 'commandId'; commandId: string; }
-	| { type: 'keybinding'; userSettingsLabel: string; }
+	{ type: 'commandId'; commandId: string }
+	| { type: 'keybinding'; userSettingsLabel: string }
 );
 
 interface IMenuItemWithKeybinding {

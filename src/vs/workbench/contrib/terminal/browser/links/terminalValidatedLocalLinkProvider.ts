@@ -51,7 +51,7 @@ export const unixLineAndColumnMatchIndex = 11;
 export const lineAndColumnClauseGroupCount = 6;
 
 const MAX_LENGTH = 2000;
-const cachedValidatedLinks = new Map<string, { uri: URI, link: string, isDirectory: boolean } | null>();
+const cachedValidatedLinks = new Map<string, { uri: URI; link: string; isDirectory: boolean } | null>();
 
 export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider {
 	private _cacheTilTimeout = 0;
@@ -63,7 +63,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 		private readonly _activateFileCallback: (event: MouseEvent | undefined, link: string) => void,
 		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
-		private readonly _validationCallback: (link: string[], callback: (result: { uri: URI, link: string, isDirectory: boolean } | undefined) => void) => void,
+		private readonly _validationCallback: (link: string[], callback: (result: { uri: URI; link: string; isDirectory: boolean } | undefined) => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -156,7 +156,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 
 			// The link isn't cached
 			if (linkStat === undefined) {
-				linkStat = await new Promise<{ uri: URI, link: string, isDirectory: boolean } | undefined>(r => {
+				linkStat = await new Promise<{ uri: URI; link: string; isDirectory: boolean } | undefined>(r => {
 					const linkCandidates = [link];
 					if (link.match(/^(\.\.[\/\\])+/)) {
 						linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));

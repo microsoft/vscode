@@ -101,11 +101,11 @@ async function callback(nonce: string, reqUrl: url.Url): Promise<string> {
 }
 
 export function createServer(nonce: string) {
-	type RedirectResult = { req: http.IncomingMessage; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; };
+	type RedirectResult = { req: http.IncomingMessage; res: http.ServerResponse } | { err: any; res: http.ServerResponse };
 	let deferredRedirect: Deferred<RedirectResult>;
 	const redirectPromise = new Promise<RedirectResult>((resolve, reject) => deferredRedirect = { resolve, reject });
 
-	type CodeResult = { code: string; res: http.ServerResponse; } | { err: any; res: http.ServerResponse; };
+	type CodeResult = { code: string; res: http.ServerResponse } | { err: any; res: http.ServerResponse };
 	let deferredCode: Deferred<CodeResult>;
 	const codePromise = new Promise<CodeResult>((resolve, reject) => deferredCode = { resolve, reject });
 

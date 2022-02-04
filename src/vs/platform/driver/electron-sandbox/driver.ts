@@ -28,7 +28,7 @@ class WindowDriver extends BaseWindowDriver {
 		return this._click(selector, 2);
 	}
 
-	private async _click(selector: string, clickCount: number, offset?: { x: number, y: number }): Promise<void> {
+	private async _click(selector: string, clickCount: number, offset?: { x: number; y: number }): Promise<void> {
 		const { x, y } = await this._getElementXY(selector, offset);
 
 		await this.nativeHostService.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);

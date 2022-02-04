@@ -57,8 +57,8 @@ export class Delegate implements IListVirtualDelegate<IExtension> {
 
 export type ExtensionListRendererOptions = {
 	hoverOptions: {
-		position: () => HoverPosition
-	}
+		position: () => HoverPosition;
+	};
 };
 
 export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {

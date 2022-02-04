@@ -56,7 +56,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/marshalling';
 import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri } from 'vs/workbench/common/webview';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { coalesce, equals, flatten } from 'vs/base/common/arrays';
@@ -83,13 +83,13 @@ export const inWelcomeContext = new RawContextKey('inWelcome', false);
 export const embedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined);
 
 export interface IWelcomePageStartEntry {
-	id: string
-	title: string
-	description: string
-	command: string
-	order: number
-	icon: { type: 'icon', icon: ThemeIcon }
-	when: ContextKeyExpression
+	id: string;
+	title: string;
+	description: string;
+	command: string;
+	order: number;
+	icon: { type: 'icon'; icon: ThemeIcon };
+	when: ContextKeyExpression;
 }
 
 const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => ({
@@ -103,8 +103,8 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 }));
 
 type GettingStartedActionClassification = {
-	command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-	argument: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 };
 
 type GettingStartedActionEvent = {
@@ -278,7 +278,7 @@ export class GettingStartedPage extends EditorPane {
 		return !this.configurationService.getValue(REDUCED_MOTION_KEY);
 	}
 
-	private getWalkthroughCompletionStats(walkthrough: IResolvedWalkthrough): { stepsComplete: number, stepsTotal: number } {
+	private getWalkthroughCompletionStats(walkthrough: IResolvedWalkthrough): { stepsComplete: number; stepsTotal: number } {
 		const activeSteps = walkthrough.steps.filter(s => this.contextService.contextMatchesRules(s.when));
 		return {
 			stepsComplete: activeSteps.filter(s => s.done).length,
@@ -319,6 +319,16 @@ export class GettingStartedPage extends EditorPane {
 				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
 					e.stopPropagation();
 					this.runDispatchCommand(command, argument);
+				}));
+				this.dispatchListeners.add(addDisposableListener(element, 'keyup', (e) => {
+					const keyboardEvent = new StandardKeyboardEvent(e);
+					e.stopPropagation();
+					switch (keyboardEvent.keyCode) {
+						case KeyCode.Enter:
+						case KeyCode.Space:
+							this.runDispatchCommand(command, argument);
+							return;
+					}
 				}));
 			}
 		});
@@ -723,7 +733,7 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsScrollbar?.scanDomNode();
 	}
 
-	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
+	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI; dark: URI; light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
 		const src = sources[themeType].toString(true).replace(/ /g, '%20');
 		element.srcset = src.toLowerCase().endsWith('.svg') ? src : (src + ' 1.5x');
@@ -1167,7 +1177,6 @@ export class GettingStartedPage extends EditorPane {
 			return $('button.getting-started-category' + (category.isFeatured ? '.featured' : ''),
 				{
 					'x-dispatch': 'selectCategory:' + category.id,
-					'role': 'listitem',
 					'title': category.description
 				},
 				featuredBadge,
@@ -1176,6 +1185,7 @@ export class GettingStartedPage extends EditorPane {
 					$('h3.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title,),
 					renderNewBadge ? newBadge : $('.no-badge'),
 					$('a.codicon.codicon-close.hide-category-button', {
+						'tabindex': 0,
 						'x-dispatch': 'hideCategory:' + category.id,
 						'title': localize('close', "Hide"),
 					}),
@@ -1205,7 +1215,7 @@ export class GettingStartedPage extends EditorPane {
 				title: localize('walkthroughs', "Walkthroughs"),
 				klass: 'getting-started',
 				limit: 5,
-				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "More...")),
+				footer: $('span.button-link.see-all-walkthroughs', { 'x-dispatch': 'seeAllWalkthroughs', 'tabindex': 0 }, localize('showAll', "More...")),
 				renderElement: renderGetttingStaredWalkthrough,
 				rankElement: rankWalkthrough,
 				contextService: this.contextService,
@@ -1282,7 +1292,7 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
-	private iconWidgetFor(category: IResolvedWalkthrough | { icon: { type: 'icon', icon: ThemeIcon } }) {
+	private iconWidgetFor(category: IResolvedWalkthrough | { icon: { type: 'icon'; icon: ThemeIcon } }) {
 		const widget = category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
 		widget.classList.add('icon-widget');
 		return widget;

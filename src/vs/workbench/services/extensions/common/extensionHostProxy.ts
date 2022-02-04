@@ -33,7 +33,7 @@ export interface IExtensionHostProxy {
 	extensionTestsExit(code: number): Promise<void>;
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
-	setRemoteEnvironment(env: { [key: string]: string | null; }): Promise<void>;
+	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 	updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void>;
 	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
 	test_latency(n: number): Promise<number>;

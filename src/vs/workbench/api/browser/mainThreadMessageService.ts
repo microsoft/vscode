@@ -31,7 +31,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		//
 	}
 
-	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number; }[]): Promise<number | undefined> {
+	$showMessage(severity: Severity, message: string, options: MainThreadMessageOptions, commands: { title: string; isCloseAffordance: boolean; handle: number }[]): Promise<number | undefined> {
 		if (options.modal) {
 			return this._showModalMessage(severity, message, options.detail, commands, options.useCustom);
 		} else {
@@ -39,7 +39,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		}
 	}
 
-	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], options: MainThreadMessageOptions): Promise<number | undefined> {
+	private _showMessage(severity: Severity, message: string, commands: { title: string; isCloseAffordance: boolean; handle: number }[], options: MainThreadMessageOptions): Promise<number | undefined> {
 
 		return new Promise<number | undefined>(resolve => {
 
@@ -66,7 +66,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 				primaryActions.push(new MessageItemAction('_extension_message_handle_' + command.handle, command.title, command.handle));
 			});
 
-			let source: string | { label: string, id: string; } | undefined;
+			let source: string | { label: string; id: string } | undefined;
 			if (options.source) {
 				source = {
 					label: nls.localize('extensionSource', "{0} (Extension)", options.source.label),
@@ -100,7 +100,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 		});
 	}
 
-	private async _showModalMessage(severity: Severity, message: string, detail: string | undefined, commands: { title: string; isCloseAffordance: boolean; handle: number; }[], useCustom?: boolean): Promise<number | undefined> {
+	private async _showModalMessage(severity: Severity, message: string, detail: string | undefined, commands: { title: string; isCloseAffordance: boolean; handle: number }[], useCustom?: boolean): Promise<number | undefined> {
 		let cancelId: number | undefined = undefined;
 
 		const buttons = commands.map((command, index) => {

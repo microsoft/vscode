@@ -74,7 +74,7 @@ export class DebugSession implements IDebugSession {
 
 	constructor(
 		private id: string,
-		private _configuration: { resolved: IConfig, unresolved: IConfig | undefined },
+		private _configuration: { resolved: IConfig; unresolved: IConfig | undefined },
 		public root: IWorkspaceFolder | undefined,
 		private model: DebugModel,
 		options: IDebugSessionOptions | undefined,
@@ -172,7 +172,7 @@ export class DebugSession implements IDebugSession {
 		return this._options.debugUI?.simple ?? false;
 	}
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
+	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}
 
@@ -464,7 +464,7 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean } | undefined> {
+	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'data breakpoints info'));
 		}
@@ -751,7 +751,7 @@ export class DebugSession implements IDebugSession {
 		}, sessionCancelationToken);
 	}
 
-	async stepInTargets(frameId: number): Promise<{ id: number, label: string }[] | undefined> {
+	async stepInTargets(frameId: number): Promise<{ id: number; label: string }[] | undefined> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepInTargets')));
 		}
@@ -1301,7 +1301,7 @@ export class DebugSession implements IDebugSession {
 		this.repl.appendToRepl(this, data, severity, source);
 	}
 
-	logToRepl(sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
+	logToRepl(sev: severity, args: any[], frame?: { uri: URI; line: number; column: number }) {
 		this.repl.logToRepl(this, sev, args, frame);
 	}
 }

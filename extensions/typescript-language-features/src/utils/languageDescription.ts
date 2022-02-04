@@ -22,7 +22,7 @@ export interface LanguageDescription {
 	readonly languageIds: readonly string[];
 	readonly configFilePattern?: RegExp;
 	readonly isExternal?: boolean;
-	readonly standardFileExtensions: readonly string[],
+	readonly standardFileExtensions: readonly string[];
 }
 
 export const standardLanguageDescriptions: LanguageDescription[] = [

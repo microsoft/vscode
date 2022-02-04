@@ -14,13 +14,13 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverProviderRegistry } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { getHover } from 'vs/editor/contrib/hover/browser/getHover';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -51,6 +51,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageFeaturesService protected readonly _languageFeaturesService: ILanguageFeaturesService,
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
@@ -103,12 +104,12 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 		const model = this._editor.getModel();
 
-		if (!HoverProviderRegistry.has(model)) {
+		if (!this._languageFeaturesService.hoverProvider.has(model)) {
 			return AsyncIterableObject.EMPTY;
 		}
 
 		const position = new Position(anchor.range.startLineNumber, anchor.range.startColumn);
-		return getHover(model, position, token)
+		return getHover(this._languageFeaturesService.hoverProvider, model, position, token)
 			.filter(item => !isEmptyMarkdownString(item.hover.contents))
 			.map(item => {
 				const rng = item.hover.range ? Range.lift(item.hover.range) : anchor.range;

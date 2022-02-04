@@ -15,11 +15,11 @@ import { CursorsController } from 'vs/editor/common/cursor/cursor';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, ICursorState, INewScrollPosition, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorState, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { EndOfLinePreference, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TextModelResolvedOptions, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { EndOfLinePreference, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/textModelGuides';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/textModelEvents';
@@ -27,17 +27,17 @@ import { ColorId, TokenizationRegistry } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { EditorTheme } from 'vs/editor/common/viewContext';
+import { EditorTheme } from 'vs/editor/common/editorTheme';
 import * as viewEvents from 'vs/editor/common/viewEvents';
-import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { MinimapTokensColorTracker } from 'vs/editor/common/viewModel/minimapTokensColorTracker';
 import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
-import { ICoordinatesConverter, IViewModel, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
+import { ICoordinatesConverter, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
 import { FocusChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -68,7 +68,8 @@ export class ViewModel extends Disposable implements IViewModel {
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable,
-		private readonly languageConfigurationService: ILanguageConfigurationService
+		private readonly languageConfigurationService: ILanguageConfigurationService,
+		private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -147,6 +148,11 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
 		}));
 
+		this._register(this._themeService.onDidColorThemeChange((theme) => {
+			this._invalidateDecorationsColorCache();
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent(theme));
+		}));
+
 		this._updateConfigurationViewLineCountNow();
 	}
 
@@ -156,7 +162,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		super.dispose();
 		this._decorations.dispose();
 		this._lines.dispose();
-		this.invalidateMinimapColorCache();
 		this._viewportStartLineTrackedRange = this.model._setTrackedRange(this._viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		this._eventDispatcher.dispose();
 	}
@@ -205,10 +210,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public onCompositionEnd(): void {
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewCompositionEndEvent());
-	}
-
-	public onDidColorThemeChange(): void {
-		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent());
 	}
 
 	private _onConfigurationChanged(eventsCollector: ViewModelEventsCollector, e: ConfigurationChangedEvent): void {
@@ -399,7 +400,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
-			const viewRanges: { fromLineNumber: number; toLineNumber: number; }[] = [];
+			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
 			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
 				const modelRange = e.ranges[j];
 				const viewStartLineNumber = this.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelRange.fromLineNumber, 1)).lineNumber;
@@ -579,7 +580,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		};
 	}
 
-	public reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; } {
+	public reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number } {
 		if (typeof state.firstPosition === 'undefined') {
 			// This is a view state serialized by an older version
 			return this._reduceRestoreStateCompatibility(state);
@@ -594,7 +595,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		};
 	}
 
-	private _reduceRestoreStateCompatibility(state: IViewState): { scrollLeft: number; scrollTop: number; } {
+	private _reduceRestoreStateCompatibility(state: IViewState): { scrollLeft: number; scrollTop: number } {
 		return {
 			scrollLeft: state.scrollLeft,
 			scrollTop: state.scrollTopWithoutViewZones!
@@ -603,10 +604,6 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private getTabSize(): number {
 		return this.model.getOptions().tabSize;
-	}
-
-	public getTextModelOptions(): TextModelResolvedOptions {
-		return this.model.getOptions();
 	}
 
 	public getLineCount(): number {
@@ -742,22 +739,16 @@ export class ViewModel extends Disposable implements IViewModel {
 		return result.asArray;
 	}
 
-	public invalidateOverviewRulerColorCache(): void {
+	private _invalidateDecorationsColorCache(): void {
 		const decorations = this.model.getOverviewRulerDecorations();
 		for (const decoration of decorations) {
-			const opts = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
-			if (opts) {
-				opts.invalidateCachedColor();
+			const opts1 = <ModelDecorationOverviewRulerOptions>decoration.options.overviewRuler;
+			if (opts1) {
+				opts1.invalidateCachedColor();
 			}
-		}
-	}
-
-	public invalidateMinimapColorCache(): void {
-		const decorations = this.model.getAllDecorations();
-		for (const decoration of decorations) {
-			const opts = <ModelDecorationMinimapOptions>decoration.options.minimap;
-			if (opts) {
-				opts.invalidateCachedColor();
+			const opts2 = <ModelDecorationMinimapOptions>decoration.options.minimap;
+			if (opts2) {
+				opts2.invalidateCachedColor();
 			}
 		}
 	}
@@ -765,18 +756,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	public getValueInRange(range: Range, eol: EndOfLinePreference): string {
 		const modelRange = this.coordinatesConverter.convertViewRangeToModelRange(range);
 		return this.model.getValueInRange(modelRange, eol);
-	}
-
-	public getModelLineMaxColumn(modelLineNumber: number): number {
-		return this.model.getLineMaxColumn(modelLineNumber);
-	}
-
-	public validateModelPosition(position: IPosition): Position {
-		return this.model.validatePosition(position);
-	}
-
-	public validateModelRange(range: IRange): Range {
-		return this.model.validateRange(range);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
@@ -793,10 +772,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		const modelAnchorOffset = this.model.getOffsetAt(modelAnchor);
 		const resultOffset = modelAnchorOffset + deltaOffset;
 		return this.model.getPositionAt(resultOffset);
-	}
-
-	public getEOL(): string {
-		return this.model.getEOL();
 	}
 
 	public getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
@@ -860,7 +835,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		return result.length === 1 ? result[0] : result;
 	}
 
-	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null {
+	public getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null {
 		const languageId = this.model.getLanguageId();
 		if (languageId === PLAINTEXT_LANGUAGE_ID) {
 			return null;
@@ -955,14 +930,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		}
 		return result;
 	}
-
-	//#region model
-
-	public pushStackElement(): void {
-		this.model.pushStackElement();
-	}
-
-	//#endregion
 
 	//#region cursor operations
 
@@ -1069,30 +1036,12 @@ export class ViewModel extends Disposable implements IViewModel {
 	//#endregion
 
 	//#region viewLayout
-	public getVerticalOffsetForLineNumber(viewLineNumber: number): number {
-		return this.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
-	}
-	public getScrollTop(): number {
-		return this.viewLayout.getCurrentScrollTop();
-	}
-	public setScrollTop(newScrollTop: number, scrollType: ScrollType): void {
-		this.viewLayout.setScrollPosition({ scrollTop: newScrollTop }, scrollType);
-	}
-	public setScrollPosition(position: INewScrollPosition, type: ScrollType): void {
-		this.viewLayout.setScrollPosition(position, type);
-	}
-	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {
-		this.viewLayout.deltaScrollNow(deltaScrollLeft, deltaScrollTop);
-	}
 	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void {
 		const hadAChange = this.viewLayout.changeWhitespace(callback);
 		if (hadAChange) {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewZonesChangedEvent());
 			this._eventDispatcher.emitOutgoingEvent(new ViewZonesChangedEvent());
 		}
-	}
-	public setMaxLineWidth(maxLineWidth: number): void {
-		this.viewLayout.setMaxLineWidth(maxLineWidth);
 	}
 	//#endregion
 
@@ -1120,7 +1069,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 class OverviewRulerDecorations {
 
-	private readonly _asMap: { [color: string]: OverviewRulerDecorationsGroup; } = Object.create(null);
+	private readonly _asMap: { [color: string]: OverviewRulerDecorationsGroup } = Object.create(null);
 	readonly asArray: OverviewRulerDecorationsGroup[] = [];
 
 	public accept(color: string, zIndex: number, startLineNumber: number, endLineNumber: number, lane: number): void {

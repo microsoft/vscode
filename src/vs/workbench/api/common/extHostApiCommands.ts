@@ -19,6 +19,8 @@ import { TransientCellMetadata, TransientDocumentMetadata } from 'vs/workbench/c
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
+import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
+import { Schemas } from 'vs/base/common/network';
 
 //#region --- NEW world
 
@@ -153,7 +155,7 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.prepareRename', '_executePrepareRename', 'Execute the prepareRename of rename provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.RenameLocation, { range: types.Range, placeholder: string } | undefined>('A promise that resolves to a range and placeholder text.', value => {
+		new ApiCommandResult<modes.RenameLocation, { range: types.Range; placeholder: string } | undefined>('A promise that resolves to a range and placeholder text.', value => {
 			if (!value) {
 				return undefined;
 			}
@@ -319,7 +321,7 @@ const newCommands: ApiCommand[] = [
 		'vscode.executeColorPresentationProvider', '_executeColorPresentationProvider', 'Execute color presentation provider.',
 		[
 			new ApiCommandArgument<types.Color, [number, number, number, number]>('color', 'The color to show and insert', v => v instanceof types.Color, typeConverters.Color.from),
-			new ApiCommandArgument<{ uri: URI, range: types.Range; }, { uri: URI, range: IRange; }>('context', 'Context object with uri and range', _v => true, v => ({ uri: v.uri, range: typeConverters.Range.from(v.range) })),
+			new ApiCommandArgument<{ uri: URI; range: types.Range }, { uri: URI; range: IRange }>('context', 'Context object with uri and range', _v => true, v => ({ uri: v.uri, range: typeConverters.Range.from(v.range) })),
 		],
 		new ApiCommandResult<modes.IColorPresentation[], types.ColorPresentation[]>('A promise that resolves to an array of ColorPresentation objects.', result => {
 			if (result) {
@@ -347,12 +349,12 @@ const newCommands: ApiCommand[] = [
 		new ApiCommandResult<{
 			viewType: string;
 			displayName: string;
-			options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
-			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern, exclude: vscode.GlobPattern })[]
+			options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata };
+			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern })[];
 		}[], {
 			viewType: string;
 			displayName: string;
-			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern; })[];
+			filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern })[];
 			options: vscode.NotebookDocumentContentOptions;
 		}[] | undefined>('A promise that resolves to an array of NotebookContentProvider static info objects.', tryMapWith(item => {
 			return {
@@ -379,7 +381,7 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.open', '_workbench.open', 'Opens the provided resource in the editor. Can be a text or binary file, or an http(s) URL. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
 		[
-			ApiCommandArgument.Uri,
+			new ApiCommandArgument<URI | string>('uriOrString', 'Uri-instance or string (only http/https)', v => URI.isUri(v) || (typeof v === 'string' && matchesSomeScheme(v, Schemas.http, Schemas.https)), v => v),
 			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [vscode.ViewColumn?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'number' || typeof v === 'object',
 				v => !v ? v : typeof v === 'number' ? [typeConverters.ViewColumn.from(v), undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
