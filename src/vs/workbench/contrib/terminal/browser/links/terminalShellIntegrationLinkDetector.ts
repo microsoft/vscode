@@ -5,7 +5,11 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalSimpleLink, ITerminalLinkDetector, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IBufferCell, IBufferLine, Terminal } from 'xterm';
 
 const linkText = 'Shell integration activated!';
@@ -15,7 +19,8 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 	static id = 'shellintegration';
 
 	constructor(
-		readonly xterm: Terminal
+		readonly xterm: Terminal,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
 
@@ -24,6 +29,7 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 			return [{
 				text: linkText,
 				type: TerminalBuiltinLinkType.Url,
+				label: localize('learn', 'Learn about shell integration'),
 				uri: URI.from({
 					scheme: Schemas.https,
 					path: 'aka.ms/vscode-shell-integration'
@@ -31,7 +37,12 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 				bufferRange: {
 					start: { x: 1, y: startLine + 1 },
 					end: { x: linkText.length % this.xterm.cols, y: startLine + Math.floor(linkText.length / this.xterm.cols) + 1 }
-				}
+				},
+				actions: [{
+					label: terminalStrings.doNotShowAgain,
+					commandId: '',
+					run: () => this._hideMessage()
+				}]
 			}];
 		}
 
@@ -47,5 +58,9 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 			}
 		}
 		return true;
+	}
+
+	private async _hideMessage() {
+		await this._configurationService.updateValue(TerminalSettingId.ShowShellIntegrationWelcome, false);
 	}
 }

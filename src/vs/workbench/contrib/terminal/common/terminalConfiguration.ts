@@ -524,6 +524,12 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		[TerminalSettingId.ShowShellIntegrationWelcome]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.showShellIntegrationWelcome', "Whether to show the shell integration activated welcome message in the terminal when the feature is enabled."),
+			type: 'boolean',
+			default: true
+		},
 	}
 };
 

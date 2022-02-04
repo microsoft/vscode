@@ -31,6 +31,7 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
@@ -211,17 +212,18 @@ export class TerminalLinkManager extends DisposableStore {
 			terminalDimensions,
 			modifierDownCallback,
 			modifierUpCallback
-		}, this._getLinkHoverString(link.text, link.label), (text) => link.activate(undefined, text), link);
+		}, this._getLinkHoverString(link.text, link.label), link.actions, (text) => link.activate(undefined, text), link);
 	}
 
 	private _showHover(
 		targetOptions: ILinkHoverTargetOptions,
 		text: IMarkdownString,
+		actions: IHoverAction[] | undefined,
 		linkHandler: (url: string) => void,
 		link?: TerminalLink
 	) {
 		if (this._widgetManager) {
-			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, linkHandler);
+			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, actions, linkHandler);
 			const attached = this._widgetManager.attachWidget(widget);
 			if (attached) {
 				link?.onInvalidated(() => attached.dispose());
