@@ -522,22 +522,19 @@ class Stacktrace {
 	}
 }
 
-class SafeDisposable implements IDisposable {
+export class SafeDisposable implements IDisposable {
 
 	private static _noop = () => { };
 
 	dispose: () => void = SafeDisposable._noop;
 
-	set(d: IDisposable) {
-		this.dispose = d.dispose.bind(d);
-		return this;
-	}
+	unset: () => void = SafeDisposable._noop;
 
-	unset() {
-		if (this.dispose) {
-			this.dispose();
-			this.dispose = SafeDisposable._noop;
-		}
+	set(disposable: IDisposable) {
+		let actual: IDisposable | undefined = disposable;
+		this.unset = () => actual = undefined;
+		this.dispose = () => actual?.dispose();
+		return this;
 	}
 }
 
@@ -698,7 +695,9 @@ export class Emitter<T> {
 			// unset their subscriptions/disposables
 			if (this._listeners) {
 				for (const listener of this._listeners) {
-					// this disposes the actual disposable AND unsets it
+					// we dispose AND unset the subscription. In theory dispose isn't needed but
+					// than the disposable is reported as leaked...
+					listener.subscription.dispose();
 					listener.subscription.unset();
 
 					// enable this to blame listeners that are still here
