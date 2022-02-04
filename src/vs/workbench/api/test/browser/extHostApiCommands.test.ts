@@ -55,6 +55,8 @@ import 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import 'vs/editor/contrib/suggest/browser/suggest';
 import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -74,6 +76,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	let mainThread: MainThreadLanguageFeatures;
 	let commands: ExtHostCommands;
 	let disposables: vscode.Disposable[] = [];
+
 	let originalErrorHandler: (e: any) => any;
 
 	suiteSetup(() => {
@@ -93,6 +96,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		let insta: IInstantiationService;
 		rpcProtocol = new TestRPCProtocol();
 		const services = new ServiceCollection();
+		services.set(ILanguageFeaturesService, new SyncDescriptor(LanguageFeaturesService));
 		services.set(IExtensionService, new class extends mock<IExtensionService>() {
 			override async activateByEvent() {
 
@@ -271,7 +275,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		await rpcProtocol.sync();
 
-		const data = await commands.executeCommand<{ range: vscode.Range, placeholder: string }>('vscode.prepareRename', model.uri, new types.Position(0, 12));
+		const data = await commands.executeCommand<{ range: vscode.Range; placeholder: string }>('vscode.prepareRename', model.uri, new types.Position(0, 12));
 
 		assert.ok(data);
 		assert.strictEqual(data.placeholder, 'foooPlaceholder');

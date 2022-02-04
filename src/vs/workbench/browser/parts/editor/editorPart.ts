@@ -49,7 +49,7 @@ class GridWidgetView<T extends IView> implements IView {
 	get minimumHeight(): number { return this.gridWidget ? this.gridWidget.minimumHeight : 0; }
 	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
 
-	private _onDidChange = new Relay<{ width: number; height: number; } | undefined>();
+	private _onDidChange = new Relay<{ width: number; height: number } | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
 	private _gridWidget: Grid<T> | undefined;
@@ -115,9 +115,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidMoveGroup = this._onDidMoveGroup.event;
 
-	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number } | undefined>());
 
-	private readonly _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	private readonly _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number } | undefined>());
 	readonly onDidChangeSizeConstraints = Event.any(this.onDidSetGridWidget.event, this._onDidChangeSizeConstraints.event);
 
 	private readonly _onDidChangeEditorPartOptions = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
@@ -336,13 +336,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
-	getSize(group: IEditorGroupView | GroupIdentifier): { width: number, height: number } {
+	getSize(group: IEditorGroupView | GroupIdentifier): { width: number; height: number } {
 		const groupView = this.assertGroupView(group);
 
 		return this.gridWidget.getViewSize(groupView);
 	}
 
-	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number, height: number }): void {
+	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number; height: number }): void {
 		const groupView = this.assertGroupView(group);
 
 		this.gridWidget.resizeView(groupView, size);

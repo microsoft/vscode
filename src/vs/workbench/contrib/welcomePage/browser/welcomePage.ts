@@ -26,7 +26,7 @@ import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
-export type RestoreWalkthroughsConfigurationValue = { folder: string, category?: string, step?: string, };
+export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';

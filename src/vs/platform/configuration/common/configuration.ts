@@ -31,7 +31,7 @@ export function isConfigurationUpdateOverrides(thing: any): thing is IConfigurat
 		&& (!thing.resource || thing.resource instanceof URI);
 }
 
-export type IConfigurationUpdateOverrides = Omit<IConfigurationOverrides, 'overrideIdentifier'> & { overrideIdentifiers?: string[] | null; };
+export type IConfigurationUpdateOverrides = Omit<IConfigurationOverrides, 'overrideIdentifier'> & { overrideIdentifiers?: string[] | null };
 
 export const enum ConfigurationTarget {
 	USER = 1,
@@ -82,13 +82,13 @@ export interface IConfigurationValue<T> {
 	readonly memoryValue?: T;
 	readonly value?: T;
 
-	readonly default?: { value?: T, override?: T };
-	readonly user?: { value?: T, override?: T };
-	readonly userLocal?: { value?: T, override?: T };
-	readonly userRemote?: { value?: T, override?: T };
-	readonly workspace?: { value?: T, override?: T };
-	readonly workspaceFolder?: { value?: T, override?: T };
-	readonly memory?: { value?: T, override?: T };
+	readonly default?: { value?: T; override?: T };
+	readonly user?: { value?: T; override?: T };
+	readonly userLocal?: { value?: T; override?: T };
+	readonly userRemote?: { value?: T; override?: T };
+	readonly workspace?: { value?: T; override?: T };
+	readonly workspaceFolder?: { value?: T; override?: T };
+	readonly memory?: { value?: T; override?: T };
 
 	readonly overrideIdentifiers?: string[];
 }

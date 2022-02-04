@@ -25,7 +25,7 @@ import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/bina
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/language';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
@@ -179,15 +179,15 @@ class StateChange {
 }
 
 type StateDelta = (
-	{ type: 'selectionStatus'; selectionStatus: string | undefined; }
-	| { type: 'languageId'; languageId: string | undefined; }
-	| { type: 'encoding'; encoding: string | undefined; }
-	| { type: 'EOL'; EOL: string | undefined; }
-	| { type: 'indentation'; indentation: string | undefined; }
-	| { type: 'tabFocusMode'; tabFocusMode: boolean; }
-	| { type: 'columnSelectionMode'; columnSelectionMode: boolean; }
-	| { type: 'screenReaderMode'; screenReaderMode: boolean; }
-	| { type: 'metadata'; metadata: string | undefined; }
+	{ type: 'selectionStatus'; selectionStatus: string | undefined }
+	| { type: 'languageId'; languageId: string | undefined }
+	| { type: 'encoding'; encoding: string | undefined }
+	| { type: 'EOL'; EOL: string | undefined }
+	| { type: 'indentation'; indentation: string | undefined }
+	| { type: 'tabFocusMode'; tabFocusMode: boolean }
+	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
+	| { type: 'screenReaderMode'; screenReaderMode: boolean }
+	| { type: 'metadata'; metadata: string | undefined }
 );
 
 class State {
@@ -378,7 +378,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
-		const picks: QuickPickInput<IQuickPickItem & { run(): void; }>[] = [
+		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
 			activeTextEditorControl.getAction(IndentUsingSpaces.ID),
 			activeTextEditorControl.getAction(IndentUsingTabs.ID),
 			activeTextEditorControl.getAction(DetectIndentation.ID),

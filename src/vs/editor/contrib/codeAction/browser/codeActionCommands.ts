@@ -17,6 +17,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, CodeActionItem, CodeActionSet, fixAllCommandId, organizeImportsCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionUi } from 'vs/editor/contrib/codeAction/browser/codeActionUi';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
@@ -83,11 +84,12 @@ export class QuickFixController extends Disposable implements IEditorContributio
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorProgressService progressService: IEditorProgressService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
 		this._editor = editor;
-		this._model = this._register(new CodeActionModel(this._editor, markerService, contextKeyService, progressService));
+		this._model = this._register(new CodeActionModel(this._editor, languageFeaturesService.codeActionProvider, markerService, contextKeyService, progressService));
 		this._register(this._model.onDidChangeState(newState => this.update(newState)));
 
 		this._ui = new Lazy(() =>
@@ -152,9 +154,9 @@ export async function applyCodeAction(
 		codeActionIsPreferred: boolean;
 	};
 	type ApplyCodeEventClassification = {
-		codeActionTitle: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		codeActionKind: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		codeActionIsPreferred: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	};
 
 	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {

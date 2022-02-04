@@ -335,18 +335,8 @@
 	bottom: 23px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title > .misc-label {
 	font-style: italic;
-	margin-right: 4px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored,
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden {
-	font-style: italic;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden {
-	margin-right: 4px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored .codicon,

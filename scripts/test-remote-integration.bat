@@ -26,18 +26,18 @@ set TESTRESOLVER_DATA_FOLDER=%TMP%\testresolverdatafolder-%RANDOM%-%TIME:~6,5%
 set TESTRESOLVER_LOGS_FOLDER=%VSCODELOGSDIR%\server
 
 if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
-	echo "Using remote server out of sources for integration tests"
+	echo Using remote server out of sources for integration tests
 ) else (
 	set TESTRESOLVER_INSTALL_BUILTIN_EXTENSION=ms-vscode.vscode-smoketest-check
-	echo "Using %VSCODE_REMOTE_SERVER_PATH% as server path"
+	echo Using '%VSCODE_REMOTE_SERVER_PATH%' as server path
 )
 
 set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --disable-keytar --disable-inspect --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
 
 :: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
-	echo "Storing crash reports into '%VSCODECRASHDIR%'."
-	echo "Storing log files into '%VSCODELOGSDIR%'."
+	echo Storing crash reports into '%VSCODECRASHDIR%'
+	echo Storing log files into '%VSCODELOGSDIR%'
 
 	:: Tests in the extension host running from sources
 	call .\scripts\code.bat --folder-uri=%REMOTE_VSCODE%/vscode-api-tests/testWorkspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/singlefolder-tests %API_TESTS_EXTRA_ARGS%
@@ -46,14 +46,16 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call .\scripts\code.bat --file-uri=%REMOTE_VSCODE%/vscode-api-tests/testworkspace.code-workspace --extensionDevelopmentPath=%REMOTE_VSCODE%/vscode-api-tests --extensionTestsPath=%REMOTE_VSCODE%/vscode-api-tests/out/workspace-tests %API_TESTS_EXTRA_ARGS%
 	if %errorlevel% neq 0 exit /b %errorlevel%
 ) else (
-	echo "Storing crash reports into '%VSCODECRASHDIR%'."
-	echo "Storing log files into '%VSCODELOGSDIR%'."
- 	echo "Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path"
+	echo Storing crash reports into '%VSCODECRASHDIR%'
+	echo Storing log files into '%VSCODELOGSDIR%'
+ 	echo Using %INTEGRATION_TEST_ELECTRON_PATH% as Electron path
 
 	:: Run from a built: need to compile all test extensions
 	:: because we run extension tests from their source folders
 	:: and the build bundles extensions into .build webpacked
 	call yarn gulp 	compile-extension:vscode-api-tests^
+					compile-extension:microsoft-authentication^
+					compile-extension:github-authentication^
 					compile-extension:vscode-test-resolver
 
 	:: Configuration for more verbose output

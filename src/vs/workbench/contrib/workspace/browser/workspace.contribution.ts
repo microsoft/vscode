@@ -17,7 +17,6 @@ import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWo
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
-import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -354,7 +353,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	//#region Dialog
 
-	private async doShowModal(question: string, trustedOption: { label: string, sublabel: string }, untrustedOption: { label: string, sublabel: string }, markdownStrings: string[], trustParentString?: string): Promise<void> {
+	private async doShowModal(question: string, trustedOption: { label: string; sublabel: string }, untrustedOption: { label: string; sublabel: string }, markdownStrings: string[], trustParentString?: string): Promise<void> {
 		const startTime = Date.now();
 		const result = await this.dialogService.show(
 			Severity.Info,
@@ -527,8 +526,9 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
 		const text = workspaceTrustToString(trusted);
-		const backgroundColor = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_BACKGROUND);
-		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
+
+		const backgroundColor = { id: STATUS_BAR_PROMINENT_ITEM_BACKGROUND };
+		const color = { id: STATUS_BAR_PROMINENT_ITEM_FOREGROUND };
 
 		let ariaLabel = '';
 		let toolTip: IMarkdownString | string | undefined;
@@ -768,9 +768,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
  * Telemetry
  */
 type WorkspaceTrustDialogResultEventClassification = {
-	duration: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
-	choice: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
-	checkboxChecked?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', expiration: '1.64', isMeasurement: true };
+	duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; expiration: '1.64'; isMeasurement: true };
+	choice: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; expiration: '1.64'; isMeasurement: true };
+	checkboxChecked?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; expiration: '1.64'; isMeasurement: true };
 };
 
 type WorkspaceTrustDialogResultEvent = {
@@ -806,11 +806,11 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			const disabledByCliFlag = this.environmentService.disableWorkspaceTrust;
 
 			type WorkspaceTrustDisabledEventClassification = {
-				reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 
 			type WorkspaceTrustDisabledEvent = {
-				reason: 'setting' | 'cli',
+				reason: 'setting' | 'cli';
 			};
 
 			this.telemetryService.publicLog2<WorkspaceTrustDisabledEvent, WorkspaceTrustDisabledEventClassification>('workspaceTrustDisabled', {
@@ -820,11 +820,11 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		}
 
 		type WorkspaceTrustInfoEventClassification = {
-			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			trustedFoldersCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 		};
 
 		type WorkspaceTrustInfoEvent = {
-			trustedFoldersCount: number,
+			trustedFoldersCount: number;
 		};
 
 		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
@@ -838,13 +838,13 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		}
 
 		type WorkspaceTrustStateChangedEvent = {
-			workspaceId: string,
-			isTrusted: boolean
+			workspaceId: string;
+			isTrusted: boolean;
 		};
 
 		type WorkspaceTrustStateChangedEventClassification = {
-			workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			isTrusted: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			isTrusted: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 		};
 
 		this.telemetryService.publicLog2<WorkspaceTrustStateChangedEvent, WorkspaceTrustStateChangedEventClassification>('workspaceTrustStateChanged', {
@@ -854,15 +854,15 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 
 		if (isTrusted) {
 			type WorkspaceTrustFolderInfoEventClassification = {
-				trustedFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-				workspaceFolderDepth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-				delta: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+				trustedFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+				workspaceFolderDepth: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+				delta: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 			};
 
 			type WorkspaceTrustFolderInfoEvent = {
-				trustedFolderDepth: number,
-				workspaceFolderDepth: number,
-				delta: number
+				trustedFolderDepth: number;
+				workspaceFolderDepth: number;
+				delta: number;
 			};
 
 			const getDepth = (folder: string): number => {
@@ -898,13 +898,13 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		}
 
 		type WorkspaceTrustRequestedEventClassification = {
-			workspaceId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			extensions: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			workspaceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			extensions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 
 		type WorkspaceTrustRequestedEvent = {
-			workspaceId: string,
-			extensions: string[]
+			workspaceId: string;
+			extensions: string[];
 		};
 
 		this.telemetryService.publicLog2<WorkspaceTrustRequestedEvent, WorkspaceTrustRequestedEventClassification>('workspaceTrustRequested', {

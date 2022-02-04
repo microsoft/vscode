@@ -13,7 +13,6 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as model from 'vs/editor/common/model';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -860,7 +859,7 @@ export interface CodeActionList extends IDisposable {
  */
 export interface CodeActionProvider {
 
-	displayName?: string
+	displayName?: string;
 
 	/**
 	 * Provide commands for the given document and range.
@@ -877,7 +876,7 @@ export interface CodeActionProvider {
 	 */
 	readonly providedCodeActionKinds?: ReadonlyArray<string>;
 
-	readonly documentation?: ReadonlyArray<{ readonly kind: string, readonly command: Command }>;
+	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: Command }>;
 
 	/**
 	 * @internal
@@ -1276,7 +1275,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; };
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
 
 /**
  * Interface used to format a model
@@ -1542,7 +1541,7 @@ export interface WorkspaceEditMetadata {
 	/**
 	 * @internal
 	 */
-	iconPath?: ThemeIcon | URI | { light: URI, dark: URI };
+	iconPath?: ThemeIcon | URI | { light: URI; dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {
@@ -1596,7 +1595,7 @@ export interface AuthenticationSession {
 	account: {
 		label: string;
 		id: string;
-	}
+	};
 	scopes: ReadonlyArray<string>;
 	idToken?: string;
 }
@@ -1825,15 +1824,15 @@ export enum InlayHintKind {
 
 export interface InlayHintLabelPart {
 	label: string;
-	tooltip?: string | IMarkdownString
+	tooltip?: string | IMarkdownString;
 	// collapsible?: boolean;
-	command?: Command
+	command?: Command;
 	location?: Location;
 }
 
 export interface InlayHint {
 	label: string | InlayHintLabelPart[];
-	tooltip?: string | IMarkdownString
+	tooltip?: string | IMarkdownString;
 	position: IPosition;
 	kind: InlayHintKind;
 	paddingLeft?: boolean;
@@ -1846,7 +1845,7 @@ export interface InlayHintList {
 }
 
 export interface InlayHintsProvider {
-	displayName?: string
+	displayName?: string;
 	onDidChangeInlayHints?: Event<void>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
 	resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;
@@ -1884,143 +1883,6 @@ export interface DocumentRangeSemanticTokensProvider {
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
-
-// --- feature registries ------
-
-/**
- * @internal
- */
-export const ReferenceProviderRegistry = new LanguageFeatureRegistry<ReferenceProvider>();
-
-/**
- * @internal
- */
-export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider>();
-
-/**
- * @internal
- */
-export const CompletionProviderRegistry = new LanguageFeatureRegistry<CompletionItemProvider>();
-
-/**
- * @internal
- */
-export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
-
-/**
- * @internal
- */
-export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>();
-
-/**
- * @internal
- */
-export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
-
-/**
- * @internal
- */
-export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
-
-/**
- * @internal
- */
-export const InlineValuesProviderRegistry = new LanguageFeatureRegistry<InlineValuesProvider>();
-
-/**
- * @internal
- */
-export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<DocumentSymbolProvider>();
-
-/**
- * @internal
- */
-export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
-
-/**
- * @internal
- */
-export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
-
-/**
- * @internal
- */
-export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
-
-/**
- * @internal
- */
-export const DeclarationProviderRegistry = new LanguageFeatureRegistry<DeclarationProvider>();
-
-/**
- * @internal
- */
-export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
-
-/**
- * @internal
- */
-export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
-
-/**
- * @internal
- */
-export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
-
-/**
- * @internal
- */
-export const InlayHintsProviderRegistry = new LanguageFeatureRegistry<InlayHintsProvider>();
-
-/**
- * @internal
- */
-export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
-
-/**
- * @internal
- */
-export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
-
-/**
- * @internal
- */
-export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
-
-/**
- * @internal
- */
-export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
-
-/**
- * @internal
- */
-export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
-
-/**
- * @internal
- */
-export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
-
-/**
- * @internal
- */
-export const DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>();
 
 /**
  * @internal

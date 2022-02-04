@@ -67,7 +67,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 			value = 'Unknown';
 		}
 
-		this.telemetryService.publicLog2<{ edition: string }, { edition: { classification: 'SystemMetaData', purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
+		this.telemetryService.publicLog2<{ edition: string }, { edition: { classification: 'SystemMetaData'; purpose: 'BusinessInsight' } }>('windowsEdition', { edition: value });
 	}
 
 	private async getWorkspaceInformation(): Promise<IWorkspaceInformation> {
@@ -230,7 +230,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 					type = 'UNKNOWN';
 				}
 				type ResolveProxyStatsClassification = {
-					type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 				};
 				this.telemetryService.publicLog2<{ type: String }, ResolveProxyStatsClassification>('resolveProxy.stats', { type });
 			}).then(undefined, onUnexpectedError);

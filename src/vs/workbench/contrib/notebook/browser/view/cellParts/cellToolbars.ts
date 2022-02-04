@@ -216,7 +216,7 @@ export class CellTitleToolbarPart extends CellPart {
 	}
 }
 
-function getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; disposable: IDisposable; } {
+function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[]; disposable: IDisposable } {
 	const primary: IAction[] = [];
 	const secondary: IAction[] = [];
 	const result = { primary, secondary };

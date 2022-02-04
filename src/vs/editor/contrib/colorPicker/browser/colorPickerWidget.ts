@@ -12,6 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./colorPicker';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
+import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { localize } from 'vs/nls';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -101,7 +102,7 @@ export class ColorPickerBody extends Disposable {
 		this.model.flushColor();
 	}
 
-	private onDidSaturationValueChange({ s, v }: { s: number, v: number }): void {
+	private onDidSaturationValueChange({ s, v }: { s: number; v: number }): void {
 		const hsva = this.model.color.hsva;
 		this.model.color = new Color(new HSVA(hsva.h, s, v, hsva.a));
 	}
@@ -134,8 +135,8 @@ class SaturationBox extends Disposable {
 	private height!: number;
 
 	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
-	private readonly _onDidChange = new Emitter<{ s: number, v: number }>();
-	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<{ s: number; v: number }>();
+	readonly onDidChange: Event<{ s: number; v: number }> = this._onDidChange.event;
 
 	private readonly _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
@@ -336,7 +337,7 @@ class HueStrip extends Strip {
 	}
 }
 
-export class ColorPickerWidget extends Widget {
+export class ColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
 
 	private static readonly ID = 'editor.contrib.colorPickerWidget';
 

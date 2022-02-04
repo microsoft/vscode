@@ -137,7 +137,7 @@ export class CredentialsMainService extends Disposable implements ICredentialsMa
 		return keytar.findPassword(service);
 	}
 
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	async findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
 		const keytar = await this.withKeytar();
 
 		return keytar.findCredentials(service);

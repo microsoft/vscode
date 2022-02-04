@@ -59,7 +59,7 @@ export interface IQuickInputStyles {
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
 	keybindingLabel: IKeybindingLabelStyles;
-	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
+	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color };
 }
 
 export interface IQuickInputWidgetStyles {

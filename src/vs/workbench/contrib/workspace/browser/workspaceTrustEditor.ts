@@ -1096,7 +1096,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 	}
 
-	private layoutParticipants: { layout: () => void; }[] = [];
+	private layoutParticipants: { layout: () => void }[] = [];
 	layout(dimension: Dimension): void {
 		if (!this.isVisible()) {
 			return;

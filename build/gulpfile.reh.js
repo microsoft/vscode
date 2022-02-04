@@ -99,7 +99,7 @@ const serverEntryPoints = [
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/workbench/services/extensions/node/extensionHostProcess',
+		name: 'vs/workbench/api/node/extensionHostProcess',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
@@ -329,7 +329,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.sh`))
 					.pipe(util.setExecutableBit()),
-				gulp.src('resources/server/bin/code-server.sh', { base: '.' })
+				gulp.src(`resources/server/bin/${platform === 'darwin' ? 'code-server-darwin.sh' : 'code-server-linux.sh'}`, { base: '.' })
 					.pipe(rename(`bin/${product.serverApplicationName}`))
 					.pipe(util.setExecutableBit())
 			);
@@ -346,6 +346,15 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 	};
 }
 
+/**
+ * @param {object} product The parsed product.json file contents
+ */
+function tweakProductForServerWeb(product) {
+	const result = { ...product };
+	delete result.webEndpointUrlTemplate;
+	return result;
+}
+
 ['reh', 'reh-web'].forEach(type => {
 	const optimizeTask = task.define(`optimize-vscode-${type}`, task.series(
 		util.rimraf(`out-vscode-${type}`),
@@ -358,7 +367,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			out: `out-vscode-${type}`,
 			inlineAmdImages: true,
 			bundleInfo: undefined,
-			fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions')
+			fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
 		})
 	));
 

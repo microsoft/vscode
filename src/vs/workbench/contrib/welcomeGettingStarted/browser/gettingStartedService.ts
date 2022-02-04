@@ -30,7 +30,7 @@ import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { checkGlobFileExists } from 'vs/workbench/api/common/shared/workspaceContains';
+import { checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
@@ -46,59 +46,59 @@ export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: 
 const BUILT_IN_SOURCE = localize('builtin', "Built-In");
 
 export interface IWalkthrough {
-	id: string
-	title: string
-	description: string
-	order: number
-	source: string
-	isFeatured: boolean
-	next?: string
-	when: ContextKeyExpression
-	steps: IWalkthroughStep[]
+	id: string;
+	title: string;
+	description: string;
+	order: number;
+	source: string;
+	isFeatured: boolean;
+	next?: string;
+	when: ContextKeyExpression;
+	steps: IWalkthroughStep[];
 	icon:
-	| { type: 'icon', icon: ThemeIcon }
-	| { type: 'image', path: string }
+	| { type: 'icon'; icon: ThemeIcon }
+	| { type: 'image'; path: string };
 }
 
 export type IWalkthroughLoose = Omit<IWalkthrough, 'steps'> & { steps: (Omit<IWalkthroughStep, 'description'> & { description: string })[] };
 
 export interface IResolvedWalkthrough extends IWalkthrough {
-	steps: IResolvedWalkthroughStep[]
-	newItems: boolean
-	recencyBonus: number
-	newEntry: boolean
+	steps: IResolvedWalkthroughStep[];
+	newItems: boolean;
+	recencyBonus: number;
+	newEntry: boolean;
 }
 
 export interface IWalkthroughStep {
-	id: string
-	title: string
-	description: LinkedText[]
-	category: string
-	when: ContextKeyExpression
-	order: number
-	completionEvents: string[]
+	id: string;
+	title: string;
+	description: LinkedText[];
+	category: string;
+	when: ContextKeyExpression;
+	order: number;
+	completionEvents: string[];
 	media:
-	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
-	| { type: 'svg', path: URI, altText: string }
-	| { type: 'markdown', path: URI, base: URI, root: URI }
+	| { type: 'image'; path: { hc: URI; light: URI; dark: URI }; altText: string }
+	| { type: 'svg'; path: URI; altText: string }
+	| { type: 'markdown'; path: URI; base: URI; root: URI };
 }
 
-type StepProgress = { done: boolean; };
+type StepProgress = { done: boolean };
 
 export interface IResolvedWalkthroughStep extends IWalkthroughStep, StepProgress { }
 
 export interface IWalkthroughsService {
-	_serviceBrand: undefined,
+	_serviceBrand: undefined;
 
-	readonly onDidAddWalkthrough: Event<IResolvedWalkthrough>
-	readonly onDidRemoveWalkthrough: Event<string>
-	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>
-	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>
+	readonly onDidAddWalkthrough: Event<IResolvedWalkthrough>;
+	readonly onDidRemoveWalkthrough: Event<string>;
+	readonly onDidChangeWalkthrough: Event<IResolvedWalkthrough>;
+	readonly onDidProgressStep: Event<IResolvedWalkthroughStep>;
 
 	readonly installedExtensionsRegistered: Promise<void>;
 
-	getWalkthroughs(): IResolvedWalkthrough[]
-	getWalkthrough(id: string): IResolvedWalkthrough
+	getWalkthroughs(): IResolvedWalkthrough[];
+	getWalkthrough(id: string): IResolvedWalkthrough;
 
 	registerWalkthrough(descriptor: IWalkthroughLoose): void;
 
@@ -280,7 +280,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			? URI.parse(path, true)
 			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
 
-		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
+		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string; dark: string; light: string }): { hc: URI; dark: URI; light: URI } => {
 			const convertPath = (path: string) => path.startsWith('https://')
 				? URI.parse(path, true)
 				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
@@ -308,7 +308,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 			const isNewlyInstalled = !this.metadata.get(categoryID);
 			if (isNewlyInstalled) {
-				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps.map(s => s.id), manaullyOpened: false });
+				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps?.map(s => s.id) ?? [], manaullyOpened: false });
 			}
 
 			const override = await Promise.race([
@@ -327,8 +327,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				}
 			}
 
-
-			const steps = walkthrough.steps.map((step, index) => {
+			const steps = (walkthrough.steps ?? []).map((step, index) => {
 				const description = parseDescription(step.description || '');
 				const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
 
@@ -363,7 +362,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 				// Legacy media config
 				else {
-					const legacyMedia = step.media as unknown as { path: string, altText: string };
+					const legacyMedia = step.media as unknown as { path: string; altText: string };
 					if (typeof legacyMedia.path === 'string' && legacyMedia.path.endsWith('.md')) {
 						media = {
 							type: 'markdown',
@@ -427,7 +426,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
-				id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight', };
+				id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 			};
 			type GettingStartedAutoOpenEvent = {
 				id: string;
@@ -667,7 +666,7 @@ const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('htt
 const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
 	? URI.parse(path, true)
 	: FileAccess.asBrowserUri('vs/workbench/contrib/welcomeGettingStarted/common/media/' + path, require);
-const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
+const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string; dark: string; light: string }): { hc: URI; dark: URI; light: URI } => {
 	if (typeof path === 'string') {
 		const converted = convertInternalMediaPathToBrowserURI(path);
 		return { hc: converted, dark: converted, light: converted };

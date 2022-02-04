@@ -122,7 +122,7 @@ export class LanguageFeatureRegistry<T> {
 		}
 	}
 
-	private _lastCandidate: { uri: string; language: string; } | undefined;
+	private _lastCandidate: { uri: string; language: string } | undefined;
 
 	private _updateScores(model: ITextModel): void {
 

@@ -6,17 +6,19 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import * as modes from 'vs/editor/common/languages';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { LinkedEditingContribution } from 'vs/editor/contrib/linkedEditing/browser/linkedEditing';
-import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor, ITestCodeEditor, TestCodeEditorInstantiationOptions } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -46,10 +48,10 @@ suite('linked editing', () => {
 		disposables.clear();
 	});
 
-	function createMockEditor(text: string | string[]): ITestCodeEditor {
+	function createMockEditor(text: string | string[], options: TestCodeEditorInstantiationOptions = {}): ITestCodeEditor {
 		const model = createTextModel(typeof text === 'string' ? text : text.join('\n'), languageId, undefined, mockFile);
 
-		const editor = createTestCodeEditor(model);
+		const editor = createTestCodeEditor(model, options);
 		disposables.add(model);
 		disposables.add(editor);
 
@@ -59,12 +61,16 @@ suite('linked editing', () => {
 
 	function testCase(
 		name: string,
-		initialState: { text: string | string[], responseWordPattern?: RegExp },
+		initialState: { text: string | string[]; responseWordPattern?: RegExp },
 		operations: (editor: TestEditor) => Promise<void>,
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
-			disposables.add(modes.LinkedEditingRangeProviderRegistry.register(mockFileSelector, {
+
+			const languageFeaturesService = new LanguageFeaturesService();
+			const serviceCollection = new ServiceCollection([ILanguageFeaturesService, languageFeaturesService]);
+
+			disposables.add(languageFeaturesService.linkedEditingRangeProvider.register(mockFileSelector, {
 				provideLinkedEditingRanges(model: ITextModel, pos: IPosition) {
 					const wordAtPos = model.getWordAtPosition(pos);
 					if (wordAtPos) {
@@ -75,7 +81,7 @@ suite('linked editing', () => {
 				}
 			}));
 
-			const editor = createMockEditor(initialState.text);
+			const editor = createMockEditor(initialState.text, { serviceCollection });
 			editor.updateOptions({ linkedEditing: true });
 			const linkedEditingContribution = editor.registerAndInstantiateContribution(
 				LinkedEditingContribution.ID,

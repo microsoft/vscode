@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens, LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { ILanguageIdCodec, IState, ITokenizationSupport, LanguageId, TokenizationRegistry } from 'vs/editor/common/languages';
 import { NullState, nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export type IReducedTokenizationSupport = Omit<ITokenizationSupport, 'tokenize'>;
 

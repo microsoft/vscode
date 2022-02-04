@@ -138,7 +138,7 @@ export function inlineCompletionToGhostText(
 	return new GhostText(lineNumber, parts, 0);
 }
 
-let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[] | undefined; } | undefined = undefined;
+let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[] | undefined } | undefined = undefined;
 function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] | undefined {
 	if (lastRequest?.originalValue === originalValue && lastRequest?.newValue === newValue) {
 		return lastRequest?.changes;

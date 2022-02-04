@@ -9,6 +9,7 @@ import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 
 export class MainThreadWebviewsViews extends Disposable implements extHostProtocol.MainThreadWebviewViewsShape {
@@ -19,7 +20,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	private readonly _webviewViewProviders = new Map<string, IDisposable>();
 
 	constructor(
-		context: extHostProtocol.IExtHostContext,
+		context: IExtHostContext,
 		private readonly mainThreadWebviews: MainThreadWebviews,
 		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
 	) {
@@ -55,7 +56,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	public $registerWebviewViewProvider(
 		extensionData: extHostProtocol.WebviewExtensionDescription,
 		viewType: string,
-		options: { retainContextWhenHidden?: boolean, serializeBuffersForPostMessage: boolean }
+		options: { retainContextWhenHidden?: boolean; serializeBuffersForPostMessage: boolean }
 	): void {
 		if (this._webviewViewProviders.has(viewType)) {
 			throw new Error(`View provider for ${viewType} already registered`);

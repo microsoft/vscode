@@ -20,7 +20,7 @@ The notebook editor is a virtualized list view rendered in two contexts (mainfra
 The notebook model resolution consists of two main parts
 
 * Resolving the raw data (bytes) of the resource from file service. This part is backed by the `WorkingCopyService` and it will resolve the data and broadcast updates when the resource is updated on file system.
-* Requesting the contributed notebook serializer to serialize/deserize the raw bytes for the resource. We will find the best matched notebook serializer (by user's editor type configuration and serializer's selector defintion) and convert the raw bytes from/to `NotebookTextModel`.
+* Requesting the contributed notebook serializer to serialize/deserize the raw bytes for the resource. We will find the best matched notebook serializer (by user's editor type configuration and serializer's selector definition) and convert the raw bytes from/to `NotebookTextModel`.
 
 `NotebookTextModel` is the only source of truth for the notebook document once the resource is opened in the workspace. The source text of each individual cell in the notebook is backed by a piece tree text buffer. When the notebook is opened in the editor group, we will request the `TextModelResolverService` for the monaco `TextModel` reference for each cell. The `TextModel` will use the piece tree text buffer from the cell as the backing store so whenever the `TextModel` gets updated, the cells in `NotebookTextModel` are always up to date.``
 

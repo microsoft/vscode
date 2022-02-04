@@ -569,7 +569,7 @@ export class CellOutputContainer extends CellPart {
 		private notebookEditor: INotebookEditorDelegate,
 		private viewCell: CodeCellViewModel,
 		private readonly templateData: CodeCellRenderTemplate,
-		private options: { limit: number; },
+		private options: { limit: number },
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {

@@ -72,7 +72,7 @@ export class RunToolbar extends CellPart {
 		// no op
 	}
 
-	getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
+	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };

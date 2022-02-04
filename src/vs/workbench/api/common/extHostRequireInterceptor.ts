@@ -197,7 +197,7 @@ interface IKeytarModule {
 	setPassword(service: string, account: string, password: string): Promise<void>;
 	deletePassword(service: string, account: string): Promise<boolean>;
 	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>;
+	findCredentials(service: string): Promise<Array<{ account: string; password: string }>>;
 }
 
 class KeytarNodeModuleFactory implements INodeModuleFactory {
@@ -242,7 +242,7 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 			findPassword: (service: string): Promise<string | null> => {
 				return mainThreadKeytar.$findPassword(service);
 			},
-			findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+			findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
 				return mainThreadKeytar.$findCredentials(service);
 			}
 		};
@@ -251,7 +251,7 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 	public load(_request: string, parent: URI): any {
 		const ext = this._extensionPaths.findSubstr(parent);
 		type ShimmingKeytarClassification = {
-			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingKeytarClassification>('shimming.keytar', { extension: ext?.identifier.value ?? 'unknown_extension' });
 		return this._impl;
@@ -348,7 +348,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 			return;
 		}
 		type ShimmingOpenClassification = {
-			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingOpenClassification>('shimming.open', { extension: this._extensionId });
 	}
@@ -358,7 +358,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 			return;
 		}
 		type ShimmingOpenCallNoForwardClassification = {
-			extension: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		this._mainThreadTelemetry.$publicLog2<{ extension: string }, ShimmingOpenCallNoForwardClassification>('shimming.open.call.noForward', { extension: this._extensionId });
 	}

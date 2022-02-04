@@ -97,7 +97,7 @@ export namespace TokenStyle {
 	export function is(s: any): s is TokenStyle {
 		return s instanceof TokenStyle;
 	}
-	export function fromData(data: { foreground: Color | undefined, bold: boolean | undefined, underline: boolean | undefined, strikethrough: boolean | undefined, italic: boolean | undefined }): TokenStyle {
+	export function fromData(data: { foreground: Color | undefined; bold: boolean | undefined; underline: boolean | undefined; strikethrough: boolean | undefined; italic: boolean | undefined }): TokenStyle {
 		return new TokenStyle(data.foreground, data.bold, data.underline, data.strikethrough, data.italic);
 	}
 	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined): TokenStyle;
@@ -275,7 +275,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 	private typeHierarchy: { [id: string]: string[] };
 
-	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap, patternProperties: IJSONSchemaMap } = {
+	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap; patternProperties: IJSONSchemaMap } = {
 		type: 'object',
 		properties: {},
 		patternProperties: {
@@ -488,9 +488,9 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 const CHAR_LANGUAGE = TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR.charCodeAt(0);
 const CHAR_MODIFIER = CLASSIFIER_MODIFIER_SEPARATOR.charCodeAt(0);
 
-export function parseClassifierString(s: string, defaultLanguage: string): { type: string, modifiers: string[], language: string; };
-export function parseClassifierString(s: string, defaultLanguage?: string): { type: string, modifiers: string[], language: string | undefined; };
-export function parseClassifierString(s: string, defaultLanguage: string | undefined): { type: string, modifiers: string[], language: string | undefined; } {
+export function parseClassifierString(s: string, defaultLanguage: string): { type: string; modifiers: string[]; language: string };
+export function parseClassifierString(s: string, defaultLanguage?: string): { type: string; modifiers: string[]; language: string | undefined };
+export function parseClassifierString(s: string, defaultLanguage: string | undefined): { type: string; modifiers: string[]; language: string | undefined } {
 	let k = s.length;
 	let language: string | undefined = defaultLanguage;
 	const modifiers = [];

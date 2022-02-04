@@ -340,7 +340,7 @@ export abstract class TitleControl extends Themable {
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number, y: number; } = node;
+		let anchor: HTMLElement | { x: number; y: number } = node;
 		if (e instanceof MouseEvent) {
 			const event = new StandardMouseEvent(e);
 			anchor = { x: event.posx, y: event.posy };

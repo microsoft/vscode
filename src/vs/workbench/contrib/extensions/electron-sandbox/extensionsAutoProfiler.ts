@@ -23,6 +23,7 @@ import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { timeout } from 'vs/base/common/async';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -55,6 +56,8 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		if (event.isResponsive && this._session) {
 			// stop profiling when responsive again
 			this._session.cancel();
+			this._logService.info('UNRESPONSIVE extension host: received responsive event and cancelling profiling session');
+
 
 		} else if (!event.isResponsive && !this._session) {
 			// start profiling if not yet profiling
@@ -73,12 +76,16 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 				// connected already
 				return;
 			}
+			this._logService.info('UNRESPONSIVE extension host: starting to profile NOW');
 
 			// wait 5 seconds or until responsive again
-			await new Promise(resolve => {
-				cts.token.onCancellationRequested(resolve);
-				setTimeout(resolve, 5e3);
-			});
+			try {
+				await timeout(5e3, cts.token);
+			} catch {
+				// can throw cancellation error. that is
+				// OK, we stop profiling and analyse the
+				// profile anyways
+			}
 
 			try {
 				// stop profiling and analyse results
@@ -143,7 +150,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		// print message to log
 		const path = joinPath(this._environmentServie.tmpDir, `exthost-${Math.random().toString(16).slice(2, 8)}.cpuprofile`);
 		await this._fileService.writeFile(path, VSBuffer.fromString(JSON.stringify(profile.data)));
-		this._logService.warn(`UNRESPONSIVE extension host, '${top.id}' took ${top.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
+		this._logService.warn(`UNRESPONSIVE extension host: '${top.id}' took ${top.percentage}% of ${duration / 1e3}ms, saved PROFILE here: '${path}'`, data);
 
 
 		/* __GDPR__

@@ -49,7 +49,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, walkthroughID: string | { category: string, step: string } | undefined, toSide: boolean | undefined) {
+	public run(accessor: ServicesAccessor, walkthroughID: string | { category: string; step: string } | undefined, toSide: boolean | undefined) {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);

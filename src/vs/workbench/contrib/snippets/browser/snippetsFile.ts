@@ -24,12 +24,14 @@ class SnippetBodyInsights {
 	readonly codeSnippet: string;
 	readonly isBogous: boolean;
 	readonly needsClipboard: boolean;
+	readonly usesSelection: boolean;
 
 	constructor(body: string) {
 
 		// init with defaults
 		this.isBogous = false;
 		this.needsClipboard = false;
+		this.usesSelection = false;
 		this.codeSnippet = body;
 
 		// check snippet...
@@ -58,8 +60,14 @@ class SnippetBodyInsights {
 					this.isBogous = true;
 				}
 
-				if (marker.name === 'CLIPBOARD') {
-					this.needsClipboard = true;
+				switch (marker.name) {
+					case 'CLIPBOARD':
+						this.needsClipboard = true;
+						break;
+					case 'SELECTION':
+					case 'TM_SELECTED_TEXT':
+						this.usesSelection = true;
+						break;
 				}
 
 			} else {
@@ -105,6 +113,10 @@ export class Snippet {
 
 	get needsClipboard(): boolean {
 		return this._bodyInsights.value.needsClipboard;
+	}
+
+	get usesSelection(): boolean {
+		return this._bodyInsights.value.usesSelection;
 	}
 
 	static compare(a: Snippet, b: Snippet): number {

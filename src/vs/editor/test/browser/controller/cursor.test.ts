@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -22,8 +22,8 @@ import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 
@@ -4829,7 +4829,7 @@ suite('autoClosingPairs', () => {
 					tokenize: undefined!,
 					tokenizeEncoded: function (line: string, hasEOL: boolean, _state: IState): EncodedTokenizationResult {
 						let state = <State>_state;
-						const tokens: { length: number; type: StandardTokenType; }[] = [];
+						const tokens: { length: number; type: StandardTokenType }[] = [];
 						const generateToken = (length: number, type: StandardTokenType, newState?: State) => {
 							if (tokens.length > 0 && tokens[tokens.length - 1].type === type) {
 								// grow last tokens

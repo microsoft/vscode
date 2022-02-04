@@ -31,7 +31,7 @@ export class TelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
 	private _appenders: ITelemetryAppender[];
-	private _commonProperties: Promise<{ [name: string]: any; }>;
+	private _commonProperties: Promise<{ [name: string]: any }>;
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
 	private _telemetryLevel: TelemetryLevel;
@@ -61,7 +61,7 @@ export class TelemetryService implements ITelemetryService {
 		this._updateTelemetryLevel();
 		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
 		type OptInClassification = {
-			optIn: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
+			optIn: { classification: 'SystemMetaData'; purpose: 'BusinessInsight'; isMeasurement: true };
 		};
 		type OptInEvent = {
 			optIn: boolean;

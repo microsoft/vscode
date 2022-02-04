@@ -221,7 +221,8 @@ steps:
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       exec { yarn smoketest-no-compile --build "$AppRoot" }
     displayName: Run smoke tests (Electron)
-    timeoutInMinutes: 10
+    # Increased timeout because this test downloads stable code
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |

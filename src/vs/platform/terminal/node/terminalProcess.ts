@@ -68,8 +68,8 @@ const enum Constants {
 }
 
 interface IWriteObject {
-	data: string,
-	isBinary: boolean
+	data: string;
+	isBinary: boolean;
 }
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
@@ -149,7 +149,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			name,
 			cwd,
 			// TODO: When node-pty is updated this cast can be removed
-			env: env as { [key: string]: string; },
+			env: env as { [key: string]: string },
 			cols,
 			rows,
 			useConpty,
@@ -565,8 +565,8 @@ class DelayedResizer extends Disposable {
 	cols: number | undefined;
 	private _timeout: NodeJS.Timeout;
 
-	private readonly _onTrigger = this._register(new Emitter<{ rows?: number, cols?: number }>());
-	get onTrigger(): Event<{ rows?: number, cols?: number }> { return this._onTrigger.event; }
+	private readonly _onTrigger = this._register(new Emitter<{ rows?: number; cols?: number }>());
+	get onTrigger(): Event<{ rows?: number; cols?: number }> { return this._onTrigger.event; }
 
 	constructor() {
 		super();

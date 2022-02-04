@@ -348,7 +348,7 @@ function bytesOrTextToString(obj: any): string {
 		obj.text;
 }
 
-function getNumLinesAndLastNewlineLength(text: string): { numLines: number, lastLineLength: number } {
+function getNumLinesAndLastNewlineLength(text: string): { numLines: number; lastLineLength: number } {
 	const re = /\n/g;
 	let numLines = 0;
 	let lastNewlineIdx = -1;
@@ -575,8 +575,7 @@ export function fixRegexNewline(pattern: string): string {
 						// If quantified, we can't use a negative lookahead in a quantifier.
 						// But `.` already doesn't match new lines, so we can just use that
 						// (with any other negations) instead.
-						const quant = parent.parent;
-						replace(quant.start, quant.end, (otherContent ? `[^${otherContent}]` : '.') + (quant.greedy ? '+' : '*'));
+						replace(parent.start, parent.end, otherContent ? `[^${otherContent}]` : '.');
 					} else {
 						replace(parent.start, parent.end, '(?!\\r?\\n' + (otherContent ? `|[${otherContent}]` : '') + ')');
 					}

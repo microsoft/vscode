@@ -39,10 +39,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
 	private readonly viewPaneContainers: Map<string, ViewPaneContainer>;
 
-	private readonly _onDidChangeViewVisibility: Emitter<{ id: string, visible: boolean }> = this._register(new Emitter<{ id: string, visible: boolean }>());
-	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }> = this._onDidChangeViewVisibility.event;
+	private readonly _onDidChangeViewVisibility: Emitter<{ id: string; visible: boolean }> = this._register(new Emitter<{ id: string; visible: boolean }>());
+	readonly onDidChangeViewVisibility: Event<{ id: string; visible: boolean }> = this._onDidChangeViewVisibility.event;
 
-	private readonly _onDidChangeViewContainerVisibility = this._register(new Emitter<{ id: string, visible: boolean, location: ViewContainerLocation }>());
+	private readonly _onDidChangeViewContainerVisibility = this._register(new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>());
 	readonly onDidChangeViewContainerVisibility = this._onDidChangeViewContainerVisibility.event;
 
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
@@ -103,7 +103,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return contextKey;
 	}
 
-	private onDidChangeContainers(added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>): void {
+	private onDidChangeContainers(added: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>): void {
 		for (const { container, location } of removed) {
 			this.deregisterPaneComposite(container, location);
 		}
@@ -158,7 +158,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.paneCompositeService.openPaneComposite(compositeId, location, focus);
 	}
 
-	private getComposite(compositeId: string, location: ViewContainerLocation): { id: string, name: string } | undefined {
+	private getComposite(compositeId: string, location: ViewContainerLocation): { id: string; name: string } | undefined {
 		return this.paneCompositeService.getPaneComposite(compositeId, location);
 	}
 

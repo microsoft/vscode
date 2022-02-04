@@ -363,6 +363,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private readyState = ReadyState.NONE;
 
 	setReady(): void {
+		this.logService.info(`window#load: window reported ready (id: ${this._id})`);
+
 		this.readyState = ReadyState.READY;
 
 		// inform all waiting promises that we are ready now
@@ -493,9 +495,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(error: WindowError.LOAD, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(type: WindowError, details?: { reason: string, exitCode: number }): Promise<void> {
+	private async onWindowError(error: WindowError.CRASHED, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(type: WindowError, details?: { reason: string; exitCode: number }): Promise<void> {
 
 		switch (type) {
 			case WindowError.CRASHED:
@@ -511,9 +513,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
@@ -692,6 +694,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	load(configuration: INativeWindowConfiguration, options: ILoadOptions = Object.create(null)): void {
+		this.logService.info(`window#load: attempt to load window (id: ${this._id})`);
 
 		// Clear Document Edited if needed
 		if (this.isDocumentEdited()) {

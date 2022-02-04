@@ -19,8 +19,8 @@ const $ = dom.$;
 
 export interface ILinkHoverTargetOptions {
 	readonly viewportRange: IViewportRange;
-	readonly cellDimensions: { width: number, height: number };
-	readonly terminalDimensions: { width: number, height: number };
+	readonly cellDimensions: { width: number; height: number };
+	readonly terminalDimensions: { width: number; height: number };
 	readonly modifierDownCallback?: () => void;
 	readonly modifierUpCallback?: () => void;
 }

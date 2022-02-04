@@ -93,14 +93,14 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.MOUSE_DOWN, e => DOM.EventHelper.stop(e)));
 		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
-		this._register(DOM.addDisposableListener(this.anchorElement, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, e => this.onKeyUp(e)));
 
 		DOM.append(this.container, this.anchorElement);
 
 		this.update();
 	}
 
-	private onKeyUp(event: any): void {
+	private onKeyUp(event: KeyboardEvent): void {
 		const keyboardEvent = new StandardKeyboardEvent(event);
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Enter:

@@ -9,19 +9,21 @@ import { getLocation, parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItemKind, CompletionItem } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionList, CompletionItemKind, CompletionItem } from 'vs/editor/common/languages';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Range } from 'vs/editor/common/core/range';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 
 export class ExtensionsCompletionItemsProvider extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
-		this._register(CompletionProviderRegistry.register({ language: 'jsonc', pattern: '**/settings.json' }, {
+		this._register(languageFeaturesService.completionProvider.register({ language: 'jsonc', pattern: '**/settings.json' }, {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				const getWordRangeAtPosition = (model: ITextModel, position: Position): Range | null => {
 					const wordAtPosition = model.getWordAtPosition(position);

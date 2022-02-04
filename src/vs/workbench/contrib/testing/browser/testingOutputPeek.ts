@@ -552,7 +552,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return;
 		}
 
-		let previous: { messageIndex: number, taskIndex: number, result: ITestResult, test: TestResultItem } | undefined;
+		let previous: { messageIndex: number; taskIndex: number; result: ITestResult; test: TestResultItem } | undefined;
 		for (const m of allMessages(this.testResults.results)) {
 			if (dto.test.extId === m.test.item.extId && dto.messageIndex === m.messageIndex && dto.taskIndex === m.taskIndex && dto.resultId === m.result.id) {
 				if (!previous) {

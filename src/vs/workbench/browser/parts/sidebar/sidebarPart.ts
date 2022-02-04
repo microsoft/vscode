@@ -175,7 +175,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 
 		this.titleLabelElement!.draggable = true;
 
-		const draggedItemProvider = (): { type: 'view' | 'composite', id: string } => {
+		const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
 			const activeViewlet = this.getActivePaneComposite()!;
 			return { type: 'composite', id: activeViewlet.getId() };
 		};
@@ -285,7 +285,7 @@ export class SidebarPart extends CompositePart<PaneComposite> implements IPaneCo
 		if (activeViewlet) {
 			const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
 			if (contextMenuActions.length) {
-				const anchor: { x: number, y: number } = { x: event.posx, y: event.posy };
+				const anchor: { x: number; y: number } = { x: event.posx, y: event.posy };
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
 					getActions: () => contextMenuActions.slice(),

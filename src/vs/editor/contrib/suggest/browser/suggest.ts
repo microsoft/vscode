@@ -22,6 +22,9 @@ import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible")),
@@ -192,6 +195,7 @@ export class CompletionItemModel {
 }
 
 export async function provideSuggestionItems(
+	registry: LanguageFeatureRegistry<modes.CompletionItemProvider>,
 	model: ITextModel,
 	position: Position,
 	options: CompletionOptions = CompletionOptions.default,
@@ -241,7 +245,7 @@ export async function provideSuggestionItems(
 			disposables.add(container);
 		}
 		durations.push({
-			providerName: provider._debugDisplayName ?? 'unkown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
+			providerName: provider._debugDisplayName ?? 'unknown_provider', elapsedProvider: container.duration ?? -1, elapsedOverall: sw.elapsed()
 		});
 		return didAddResult;
 	};
@@ -263,7 +267,7 @@ export async function provideSuggestionItems(
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
 	// get provider groups, always add snippet suggestion provider
-	for (let providerGroup of modes.CompletionProviderRegistry.orderedGroups(model)) {
+	for (let providerGroup of registry.orderedGroups(model)) {
 
 		// for each support in the group ask for suggestions
 		let didAddResult = false;
@@ -342,7 +346,7 @@ function snippetDownComparator(a: CompletionItem, b: CompletionItem): number {
 	return defaultComparator(a, b);
 }
 
-interface Comparator<T> { (a: T, b: T): number; }
+interface Comparator<T> { (a: T, b: T): number }
 const _snippetComparators = new Map<SnippetSortOrder, Comparator<CompletionItem>>();
 _snippetComparators.set(SnippetSortOrder.Top, snippetUpComparator);
 _snippetComparators.set(SnippetSortOrder.Bottom, snippetDownComparator);
@@ -359,6 +363,7 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 	assertType(typeof triggerCharacter === 'string' || !triggerCharacter);
 	assertType(typeof maxItemsToResolve === 'number' || !maxItemsToResolve);
 
+	const { completionProvider } = accessor.get(ILanguageFeaturesService);
 	const ref = await accessor.get(ITextModelService).createModelReference(uri);
 	try {
 
@@ -368,7 +373,7 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 		};
 
 		const resolving: Promise<any>[] = [];
-		const completions = await provideSuggestionItems(ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter, triggerKind: triggerCharacter ? modes.CompletionTriggerKind.TriggerCharacter : modes.CompletionTriggerKind.Invoke });
+		const completions = await provideSuggestionItems(completionProvider, ref.object.textEditorModel, Position.lift(position), undefined, { triggerCharacter, triggerKind: triggerCharacter ? modes.CompletionTriggerKind.TriggerCharacter : modes.CompletionTriggerKind.Invoke });
 		for (const item of completions.items) {
 			if (resolving.length < (maxItemsToResolve ?? 0)) {
 				resolving.push(item.resolve(CancellationToken.None));
@@ -394,21 +399,30 @@ interface SuggestController extends IEditorContribution {
 	triggerSuggest(onlyFrom?: Set<modes.CompletionItemProvider>): void;
 }
 
-const _provider = new class implements modes.CompletionItemProvider {
 
-	onlyOnceSuggestions: modes.CompletionItem[] = [];
+const _once = new WeakMap<ICodeEditor, IDisposable>();
 
-	provideCompletionItems(): modes.CompletionList {
-		let suggestions = this.onlyOnceSuggestions.slice(0);
-		let result = { suggestions };
-		this.onlyOnceSuggestions.length = 0;
-		return result;
-	}
-};
+export function showSimpleSuggestions(accessor: ServicesAccessor, editor: ICodeEditor, suggestions: modes.CompletionItem[]) {
 
-modes.CompletionProviderRegistry.register('*', _provider);
+	const { completionProvider } = accessor.get(ILanguageFeaturesService);
 
-export function showSimpleSuggestions(editor: ICodeEditor, suggestions: modes.CompletionItem[]) {
+	const _provider = new class implements modes.CompletionItemProvider {
+
+		onlyOnceSuggestions: modes.CompletionItem[] = [];
+
+		provideCompletionItems(): modes.CompletionList {
+			let suggestions = this.onlyOnceSuggestions.slice(0);
+			let result = { suggestions };
+			this.onlyOnceSuggestions.length = 0;
+			dispo.dispose();
+			return result;
+		}
+	};
+
+	const dispo = completionProvider.register('*', _provider);
+	_once.get(editor)?.dispose();
+	_once.set(editor, dispo);
+
 	setTimeout(() => {
 		_provider.onlyOnceSuggestions.push(...suggestions);
 		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(new Set<modes.CompletionItemProvider>().add(_provider));

@@ -27,8 +27,8 @@ import { URI } from 'vs/base/common/uri';
 import { WebRecommendations } from 'vs/workbench/contrib/extensions/browser/webRecommendations';
 
 type IgnoreRecommendationClassification = {
-	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	recommendationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 };
 
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
@@ -107,7 +107,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			if (!isRecommended) {
 				const reason = this.getAllRecommendationsWithReason()[extensionId];
 				if (reason && reason.reasonId) {
-					this.telemetryService.publicLog2<{ extensionId: string, recommendationReason: ExtensionRecommendationReason }, IgnoreRecommendationClassification>('extensionsRecommendations:ignoreRecommendation', { extensionId, recommendationReason: reason.reasonId });
+					this.telemetryService.publicLog2<{ extensionId: string; recommendationReason: ExtensionRecommendationReason }, IgnoreRecommendationClassification>('extensionsRecommendations:ignoreRecommendation', { extensionId, recommendationReason: reason.reasonId });
 				}
 			}
 		}));
@@ -123,11 +123,11 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		await Promise.all([this.dynamicWorkspaceRecommendations.activate(), this.exeBasedRecommendations.activate(), this.configBasedRecommendations.activate()]);
 	}
 
-	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
+	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason; reasonText: string } } {
 		/* Activate proactive recommendations */
 		this.activateProactiveRecommendations();
 
-		const output: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } = Object.create(null);
+		const output: { [id: string]: { reasonId: ExtensionRecommendationReason; reasonText: string } } = Object.create(null);
 
 		const allRecommendations = [
 			...this.dynamicWorkspaceRecommendations.recommendations,
@@ -150,7 +150,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return output;
 	}
 
-	async getConfigBasedRecommendations(): Promise<{ important: string[], others: string[] }> {
+	async getConfigBasedRecommendations(): Promise<{ important: string[]; others: string[] }> {
 		await this.configBasedRecommendations.activate();
 		return {
 			important: this.toExtensionRecommendations(this.configBasedRecommendations.importantRecommendations),
@@ -211,7 +211,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return this.toExtensionRecommendations(this.workspaceRecommendations.recommendations);
 	}
 
-	async getExeBasedRecommendations(exe?: string): Promise<{ important: string[], others: string[] }> {
+	async getExeBasedRecommendations(exe?: string): Promise<{ important: string[]; others: string[] }> {
 		await this.exeBasedRecommendations.activate();
 		const { important, others } = exe ? this.exeBasedRecommendations.getRecommendations(exe)
 			: { important: this.exeBasedRecommendations.importantRecommendations, others: this.exeBasedRecommendations.otherRecommendations };

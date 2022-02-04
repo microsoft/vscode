@@ -25,7 +25,7 @@ jobs:
         uses: ./actions/classifier-deep/apply/fetch-sources
         with:
           # slightly overlapping to protect against issues slipping through the cracks if a run is delayed
-          from: 10000 # 7 days
+          from: 10000 # ~7 days
           until: 5
           configPath: classifier
           blobContainerName: vscode-issue-classifier

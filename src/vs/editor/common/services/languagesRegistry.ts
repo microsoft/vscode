@@ -12,7 +12,7 @@ import { clearLanguageAssociations, getMimeTypes, registerLanguageAssociation } 
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/languages';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/services/language';
+import { ILanguageExtensionPoint, ILanguageNameIdPair, ILanguageIcon } from 'vs/editor/common/languages/language';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -74,10 +74,10 @@ export class LanguagesRegistry extends Disposable {
 	private readonly _warnOnOverwrite: boolean;
 	public readonly languageIdCodec: LanguageIdCodec;
 	private _dynamicLanguages: ILanguageExtensionPoint[];
-	private _languages: { [id: string]: IResolvedLanguage; };
-	private _mimeTypesMap: { [mimeType: string]: string; };
-	private _nameMap: { [name: string]: string; };
-	private _lowercaseNameMap: { [name: string]: string; };
+	private _languages: { [id: string]: IResolvedLanguage };
+	private _mimeTypesMap: { [mimeType: string]: string };
+	private _nameMap: { [name: string]: string };
+	private _lowercaseNameMap: { [name: string]: string };
 
 	constructor(useModesRegistry = true, warnOnOverwrite = false) {
 		super();

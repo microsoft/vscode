@@ -26,7 +26,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type TrustedDomainsDialogActionClassification = {
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {

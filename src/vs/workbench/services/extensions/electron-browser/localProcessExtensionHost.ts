@@ -29,8 +29,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IInitData, UIKind } from 'vs/workbench/api/common/extHost.protocol';
-import { MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { MessageType, createMessageOfType, isMessageOfType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
@@ -80,7 +79,7 @@ class ExtensionHostProcess {
 		return this._extensionHostStarter.onDynamicMessage(this._id);
 	}
 
-	public get onError(): Event<{ error: SerializedError; }> {
+	public get onError(): Event<{ error: SerializedError }> {
 		return this._extensionHostStarter.onDynamicError(this._id);
 	}
 
@@ -95,7 +94,7 @@ class ExtensionHostProcess {
 		this._id = id;
 	}
 
-	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
+	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number }> {
 		return this._extensionHostStarter.start(this._id, opts);
 	}
 
@@ -213,15 +212,20 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				this._extensionHostProcess = new ExtensionHostProcess(extensionHostCreationResult.id, this._extensionHostStarter);
 
+				let lang = processEnv['LANG'];
+				if (platform.isMacintosh && lang === undefined) {
+					lang = Intl.DateTimeFormat().resolvedOptions().locale;
+				}
+
 				const env = objects.mixin(processEnv, {
-					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
+					VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: true,
 					VSCODE_LOG_NATIVE: this._isExtensionDevHost,
 					VSCODE_IPC_HOOK_EXTHOST: pipeName,
 					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 					VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
-					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
+					'LANG': lang
 				});
 
 				if (this._environmentService.debugExtensionHost.env) {
@@ -294,7 +298,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// Catch all output coming from the extension host process
-				type Output = { data: string, format: string[] };
+				type Output = { data: string; format: string[] };
 				const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
 				const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
 				const onOutput = Event.any(
@@ -528,7 +532,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		});
 	}
 
-	private async _createExtHostInitData(): Promise<IInitData> {
+	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
 		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
 		return {

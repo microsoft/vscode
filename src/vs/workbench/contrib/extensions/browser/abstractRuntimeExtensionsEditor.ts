@@ -104,7 +104,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		const extensionsDescriptions = (await this._extensionService.getExtensions()).filter((extension) => {
 			return Boolean(extension.main) || Boolean(extension.browser);
 		});
-		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
+		let marketplaceMap: { [id: string]: IExtension } = Object.create(null);
 		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
 		for (let extension of marketPlaceExtensions) {
 			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
@@ -113,7 +113,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		let statusMap = this._extensionService.getExtensionsStatus();
 
 		// group profile segments by extension
-		let segments: { [id: string]: number[]; } = Object.create(null);
+		let segments: { [id: string]: number[] } = Object.create(null);
 
 		const profileInfo = this._getProfileInfo();
 		if (profileInfo) {

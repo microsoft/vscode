@@ -117,7 +117,7 @@ export class CellEditorOptions extends CellPart {
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
 		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
 		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
-		const editorOptionsOverride: { [key: string]: any; } = {};
+		const editorOptionsOverride: { [key: string]: any } = {};
 		for (const key in editorOptionsOverrideRaw) {
 			if (key.indexOf('editor.') === 0) {
 				editorOptionsOverride[key.substring(7)] = editorOptionsOverrideRaw[key];

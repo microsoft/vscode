@@ -291,7 +291,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 export interface IExtHostCommands extends ExtHostCommands { }
 export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostCommands');
 
-export class CommandsConverter {
+export class CommandsConverter implements extHostTypeConverter.Command.ICommandsConverter {
 
 	readonly delegatingCommandId: string = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 	private readonly _cache = new Map<number, vscode.Command>();

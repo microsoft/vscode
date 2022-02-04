@@ -15,7 +15,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/langua
 import { NullState } from 'vs/editor/common/languages/nullMode';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 // --------- utils
 

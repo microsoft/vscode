@@ -11,7 +11,7 @@ import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol as ElectronProtocol } from 'vs/base/parts/ipc/common/ipc.electron';
 
 interface IIPCEvent {
-	event: { sender: WebContents; };
+	event: { sender: WebContents };
 	message: Buffer | null;
 }
 

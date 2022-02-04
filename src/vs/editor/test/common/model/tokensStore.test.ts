@@ -8,17 +8,17 @@ import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTo
 import { SparseTokensStore } from 'vs/editor/common/tokens/sparseTokensStore';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { MetadataConsts, TokenMetadata, FontStyle, ColorId } from 'vs/editor/common/languages';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 suite('TokensStore', () => {
 
 	const SEMANTIC_COLOR: ColorId = 5;
 
-	function parseTokensState(state: string[]): { text: string; tokens: SparseMultilineTokens; } {
+	function parseTokensState(state: string[]): { text: string; tokens: SparseMultilineTokens } {
 		let text: string[] = [];
 		let tokens: number[] = [];
 		let baseLine = 1;
@@ -98,7 +98,7 @@ suite('TokensStore', () => {
 
 	// function extractState
 
-	function testTokensAdjustment(rawInitialState: string[], edits: IIdentifiedSingleEditOperation[], rawFinalState: string[]) {
+	function testTokensAdjustment(rawInitialState: string[], edits: ISingleEditOperation[], rawFinalState: string[]) {
 		const initialState = parseTokensState(rawInitialState);
 		const model = createTextModel(initialState.text);
 		model.setSemanticTokens([initialState.tokens], true);

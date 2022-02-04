@@ -51,6 +51,8 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { OutlineModel } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 suite('ExtHostLanguageFeatures', function () {
 
@@ -60,6 +62,7 @@ suite('ExtHostLanguageFeatures', function () {
 	let mainThread: MainThreadLanguageFeatures;
 	let disposables: vscode.Disposable[] = [];
 	let rpcProtocol: TestRPCProtocol;
+	let languageFeaturesService: ILanguageFeaturesService;
 	let originalErrorHandler: (e: any) => any;
 
 	suiteSetup(() => {
@@ -76,11 +79,14 @@ suite('ExtHostLanguageFeatures', function () {
 
 		rpcProtocol = new TestRPCProtocol();
 
+		languageFeaturesService = new LanguageFeaturesService();
+
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
 		{
 			let instantiationService = new TestInstantiationService();
 			instantiationService.stub(IMarkerService, MarkerService);
+			instantiationService.set(ILanguageFeaturesService, languageFeaturesService);
 			inst = instantiationService;
 		}
 
@@ -128,7 +134,7 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- outline
 
 	test('DocumentSymbols, register/deregister', async () => {
-		assert.strictEqual(modes.DocumentSymbolProviderRegistry.all(model).length, 0);
+		assert.strictEqual(languageFeaturesService.documentSymbolProvider.all(model).length, 0);
 		let d1 = extHost.registerDocumentSymbolProvider(defaultExtension, defaultSelector, new class implements vscode.DocumentSymbolProvider {
 			provideDocumentSymbols() {
 				return <vscode.SymbolInformation[]>[];
@@ -136,7 +142,7 @@ suite('ExtHostLanguageFeatures', function () {
 		});
 
 		await rpcProtocol.sync();
-		assert.strictEqual(modes.DocumentSymbolProviderRegistry.all(model).length, 1);
+		assert.strictEqual(languageFeaturesService.documentSymbolProvider.all(model).length, 1);
 		d1.dispose();
 		return rpcProtocol.sync();
 
@@ -155,7 +161,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await OutlineModel.create(model, CancellationToken.None)).asListOfDocumentSymbols();
+		const value = (await OutlineModel.create(languageFeaturesService.documentSymbolProvider, model, CancellationToken.None)).asListOfDocumentSymbols();
 		assert.strictEqual(value.length, 1);
 	});
 
@@ -167,7 +173,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await OutlineModel.create(model, CancellationToken.None)).asListOfDocumentSymbols();
+		const value = (await OutlineModel.create(languageFeaturesService.documentSymbolProvider, model, CancellationToken.None)).asListOfDocumentSymbols();
 		assert.strictEqual(value.length, 1);
 		let entry = value[0];
 		assert.strictEqual(entry.name, 'test');
@@ -198,7 +204,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 
-		const value = (await OutlineModel.create(model, CancellationToken.None)).asListOfDocumentSymbols();
+		const value = (await OutlineModel.create(languageFeaturesService.documentSymbolProvider, model, CancellationToken.None)).asListOfDocumentSymbols();
 
 		assert.strictEqual(value.length, 6);
 		assert.deepStrictEqual(value.map(s => s.name), ['containers', 'container 0', 'name', 'ports', 'ports 0', 'containerPort']);
@@ -220,7 +226,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeLensModel(model, CancellationToken.None);
+		const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
 		assert.strictEqual(value.lenses.length, 1);
 	});
 
@@ -238,7 +244,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeLensModel(model, CancellationToken.None);
+		const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
 		assert.strictEqual(value.lenses.length, 1);
 		const [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
@@ -255,7 +261,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeLensModel(model, CancellationToken.None);
+		const value = await getCodeLensModel(languageFeaturesService.codeLensProvider, model, CancellationToken.None);
 		assert.strictEqual(value.lenses.length, 1);
 		let [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
@@ -274,7 +280,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		let value = await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
@@ -295,7 +301,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 	});
 
@@ -314,7 +320,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		// let [first, second] = value;
 		assert.strictEqual(value[0].uri.authority, 'second');
@@ -335,7 +341,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 	});
 
@@ -350,7 +356,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getDeclarationsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		let value = await getDeclarationsAtPosition(languageFeaturesService.declarationProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
@@ -368,7 +374,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getImplementationsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		let value = await getImplementationsAtPosition(languageFeaturesService.implementationProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
@@ -386,7 +392,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getTypeDefinitionsAtPosition(model, new EditorPosition(1, 1), CancellationToken.None);
+		let value = await getTypeDefinitionsAtPosition(languageFeaturesService.typeDefinitionProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 2, startColumn: 3, endLineNumber: 4, endColumn: 5 });
@@ -404,7 +410,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
 			let [entry] = value;
 			assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -421,7 +427,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
 			let [entry] = value;
 			assert.deepStrictEqual(entry.range, { startLineNumber: 4, startColumn: 1, endLineNumber: 9, endColumn: 8 });
@@ -444,7 +450,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None);
+		const value = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		let [first, second] = (value as modes.Hover[]);
 		assert.strictEqual(first.contents[0].value, 'registered second');
@@ -466,7 +472,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		getHoverPromise(model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
+		getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None).then(value => {
 			assert.strictEqual(value.length, 1);
 		});
 	});
@@ -482,7 +488,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None))!;
+		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
 		assert.strictEqual(value.length, 1);
 		const [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -503,7 +509,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None))!;
+		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
 		assert.strictEqual(value.length, 1);
 		const [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
@@ -524,7 +530,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None))!;
+		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
 		assert.strictEqual(value.length, 1);
 		const [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
@@ -546,7 +552,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getOccurrencesAtPosition(model, new EditorPosition(1, 2), CancellationToken.None);
+		const value = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None);
 		assert.strictEqual(value!.length, 1);
 	});
 
@@ -567,7 +573,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
+		let value = await getReferencesAtPosition(languageFeaturesService.referenceProvider, model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.strictEqual(value.length, 2);
 		let [first, second] = value;
 		assert.strictEqual(first.uri.path, '/second');
@@ -583,7 +589,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
+		let value = await getReferencesAtPosition(languageFeaturesService.referenceProvider, model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [item] = value;
 		assert.deepStrictEqual(item.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
@@ -604,7 +610,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getReferencesAtPosition(model, new EditorPosition(1, 2), false, CancellationToken.None);
+		const value = await getReferencesAtPosition(languageFeaturesService.referenceProvider, model, new EditorPosition(1, 2), false, CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 	});
 
@@ -622,7 +628,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 2);
 		const [first, second] = actions;
 		assert.strictEqual(first.action.title, 'Testing1');
@@ -646,7 +652,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 		const [first] = actions;
 		assert.strictEqual(first.action.title, 'Testing1');
@@ -669,7 +675,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 	});
 
@@ -687,7 +693,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 	});
 
@@ -760,7 +766,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		try {
-			await rename(model, new EditorPosition(1, 1), 'newName');
+			await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 			throw Error();
 		}
 		catch (err) {
@@ -777,7 +783,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await rename(model, new EditorPosition(1, 1), 'newName');
+		const value = await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 		assert.strictEqual(value.rejectReason, 'evil');
 	});
 
@@ -798,7 +804,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await rename(model, new EditorPosition(1, 1), 'newName');
+		const value = await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 		assert.strictEqual(value.edits.length, 1);
 	});
 
@@ -820,7 +826,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await rename(model, new EditorPosition(1, 1), 'newName');
+		const value = await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 		// least relevant rename provider
 		assert.strictEqual(value.edits.length, 2);
 	});
@@ -854,7 +860,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		await rename(model, new EditorPosition(1, 1), 'newName');
+		await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 
 		assert.deepStrictEqual(called, [true, true, true, false]);
 	});
@@ -885,7 +891,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		await rename(model, new EditorPosition(1, 1), 'newName');
+		await rename(languageFeaturesService.renameProvider, model, new EditorPosition(1, 1), 'newName');
 
 		// first provider has NO prepare which means it is taken by default
 		assert.deepStrictEqual(called, [false, false, true]);
@@ -912,7 +918,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSignatureHelp(model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
+		const value = await provideSignatureHelp(languageFeaturesService.signatureHelpProvider, model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
 		assert.ok(value);
 	});
 
@@ -925,7 +931,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSignatureHelp(model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
+		const value = await provideSignatureHelp(languageFeaturesService.signatureHelpProvider, model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
 		assert.strictEqual(value, undefined);
 	});
 
@@ -946,7 +952,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 1);
 		assert.strictEqual(items[0].completion.insertText, 'testing2');
 	});
@@ -966,7 +972,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 1);
 		assert.strictEqual(items[0].completion.insertText, 'weak-selector');
 	});
@@ -986,7 +992,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 2);
 		assert.strictEqual(items[0].completion.insertText, 'strong-1'); // sort by label
 		assert.strictEqual(items[1].completion.insertText, 'strong-2');
@@ -1008,7 +1014,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
 		assert.strictEqual(items[0].container.incomplete, false);
 	});
 
@@ -1021,7 +1027,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		provideSuggestionItems(model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet))).then(model => {
+		await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet))).then(model => {
 			assert.strictEqual(model.items[0].container.incomplete, true);
 		});
 	});
@@ -1042,7 +1048,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = (await getDocumentFormattingEditsUntilResult(NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
+		let value = (await getDocumentFormattingEditsUntilResult(NullWorkerService, languageFeaturesService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
 		assert.strictEqual(value.length, 2);
 		let [first, second] = value;
 		assert.strictEqual(first.text, 'testing');
@@ -1060,7 +1066,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		return getDocumentFormattingEditsUntilResult(NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		return getDocumentFormattingEditsUntilResult(NullWorkerService, languageFeaturesService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 	});
 
 	test('Format Doc, order', async () => {
@@ -1084,7 +1090,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let value = (await getDocumentFormattingEditsUntilResult(NullWorkerService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
+		let value = (await getDocumentFormattingEditsUntilResult(NullWorkerService, languageFeaturesService, model, { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
 		assert.strictEqual(value.length, 1);
 		let [first] = value;
 		assert.strictEqual(first.text, 'testing');
@@ -1099,7 +1105,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = (await getDocumentRangeFormattingEditsUntilResult(NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
+		const value = (await getDocumentRangeFormattingEditsUntilResult(NullWorkerService, languageFeaturesService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
 		assert.strictEqual(value.length, 1);
 		const [first] = value;
 		assert.strictEqual(first.text, 'testing');
@@ -1123,7 +1129,7 @@ suite('ExtHostLanguageFeatures', function () {
 			}
 		}));
 		await rpcProtocol.sync();
-		const value = (await getDocumentRangeFormattingEditsUntilResult(NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
+		const value = (await getDocumentRangeFormattingEditsUntilResult(NullWorkerService, languageFeaturesService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None))!;
 		assert.strictEqual(value.length, 1);
 		const [first] = value;
 		assert.strictEqual(first.text, 'range2');
@@ -1141,7 +1147,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		return getDocumentRangeFormattingEditsUntilResult(NullWorkerService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
+		return getDocumentRangeFormattingEditsUntilResult(NullWorkerService, languageFeaturesService, model, new EditorRange(1, 1, 1, 1), { insertSpaces: true, tabSize: 4 }, CancellationToken.None);
 	});
 
 	test('Format on Type, data conversion', async () => {
@@ -1153,7 +1159,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, [';']));
 
 		await rpcProtocol.sync();
-		const value = (await getOnTypeFormattingEdits(NullWorkerService, model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }, CancellationToken.None))!;
+		const value = (await getOnTypeFormattingEdits(NullWorkerService, languageFeaturesService, model, new EditorPosition(1, 1), ';', { insertSpaces: true, tabSize: 2 }, CancellationToken.None))!;
 		assert.strictEqual(value.length, 1);
 		const [first] = value;
 		assert.strictEqual(first.text, ';');
@@ -1171,7 +1177,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let { links } = await getLinks(model, CancellationToken.None);
+		let { links } = await getLinks(languageFeaturesService.linkProvider, model, CancellationToken.None);
 		assert.strictEqual(links.length, 1);
 		let [first] = links;
 		assert.strictEqual(first.url?.toString(), 'foo:bar#3');
@@ -1194,7 +1200,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		let { links } = await getLinks(model, CancellationToken.None);
+		let { links } = await getLinks(languageFeaturesService.linkProvider, model, CancellationToken.None);
 		assert.strictEqual(links.length, 1);
 		let [first] = links;
 		assert.strictEqual(first.url?.toString(), 'foo:bar#3');
@@ -1207,13 +1213,13 @@ suite('ExtHostLanguageFeatures', function () {
 			provideDocumentColors(): vscode.ColorInformation[] {
 				return [new types.ColorInformation(new types.Range(0, 0, 0, 20), new types.Color(0.1, 0.2, 0.3, 0.4))];
 			}
-			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range, document: vscode.TextDocument; }): vscode.ColorPresentation[] {
+			provideColorPresentations(color: vscode.Color, context: { range: vscode.Range; document: vscode.TextDocument }): vscode.ColorPresentation[] {
 				return [];
 			}
 		}));
 
 		await rpcProtocol.sync();
-		let value = await getColors(model, CancellationToken.None);
+		let value = await getColors(languageFeaturesService.colorProvider, model, CancellationToken.None);
 		assert.strictEqual(value.length, 1);
 		let [first] = value;
 		assert.deepStrictEqual(first.colorInfo.color, { red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4 });
@@ -1233,7 +1239,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 
-		provideSelectionRanges(model, [new Position(1, 17)], { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None).then(ranges => {
+		provideSelectionRanges(languageFeaturesService.selectionRangeProvider, model, [new Position(1, 17)], { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None).then(ranges => {
 			assert.strictEqual(ranges.length, 1);
 			assert.ok(ranges[0].length >= 2);
 		});

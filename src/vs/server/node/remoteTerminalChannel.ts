@@ -35,7 +35,7 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 		env: platform.IProcessEnvironment,
 		workspaceFolders: IWorkspaceFolder[],
 		activeFileResource: URI | undefined,
-		resolvedVariables: { [name: string]: string; }
+		resolvedVariables: { [name: string]: string }
 	) {
 		super({
 			getFolderUri: (folderName: string): URI | undefined => {
@@ -82,7 +82,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		uriTransformer: IURITransformer;
 	}>();
 
-	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number, commandId: string, commandArgs: any[] }>());
+	private readonly _onExecuteCommand = this._register(new Emitter<{ reqId: number; commandId: string; commandArgs: any[] }>());
 	readonly onExecuteCommand = this._onExecuteCommand.event;
 
 	constructor(
