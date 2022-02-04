@@ -414,7 +414,7 @@ export enum ShellIntegrationExecutable {
 export const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{0}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-zsh.sh"; zsh -i']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-zsh.sh"; zsh -il']);
@@ -472,13 +472,20 @@ export function injectShellIntegrationArgs(
 				}
 				break;
 			}
-			case 'pwsh':
+			case 'pwsh': {
 				if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
 				} else if (arePwshLoginArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.PwshLogin);
 				}
+				if (newArgs) {
+					const showWelcome = configurationService.getValue(TerminalSettingId.ShowShellIntegrationWelcome);
+					const additionalArgs = showWelcome ? '' : ' -HideWelcome';
+					newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+					newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], additionalArgs);
+				}
 				break;
+			}
 			case 'zsh':
 				if (!originalArgs || originalArgs.length === 0) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
