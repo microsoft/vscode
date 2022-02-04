@@ -9810,7 +9810,7 @@ declare module 'vscode' {
 		 * Opt-out of the default terminal persistence on restart and reload.
 		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
-		disablePersistence?: boolean;
+		isTransient?: boolean;
 	}
 
 	/**
@@ -9849,7 +9849,7 @@ declare module 'vscode' {
 		 * Opt-out of the default terminal persistence on restart and reload.
 		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
-		disablePersistence?: boolean;
+		isTransient?: boolean;
 	}
 
 	/**

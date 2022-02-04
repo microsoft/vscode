@@ -501,7 +501,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * Opt-out of the default terminal persistence on restart and reload
 	 */
-	disablePersistence?: boolean;
+	isTransient?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {

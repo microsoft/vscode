@@ -153,7 +153,7 @@ export class ExtHostTerminal {
 			isExtensionOwnedTerminal: true,
 			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
 			location: internalOptions?.location || this._serializeParentTerminal(options.location, internalOptions?.resolvedExtHostIdentifier),
-			disablePersistence: withNullAsUndefined(options.disablePersistence)
+			isTransient: withNullAsUndefined(options.isTransient)
 		});
 	}
 
@@ -168,7 +168,7 @@ export class ExtHostTerminal {
 			icon: iconPath,
 			color: ThemeColor.isThemeColor(color) ? color.id : undefined,
 			location: this._serializeParentTerminal(location, parentTerminal),
-			disablePersistence: true
+			isTransient: true
 		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
