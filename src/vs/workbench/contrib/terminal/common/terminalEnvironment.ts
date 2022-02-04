@@ -486,13 +486,18 @@ export function injectShellIntegrationArgs(
 				}
 				break;
 			}
-			case 'zsh':
+			case 'zsh': {
 				if (!originalArgs || originalArgs.length === 0) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
 				} else if (areZshBashLoginArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
 				}
+				const showWelcome = configurationService.getValue(TerminalSettingId.ShowShellIntegrationWelcome);
+				if (!showWelcome) {
+					env['VSCODE_SHELL_HIDE_WELCOME'] = '1';
+				}
 				break;
+			}
 		}
 		if (!newArgs) {
 			logService.warn(`Shell integration cannot be enabled when custom args ${originalArgs} are provided for ${shell}.`);
