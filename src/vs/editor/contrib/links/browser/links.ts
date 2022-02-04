@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as async from 'vs/base/common/async';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { createCancelablePromise, CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -45,7 +44,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 	private readonly providers: LanguageFeatureRegistry<LinkProvider>;
 	private readonly debounceInformation: IFeatureDebounceInformation;
 	private readonly computeLinks: RunOnceScheduler;
-	private computePromise: async.CancelablePromise<LinksList> | null;
+	private computePromise: CancelablePromise<LinksList> | null;
 	private activeLinksList: LinksList | null;
 	private activeLinkDecorationId: string | null;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence };
@@ -131,7 +130,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 			this.activeLinksList = null;
 		}
 
-		this.computePromise = async.createCancelablePromise(token => getLinks(this.providers, model, token));
+		this.computePromise = createCancelablePromise(token => getLinks(this.providers, model, token));
 		try {
 			const sw = new StopWatch(false);
 			this.activeLinksList = await this.computePromise;
