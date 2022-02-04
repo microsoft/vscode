@@ -234,7 +234,7 @@ export class WebClientServer {
 				connectionTokenCookieName,
 				queryConnectionToken,
 				{
-					sameSite: 'strict',
+					sameSite: 'lax',
 					maxAge: 60 * 60 * 24 * 7 /* 1 week */
 				}
 			);
@@ -317,7 +317,7 @@ export class WebClientServer {
 				connectionTokenCookieName,
 				this._connectionToken.value,
 				{
-					sameSite: 'strict',
+					sameSite: 'lax',
 					maxAge: 60 * 60 * 24 * 7 /* 1 week */
 				}
 			);
