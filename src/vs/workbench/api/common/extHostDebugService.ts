@@ -33,6 +33,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import * as process from 'vs/base/common/process';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
@@ -942,7 +943,7 @@ export class ExtHostDebugConsole {
 
 export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, editorTabs: IExtHostEditorTabs, workspaceService?: IExtHostWorkspace) {
+	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, pathService: IPathService, editorTabs: IExtHostEditorTabs, workspaceService?: IExtHostWorkspace) {
 		function getActiveUri(): URI | undefined {
 			if (editorService) {
 				const activeEditor = editorService.activeEditor();
@@ -1020,7 +1021,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			}
-		}, undefined, undefined, Promise.resolve(process.env));
+		}, undefined, pathService, Promise.resolve(process.env));
 	}
 }
 
@@ -1107,12 +1108,13 @@ export class WorkerExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
+		@IPathService private readonly pathService: IPathService,
 		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
 	) {
 		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this.pathService, this._editorTabs);
 	}
 }

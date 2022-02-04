@@ -25,6 +25,7 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
 import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -40,7 +41,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
-		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
+		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
+		@IPathService private readonly pathService: IPathService,
+
 	) {
 		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
 	}
@@ -153,7 +156,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs, this._workspaceService);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this.pathService, this._editorTabs, this._workspaceService);
 	}
 }
 
