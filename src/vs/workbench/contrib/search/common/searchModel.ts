@@ -714,7 +714,6 @@ export class SearchResult extends Disposable {
 	constructor(
 		private _searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -850,17 +849,7 @@ export class SearchResult extends Disposable {
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any> {
 		this.replacingAll = true;
 
-		const start = Date.now();
 		const promise = this.replaceService.replace(this.matches(), progress);
-
-		promise.finally(() => {
-			/* __GDPR__
-				"replaceAll.started" : {
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('replaceAll.started', { duration: Date.now() - start });
-		});
 
 		return promise.then(() => {
 			this.replacingAll = false;

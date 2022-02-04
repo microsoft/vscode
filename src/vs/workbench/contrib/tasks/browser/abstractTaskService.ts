@@ -133,10 +133,6 @@ export interface WorkspaceFolderConfigurationResult {
 	hasErrors: boolean;
 }
 
-interface TaskCustomizationTelemetryEvent {
-	properties: string[];
-}
-
 interface CommandUpgrade {
 	command?: string;
 	args?: string[];
@@ -187,13 +183,6 @@ class TaskMap {
 	}
 }
 
-interface ProblemMatcherDisableMetrics {
-	type: string;
-}
-type ProblemMatcherDisableMetricsClassification = {
-	type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-};
-
 export abstract class AbstractTaskService extends Disposable implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
@@ -201,7 +190,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static readonly RecentlyUsedTasks_KeyV2 = 'workbench.tasks.recentlyUsedTasks2';
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
 
-	private static CustomizationTelemetryEventName: string = 'taskService.customize';
 	public _serviceBrand: undefined;
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
@@ -1138,7 +1126,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async updateNeverProblemMatcherSetting(type: string): Promise<void> {
-		this.telemetryService.publicLog2<ProblemMatcherDisableMetrics, ProblemMatcherDisableMetricsClassification>('problemMatcherDisabled', { type });
 		const current = this.configurationService.getValue(PROBLEM_MATCHER_NEVER_CONFIG);
 		if (current === true) {
 			return;
@@ -1445,15 +1432,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve(undefined);
 		}
 		return promise.then(() => {
-			let event: TaskCustomizationTelemetryEvent = {
-				properties: properties ? Object.getOwnPropertyNames(properties) : []
-			};
-			/* __GDPR__
-				"taskService.customize" : {
-					"properties" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog(AbstractTaskService.CustomizationTelemetryEventName, event);
 			if (openConfig) {
 				this.openEditorAtTask(this.getResourceForTask(task), toCustomize);
 			}
@@ -3023,18 +3001,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
 				}
 				configFileCreated = true;
-				type TaskServiceTemplateClassification = {
-					templateId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-					autoDetect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-				};
-				type TaskServiceEvent = {
-					templateId?: string;
-					autoDetect: boolean;
-				};
-				this.telemetryService.publicLog2<TaskServiceEvent, TaskServiceTemplateClassification>('taskService.template', {
-					templateId: pickTemplateResult.id,
-					autoDetect: pickTemplateResult.autoDetect
-				});
 			}
 
 			if (!fileExists && content) {
