@@ -10,7 +10,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -34,7 +34,7 @@ export interface IExternalUriOpener {
 	readonly id: string;
 	readonly label: string;
 
-	canOpen(uri: URI, token: CancellationToken): Promise<modes.ExternalUriOpenerPriority>;
+	canOpen(uri: URI, token: CancellationToken): Promise<languages.ExternalUriOpenerPriority>;
 	openExternalUri(uri: URI, ctx: { sourceUri: URI }, token: CancellationToken): Promise<boolean>;
 }
 
@@ -104,9 +104,9 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		}
 
 		// Then check to see if there is a valid opener
-		const validOpeners: Array<{ opener: IExternalUriOpener; priority: modes.ExternalUriOpenerPriority }> = [];
+		const validOpeners: Array<{ opener: IExternalUriOpener; priority: languages.ExternalUriOpenerPriority }> = [];
 		await Promise.all(Array.from(allOpeners.values()).map(async opener => {
-			let priority: modes.ExternalUriOpenerPriority;
+			let priority: languages.ExternalUriOpenerPriority;
 			try {
 				priority = await opener.canOpen(ctx.sourceUri, token);
 			} catch (e) {
@@ -115,9 +115,9 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 			}
 
 			switch (priority) {
-				case modes.ExternalUriOpenerPriority.Option:
-				case modes.ExternalUriOpenerPriority.Default:
-				case modes.ExternalUriOpenerPriority.Preferred:
+				case languages.ExternalUriOpenerPriority.Option:
+				case languages.ExternalUriOpenerPriority.Default:
+				case languages.ExternalUriOpenerPriority.Preferred:
 					validOpeners.push({ opener, priority });
 					break;
 			}
@@ -128,13 +128,13 @@ export class ExternalUriOpenerService extends Disposable implements IExternalUri
 		}
 
 		// See if we have a preferred opener first
-		const preferred = firstOrDefault(validOpeners.filter(x => x.priority === modes.ExternalUriOpenerPriority.Preferred));
+		const preferred = firstOrDefault(validOpeners.filter(x => x.priority === languages.ExternalUriOpenerPriority.Preferred));
 		if (preferred) {
 			return [preferred.opener];
 		}
 
 		// See if we only have optional openers, use the default opener
-		if (!allowOptional && validOpeners.every(x => x.priority === modes.ExternalUriOpenerPriority.Option)) {
+		if (!allowOptional && validOpeners.every(x => x.priority === languages.ExternalUriOpenerPriority.Option)) {
 			return [];
 		}
 

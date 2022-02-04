@@ -20,7 +20,7 @@ import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { getCodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
 import { getHoverPromise } from 'vs/editor/contrib/hover/browser/getHover';
@@ -452,7 +452,7 @@ suite('ExtHostLanguageFeatures', function () {
 		await rpcProtocol.sync();
 		const value = await getHoverPromise(languageFeaturesService.hoverProvider, model, new EditorPosition(1, 1), CancellationToken.None);
 		assert.strictEqual(value.length, 2);
-		let [first, second] = (value as modes.Hover[]);
+		let [first, second] = (value as languages.Hover[]);
 		assert.strictEqual(first.contents[0].value, 'registered second');
 		assert.strictEqual(second.contents[0].value, 'registered first');
 	});
@@ -492,7 +492,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(value.length, 1);
 		const [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-		assert.strictEqual(entry.kind, modes.DocumentHighlightKind.Text);
+		assert.strictEqual(entry.kind, languages.DocumentHighlightKind.Text);
 	});
 
 	test('Occurrences, order 1/2', async () => {
@@ -513,7 +513,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(value.length, 1);
 		const [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
-		assert.strictEqual(entry.kind, modes.DocumentHighlightKind.Text);
+		assert.strictEqual(entry.kind, languages.DocumentHighlightKind.Text);
 	});
 
 	test('Occurrences, order 2/2', async () => {
@@ -534,7 +534,7 @@ suite('ExtHostLanguageFeatures', function () {
 		assert.strictEqual(value.length, 1);
 		const [entry] = value;
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
-		assert.strictEqual(entry.kind, modes.DocumentHighlightKind.Text);
+		assert.strictEqual(entry.kind, languages.DocumentHighlightKind.Text);
 	});
 
 	test('Occurrences, evil provider', async () => {
@@ -628,7 +628,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 2);
 		const [first, second] = actions;
 		assert.strictEqual(first.action.title, 'Testing1');
@@ -652,7 +652,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 		const [first] = actions;
 		assert.strictEqual(first.action.title, 'Testing1');
@@ -675,7 +675,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 	});
 
@@ -693,7 +693,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: modes.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
+		const { validActions: actions } = await getCodeActions(languageFeaturesService.codeActionProvider, model, model.getFullModelRange(), { type: languages.CodeActionTriggerType.Invoke }, Progress.None, CancellationToken.None);
 		assert.strictEqual(actions.length, 1);
 	});
 
@@ -918,7 +918,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSignatureHelp(languageFeaturesService.signatureHelpProvider, model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
+		const value = await provideSignatureHelp(languageFeaturesService.signatureHelpProvider, model, new EditorPosition(1, 1), { triggerKind: languages.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
 		assert.ok(value);
 	});
 
@@ -931,7 +931,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const value = await provideSignatureHelp(languageFeaturesService.signatureHelpProvider, model, new EditorPosition(1, 1), { triggerKind: modes.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
+		const value = await provideSignatureHelp(languageFeaturesService.signatureHelpProvider, model, new EditorPosition(1, 1), { triggerKind: languages.SignatureHelpTriggerKind.Invoke, isRetrigger: false }, CancellationToken.None);
 		assert.strictEqual(value, undefined);
 	});
 
@@ -952,7 +952,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 1);
 		assert.strictEqual(items[0].completion.insertText, 'testing2');
 	});
@@ -972,7 +972,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 1);
 		assert.strictEqual(items[0].completion.insertText, 'weak-selector');
 	});
@@ -992,7 +992,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
 		assert.strictEqual(items.length, 2);
 		assert.strictEqual(items[0].completion.insertText, 'strong-1'); // sort by label
 		assert.strictEqual(items[1].completion.insertText, 'strong-2');
@@ -1014,7 +1014,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 
 		await rpcProtocol.sync();
-		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet)));
+		const { items } = await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet)));
 		assert.strictEqual(items[0].container.incomplete, false);
 	});
 
@@ -1027,7 +1027,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}, []));
 
 		await rpcProtocol.sync();
-		await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<modes.CompletionItemKind>().add(modes.CompletionItemKind.Snippet))).then(model => {
+		await provideSuggestionItems(languageFeaturesService.completionProvider, model, new EditorPosition(1, 1), new CompletionOptions(undefined, new Set<languages.CompletionItemKind>().add(languages.CompletionItemKind.Snippet))).then(model => {
 			assert.strictEqual(model.items[0].container.incomplete, true);
 		});
 	});
@@ -1035,7 +1035,7 @@ suite('ExtHostLanguageFeatures', function () {
 	// --- format
 
 	const NullWorkerService = new class extends mock<IEditorWorkerService>() {
-		override computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
+		override computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
 			return Promise.resolve(withNullAsUndefined(edits));
 		}
 	};

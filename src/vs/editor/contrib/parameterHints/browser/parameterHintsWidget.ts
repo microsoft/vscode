@@ -16,7 +16,7 @@ import 'vs/css!./parameterHints';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
@@ -192,7 +192,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return null;
 	}
 
-	private render(hints: modes.SignatureHelp): void {
+	private render(hints: languages.SignatureHelp): void {
 		this.renderDisposeables.clear();
 
 		if (!this.domNodes) {
@@ -226,7 +226,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			this.renderParameters(code, signature, activeParameterIndex);
 		}
 
-		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[activeParameterIndex];
+		const activeParameter: languages.ParameterInformation | undefined = signature.parameters[activeParameterIndex];
 		if (activeParameter?.documentation) {
 			const documentation = $('span.documentation');
 			if (typeof activeParameter.documentation === 'string') {
@@ -293,7 +293,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return renderedContents;
 	}
 
-	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
+	private hasDocs(signature: languages.SignatureInformation, activeParameter: languages.ParameterInformation | undefined): boolean {
 		if (activeParameter && typeof activeParameter.documentation === 'string' && assertIsDefined(activeParameter.documentation).length > 0) {
 			return true;
 		}
@@ -309,7 +309,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return false;
 	}
 
-	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, activeParameterIndex: number): void {
+	private renderParameters(parent: HTMLElement, signature: languages.SignatureInformation, activeParameterIndex: number): void {
 		const [start, end] = this.getParameterLabelOffsets(signature, activeParameterIndex);
 
 		const beforeSpan = document.createElement('span');
@@ -325,7 +325,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		dom.append(parent, beforeSpan, paramSpan, afterSpan);
 	}
 
-	private getParameterLabelOffsets(signature: modes.SignatureInformation, paramIdx: number): [number, number] {
+	private getParameterLabelOffsets(signature: languages.SignatureInformation, paramIdx: number): [number, number] {
 		const param = signature.parameters[paramIdx];
 		if (!param) {
 			return [0, 0];

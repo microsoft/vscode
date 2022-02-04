@@ -17,7 +17,7 @@ import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOpti
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ITextModel } from 'vs/editor/common/model';
@@ -260,8 +260,8 @@ class EditorTextRenderer {
 		const fontWeightVar = '--notebook-editor-font-weight';
 
 		const style = ``
-			+ `color: ${colorMap[modes.ColorId.DefaultForeground]};`
-			+ `background-color: ${colorMap[modes.ColorId.DefaultBackground]};`
+			+ `color: ${colorMap[languages.ColorId.DefaultForeground]};`
+			+ `background-color: ${colorMap[languages.ColorId.DefaultBackground]};`
 			+ `font-family: var(${fontFamilyVar});`
 			+ `font-weight: var(${fontWeightVar});`
 			+ `font-size: var(${fontSizeVar});`
@@ -308,7 +308,7 @@ class EditorTextRenderer {
 	}
 
 	private getDefaultColorMap(): string[] {
-		const colorMap = modes.TokenizationRegistry.getColorMap();
+		const colorMap = languages.TokenizationRegistry.getColorMap();
 		const result: string[] = ['#000000'];
 		if (colorMap) {
 			for (let i = 1, len = colorMap.length; i < len; i++) {
