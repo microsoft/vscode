@@ -42,7 +42,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -61,6 +61,7 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { focusedRowBackground, focusedRowBorder, rowHoverBackground, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 
 const $ = DOM.$;
 
