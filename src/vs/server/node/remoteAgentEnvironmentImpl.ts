@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import * as platform from 'vs/base/common/platform';
 import * as performance from 'vs/base/common/performance';
 import { URI } from 'vs/base/common/uri';
-import { createRemoteURITransformer } from 'vs/server/node/remoteUriTransformer';
+import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensionsArguments, IScanSingleExtensionArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import * as nls from 'vs/nls';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -99,7 +99,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 			case 'getEnvironmentData': {
 				const args = <IGetEnvironmentDataArguments>arg;
-				const uriTransformer = createRemoteURITransformer(args.remoteAuthority);
+				const uriTransformer = createURITransformer(args.remoteAuthority);
 
 				let environmentData = await this._getEnvironmentData();
 				environmentData = transformOutgoingURIs(environmentData, uriTransformer);
@@ -117,7 +117,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				const args = <IScanExtensionsArguments>arg;
 				const language = args.language;
 				this.logService.trace(`Scanning extensions using UI language: ${language}`);
-				const uriTransformer = createRemoteURITransformer(args.remoteAuthority);
+				const uriTransformer = createURITransformer(args.remoteAuthority);
 
 				const extensionDevelopmentLocations = args.extensionDevelopmentPath && args.extensionDevelopmentPath.map(url => URI.revive(uriTransformer.transformIncoming(url)));
 				const extensionDevelopmentPath = extensionDevelopmentLocations ? extensionDevelopmentLocations.filter(url => url.scheme === Schemas.file).map(url => url.fsPath) : undefined;
@@ -136,7 +136,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				const args = <IScanSingleExtensionArguments>arg;
 				const language = args.language;
 				const isBuiltin = args.isBuiltin;
-				const uriTransformer = createRemoteURITransformer(args.remoteAuthority);
+				const uriTransformer = createURITransformer(args.remoteAuthority);
 				const extensionLocation = URI.revive(uriTransformer.transformIncoming(args.extensionLocation));
 				const extensionPath = extensionLocation.scheme === Schemas.file ? extensionLocation.fsPath : null;
 
@@ -170,7 +170,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				const workspaceMetadata: { [key: string]: any } = {};
 				if (options.folders) {
 					// only incoming paths are transformed, so remote authority is unneeded.
-					const uriTransformer = createRemoteURITransformer('');
+					const uriTransformer = createURITransformer('');
 					const folderPaths = options.folders
 						.map(folder => URI.revive(uriTransformer.transformIncoming(folder)))
 						.filter(uri => uri.scheme === 'file');

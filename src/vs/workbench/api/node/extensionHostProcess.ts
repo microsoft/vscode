@@ -16,18 +16,19 @@ import product from 'vs/platform/product/common/product';
 import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionHostMain, IExitFn } from 'vs/workbench/api/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 import { Promises } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
 import { boolean } from 'vs/editor/common/config/editorOptions';
+import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
 
 interface ParsedExtHostArgs {
-	uriTransformerPath?: string;
+	transformURIs?: boolean;
 	skipWorkspaceStorageLock?: boolean;
 	useHostProxy?: boolean;
 }
@@ -44,10 +45,8 @@ interface ParsedExtHostArgs {
 })();
 
 const args = minimist(process.argv.slice(2), {
-	string: [
-		'uriTransformerPath'
-	],
 	boolean: [
+		'transformURIs',
 		'skipWorkspaceStorageLock',
 		'useHostProxy'
 	]
@@ -349,14 +348,8 @@ export async function startExtensionHostProcess(): Promise<void> {
 
 	// Attempt to load uri transformer
 	let uriTransformer: IURITransformer | null = null;
-	if (initData.remote.authority && args.uriTransformerPath) {
-		try {
-			const rawURITransformerFactory = <any>require.__$__nodeRequire(args.uriTransformerPath);
-			const rawURITransformer = <IRawURITransformer>rawURITransformerFactory(initData.remote.authority);
-			uriTransformer = new URITransformer(rawURITransformer);
-		} catch (e) {
-			console.error(e);
-		}
+	if (initData.remote.authority && args.transformURIs) {
+		uriTransformer = createURITransformer(initData.remote.authority);
 	}
 
 	const extensionHostMain = new ExtensionHostMain(

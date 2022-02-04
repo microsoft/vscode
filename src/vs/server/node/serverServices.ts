@@ -61,7 +61,7 @@ import { RemoteAgentFileSystemProviderChannel } from 'vs/server/node/remoteFileS
 import { ServerTelemetryChannel } from 'vs/platform/telemetry/common/remoteTelemetryChannel';
 import { IServerTelemetryService, ServerNullTelemetryService, ServerTelemetryService } from 'vs/platform/telemetry/common/serverTelemetryService';
 import { RemoteTerminalChannel } from 'vs/server/node/remoteTerminalChannel';
-import { createRemoteURITransformer } from 'vs/server/node/remoteUriTransformer';
+import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { ServerConnectionToken } from 'vs/server/node/serverConnectionToken';
 import { ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
@@ -74,7 +74,7 @@ const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Obj
 
 function getUriTransformer(remoteAuthority: string): IURITransformer {
 	if (!_uriTransformerCache[remoteAuthority]) {
-		_uriTransformerCache[remoteAuthority] = createRemoteURITransformer(remoteAuthority);
+		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
 	}
 	return _uriTransformerCache[remoteAuthority];
 }
