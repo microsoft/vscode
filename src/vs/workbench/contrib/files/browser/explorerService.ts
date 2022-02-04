@@ -420,7 +420,7 @@ export class ExplorerService implements IExplorerService {
 		let currentItem = item.parent;
 		while (currentItem !== root) {
 			if (currentItem === undefined) {
-				return false
+				return false;
 			}
 			if (this.revealExcludeMatcher.matches(currentItem.resource)) {
 				return true;
