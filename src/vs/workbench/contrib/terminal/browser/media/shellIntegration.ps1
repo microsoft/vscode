@@ -25,20 +25,20 @@ function Global:Prompt() {
 	# TODO: Check ID against last to see if no command ran
 	$CommandLine = $(Get-History -Count 1).CommandLine ?? ""
 	$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
-	$Result += "`u{7}"
+	$Result += "`a"
 	# Command finished exit code
 	# OSC 133 ; D ; <ExitCode> ST
-	$Result += "`e]133;D;$(__VSCode-Get-LastExitCode)`u{7}"
+	$Result += "`e]133;D;$(__VSCode-Get-LastExitCode)`a"
 	# Prompt started
 	# OSC 133 ; A ST
-	$Result += "`e]133;A`u{7}"
+	$Result += "`e]133;A`a"
 	# Current working directory
 	# OSC 1337 ; CurrentDir=<CurrentDir> ST
-	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"`e]1337;CurrentDir=$($pwd.ProviderPath)`u{7}"}
+	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"`e]1337;CurrentDir=$($pwd.ProviderPath)`a"}
 	# Write original prompt
 	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
 	# Write command started
-	$Result += "`e]133;B`u{7}"
+	$Result += "`e]133;B`a"
   return $Result
 }
 
@@ -50,5 +50,5 @@ function Global:PSConsoleHostReadLine {
 }
 
 # Set IsWindows property
-[Console]::Write("`e]633;P;IsWindows=$($IsWindows)`u{7}")
+[Console]::Write("`e]633;P;IsWindows=$($IsWindows)`a")
 Write-Host "`e[1mShell integration activated!" -ForegroundColor Green
