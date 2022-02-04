@@ -18,9 +18,9 @@ import { IPosition } from 'vs/editor/common/core/position';
 import * as editorRange from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IContentDecorationRenderOptions, IDecorationOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import * as languageSelector from 'vs/editor/common/languageSelector';
+import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { EditorResolution, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
@@ -30,7 +30,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, SerializedTestErrorMessage, SerializedTestResultItem, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CoverageDetails, denamespaceTestTag, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestItem, ITestItemContext, ITestTag, namespaceTestTag, SerializedTestErrorMessage, SerializedTestResultItem, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -1711,17 +1711,9 @@ export namespace TestMessage {
 }
 
 export namespace TestTag {
-	const enum Constants {
-		Delimiter = '\0',
-	}
+	export const namespace = namespaceTestTag;
 
-	export const namespace = (ctrlId: string, tagId: string) =>
-		ctrlId + Constants.Delimiter + tagId;
-
-	export const denamespace = (namespaced: string) => {
-		const index = namespaced.indexOf(Constants.Delimiter);
-		return { ctrlId: namespaced.slice(0, index), tagId: namespaced.slice(index + 1) };
-	};
+	export const denamespace = denamespaceTestTag;
 }
 
 export namespace TestItem {
@@ -1801,7 +1793,7 @@ export namespace TestResults {
 				state: t.state as number as types.TestResultState,
 				duration: t.duration,
 				messages: t.messages
-					.filter((m): m is ITestErrorMessage => m.type === TestMessageType.Error)
+					.filter((m): m is SerializedTestErrorMessage => m.type === TestMessageType.Error)
 					.map(TestMessage.to),
 			})),
 			children: item.children

@@ -5,9 +5,8 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { splitGlobAware } from 'vs/base/common/glob';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-// eslint-disable-next-line code-import-patterns
-import { TestTag } from 'vs/workbench/api/common/extHostTypeConverters';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { namespaceTestTag } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
@@ -135,9 +134,9 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 				}
 
 				if (match[0].startsWith('!')) {
-					this.excludeTags.add(TestTag.namespace(match[1], tagId));
+					this.excludeTags.add(namespaceTestTag(match[1], tagId));
 				} else {
-					this.includeTags.add(TestTag.namespace(match[1], tagId));
+					this.includeTags.add(namespaceTestTag(match[1], tagId));
 				}
 				nextIndex++;
 			}
