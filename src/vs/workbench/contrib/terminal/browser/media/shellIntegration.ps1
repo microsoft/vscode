@@ -3,7 +3,7 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
-$Global:__VSCodeOriginalPrompt = (Get-Command Prompt).ScriptBlock
+$Global:__VSCodeOriginalPrompt = $function:Prompt
 
 function Global:__VSCode-Get-LastExitCode {
   if ($? -eq $True) {
