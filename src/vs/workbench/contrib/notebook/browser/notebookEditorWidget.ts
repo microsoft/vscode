@@ -2956,6 +2956,7 @@ registerZIndex(ZIndex.Base, 29, 'notebook-run-button-container');
 registerZIndex(ZIndex.Base, 29, 'notebook-input-collapse-condicon');
 registerZIndex(ZIndex.Base, 30, 'notebook-cell-output-toolbar');
 registerZIndex(ZIndex.Sash, 1, 'notebook-cell-toolbar');
+registerZIndex(ZIndex.Sash, 2, 'notebook-cell-toolbar-dropdown-active');
 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	dark: transparent(listInactiveSelectionBackground, 1),
