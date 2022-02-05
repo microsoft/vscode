@@ -373,4 +373,3 @@ steps:
       generateTaskPackageName: Visual Studio Code Server
       publishTaskDisplayName: Publish SBOM (server)
       publishTaskArtifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))

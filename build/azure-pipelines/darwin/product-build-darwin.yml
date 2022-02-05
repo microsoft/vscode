@@ -340,3 +340,21 @@ steps:
     displayName: Upload configuration (for Bing settings search)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
     continueOnError: true
+
+  - template: ../sdl-sbom.yml
+    parameters:
+      generateTaskDisplayName: Generate SBOM (client)
+      generateTaskBuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      generateTaskPackageName: Visual Studio Code
+      publishTaskDisplayName: Publish SBOM (client)
+      publishTaskArtifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
+
+  - template: ../sdl-sbom.yml
+    parameters:
+      generateTaskDisplayName: Generate SBOM (server)
+      generateTaskBuildDropPath: $(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)
+      generateTaskPackageName: Visual Studio Code Server
+      publishTaskDisplayName: Publish SBOM (server)
+      publishTaskArtifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
