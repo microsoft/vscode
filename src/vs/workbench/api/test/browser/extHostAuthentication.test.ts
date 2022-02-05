@@ -18,7 +18,8 @@ import { MainThreadAuthentication } from 'vs/workbench/api/browser/mainThreadAut
 import { ExtHostContext, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostAuthentication } from 'vs/workbench/api/common/extHostAuthentication';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
-import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionService, nullExtensionDescription as extensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
