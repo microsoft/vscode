@@ -357,3 +357,20 @@ steps:
       artifactName: "snap-$(VSCODE_ARCH)"
       targetPath: .build/linux/snap-tarball
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - template: ../sdl-sbom.yml
+    parameters:
+      generateTaskDisplayName: Generate SBOM (client)
+      generateTaskBuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+      generateTaskPackageName: Visual Studio Code
+      publishTaskDisplayName: Publish SBOM (client)
+      publishTaskArtifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
+
+  - template: ../sdl-sbom.yml
+    parameters:
+      generateTaskDisplayName: Generate SBOM (server)
+      generateTaskBuildDropPath: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
+      generateTaskPackageName: Visual Studio Code Server
+      publishTaskDisplayName: Publish SBOM (server)
+      publishTaskArtifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
