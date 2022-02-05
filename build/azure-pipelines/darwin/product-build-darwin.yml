@@ -341,20 +341,26 @@ steps:
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
     continueOnError: true
 
-  - ${{ if ne(variables['VSCODE_ARCH'], 'universal') }}:
-    - template: ../sdl-sbom.yml
-      parameters:
-        generateTaskDisplayName: Generate SBOM (client)
-        generateTaskBuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
-        generateTaskPackageName: Visual Studio Code
-        publishTaskDisplayName: Publish SBOM (client)
-        publishTaskArtifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (client)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
-  - ${{ if eq(variables['VSCODE_ARCH'], 'x64') }}:
-    - template: ../sdl-sbom.yml
-      parameters:
-        generateTaskDisplayName: Generate SBOM (server)
-        generateTaskBuildDropPath: $(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)
-        generateTaskPackageName: Visual Studio Code Server
-        publishTaskDisplayName: Publish SBOM (server)
-        publishTaskArtifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
+  - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (client)
+    artifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (server)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code Server
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (server)
+    artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))

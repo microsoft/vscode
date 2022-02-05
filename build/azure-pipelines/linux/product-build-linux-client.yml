@@ -358,18 +358,22 @@ steps:
       targetPath: .build/linux/snap-tarball
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - template: ../sdl-sbom.yml
-    parameters:
-      generateTaskDisplayName: Generate SBOM (client)
-      generateTaskBuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-      generateTaskPackageName: Visual Studio Code
-      publishTaskDisplayName: Publish SBOM (client)
-      publishTaskArtifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (client)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code
 
-  - template: ../sdl-sbom.yml
-    parameters:
-      generateTaskDisplayName: Generate SBOM (server)
-      generateTaskBuildDropPath: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
-      generateTaskPackageName: Visual Studio Code Server
-      publishTaskDisplayName: Publish SBOM (server)
-      publishTaskArtifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
+  - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (client)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (server)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code Server
+
+  - publish: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (server)
+    artifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
