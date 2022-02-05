@@ -2961,8 +2961,9 @@ registerZIndex(ZIndex.Base, 28, 'notebook-cell-bottom-toolbar-container');
 registerZIndex(ZIndex.Base, 29, 'notebook-run-button-container');
 registerZIndex(ZIndex.Base, 29, 'notebook-input-collapse-condicon');
 registerZIndex(ZIndex.Base, 30, 'notebook-cell-output-toolbar');
-registerZIndex(ZIndex.Sash, 1, 'notebook-cell-toolbar');
-registerZIndex(ZIndex.Sash, 2, 'notebook-cell-toolbar-dropdown-active');
+registerZIndex(ZIndex.Sash, 1, 'notebook-cell-expand-part-button');
+registerZIndex(ZIndex.Sash, 2, 'notebook-cell-toolbar');
+registerZIndex(ZIndex.Sash, 3, 'notebook-cell-toolbar-dropdown-active');
 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	dark: transparent(listInactiveSelectionBackground, 1),
@@ -3265,10 +3266,9 @@ registerThemingParticipant((theme, collector) => {
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 	if (toolbarHoverBackgroundColor) {
 		collector.addRule(`
-		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .expandInputIcon:hover {
-			background-color: ${toolbarHoverBackgroundColor};
-		}
-		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .expandOutputIcon:hover {
+		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .expandInputIcon:hover,
+		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .expandOutputIcon:hover,
+		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-expand-part-button:hover {
 			background-color: ${toolbarHoverBackgroundColor};
 		}
 	`);
