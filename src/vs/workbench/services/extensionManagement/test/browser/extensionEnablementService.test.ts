@@ -8,7 +8,7 @@ import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtensio
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
@@ -126,6 +126,8 @@ suite('ExtensionEnablementService Test', () => {
 			id: 'local',
 			label: 'local',
 			extensionManagementService: <IExtensionManagementService>{
+				onInstallExtension: Event.None,
+				onUninstallExtension: Event.None,
 				onDidInstallExtensions: didInstallEvent.event,
 				onDidUninstallExtension: didUninstallEvent.event,
 				getInstalled: () => Promise.resolve(installed)

@@ -7,7 +7,8 @@ import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, SafeDisposable } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 namespace Samples {
 
@@ -338,6 +339,31 @@ suite('Event', function () {
 		d.unset();
 		d.dispose();
 		assert.strictEqual(disposed, 0);
+	});
+});
+
+suite('Event utils dispose', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('no leak with snapshot-utils', function () {
+
+		const emitter = new Emitter<number>();
+		const evens = Event.filter(emitter.event, n => n % 2 === 0);
+		let all = 0;
+		let leaked = evens(n => all += n);
+		assert.ok(isDisposable(leaked));
+		emitter.dispose();
+	});
+
+	test('no leak with debounce-util', function () {
+		const emitter = new Emitter<number>();
+		const debounced = Event.debounce(emitter.event, (l) => 0);
+
+		let all = 0;
+		let leaked = debounced(n => all += n);
+		assert.ok(isDisposable(leaked));
+		emitter.dispose();
 	});
 });
 

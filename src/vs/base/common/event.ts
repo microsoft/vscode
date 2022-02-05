@@ -10,12 +10,15 @@ import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposa
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
+const _onDidDispose = Symbol('onDidDispose');
+
 /**
  * To an event a function with one or zero parameters
  * can be subscribed. The event is the subscriber function itself.
  */
 export interface Event<T> {
 	(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore): IDisposable;
+	[_onDidDispose]?: Event<void>;
 }
 
 export namespace Event {
@@ -53,14 +56,14 @@ export namespace Event {
 	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function map<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables));
+		return snapshot(event, (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables));
 	}
 
 	/**
 	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables));
+		return snapshot(event, (listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables));
 	}
 
 	/**
@@ -70,7 +73,7 @@ export namespace Event {
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
 	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables));
+		return snapshot(event, (listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables));
 	}
 
 	/**
@@ -102,10 +105,7 @@ export namespace Event {
 		});
 	}
 
-	/**
-	 * @deprecated DO NOT use, this leaks memory
-	 */
-	function snapshot<T>(event: Event<T>): Event<T> {
+	function snapshot<T>(originalEvent: Event<any>, event: Event<T>): Event<T> {
 		let listener: IDisposable;
 		const emitter = new Emitter<T>({
 			onFirstListenerAdd() {
@@ -115,6 +115,11 @@ export namespace Event {
 				listener.dispose();
 			}
 		});
+
+		const onDidDispose = originalEvent[_onDidDispose];
+		if (typeof onDidDispose === 'function') {
+			once(onDidDispose)(() => emitter.dispose());
+		}
 
 		return emitter.event;
 	}
@@ -195,6 +200,11 @@ export namespace Event {
 				subscription.dispose();
 			}
 		});
+
+		const onDidDispose = event[_onDidDispose];
+		if (typeof onDidDispose === 'function') {
+			once(onDidDispose)(() => emitter.dispose());
+		}
 
 		return emitter.event;
 	}
@@ -575,12 +585,15 @@ class Listener<T> {
 	}
  */
 export class Emitter<T> {
+
 	private readonly _options?: EmitterOptions;
 	private readonly _leakageMon?: LeakageMonitor;
 	private readonly _perfMon?: EventProfiling;
-	private _disposed: boolean = false;
+
 	private _event?: Event<T>;
+	private _disposed: boolean = false;
 	private _deliveryQueue?: LinkedList<[Listener<T>, T]>;
+	private _disposeListeners?: LinkedList<Listener<void>>;
 	protected _listeners?: LinkedList<Listener<T>>;
 
 	constructor(options?: EmitterOptions) {
@@ -631,11 +644,8 @@ export class Emitter<T> {
 					}
 					if (!this._disposed) {
 						removeListener();
-						if (this._options && this._options.onLastListenerRemove) {
-							const hasListeners = (this._listeners && !this._listeners.isEmpty());
-							if (!hasListeners) {
-								this._options.onLastListenerRemove(this);
-							}
+						if (this._options?.onLastListenerRemove && this._listeners?.isEmpty()) {
+							this._options.onLastListenerRemove(this);
 						}
 					}
 				}));
@@ -647,6 +657,22 @@ export class Emitter<T> {
 				}
 
 				return result;
+			};
+
+			this._event[_onDidDispose] = (callback: (e: void) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore) => {
+				if (!this._disposeListeners) {
+					this._disposeListeners = new LinkedList();
+				}
+				const listener = new Listener(callback, thisArgs, undefined);
+				const remove = this._disposeListeners.push(listener);
+				const disposable = toDisposable(remove);
+
+				if (disposables instanceof DisposableStore) {
+					disposables.add(disposable);
+				} else if (Array.isArray(disposables)) {
+					disposables.push(disposable);
+				}
+				return disposable;
 			};
 		}
 		return this._event;
@@ -694,7 +720,10 @@ export class Emitter<T> {
 			// alive via the reference that's embedded their disposables. Therefore we loop over all remaining listeners and
 			// unset their subscriptions/disposables
 			if (this._listeners) {
+				let hadListener = false;
 				for (const listener of this._listeners) {
+					hadListener = true;
+
 					// we dispose AND unset the subscription. In theory dispose isn't needed but
 					// than the disposable is reported as leaked...
 					listener.subscription.dispose();
@@ -704,10 +733,26 @@ export class Emitter<T> {
 					// listener.stack?.print();
 				}
 				this._listeners.clear();
+
+				if (hadListener) {
+					this._options?.onLastListenerRemove?.();
+				}
 			}
+
 			this._deliveryQueue?.clear();
-			this._options?.onLastListenerRemove?.();
 			this._leakageMon?.dispose();
+
+			// Signal an "internal" event to downlevel events that this emitter has been disposed and won't
+			// ever fire again
+			if (this._disposeListeners) {
+				for (let listener of this._disposeListeners) {
+					try {
+						listener.invoke(undefined);
+					} catch (err) {
+						onUnexpectedError(err);
+					}
+				}
+			}
 		}
 	}
 }
