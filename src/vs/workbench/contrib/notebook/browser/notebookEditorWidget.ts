@@ -1661,6 +1661,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
+		if (!this.viewModel) {
+			return;
+		}
+
 		if (viewState?.scrollPosition !== undefined) {
 			this._list.scrollTop = viewState!.scrollPosition.top;
 			this._list.scrollLeft = viewState!.scrollPosition.left;
@@ -1670,8 +1674,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		const focusIdx = typeof viewState?.focus === 'number' ? viewState.focus : 0;
-		if (focusIdx < this._list.length) {
-			const element = this._list.element(focusIdx);
+		if (focusIdx < this.viewModel.length) {
+			const element = this.viewModel.cellAt(focusIdx);
 			if (element) {
 				this.viewModel?.updateSelectionsState({
 					kind: SelectionStateType.Handle,
@@ -1680,7 +1684,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				});
 			}
 		} else if (this._list.length > 0) {
-			this.viewModel?.updateSelectionsState({
+			this.viewModel.updateSelectionsState({
 				kind: SelectionStateType.Index,
 				focus: { start: 0, end: 1 },
 				selections: [{ start: 0, end: 1 }]
@@ -1688,7 +1692,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		if (viewState?.editorFocused) {
-			const cell = this.viewModel?.cellAt(focusIdx);
+			const cell = this.viewModel.cellAt(focusIdx);
 			if (cell) {
 				cell.focusMode = CellFocusMode.Editor;
 			}
