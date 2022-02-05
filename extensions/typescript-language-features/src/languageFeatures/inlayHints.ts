@@ -75,8 +75,8 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 
 		return response.body.map(hint => {
 			const result = new vscode.InlayHint(
-				hint.text,
 				Position.fromLocation(hint.position),
+				hint.text,
 				hint.kind && fromProtocolInlayHintKind(hint.kind)
 			);
 			result.paddingLeft = hint.whitespaceBefore;

@@ -391,7 +391,7 @@ export namespace MarkdownString {
 		return result;
 	}
 
-	export function fromStrict(value: string | vscode.MarkdownString): undefined | string | htmlContent.IMarkdownString {
+	export function fromStrict(value: string | vscode.MarkdownString | undefined | null): undefined | string | htmlContent.IMarkdownString {
 		if (!value) {
 			return undefined;
 		}
@@ -1110,7 +1110,7 @@ export namespace ParameterInformation {
 	export function from(info: types.ParameterInformation): languages.ParameterInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined
+			documentation: MarkdownString.fromStrict(info.documentation)
 		};
 	}
 	export function to(info: languages.ParameterInformation): types.ParameterInformation {
@@ -1126,7 +1126,7 @@ export namespace SignatureInformation {
 	export function from(info: types.SignatureInformation): languages.SignatureInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined,
+			documentation: MarkdownString.fromStrict(info.documentation),
 			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.from) : [],
 			activeParameter: info.activeParameter,
 		};
@@ -1165,11 +1165,12 @@ export namespace InlayHint {
 
 	export function to(converter: Command.ICommandsConverter, hint: languages.InlayHint): vscode.InlayHint {
 		const res = new types.InlayHint(
-			typeof hint.label === 'string' ? hint.label : hint.label.map(InlayHintLabelPart.to.bind(undefined, converter)),
 			Position.to(hint.position),
+			typeof hint.label === 'string' ? hint.label : hint.label.map(InlayHintLabelPart.to.bind(undefined, converter)),
 			InlayHintKind.to(hint.kind)
 		);
 		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
+		res.command = hint.command && converter.fromInternal(hint.command);
 		res.paddingLeft = hint.paddingLeft;
 		res.paddingRight = hint.paddingRight;
 		return res;

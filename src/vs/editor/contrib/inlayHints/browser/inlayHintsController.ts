@@ -211,6 +211,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		// mouse gestures
 		this._sessionDisposables.add(this._installLinkGesture());
+		this._sessionDisposables.add(this._installDblClickGesture());
 		this._sessionDisposables.add(this._installContextMenu());
 	}
 
@@ -264,19 +265,27 @@ export class InlayHintsController implements IEditorContribution {
 					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.location);
 				} else if (languages.Command.is(part.command)) {
 					// command -> execute it
-					try {
-						await this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? []));
-					} catch (err) {
-						this._notificationService.notify({
-							severity: Severity.Error,
-							source: label.item.provider.displayName,
-							message: err
-						});
-					}
+					await this._invokeCommand(part.command, label.item);
 				}
 			}
 		});
 		return gesture;
+	}
+
+	private _installDblClickGesture(): IDisposable {
+		return this._editor.onMouseUp(async e => {
+			if (e.event.detail !== 2) {
+				return;
+			}
+			const part = this._getInlayHintLabelPart(e);
+			if (!part) {
+				return;
+			}
+			await part.item.resolve(CancellationToken.None);
+			if (part.item.hint.command) {
+				await this._invokeCommand(part.item.hint.command, part.item);
+			}
+		});
 	}
 
 	private _installContextMenu(): IDisposable {
@@ -300,6 +309,18 @@ export class InlayHintsController implements IEditorContribution {
 			return options.attachedData;
 		}
 		return undefined;
+	}
+
+	private async _invokeCommand(command: languages.Command, item: InlayHintItem) {
+		try {
+			await this._commandService.executeCommand(command.id, ...(command.arguments ?? []));
+		} catch (err) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				source: item.provider.displayName,
+				message: err
+			});
+		}
 	}
 
 	private _cacheHintsForFastRestore(model: ITextModel): void {
