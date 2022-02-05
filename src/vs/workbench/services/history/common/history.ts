@@ -30,12 +30,12 @@ export interface IHistoryService {
 	/**
 	 * Navigate forwards in editor navigation history.
 	 */
-	goForward(filter?: GoFilter): void;
+	goForward(filter?: GoFilter): Promise<void>;
 
 	/**
 	 * Navigate backwards in editor navigation history.
 	 */
-	goBack(filter?: GoFilter): void;
+	goBack(filter?: GoFilter): Promise<void>;
 
 	/**
 	 * Navigate between the current editor navigtion history entry
@@ -43,17 +43,17 @@ export interface IHistoryService {
 	 * like a toggle for `forward` and `back` to jump between 2 points
 	 * in editor navigation history.
 	 */
-	goToggle(filter?: GoFilter): void;
+	goToggle(filter?: GoFilter): Promise<void>;
 
 	/**
 	 * Navigate to the last entry in editor navigation history.
 	 */
-	goLast(filter?: GoFilter): void;
+	goLast(filter?: GoFilter): Promise<void>;
 
 	/**
 	 * Re-opens the last closed editor if any.
 	 */
-	reopenLastClosedEditor(): void;
+	reopenLastClosedEditor(): Promise<void>;
 
 	/**
 	 * Get the entire history of editors that were opened.
@@ -85,14 +85,14 @@ export interface IHistoryService {
 	 *
 	 * @param group optional indicator to scope to a specific group.
 	 */
-	openNextRecentlyUsedEditor(group?: GroupIdentifier): void;
+	openNextRecentlyUsedEditor(group?: GroupIdentifier): Promise<void>;
 
 	/**
 	 * Opens the previously used editor if any.
 	 *
 	 * @param group optional indicator to scope to a specific group.
 	 */
-	openPreviouslyUsedEditor(group?: GroupIdentifier): void;
+	openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void>;
 
 	/**
 	 * Clears all history.

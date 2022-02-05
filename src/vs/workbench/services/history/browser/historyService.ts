@@ -284,20 +284,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return editorNavigationStack;
 	}
 
-	goForward(filter?: GoFilter): void {
-		this.getStack(filter).goForward();
+	goForward(filter?: GoFilter): Promise<void> {
+		return this.getStack(filter).goForward();
 	}
 
-	goBack(filter?: GoFilter): void {
-		this.getStack(filter).goBack();
+	goBack(filter?: GoFilter): Promise<void> {
+		return this.getStack(filter).goBack();
 	}
 
-	goToggle(filter?: GoFilter): void {
-		this.getStack(filter).goToggle();
+	goToggle(filter?: GoFilter): Promise<void> {
+		return this.getStack(filter).goToggle();
 	}
 
-	goLast(filter?: GoFilter): void {
-		this.getStack(filter).goLast();
+	goLast(filter?: GoFilter): Promise<void> {
+		return this.getStack(filter).goLast();
 	}
 
 	private handleActiveEditorChangeInNavigationStacks(editorPane?: IEditorPane): void {
@@ -351,16 +351,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private navigatingInRecentlyUsedEditorsStack = false;
 	private navigatingInRecentlyUsedEditorsInGroupStack = false;
 
-	openNextRecentlyUsedEditor(groupId?: GroupIdentifier): void {
+	openNextRecentlyUsedEditor(groupId?: GroupIdentifier): Promise<void> {
 		const [stack, index] = this.ensureRecentlyUsedStack(index => index - 1, groupId);
 
-		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
+		return this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
 	}
 
-	openPreviouslyUsedEditor(groupId?: GroupIdentifier): void {
+	openPreviouslyUsedEditor(groupId?: GroupIdentifier): Promise<void> {
 		const [stack, index] = this.ensureRecentlyUsedStack(index => index + 1, groupId);
 
-		this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
+		return this.doNavigateInRecentlyUsedEditorsStack(stack[index], groupId);
 	}
 
 	private async doNavigateInRecentlyUsedEditorsStack(editorIdentifier: IEditorIdentifier | undefined, groupId?: GroupIdentifier): Promise<void> {
@@ -493,16 +493,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.canReopenClosedEditorContextKey.set(true);
 	}
 
-	reopenLastClosedEditor(): void {
+	async reopenLastClosedEditor(): Promise<void> {
 
 		// Open editor if we have one
 		const lastClosedEditor = this.recentlyClosedEditors.pop();
+		let reopenClosedEditorPromise: Promise<void> | undefined = undefined;
 		if (lastClosedEditor) {
-			this.doReopenLastClosedEditor(lastClosedEditor);
+			reopenClosedEditorPromise = this.doReopenLastClosedEditor(lastClosedEditor);
 		}
 
 		// Update context
 		this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
+
+		return reopenClosedEditorPromise;
 	}
 
 	private async doReopenLastClosedEditor(lastClosedEditor: IRecentlyClosedEditor): Promise<void> {

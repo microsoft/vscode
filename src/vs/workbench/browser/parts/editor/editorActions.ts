@@ -1271,7 +1271,7 @@ export class NavigateForwardAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.goForward();
+		await this.historyService.goForward();
 	}
 }
 
@@ -1289,7 +1289,7 @@ export class NavigateBackwardsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.goBack();
+		await this.historyService.goBack();
 	}
 }
 
@@ -1307,7 +1307,7 @@ export class NavigateToggleAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.goToggle();
+		await this.historyService.goToggle();
 	}
 }
 
@@ -1325,7 +1325,7 @@ export class NavigateToLastEditLocationAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.goLast(GoFilter.EDITS);
+		await this.historyService.goLast(GoFilter.EDITS);
 	}
 }
 
@@ -1343,7 +1343,7 @@ export class ReopenClosedEditorAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.reopenLastClosedEditor();
+		await this.historyService.reopenLastClosedEditor();
 	}
 }
 

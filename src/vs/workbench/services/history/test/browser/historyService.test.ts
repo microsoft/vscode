@@ -11,7 +11,7 @@ import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorNavigationStack, HistoryService } from 'vs/workbench/services/history/browser/historyService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -59,7 +59,7 @@ suite('HistoryService', function () {
 	});
 
 	test('back / forward', async () => {
-		const [part, historyService, editorService] = await createServices();
+		const [part, historyService] = await createServices();
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
 		await part.activeGroup.openEditor(input1, { pinned: true });
@@ -69,37 +69,37 @@ suite('HistoryService', function () {
 		await part.activeGroup.openEditor(input2, { pinned: true });
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 
-		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.goBack();
-		await editorChangePromise;
+		await historyService.goBack();
 		assert.strictEqual(part.activeGroup.activeEditor, input1);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.goForward();
-		await editorChangePromise;
+		await historyService.goForward();
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 	});
 
-	test('back / forward works across groups', async () => {
+	test('back / forward is editor group aware', async function () {
 		const [part, historyService, editorService] = await createServices();
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input1Group = (await part.activeGroup.openEditor(input1, { pinned: true }))?.group;
+		const resource = toResource.call(this, '/path/index.txt');
+		const otherResource = toResource.call(this, '/path/index.html');
 
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input2Group = (await part.sideGroup.openEditor(input2, { pinned: true }))?.group;
+		const pane1 = await editorService.openEditor({ resource, options: { pinned: true } });
+		const pane2 = await editorService.openEditor({ resource, options: { pinned: true } }, SIDE_GROUP);
 
-		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.goBack();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input1);
-		assert.strictEqual(part.activeGroup, input1Group);
+		assert.notStrictEqual(pane1, pane2);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.goForward();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input2);
-		assert.strictEqual(part.activeGroup, input2Group);
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } }, pane2?.group);
+
+		await historyService.goBack();
+		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
+
+		await historyService.goBack();
+		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
+
+		await historyService.goForward();
+		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
 	});
 
 	test('editor navigation stack - navigation across editors', async function () {
