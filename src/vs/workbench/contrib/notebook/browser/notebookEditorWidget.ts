@@ -9,7 +9,7 @@ import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IAction } from 'vs/base/common/actions';
-import { runWhenIdle, SequencerByKey } from 'vs/base/common/async';
+import { DeferredPromise, runWhenIdle, SequencerByKey } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -41,7 +41,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { PANEL_BORDER, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { CellEditState, CellFindMatchWithIndex, CellFocusMode, IActiveNotebookEditorDelegate, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookWebviewMessage, RenderOutputType, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatchWithIndex, CellFocusMode, IActiveNotebookEditorDelegate, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookWebviewMessage, RenderOutputType, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, CellLayoutContext } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
@@ -1521,7 +1521,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		store.add(cell.onDidChangeLayout(e => {
 			if (e.totalHeight !== undefined || e.outerWidth) {
-				this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+				this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight, e.context);
 			}
 		}));
 
@@ -2152,7 +2152,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	//#region Cell operations/layout API
 	private _pendingLayouts: WeakMap<ICellViewModel, IDisposable> | null = new WeakMap<ICellViewModel, IDisposable>();
-	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
+	async layoutNotebookCell(cell: ICellViewModel, height: number, context?: CellLayoutContext): Promise<void> {
 		this._debug('layout cell', cell.handle, height);
 		const viewIndex = this._list.getViewIndex(cell);
 		if (viewIndex === undefined) {
@@ -2172,8 +2172,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._pendingLayouts?.get(cell)!.dispose();
 		}
 
-		let r: () => void;
-		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+		let deferred = new DeferredPromise<void>();
+		const doLayout = () => {
 			if (this._isDisposed) {
 				return;
 			}
@@ -2185,15 +2185,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._pendingLayouts?.delete(cell);
 
 			relayout(cell, height);
-			r();
-		});
+			deferred.complete(undefined);
+		};
 
-		this._pendingLayouts?.set(cell, toDisposable(() => {
-			layoutDisposable.dispose();
-			r();
-		}));
+		if (context === CellLayoutContext.Fold) {
+			doLayout();
+		} else {
+			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(doLayout);
 
-		return new Promise(resolve => { r = resolve; });
+			this._pendingLayouts?.set(cell, toDisposable(() => {
+				layoutDisposable.dispose();
+				deferred.complete(undefined);
+			}));
+		}
+
+		return deferred.p;
 	}
 
 	getActiveCell() {

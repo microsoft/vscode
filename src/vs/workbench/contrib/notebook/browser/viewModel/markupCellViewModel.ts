@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellEditState, CellFindMatch, CellFoldingState, CellLayoutState, EditorFoldingStateDelegate, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellFoldingState, CellLayoutContext, CellLayoutState, EditorFoldingStateDelegate, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -122,7 +122,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			this.viewContext.eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this.model)]);
 
 			if (e.foldingStateChanged) {
-				this._updateTotalHeight(this._computeTotalHeight());
+				this._updateTotalHeight(this._computeTotalHeight(), CellLayoutContext.Fold);
 			}
 		}));
 	}
@@ -174,9 +174,9 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		this._onDidChangeState.fire({ foldingStateChanged: true });
 	}
 
-	private _updateTotalHeight(newHeight: number) {
+	private _updateTotalHeight(newHeight: number, context?: CellLayoutContext) {
 		if (newHeight !== this.layoutInfo.totalHeight) {
-			this.layoutChange({ totalHeight: newHeight });
+			this.layoutChange({ totalHeight: newHeight, context });
 		}
 	}
 
