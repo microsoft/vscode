@@ -149,6 +149,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 				// Handle in editor navigation stack
 				this.handleActiveEditorSelectionChangeEvent(activeEditorPane, mergedEvent);
+
 			}, (last, current) => {
 
 				// Since we specially handle selection changes from edits,
@@ -692,9 +693,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private moveInHistory(event: FileOperationEvent): void {
-		const removed = this.removeFromHistory(event);
-		if (removed && event.target) {
-			this.addToHistory({ resource: event.target.resource });
+		if (event.isOperation(FileOperation.MOVE)) {
+			const removed = this.removeFromHistory(event);
+			if (removed) {
+				this.addToHistory({ resource: event.target.resource });
+			}
 		}
 	}
 
@@ -964,13 +967,15 @@ class EditorSelectionState {
 			return true; // unknown selections
 		}
 
-		if (other.reason === EditorPaneSelectionChangeReason.NAVIGATION && this.selection.compare(other.selection) !== EditorPaneSelectionCompareResult.IDENTICAL) {
+		const result = this.selection.compare(other.selection);
+
+		if (other.reason === EditorPaneSelectionChangeReason.NAVIGATION && result !== EditorPaneSelectionCompareResult.IDENTICAL) {
 			// let navigation sources win even if the selection is `SIMILAR`
 			// (e.g. "Go to definition" should add a history entry)
 			return true;
 		}
 
-		return this.selection.compare(other.selection) === EditorPaneSelectionCompareResult.DIFFERENT;
+		return result === EditorPaneSelectionCompareResult.DIFFERENT;
 	}
 }
 
@@ -1103,7 +1108,7 @@ export class EditorNavigationStack extends Disposable {
 			if (forceReplace) {
 				replace = true; // replace if we are forced to
 			} else if (this.shouldReplaceStackEntry(this.current, { groupId, editor, selection })) {
-				replace = true; // replace if the input is the same and selection indicates as such
+				replace = true; // replace if the group & input is the same and selection indicates as such
 			}
 		}
 
@@ -1186,19 +1191,12 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	move(event: FileOperationEvent): void {
-
-		// File move: try to replace entries
-		if (event.target?.isFile) {
+		if (event.isOperation(FileOperation.MOVE)) {
 			for (const entry of this.stack) {
 				if (this.editorHelper.matchesEditor(event, entry.editor)) {
 					entry.editor = { resource: event.target.resource };
 				}
 			}
-		}
-
-		// Folder move: remove entries
-		else {
-			this.remove(event);
 		}
 	}
 
@@ -1234,7 +1232,7 @@ export class EditorNavigationStack extends Disposable {
 
 		let previousEntry: IEditorNavigationStackEntry | undefined = undefined;
 		for (const entry of this.stack) {
-			if (previousEntry && this.shouldReplaceStackEntry(previousEntry, entry)) {
+			if (previousEntry && this.shouldReplaceStackEntry(entry, previousEntry)) {
 				continue; // skip over entry when it is considered the same
 			}
 
@@ -1460,7 +1458,7 @@ class EditorHelper {
 	}
 
 	matchesEditorIdentifier(identifier: IEditorIdentifier, editorPane?: IEditorPane): boolean {
-		if (!editorPane || !editorPane.group) {
+		if (!editorPane?.group) {
 			return false;
 		}
 
