@@ -17,12 +17,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-// eslint-disable-next-line code-import-patterns
-import { TestTag } from 'vs/workbench/api/common/extHostTypeConverters';
 import { attachSuggestEnabledInputBoxStyler, ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { denamespaceTestTag } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
@@ -75,7 +74,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 				provideResults: () => [
 					...Object.entries(testFilterDescriptions).map(([label, detail]) => ({ label, detail })),
 					...Iterable.map(this.testService.collection.tags.values(), tag => {
-						const { ctrlId, tagId } = TestTag.denamespace(tag.id);
+						const { ctrlId, tagId } = denamespaceTestTag(tag.id);
 						const insertText = `@${ctrlId}:${tagId}`;
 						return ({
 							label: `@${ctrlId}:${tagId}`,

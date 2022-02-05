@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, SourceControlActionButton } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -20,6 +20,7 @@ import { Log, LogLevel } from './log';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { ActionButtonCommand } from './actionButton';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -965,6 +966,11 @@ export class Repository implements Disposable {
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
+
+		const actionButton = new ActionButtonCommand(this);
+		this.disposables.push(actionButton);
+		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
+		this._sourceControl.actionButton = actionButton.button;
 
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
@@ -1934,43 +1940,6 @@ export class Repository implements Disposable {
 
 			return undefined;
 		});
-
-		let actionButton: SourceControlActionButton | undefined;
-		if (HEAD !== undefined) {
-			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
-			const postCommitCommand = config.get<string>('postCommitCommand');
-
-			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0 && postCommitCommand !== 'sync' && postCommitCommand !== 'push')) {
-				if (HEAD.name && HEAD.commit) {
-					if (HEAD.upstream) {
-						if (HEAD.ahead) {
-							const rebaseWhenSync = config.get<string>('rebaseWhenSync');
-
-							actionButton = {
-								command: {
-									command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-									title: localize('scm button sync title', "$(sync) {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
-									tooltip: this.syncTooltip,
-									arguments: [this._sourceControl],
-								},
-								description: localize('scm button sync description', "$(sync) Sync Changes {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`)
-							};
-						}
-					} else {
-						actionButton = {
-							command: {
-								command: 'git.publish',
-								title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
-								tooltip: localize('scm button publish tooltip', "Publish Branch"),
-								arguments: [this._sourceControl],
-							}
-						};
-					}
-				}
-			}
-		}
-		this._sourceControl.actionButton = actionButton;
 
 		// set resource groups
 		this.mergeGroup.resourceStates = merge;

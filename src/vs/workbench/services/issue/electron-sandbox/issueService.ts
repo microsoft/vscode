@@ -17,7 +17,7 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { platform } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 

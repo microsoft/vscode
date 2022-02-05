@@ -596,6 +596,7 @@ var requirejs = (function() {
 							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 							if (latestCell) {
 								latestCell.outputIsFocused = true;
+								this.notebookEditor.focusNotebookCell(latestCell, 'container', { skipReveal: true });
 							}
 						}
 						break;

@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/languages/linkComputer';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { ITerminalLinkDetector, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { IBufferLine, Terminal } from 'xterm';
 
@@ -27,17 +26,12 @@ const enum Constants {
 	MaxResolvedLinkLength = 1024,
 }
 
-const cachedValidatedLinks = new Map<string, { uri: URI; link: string; isDirectory: boolean } | null>();
-
 export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 	static id = 'uri';
 
-	private _cacheTilTimeout = 0;
-	protected _enableCaching = true;
-
 	constructor(
 		readonly xterm: Terminal,
-		private readonly _resolvePath: (link: string, uri?: URI) => Promise<{ uri: URI; link: string; isDirectory: boolean } | undefined>,
+		private readonly _resolvePath: (link: string, uri?: URI) => Promise<ResolvedLink>,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
@@ -45,14 +39,6 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 
 	async detect(lines: IBufferLine[], startLine: number, endLine: number): Promise<ITerminalSimpleLink[]> {
 		const links: ITerminalSimpleLink[] = [];
-
-		// Reset cached link TTL
-		if (this._enableCaching) {
-			if (this._cacheTilTimeout) {
-				window.clearTimeout(this._cacheTilTimeout);
-			}
-			this._cacheTilTimeout = window.setTimeout(() => cachedValidatedLinks.clear(), 10000);
-		}
 
 		const linkComputerTarget = new TerminalLinkAdapter(this.xterm, startLine, endLine);
 		const computedLinks = LinkComputer.computeLinks(linkComputerTarget);
@@ -93,20 +79,7 @@ export class TerminalUriLinkDetector implements ITerminalLinkDetector {
 				continue;
 			}
 
-			let linkStat = cachedValidatedLinks.get(text);
-
-			// The link is cached as doesn't exist
-			if (linkStat === null) {
-				continue;
-			}
-
-			// The link isn't cached
-			if (linkStat === undefined) {
-				linkStat = await this._resolvePath(text, uri);
-				if (this._enableCaching) {
-					cachedValidatedLinks.set(text, withUndefinedAsNull(linkStat));
-				}
-			}
+			const linkStat = await this._resolvePath(text, uri);
 
 			// Create the link if validated
 			if (linkStat) {

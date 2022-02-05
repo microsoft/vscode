@@ -21,34 +21,35 @@ suite('parseServerConnectionToken', () => {
 		assert.strictEqual(isError(r), true);
 	}
 
-	test('no arguments generates a token that is mandatory', () => {
-		const result = parseServerConnectionToken({} as ServerParsedArgs);
+	test('no arguments generates a token that is mandatory', async () => {
+		const result = await parseServerConnectionToken({} as ServerParsedArgs, async () => 'defaultTokenValue');
 		assert.ok(!(result instanceof ServerConnectionTokenParseError));
 		assert.ok(result.type === ServerConnectionTokenType.Mandatory);
 	});
 
-	test('no arguments with --compatibility generates a token that is not mandatory', () => {
-		const result = parseServerConnectionToken({ 'compatibility': '1.63' } as ServerParsedArgs);
+	test('no arguments with --compatibility generates a token that is not mandatory', async () => {
+		const result = await parseServerConnectionToken({ 'compatibility': '1.63' } as ServerParsedArgs, async () => 'defaultTokenValue');
 		assert.ok(!(result instanceof ServerConnectionTokenParseError));
 		assert.ok(result.type === ServerConnectionTokenType.Optional);
+		assert.strictEqual(result.value, 'defaultTokenValue');
 	});
 
-	test('--without-connection-token', () => {
-		const result = parseServerConnectionToken({ 'without-connection-token': true } as ServerParsedArgs);
+	test('--without-connection-token', async () => {
+		const result = await parseServerConnectionToken({ 'without-connection-token': true } as ServerParsedArgs, async () => 'defaultTokenValue');
 		assert.ok(!(result instanceof ServerConnectionTokenParseError));
 		assert.ok(result.type === ServerConnectionTokenType.None);
 	});
 
-	test('--without-connection-token --connection-token results in error', () => {
-		assertIsError(parseServerConnectionToken({ 'without-connection-token': true, 'connection-token': '0' } as ServerParsedArgs));
+	test('--without-connection-token --connection-token results in error', async () => {
+		assertIsError(await parseServerConnectionToken({ 'without-connection-token': true, 'connection-token': '0' } as ServerParsedArgs, async () => 'defaultTokenValue'));
 	});
 
-	test('--without-connection-token --connection-token-file results in error', () => {
-		assertIsError(parseServerConnectionToken({ 'without-connection-token': true, 'connection-token-file': '0' } as ServerParsedArgs));
+	test('--without-connection-token --connection-token-file results in error', async () => {
+		assertIsError(await parseServerConnectionToken({ 'without-connection-token': true, 'connection-token-file': '0' } as ServerParsedArgs, async () => 'defaultTokenValue'));
 	});
 
 	test('--connection-token-file --connection-token results in error', async () => {
-		assertIsError(parseServerConnectionToken({ 'connection-token-file': '0', 'connection-token': '0' } as ServerParsedArgs));
+		assertIsError(await parseServerConnectionToken({ 'connection-token-file': '0', 'connection-token': '0' } as ServerParsedArgs, async () => 'defaultTokenValue'));
 	});
 
 	test('--connection-token-file', async () => {
@@ -57,7 +58,7 @@ suite('parseServerConnectionToken', () => {
 		const filename = path.join(testDir, 'connection-token-file');
 		const connectionToken = `12345-123-abc`;
 		await Promises.writeFile(filename, connectionToken);
-		const result = parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs);
+		const result = await parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs, async () => 'defaultTokenValue');
 		assert.ok(!(result instanceof ServerConnectionTokenParseError));
 		assert.ok(result.type === ServerConnectionTokenType.Mandatory);
 		assert.strictEqual(result.value, connectionToken);
@@ -66,7 +67,7 @@ suite('parseServerConnectionToken', () => {
 
 	test('--connection-token', async () => {
 		const connectionToken = `12345-123-abc`;
-		const result = parseServerConnectionToken({ 'connection-token': connectionToken } as ServerParsedArgs);
+		const result = await parseServerConnectionToken({ 'connection-token': connectionToken } as ServerParsedArgs, async () => 'defaultTokenValue');
 		assert.ok(!(result instanceof ServerConnectionTokenParseError));
 		assert.ok(result.type === ServerConnectionTokenType.Mandatory);
 		assert.strictEqual(result.value, connectionToken);
@@ -74,7 +75,7 @@ suite('parseServerConnectionToken', () => {
 
 	test('--connection-token --compatibility marks a as not mandatory', async () => {
 		const connectionToken = `12345-123-abc`;
-		const result = parseServerConnectionToken({ 'connection-token': connectionToken, 'compatibility': '1.63' } as ServerParsedArgs);
+		const result = await parseServerConnectionToken({ 'connection-token': connectionToken, 'compatibility': '1.63' } as ServerParsedArgs, async () => 'defaultTokenValue');
 		assert.ok(!(result instanceof ServerConnectionTokenParseError));
 		assert.ok(result.type === ServerConnectionTokenType.Optional);
 		assert.strictEqual(result.value, connectionToken);

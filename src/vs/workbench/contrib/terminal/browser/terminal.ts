@@ -818,7 +818,7 @@ export interface ITerminalInstance {
 	/**
 	 * Activates the most recent link of the given type.
 	 */
-	openRecentLink(type: 'file' | 'web'): Promise<void>;
+	openRecentLink(type: 'localFile' | 'url'): Promise<void>;
 }
 
 export interface IXtermTerminal {

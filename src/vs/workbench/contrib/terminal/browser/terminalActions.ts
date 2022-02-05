@@ -1955,14 +1955,14 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenWebLink,
-				title: { value: localize('workbench.action.terminal.openLastWebLink', "Open Last Web Link"), original: 'Open Last Web Link' },
+				title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last Url Link"), original: 'Open Last Url Link' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('web'));
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('url'));
 		}
 	});
 
@@ -1970,14 +1970,14 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenFileLink,
-				title: { value: localize('workbench.action.terminal.openLastFileLink', "Open Last File Link"), original: 'Open Last File Link' },
+				title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('file'));
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('localFile'));
 		}
 	});
 

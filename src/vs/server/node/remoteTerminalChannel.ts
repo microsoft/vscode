@@ -18,7 +18,7 @@ import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAg
 import { IPtyService, IShellLaunchConfig, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { createRemoteURITransformer } from 'vs/server/node/remoteUriTransformer';
+import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { CLIServerBase, ICommandsExecuter } from 'vs/workbench/api/node/extHostCLIServer';
 import { IEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
@@ -99,7 +99,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			case '$restartPtyHost': return this._ptyService.restartPtyHost?.apply(this._ptyService, args);
 
 			case '$createProcess': {
-				const uriTransformer = createRemoteURITransformer(ctx.remoteAuthority);
+				const uriTransformer = createURITransformer(ctx.remoteAuthority);
 				return this._createProcess(uriTransformer, <ICreateTerminalProcessArguments>args);
 			}
 			case '$attachToProcess': return this._ptyService.attachToProcess.apply(this._ptyService, args);

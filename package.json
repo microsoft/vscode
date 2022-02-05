@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.65.0",
-  "distro": "91fce8a983c56d50df300b3767a8848483dfd8f9",
+  "distro": "6359a423613d04ab1f808fd99ce551f9c7a70d06",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -82,7 +82,7 @@
     "tas-client-umd": "0.1.4",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.6.1",
-    "vscode-proxy-agent": "^0.11.0",
+    "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "6.0.0",
     "xterm": "4.18.0-beta.2",

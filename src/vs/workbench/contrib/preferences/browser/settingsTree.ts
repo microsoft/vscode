@@ -42,7 +42,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, ObjectSettingDropdownWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, ObjectSettingCheckboxWidget } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -61,6 +61,7 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { focusedRowBackground, focusedRowBorder, rowHoverBackground, settingsHeaderForeground, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 
 const $ = DOM.$;
 
@@ -2448,64 +2449,64 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
 				// applying an opacity to the link color.
 				const fgWithOpacity = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.9));
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-description { color: ${fgWithOpacity}; }`);
 				collector.addRule(`.settings-editor > .settings-body .settings-toc-container .monaco-list-row:not(.selected) { color: ${fgWithOpacity}; }`);
 
 				const disabledfgColor = new Color(new RGBA(foregroundColor.rgba.r, foregroundColor.rgba.g, foregroundColor.rgba.b, 0.7));
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-description { color: ${disabledfgColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-untrusted > .setting-item-contents .setting-item-description { color: ${disabledfgColor}; }`);
 
 				// Hack for subpixel antialiasing
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides,
-					.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored { color: ${fgWithOpacity}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides,
+					.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored { color: ${fgWithOpacity}; }`);
 			}
 
 			const errorColor = theme.getColor(errorForeground);
 			if (errorColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-deprecation-message { color: ${errorColor}; }`);
 			}
 
 			const invalidInputBackground = theme.getColor(inputValidationErrorBackground);
 			if (invalidInputBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message { background-color: ${invalidInputBackground}; }`);
 			}
 
 			const invalidInputForeground = theme.getColor(inputValidationErrorForeground);
 			if (invalidInputForeground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message { color: ${invalidInputForeground}; }`);
 			}
 
 			const invalidInputBorder = theme.getColor(inputValidationErrorBorder);
 			if (invalidInputBorder) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-validation-message { border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item.invalid-input .setting-item-control .monaco-inputbox.idle { outline-width: 0; border-style:solid; border-width: 1px; border-color: ${invalidInputBorder}; }`);
 			}
 
 			const focusedRowBackgroundColor = theme.getColor(focusedRowBackground);
 			if (focusedRowBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused .settings-row-inner-container { background-color: ${focusedRowBackgroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .settings-row-inner-container { background-color: ${focusedRowBackgroundColor}; }`);
 			}
 
 			const rowHoverBackgroundColor = theme.getColor(rowHoverBackground);
 			if (rowHoverBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover { background-color: ${rowHoverBackgroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover { background-color: ${rowHoverBackgroundColor}; }`);
 			}
 
 			const focusedRowBorderColor = theme.getColor(focusedRowBorder);
 			if (focusedRowBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents { outline: 1px solid ${focusedRowBorderColor} }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label { outline: 1px solid ${focusedRowBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents { outline: 1px solid ${focusedRowBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label { outline: 1px solid ${focusedRowBorderColor} }`);
 			}
 
 			const headerForegroundColor = theme.getColor(settingsHeaderForeground);
 			if (headerForegroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-label { color: ${headerForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .settings-group-title-label { color: ${headerForegroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-label { color: ${headerForegroundColor}; }`);
 			}
 
 			const focusBorderColor = theme.getColor(focusBorder);
 			if (focusBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus { outline-color: ${focusBorderColor} }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-trust-description a:focus { outline-color: ${focusBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
 		}));
 

@@ -525,8 +525,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _initDimensions(): void {
-		// The terminal panel needs to have been created
+		// The terminal panel needs to have been created to get the real view dimensions
 		if (!this._container) {
+			// Set the fallback dimensions if not
+			this._cols = 80;
+			this._rows = 30;
 			return;
 		}
 
@@ -740,7 +743,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._linkManager.getLinks();
 	}
 
-	async openRecentLink(type: 'file' | 'web'): Promise<void> {
+	async openRecentLink(type: 'localFile' | 'url'): Promise<void> {
 		if (!this.areLinksReady || !this._linkManager) {
 			throw new Error('terminal links are not ready, cannot open a link');
 		}
@@ -784,6 +787,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					tooltip: nls.localize('viewCommandOutput', "View Command Output"),
 					alwaysVisible: true
 				}];
+				// Merge consecutive commands
+				if (items.length > 0 && items[items.length - 1].label === label) {
+					items[items.length - 1].id = timestamp.toString();
+					items[items.length - 1].detail = detail;
+					continue;
+				}
 				items.push({
 					label,
 					description: fromNow(timestamp, true),

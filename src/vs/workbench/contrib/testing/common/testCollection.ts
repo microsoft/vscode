@@ -8,8 +8,7 @@ import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-// eslint-disable-next-line code-import-patterns
-import { ILocationDto } from 'vs/workbench/api/common/extHost.protocol';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export const enum TestResultState {
 	Unset = 0,
@@ -113,7 +112,7 @@ export interface ITestErrorMessage {
 	location: IRichLocation | undefined;
 }
 
-export type SerializedTestErrorMessage = Omit<ITestErrorMessage, 'location'> & { location?: ILocationDto };
+export type SerializedTestErrorMessage = Dto<ITestErrorMessage>;
 
 export interface ITestOutputMessage {
 	message: string;
@@ -122,7 +121,7 @@ export interface ITestOutputMessage {
 	location: IRichLocation | undefined;
 }
 
-export type SerializedTestOutputMessage = Omit<ITestOutputMessage, 'location'> & { location?: ILocationDto };
+export type SerializedTestOutputMessage = Dto<ITestOutputMessage>;
 
 export type SerializedTestMessage = SerializedTestErrorMessage | SerializedTestOutputMessage;
 
@@ -143,6 +142,16 @@ export interface ITestRunTask {
 export interface ITestTag {
 	id: string;
 }
+
+const testTagDelimiter = '\0';
+
+export const namespaceTestTag =
+	(ctrlId: string, tagId: string) => ctrlId + testTagDelimiter + tagId;
+
+export const denamespaceTestTag = (namespaced: string) => {
+	const index = namespaced.indexOf(testTagDelimiter);
+	return { ctrlId: namespaced.slice(0, index), tagId: namespaced.slice(index + 1) };
+};
 
 export interface ITestTagDisplayInfo {
 	id: string;
@@ -221,8 +230,8 @@ export interface TestResultItem extends InternalTestItem {
 	ownDuration?: number;
 }
 
-export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
-	& { children: string[]; retired: undefined };
+export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired' | 'tasks'>
+	& { children: string[]; retired: undefined; tasks: Dto<ITestTaskState[]> };
 
 /**
  * Test results serialized for transport and storage.

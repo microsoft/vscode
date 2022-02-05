@@ -70,9 +70,6 @@ const serverResources = [
 	'out-build/vs/platform/files/**/*.exe',
 	'out-build/vs/platform/files/**/*.md',
 
-	// Uri transformer
-	'out-build/vs/server/node/uriTransformer.js',
-
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',

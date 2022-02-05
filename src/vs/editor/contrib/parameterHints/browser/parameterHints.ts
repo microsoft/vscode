@@ -9,7 +9,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { TriggerContext } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 import * as nls from 'vs/nls';
@@ -72,7 +72,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 		const controller = ParameterHintsController.get(editor);
 		if (controller) {
 			controller.trigger({
-				triggerKind: modes.SignatureHelpTriggerKind.Invoke
+				triggerKind: languages.SignatureHelpTriggerKind.Invoke
 			});
 		}
 	}

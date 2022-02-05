@@ -10,7 +10,7 @@ import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConver
 import { cloneAndChange } from 'vs/base/common/objects';
 import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandHandlerDescriptionDto } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { revive } from 'vs/base/common/marshalling';
@@ -87,7 +87,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 						if (Position.isIPosition(obj)) {
 							return extHostTypeConverter.Position.to(obj);
 						}
-						if (Range.isIRange((obj as modes.Location).range) && URI.isUri((obj as modes.Location).uri)) {
+						if (Range.isIRange((obj as languages.Location).range) && URI.isUri((obj as languages.Location).uri)) {
 							return extHostTypeConverter.location.to(obj);
 						}
 						if (obj instanceof VSBuffer) {

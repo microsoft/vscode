@@ -55,11 +55,6 @@ export async function registerWindowDriver(accessor: ServicesAccessor, windowId:
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
 	await windowDriverRegistry.registerWindowDriver(windowId);
-	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
-
-	// if (options.verbose) {
-	// 	windowDriver.openDevTools();
-	// }
 
 	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
 }

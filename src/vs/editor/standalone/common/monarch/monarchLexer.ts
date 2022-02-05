@@ -10,7 +10,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as languages from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';

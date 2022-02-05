@@ -463,4 +463,8 @@ export class Range {
 	public static spansMultipleLines(range: IRange): boolean {
 		return range.endLineNumber > range.startLineNumber;
 	}
+
+	public toJSON(): IRange {
+		return this;
+	}
 }
