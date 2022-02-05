@@ -404,17 +404,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		});
 	}
 
-	function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
-		while (testChild) {
-			if (testChild === testAncestor) {
-				return true;
-			}
-			testChild = testChild.parentNode;
-		}
-
-		return false;
-	}
-
 	function _internalHighlightRange(range: Range, tagName = 'mark', attributes = {}) {
 		// derived from https://github.com/Treora/dom-highlight-range/blob/master/highlight-range.js
 
