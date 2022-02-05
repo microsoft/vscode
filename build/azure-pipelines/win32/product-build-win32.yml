@@ -352,3 +352,19 @@ steps:
     artifact: vscode_web_win32_$(VSCODE_ARCH)_archive
     displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - template: ../sdl-sbom.yml
+    parameters:
+      generateTaskDisplayName: Generate SBOM (client)
+      generateTaskBuildDropPath: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)
+      generateTaskPackageName: Visual Studio Code
+      publishTaskDisplayName: Publish SBOM (client)
+      publishTaskArtifact: vscode_client_win32_$(VSCODE_ARCH)_sbom
+
+  - template: ../sdl-sbom.yml
+    parameters:
+      generateTaskDisplayName: Generate SBOM (server)
+      generateTaskBuildDropPath: $(agent.builddirectory)/vscode-reh-win32-$(VSCODE_ARCH)
+      generateTaskPackageName: Visual Studio Code Server
+      publishTaskDisplayName: Publish SBOM (server)
+      publishTaskArtifact: vscode_server_win32_$(VSCODE_ARCH)_sbom
