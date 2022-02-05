@@ -1170,11 +1170,19 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	move(event: FileOperationEvent): void {
-		const removed = this.remove(event);
-		if (removed.length > 0 && event.target) {
-			for (const entry of removed) {
-				this.add(entry.groupId, { resource: event.target.resource }, entry.selection);
+
+		// File move: try to replace entries
+		if (event.target?.isFile) {
+			for (const entry of this.stack) {
+				if (this.editorHelper.matchesEditor(event, entry.editor)) {
+					entry.editor = { resource: event.target.resource };
+				}
 			}
+		}
+
+		// Folder move: remove entries
+		else {
+			this.remove(event);
 		}
 	}
 
@@ -1229,53 +1237,51 @@ export class EditorNavigationStack extends Disposable {
 		return this.stack.length > this.index + 1;
 	}
 
-	goForward(): void {
+	async goForward(): Promise<void> {
 		if (!this.canGoForward()) {
 			return;
 		}
 
 		this.setIndex(this.index + 1);
-		this.navigate();
+		return this.navigate();
 	}
 
 	canGoBack(): boolean {
 		return this.index > 0;
 	}
 
-	goBack(): void {
+	async goBack(): Promise<void> {
 		if (!this.canGoBack()) {
 			return;
 		}
 
 		this.setIndex(this.index - 1);
-		this.navigate();
+		return this.navigate();
 	}
 
-	goToggle(): void {
+	goToggle(): Promise<void> {
 
 		// If we never navigated, just go back
 		if (this.previousIndex === -1) {
-			this.goBack();
+			return this.goBack();
 		}
 
 		// Otherwise jump to previous stack entry
-		else {
-			this.setIndex(this.previousIndex);
-			this.navigate();
-		}
+		this.setIndex(this.previousIndex);
+		return this.navigate();
 	}
 
 	canGoLast(): boolean {
 		return this.stack.length > 0;
 	}
 
-	goLast(): void {
+	async goLast(): Promise<void> {
 		if (!this.canGoLast()) {
 			return;
 		}
 
 		this.setIndex(this.stack.length - 1);
-		this.navigate();
+		return this.navigate();
 	}
 
 	private setIndex(newIndex: number): void {
