@@ -478,8 +478,16 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 }
 
 export type TransferQuickPickItemOrSeparator = TransferQuickPickItem | quickInput.IQuickPickSeparator;
-export interface TransferQuickPickItem extends quickInput.IQuickPickItem {
+export interface TransferQuickPickItem {
 	handle: number;
+
+	// shared properties from IQuickPickItem
+	type?: 'item';
+	label: string;
+	description?: string;
+	detail?: string;
+	picked?: boolean;
+	alwaysShow?: boolean;
 	buttons?: TransferQuickInputButton[];
 }
 
