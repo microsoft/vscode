@@ -1004,9 +1004,20 @@ export class EditorNavigationStack extends Disposable {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e.id)));
+	}
+
+	private onDidRemoveGroup(groupId: GroupIdentifier): void {
+		this.remove(groupId);
 	}
 
 	//#region Stack Mutation
@@ -1189,17 +1200,13 @@ export class EditorNavigationStack extends Disposable {
 		}
 	}
 
-	remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent): IEditorNavigationStackEntry[] {
-		let removed: IEditorNavigationStackEntry[] = [];
-
+	remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent | GroupIdentifier): void {
 		this.stack = this.stack.filter(entry => {
-			const matches = this.editorHelper.matchesEditor(arg1, entry.editor);
+			const matches = typeof arg1 === 'number' ? entry.groupId === arg1 : this.editorHelper.matchesEditor(arg1, entry.editor);
 
 			// Cleanup any listeners associated with the input when removing
 			if (matches) {
-				this.editorHelper.clearOnEditorDispose(arg1, this.mapEditorToDisposable);
-
-				removed.push(entry);
+				this.editorHelper.clearOnEditorDispose(entry.editor, this.mapEditorToDisposable);
 			}
 
 			return !matches;
@@ -1211,8 +1218,6 @@ export class EditorNavigationStack extends Disposable {
 
 		// Event
 		this._onDidChange.fire();
-
-		return removed;
 	}
 
 	clear(): void {

@@ -80,29 +80,74 @@ suite('HistoryService', function () {
 		const [part, historyService, editorService] = await createServices();
 
 		const resource = toResource.call(this, '/path/index.txt');
-		const otherResource = toResource.call(this, '/path/index.html');
+		const otherResource = toResource.call(this, '/path/other.html');
 
 		const pane1 = await editorService.openEditor({ resource, options: { pinned: true } });
 		const pane2 = await editorService.openEditor({ resource, options: { pinned: true } }, SIDE_GROUP);
+
+		// [index.txt] | [>index.txt<]
 
 		assert.notStrictEqual(pane1, pane2);
 
 		await editorService.openEditor({ resource: otherResource, options: { pinned: true } }, pane2?.group);
 
+		// [index.txt] | [index.txt] [>other.html<]
+
 		await historyService.goBack();
+
+		// [index.txt] | [>index.txt<] [other.html]
+
 		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
 
 		await historyService.goBack();
+
+		// [>index.txt<] | [index.txt] [other.html]
+
 		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
 
 		await historyService.goForward();
+
+		// [index.txt] | [>index.txt<] [other.html]
+
 		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
+
+		await historyService.goForward();
+
+		// [index.txt] | [index.txt] [>other.html<]
+
+		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), otherResource.toString());
 	});
 
-	test('editor navigation stack - navigation across editors', async function () {
+	test('back / forward tracks group removals', async function () {
+		const [part, historyService, editorService] = await createServices();
+
+		const resource1 = toResource.call(this, '/path/one.txt');
+		const resource2 = toResource.call(this, '/path/two.html');
+
+		const pane1 = await editorService.openEditor({ resource: resource1, options: { pinned: true } });
+		const pane2 = await editorService.openEditor({ resource: resource2, options: { pinned: true } }, SIDE_GROUP);
+
+		// [one.txt] | [>two.html<]
+
+		assert.notStrictEqual(pane1, pane2);
+
+		await pane1?.group?.closeAllEditors();
+
+		// [>two.html<]
+
+		await historyService.goBack();
+
+		// [>two.html<]
+
+		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource2.toString());
+	});
+
+	test('editor navigation stack - navigation', async function () {
 		const [, , editorService, , instantiationService] = await createServices();
 
 		const stack = instantiationService.createInstance(EditorNavigationStack);
@@ -214,6 +259,17 @@ suite('HistoryService', function () {
 		// Remove (via editor)
 		assert.strictEqual(stack.canGoBack(), true);
 		stack.remove(pane!.input!);
+		assert.strictEqual(stack.canGoBack(), false);
+		stack.clear();
+
+		await editorService.openEditor({ resource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+
+		// Remove (via group)
+		assert.strictEqual(stack.canGoBack(), true);
+		stack.remove(pane!.group!.id);
 		assert.strictEqual(stack.canGoBack(), false);
 		stack.clear();
 
