@@ -952,10 +952,6 @@ class EditorSelectionState {
 	) { }
 
 	justifiesNewNavigationEntry(other: EditorSelectionState): boolean {
-		if (other.reason === EditorPaneSelectionChangeReason.NAVIGATION) {
-			return true; // always let navigation sources win (e.g. "Go to definition" should add a history entry)
-		}
-
 		if (this.editorIdentifier.groupId !== other.editorIdentifier.groupId) {
 			return true; // different group
 		}
@@ -966,6 +962,12 @@ class EditorSelectionState {
 
 		if (!this.selection || !other.selection) {
 			return true; // unknown selections
+		}
+
+		if (other.reason === EditorPaneSelectionChangeReason.NAVIGATION && this.selection.compare(other.selection) !== EditorPaneSelectionCompareResult.IDENTICAL) {
+			// let navigation sources win even if the selection is `SIMILAR`
+			// (e.g. "Go to definition" should add a history entry)
+			return true;
 		}
 
 		return this.selection.compare(other.selection) === EditorPaneSelectionCompareResult.DIFFERENT;
@@ -1201,6 +1203,8 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent | GroupIdentifier): void {
+
+		// Remove all stack entries that match `arg1`
 		this.stack = this.stack.filter(entry => {
 			const matches = typeof arg1 === 'number' ? entry.groupId === arg1 : this.editorHelper.matchesEditor(arg1, entry.editor);
 
@@ -1212,12 +1216,33 @@ export class EditorNavigationStack extends Disposable {
 			return !matches;
 		});
 
+		// Given we just removed entries, we need to make sure
+		// to remove entries that are now identical and next
+		// to each other to prevent no-op navigations.
+		this.flatten();
+
 		// Reset indeces
 		this.index = this.stack.length - 1;
 		this.previousIndex = -1;
 
 		// Event
 		this._onDidChange.fire();
+	}
+
+	private flatten(): void {
+		const flattenedStack: IEditorNavigationStackEntry[] = [];
+
+		let previousEntry: IEditorNavigationStackEntry | undefined = undefined;
+		for (const entry of this.stack) {
+			if (previousEntry && this.shouldReplaceStackEntry(previousEntry, entry)) {
+				continue; // skip over entry when it is considered the same
+			}
+
+			previousEntry = entry;
+			flattenedStack.push(entry);
+		}
+
+		this.stack = flattenedStack;
 	}
 
 	clear(): void {
