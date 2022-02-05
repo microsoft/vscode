@@ -376,24 +376,13 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 	override setOptions(options: ISideBySideEditorOptions | undefined): void {
 
-		// Figure out which side to apply options to
-		let paneToApplyOptions: EditorPane | undefined = undefined;
-		if (typeof options?.target === 'number') {
-			if (options.target === Side.SECONDARY) {
-				paneToApplyOptions = this.secondaryEditorPane;
-			} else {
-				paneToApplyOptions = this.primaryEditorPane;
-			}
-		} else {
-			paneToApplyOptions = this.getLastFocusedEditorPane();
-		}
-
-		paneToApplyOptions?.setOptions(options);
-
 		// Update focus if target is provided
 		if (typeof options?.target === 'number') {
 			this.lastFocusedSide = options.target;
 		}
+
+		// Apply to focused side
+		this.getLastFocusedEditorPane()?.setOptions(options);
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
