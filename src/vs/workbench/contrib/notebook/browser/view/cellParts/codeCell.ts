@@ -257,10 +257,11 @@ export class CodeCell extends Disposable {
 				return;
 			}
 
-			const primarySelection = this.templateData.editor.getSelection();
+			const selections = this.templateData.editor.getSelections();
 
-			if (primarySelection) {
-				this.notebookEditor.revealLineInViewAsync(this.viewCell, primarySelection.positionLineNumber);
+			if (selections?.length) {
+				const lastSelection = selections[selections.length - 1];
+				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
 			}
 		}));
 
