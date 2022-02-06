@@ -203,6 +203,12 @@ export class AzureActiveDirectoryService {
 	}
 
 	public createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
+		if (!scopes.includes("openid")) {
+			scopes.push("openid");
+		}
+		if (!scopes.includes("email")) {
+			scopes.push("email");
+		}
 		const scopeData: IScopeData = {
 			scopes,
 			scopeStr: scopes.join(' '),
@@ -410,14 +416,14 @@ export class AzureActiveDirectoryService {
 		let claims = undefined;
 
 		try {
-			claims = JSON.parse(Buffer.from(json.access_token.split('.')[1], 'base64').toString());
-		} catch (e) {
 			if (json.id_token) {
 				Logger.info('Attempting to parse id_token instead since access_token was not parsable');
 				claims = JSON.parse(Buffer.from(json.id_token.split('.')[1], 'base64').toString());
 			} else {
-				throw e;
+				claims = JSON.parse(Buffer.from(json.access_token.split('.')[1], 'base64').toString());
 			}
+		} catch (e) {
+			throw e
 		}
 
 		return {
