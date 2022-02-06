@@ -203,11 +203,11 @@ export class AzureActiveDirectoryService {
 	}
 
 	public createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
-		if (!scopes.includes("openid")) {
-			scopes.push("openid");
+		if (!scopes.includes('openid')) {
+			scopes.push('openid');
 		}
-		if (!scopes.includes("email")) {
-			scopes.push("email");
+		if (!scopes.includes('email')) {
+			scopes.push('email');
 		}
 		const scopeData: IScopeData = {
 			scopes,
@@ -423,7 +423,7 @@ export class AzureActiveDirectoryService {
 				claims = JSON.parse(Buffer.from(json.access_token.split('.')[1], 'base64').toString());
 			}
 		} catch (e) {
-			throw e
+			throw e;
 		}
 
 		return {
