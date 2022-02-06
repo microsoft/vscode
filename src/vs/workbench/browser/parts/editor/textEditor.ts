@@ -337,9 +337,13 @@ export class TextEditorPaneSelection implements IEditorPaneSelection {
 		return EditorPaneSelectionCompareResult.DIFFERENT;
 	}
 
-	restore(options: IEditorOptions): void {
-		const textOptions = options as ITextEditorOptions;
-		textOptions.selectionRevealType = TextEditorSelectionRevealType.CenterIfOutsideViewport;
-		textOptions.selection = this.textSelection;
+	restore(options: IEditorOptions): ITextEditorOptions {
+		const textEditorOptions: ITextEditorOptions = {
+			...options,
+			selection: this.textSelection,
+			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
+		};
+
+		return textEditorOptions;
 	}
 }

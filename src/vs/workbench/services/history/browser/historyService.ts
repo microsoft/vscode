@@ -1387,10 +1387,12 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	private doNavigate(location: IEditorNavigationStackEntry): Promise<IEditorPane | undefined> {
-		const options: IEditorOptions = Object.create(null);
+		let options: IEditorOptions = Object.create(null);
 
 		// Apply selection if any
-		location.selection?.restore(options);
+		if (location.selection) {
+			options = location.selection.restore(options);
+		}
 
 		if (isEditorInput(location.editor)) {
 			return this.editorService.openEditor(location.editor, options, location.groupId);

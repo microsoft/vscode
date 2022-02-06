@@ -15,6 +15,7 @@ import { EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, IEdi
 import { DeferredPromise } from 'vs/base/common/async';
 import { TextEditorPaneSelection } from 'vs/workbench/browser/parts/editor/textEditor';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 suite('TextEditorPane', () => {
 
@@ -73,8 +74,7 @@ suite('TextEditorPane', () => {
 		const selection = pane.getSelection();
 		assert.ok(selection);
 		await pane.group?.closeAllEditors();
-		const options = {};
-		selection.restore(options);
+		const options = selection.restore({});
 		pane = await accessor.editorService.openEditor({ resource, options });
 
 		assert.ok(pane && isEditorPaneWithSelection(pane));
@@ -88,7 +88,7 @@ suite('TextEditorPane', () => {
 		const sel1 = new TextEditorPaneSelection(new Selection(1, 1, 2, 2));
 		const sel2 = new TextEditorPaneSelection(new Selection(5, 5, 6, 6));
 		const sel3 = new TextEditorPaneSelection(new Selection(50, 50, 60, 60));
-		const sel4 = { compare: () => { throw new Error(); }, restore: () => { } };
+		const sel4 = { compare: () => { throw new Error(); }, restore: (options: IEditorOptions) => options };
 
 		assert.strictEqual(sel1.compare(sel1), EditorPaneSelectionCompareResult.IDENTICAL);
 		assert.strictEqual(sel1.compare(sel2), EditorPaneSelectionCompareResult.SIMILAR);

@@ -232,7 +232,7 @@ export interface IEditorPaneSelection {
 	 * For a text editor this means to apply the selected
 	 * line and column as text editor options.
 	 */
-	restore(options: IEditorOptions): void;
+	restore(options: IEditorOptions): IEditorOptions;
 }
 
 export const enum EditorPaneSelectionCompareResult {

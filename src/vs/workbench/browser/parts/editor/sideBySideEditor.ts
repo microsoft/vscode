@@ -545,9 +545,12 @@ class SideBySideAwareEditorPaneSelection implements IEditorPaneSelection {
 		return this.selection.compare(other.selection);
 	}
 
-	restore(options: IEditorOptions): void {
-		const sideBySideOptions = options as ISideBySideEditorOptions;
-		this.selection.restore(sideBySideOptions);
-		sideBySideOptions.target = this.side;
+	restore(options: IEditorOptions): ISideBySideEditorOptions {
+		const sideBySideEditorOptions: ISideBySideEditorOptions = {
+			...options,
+			target: this.side
+		};
+
+		return this.selection.restore(sideBySideEditorOptions);
 	}
 }
