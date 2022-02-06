@@ -357,3 +357,23 @@ steps:
       artifactName: "snap-$(VSCODE_ARCH)"
       targetPath: .build/linux/snap-tarball
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (client)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code
+
+  - publish: $(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (client)
+    artifact: vscode_client_linux_$(VSCODE_ARCH)_sbom
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (server)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code Server
+
+  - publish: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (server)
+    artifact: vscode_server_linux_$(VSCODE_ARCH)_sbom
