@@ -10,6 +10,7 @@ import { setup as setupTerminalInputTests } from './terminal-input.test';
 import { setup as setupTerminalPersistenceTests } from './terminal-persistence.test';
 import { setup as setupTerminalProfileTests } from './terminal-profiles.test';
 import { setup as setupTerminalTabsTests } from './terminal-tabs.test';
+import { setup as setupTerminalSplitCwdTests } from './terminal-splitCwd.test';
 
 export function setup(logger: Logger) {
 	describe('Terminal', function () {
@@ -46,5 +47,8 @@ export function setup(logger: Logger) {
 		setupTerminalPersistenceTests();
 		setupTerminalProfileTests();
 		setupTerminalTabsTests();
+		if (!process.platform.startsWith('win')) {
+			setupTerminalSplitCwdTests();
+		}
 	});
 }

@@ -7,11 +7,9 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/16221
 
-	// todo@API Split between Inlay- and OverlayHints (InlayHint are for a position, OverlayHints for a non-empty range)
-	// (done) add "mini-markdown" for links and styles
-	// (done) remove description
-	// (done) rename to InlayHint
-	// (done) add InlayHintKind with type, argument, etc
+	// todo@API support over an optional overlay range
+	// todo@API all for more InlayHintLabelPart commands
+	// todo@API allow for InlayHintLabelPart#colors?
 
 	export namespace languages {
 		/**
@@ -37,15 +35,21 @@ declare module 'vscode' {
 		Parameter = 2,
 	}
 
+	/**
+	 * An inlay hint label part allows for interactive and composite labels of inlay hints.
+	 */
 	export class InlayHintLabelPart {
 
 		/**
 		 * The value of this label part.
 		 */
-		label: string;
+		value: string;
 
 		/**
 		 * The tooltip text when you hover over this label part.
+		 *
+		 * *Note* that this property can be set late during
+		 * {@link InlayHintsProvider.resolveInlayHint resolving} of inlay hints.
 		 */
 		tooltip?: string | MarkdownString | undefined;
 
@@ -74,29 +78,41 @@ declare module 'vscode' {
 		 */
 		command?: Command | undefined;
 
-		// todo@api
-		// context menu, contextMenuCommands
-		// secondaryCommands?: Command[];
-
-		constructor(label: string);
+		/**
+		 * Creates a new inlay hint label part.
+		 *
+		 * @param value The value of the part.
+		 */
+		constructor(value: string);
 	}
 
 	/**
 	 * Inlay hint information.
 	 */
 	export class InlayHint {
+
 		/**
 		 * The position of this hint.
 		 */
 		position: Position;
+
 		/**
+		 * The label of this hint. A human readable string or an array of {@link InlayHintLabelPart label parts}.
 		 *
+		 * *Note* that neiter the string nor the label part can be empty.
 		 */
 		label: string | InlayHintLabelPart[];
+
 		/**
 		 * The tooltip text when you hover over this item.
 		 */
 		tooltip?: string | MarkdownString | undefined;
+
+		/**
+		 * Optional command that will be the default gesture of this inlay hint.
+		 */
+		command?: Command;
+
 		/**
 		 * The kind of this hint.
 		 */
@@ -106,16 +122,20 @@ declare module 'vscode' {
 		 * Render padding before the hint.
 		 */
 		paddingLeft?: boolean;
+
 		/**
 		 * Render padding after the hint.
 		 */
 		paddingRight?: boolean;
 
-		// emphemeral overlay mode
-		// overlayRange?: Range;
-
-		// todo@API make range first argument
-		constructor(label: string | InlayHintLabelPart[], position: Position, kind?: InlayHintKind);
+		/**
+		 * Creates a new inlay hint.
+		 *
+		 * @param position The position of the hint.
+		 * @param label The label of the hint.
+		 * @param kind The {@link InlayHintKind kind} of the hint.
+		 */
+		constructor(position: Position, label: string | InlayHintLabelPart[], kind?: InlayHintKind);
 	}
 
 	/**
@@ -132,7 +152,7 @@ declare module 'vscode' {
 		/**
 		 * Provide inlay hints for the given range and document.
 		 *
-		 * *Note* that inlay hints that are not {@link Range.contains contained} by the range are ignored.
+		 * *Note* that inlay hints that are not {@link Range.contains contained} by the given range are ignored.
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param range The range for which inlay hints should be computed.
@@ -142,9 +162,10 @@ declare module 'vscode' {
 		provideInlayHints(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
-		 * Given an inlay hint fill in {@link InlayHint.tooltip tooltip} or complete label {@link InlayHintLabelPart parts}.
+		 * Given an inlay hint fill in {@link InlayHint.tooltip tooltip}, {@link InlayHint.command command}, or complete
+		 * label {@link InlayHintLabelPart parts}.
 		 *
-		 * The editor will at most resolve an inlay hint once.
+		 * *Note* that the editor will resolve an inlay hint at most once.
 		 *
 		 * @param hint An inlay hint.
 		 * @param token A cancellation token.

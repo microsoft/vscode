@@ -13,21 +13,22 @@ import { format, trim } from 'vs/base/common/strings';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { DocumentSymbol, DocumentSymbolProviderRegistry, SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
+import { DocumentSymbol, SymbolKind, SymbolKinds, SymbolTag } from 'vs/editor/common/languages';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions, IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess';
 import { localize } from 'vs/nls';
 import { IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
-	kind: SymbolKind,
-	index: number,
+	kind: SymbolKind;
+	index: number;
 	score?: number;
-	range?: { decoration: IRange, selection: IRange }
+	range?: { decoration: IRange; selection: IRange };
 }
 
 export interface IGotoSymbolQuickAccessProviderOptions extends IEditorNavigationQuickAccessOptions {
-	openSideBySideDirection?: () => undefined | 'right' | 'down'
+	openSideBySideDirection?: () => undefined | 'right' | 'down';
 }
 
 export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
@@ -39,6 +40,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	protected override readonly options: IGotoSymbolQuickAccessProviderOptions;
 
 	constructor(
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 		options: IGotoSymbolQuickAccessProviderOptions = Object.create(null)
 	) {
@@ -62,7 +64,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		}
 
 		// Provide symbols from model if available in registry
-		if (DocumentSymbolProviderRegistry.has(model)) {
+		if (this._languageFeaturesService.documentSymbolProvider.has(model)) {
 			return this.doProvideWithEditorSymbols(context, model, picker, token);
 		}
 
@@ -101,15 +103,15 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	}
 
 	protected async waitForLanguageSymbolRegistry(model: ITextModel, disposables: DisposableStore): Promise<boolean> {
-		if (DocumentSymbolProviderRegistry.has(model)) {
+		if (this._languageFeaturesService.documentSymbolProvider.has(model)) {
 			return true;
 		}
 
 		const symbolProviderRegistryPromise = new DeferredPromise<boolean>();
 
 		// Resolve promise when registry knows model
-		const symbolProviderListener = disposables.add(DocumentSymbolProviderRegistry.onDidChange(() => {
-			if (DocumentSymbolProviderRegistry.has(model)) {
+		const symbolProviderListener = disposables.add(this._languageFeaturesService.documentSymbolProvider.onDidChange(() => {
+			if (this._languageFeaturesService.documentSymbolProvider.has(model)) {
 				symbolProviderListener.dispose();
 
 				symbolProviderRegistryPromise.complete(true);

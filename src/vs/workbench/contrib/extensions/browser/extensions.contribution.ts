@@ -289,7 +289,7 @@ CommandsRegistry.registerCommand({
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean, installPreReleaseVersion?: boolean, donotSync?: boolean }) => {
+	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean; installPreReleaseVersion?: boolean; donotSync?: boolean }) => {
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		try {
 			if (typeof arg === 'string') {
@@ -1494,7 +1494,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 	private registerExtensionAction(extensionActionOptions: IExtensionActionOptions): IDisposable {
 		const menus = extensionActionOptions.menu ? isArray(extensionActionOptions.menu) ? extensionActionOptions.menu : [extensionActionOptions.menu] : [];
 		let menusWithOutTitles: ({ id: MenuId } & Omit<IMenuItem, 'command'>)[] = [];
-		const menusWithTitles: { id: MenuId, item: IMenuItem }[] = [];
+		const menusWithTitles: { id: MenuId; item: IMenuItem }[] = [];
 		if (extensionActionOptions.menuTitles) {
 			for (let index = 0; index < menus.length; index++) {
 				const menu = menus[index];

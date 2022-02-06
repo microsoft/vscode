@@ -79,7 +79,7 @@ export interface INewUntitledFileWorkingCopyWithAssociatedResourceOptions extend
 	 * Note: currently it is not possible to specify the `scheme` to use. The
 	 * untitled file working copy will saved to the default local or remote resource.
 	 */
-	associatedResource: { authority?: string; path?: string; query?: string; fragment?: string; }
+	associatedResource: { authority?: string; path?: string; query?: string; fragment?: string };
 }
 
 export interface INewOrExistingUntitledFileWorkingCopyOptions extends INewUntitledFileWorkingCopyOptions {

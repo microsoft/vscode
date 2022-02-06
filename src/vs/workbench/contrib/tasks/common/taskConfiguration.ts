@@ -223,7 +223,7 @@ export interface LegacyCommandProperties {
 	isShellCommand?: boolean | ShellConfiguration;
 }
 
-export type CommandString = string | string[] | { value: string | string[], quoting: 'escape' | 'strong' | 'weak' };
+export type CommandString = string | string[] | { value: string | string[]; quoting: 'escape' | 'strong' | 'weak' };
 
 export namespace CommandString {
 	export function value(value: CommandString): string {
@@ -806,7 +806,7 @@ namespace CommandOptions {
 		if (target.env === undefined) {
 			target.env = source.env;
 		} else if (source.env !== undefined) {
-			let env: { [key: string]: string; } = Object.create(null);
+			let env: { [key: string]: string } = Object.create(null);
 			if (target.env !== undefined) {
 				Object.keys(target.env).forEach(key => env[key] = target.env![key]);
 			}
@@ -1144,7 +1144,7 @@ namespace ProblemMatcherConverter {
 		return result;
 	}
 
-	export function fromWithOsConfig(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext): ProblemMatcher[] | undefined {
+	export function fromWithOsConfig(this: void, external: ConfigurationProperties & { [key: string]: any }, context: ParseContext): ProblemMatcher[] | undefined {
 		let result: ProblemMatcher[] | undefined = undefined;
 		if (external.windows && external.windows.problemMatcher && context.platform === Platform.Windows) {
 			result = from(external.windows.problemMatcher, context);
@@ -1303,11 +1303,11 @@ namespace ConfigurationProperties {
 		{ property: 'options' }
 	];
 
-	export function from(this: void, external: ConfigurationProperties & { [key: string]: any; }, context: ParseContext, includeCommandOptions: boolean, source: TaskConfigSource, properties?: IJSONSchemaMap): Tasks.ConfigurationProperties | undefined {
+	export function from(this: void, external: ConfigurationProperties & { [key: string]: any }, context: ParseContext, includeCommandOptions: boolean, source: TaskConfigSource, properties?: IJSONSchemaMap): Tasks.ConfigurationProperties | undefined {
 		if (!external) {
 			return undefined;
 		}
-		let result: Tasks.ConfigurationProperties & { [key: string]: any; } = {};
+		let result: Tasks.ConfigurationProperties & { [key: string]: any } = {};
 
 		if (properties) {
 			for (const propertyName of Object.keys(properties)) {
@@ -1667,8 +1667,8 @@ namespace TaskParser {
 		if (!externals) {
 			return result;
 		}
-		let defaultBuildTask: { task: Tasks.Task | undefined; rank: number; } = { task: undefined, rank: -1 };
-		let defaultTestTask: { task: Tasks.Task | undefined; rank: number; } = { task: undefined, rank: -1 };
+		let defaultBuildTask: { task: Tasks.Task | undefined; rank: number } = { task: undefined, rank: -1 };
+		let defaultTestTask: { task: Tasks.Task | undefined; rank: number } = { task: undefined, rank: -1 };
 		let schema2_0_0: boolean = context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
 		const baseLoadIssues = Objects.deepClone(context.taskLoadIssues);
 		for (let index = 0; index < externals.length; index++) {

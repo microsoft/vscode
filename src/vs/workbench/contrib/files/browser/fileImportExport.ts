@@ -10,7 +10,7 @@ import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMe
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IFilesConfiguration, UndoEnablement, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, UndoConfirmLevel, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Limiter, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
@@ -64,7 +64,7 @@ interface IWebkitDataTransferItemEntry {
 }
 
 interface IWebkitDataTransferItemEntryReader {
-	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void
+	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void;
 }
 
 export class BrowserFileUpload {
@@ -140,7 +140,7 @@ export class BrowserFileUpload {
 			entries.push(item.webkitGetAsEntry());
 		}
 
-		const results: { isFile: boolean, resource: URI }[] = [];
+		const results: { isFile: boolean; resource: URI }[] = [];
 		const operation: IBrowserUploadOperation = {
 			startTime: Date.now(),
 			progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
@@ -194,7 +194,7 @@ export class BrowserFileUpload {
 		}
 	}
 
-	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
+	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean; resource: URI } | undefined> {
 		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
 			return undefined;
 		}
@@ -530,6 +530,7 @@ export class ExternalFileImport {
 				return new ResourceFileEdit(resource, targetFile, { overwrite: true, copy: true });
 			});
 
+			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
 					localize('importFile', "Import {0}", basename(resourcesFiltered[0])) :
@@ -538,7 +539,7 @@ export class ExternalFileImport {
 					localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) :
 					localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length),
 				progressLocation: ProgressLocation.Window,
-				confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.enableUndo === UndoEnablement.Warn,
+				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
 			});
 
 			// if we only add one file, just open it directly

@@ -28,7 +28,7 @@ export class ReportExtensionIssueAction extends Action {
 			description: IExtensionDescription;
 			marketplaceInfo: IExtension;
 			status?: IExtensionsStatus;
-			unresponsiveProfile?: IExtensionHostProfile
+			unresponsiveProfile?: IExtensionHostProfile;
 		},
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
@@ -51,7 +51,7 @@ export class ReportExtensionIssueAction extends Action {
 		description: IExtensionDescription;
 		marketplaceInfo: IExtension;
 		status?: IExtensionsStatus;
-		unresponsiveProfile?: IExtensionHostProfile
+		unresponsiveProfile?: IExtensionHostProfile;
 	}): Promise<string> {
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!baseUrl && extension.description.isBuiltin) {

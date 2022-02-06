@@ -30,7 +30,7 @@ import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAg
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionHostConnection } from 'vs/server/node/extensionHostConnection';
 import { ManagementConnection } from 'vs/server/node/remoteExtensionManagement';
-import { parseServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
+import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { IServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
 import { setupServerServices, SocketServer } from 'vs/server/node/serverServices';
 import { serveError, serveFile, WebClientServer } from 'vs/server/node/webClientServer';
@@ -53,8 +53,8 @@ declare module vsda {
 
 export class RemoteExtensionHostAgentServer extends Disposable {
 
-	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection; };
-	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection; };
+	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection };
+	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection };
 	private readonly _allReconnectionTokens: Set<string>;
 	private readonly _webClientServer: WebClientServer | null;
 
@@ -644,7 +644,7 @@ export interface IServerAPI {
 }
 
 export async function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string): Promise<IServerAPI> {
-	const connectionToken = parseServerConnectionToken(args);
+	const connectionToken = await determineServerConnectionToken(args);
 	if (connectionToken instanceof ServerConnectionTokenParseError) {
 		console.warn(connectionToken.message);
 		process.exit(1);
@@ -704,10 +704,10 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		const telemetryService = accessor.get(ITelemetryService);
 
 		type ServerStartClassification = {
-			startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			startedTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			codeLoadedTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			readyTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			startedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			codeLoadedTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			readyTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 		};
 		type ServerStartEvent = {
 			startTime: number;

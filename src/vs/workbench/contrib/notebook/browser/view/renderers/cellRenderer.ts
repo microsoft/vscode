@@ -17,7 +17,7 @@ import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOpti
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ITextModel } from 'vs/editor/common/model';
@@ -42,6 +42,7 @@ import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/
 import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCell';
 import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellRunToolbar';
+import { FoldedCellHint } from 'vs/workbench/contrib/notebook/browser/view/cellParts/foldedCellHint';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/markdownCell';
 import { BaseCellRenderTemplate, CodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -156,7 +157,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const focusIndicatorLeft = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
 		const foldingIndicator = DOM.append(focusIndicatorLeft.domNode, DOM.$('.notebook-folding-indicator'));
 		const focusIndicatorRight = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-right')));
-		const foldedContentHint = DOM.append(container, $('.notebook-folded-hint'));
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
@@ -180,6 +180,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const betweenCellToolbar = templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellContainer));
 		const focusIndicatorBottom = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom')));
 		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart));
+		const foldedCellHint = templateDisposables.add(scopedInstaService.createInstance(FoldedCellHint, this.notebookEditor, DOM.append(container, $('.notebook-folded-hint'))));
 
 		const templateData: MarkdownCellRenderTemplate = {
 			rootContainer,
@@ -197,7 +198,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			betweenCellToolbar,
 			titleToolbar,
 			statusBar,
-			foldedContentHint,
+			foldedCellHint,
 			toJSON: () => { return {}; }
 		};
 
@@ -226,7 +227,8 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			templateData.betweenCellToolbar,
 			templateData.titleToolbar,
 			templateData.statusBar,
-			templateData.focusIndicator
+			templateData.focusIndicator,
+			templateData.foldedCellHint
 		], this.renderedEditors));
 	}
 
@@ -258,8 +260,8 @@ class EditorTextRenderer {
 		const fontWeightVar = '--notebook-editor-font-weight';
 
 		const style = ``
-			+ `color: ${colorMap[modes.ColorId.DefaultForeground]};`
-			+ `background-color: ${colorMap[modes.ColorId.DefaultBackground]};`
+			+ `color: ${colorMap[languages.ColorId.DefaultForeground]};`
+			+ `background-color: ${colorMap[languages.ColorId.DefaultBackground]};`
 			+ `font-family: var(${fontFamilyVar});`
 			+ `font-weight: var(${fontWeightVar});`
 			+ `font-size: var(${fontSizeVar});`
@@ -306,7 +308,7 @@ class EditorTextRenderer {
 	}
 
 	private getDefaultColorMap(): string[] {
-		const colorMap = modes.TokenizationRegistry.getColorMap();
+		const colorMap = languages.TokenizationRegistry.getColorMap();
 		const result: string[] = ['#000000'];
 		if (colorMap) {
 			for (let i = 1, len = colorMap.length; i < len; i++) {

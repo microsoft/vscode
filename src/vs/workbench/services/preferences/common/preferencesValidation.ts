@@ -9,7 +9,7 @@ import { Color } from 'vs/base/common/color';
 import { isArray, isObject, isUndefinedOrNull, isString, isStringArray } from 'vs/base/common/types';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 
-type Validator<T> = { enabled: boolean, isValid: (value: T) => boolean; message: string };
+type Validator<T> = { enabled: boolean; isValid: (value: T) => boolean; message: string };
 
 function canBeType(propTypes: (string | undefined)[], ...types: JSONSchemaType[]): boolean {
 	return types.some(t => propTypes.includes(t));
@@ -122,12 +122,12 @@ function getStringValidators(prop: IConfigurationPropertySchema) {
 	return [
 		{
 			enabled: prop.maxLength !== undefined,
-			isValid: ((value: { length: number; }) => value.length <= prop.maxLength!),
+			isValid: ((value: { length: number }) => value.length <= prop.maxLength!),
 			message: nls.localize('validations.maxLength', "Value must be {0} or fewer characters long.", prop.maxLength)
 		},
 		{
 			enabled: prop.minLength !== undefined,
-			isValid: ((value: { length: number; }) => value.length >= prop.minLength!),
+			isValid: ((value: { length: number }) => value.length >= prop.minLength!),
 			message: nls.localize('validations.minLength', "Value must be {0} or more characters long.", prop.minLength)
 		},
 		{

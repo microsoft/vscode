@@ -12,10 +12,10 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
 
 interface IStubEditorState {
-	model?: { uri?: URI, version?: number };
+	model?: { uri?: URI; version?: number };
 	position?: Position;
 	selection?: Selection;
-	scroll?: { left?: number, top?: number };
+	scroll?: { left?: number; top?: number };
 }
 
 suite('Editor Core - Editor State', () => {

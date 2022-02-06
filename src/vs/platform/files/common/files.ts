@@ -82,7 +82,7 @@ export interface IFileService {
 	/**
 	 * List the schemes and capabilies for registered file system providers
 	 */
-	listCapabilities(): Iterable<{ scheme: string, capabilities: FileSystemProviderCapabilities }>
+	listCapabilities(): Iterable<{ scheme: string; capabilities: FileSystemProviderCapabilities }>;
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -116,8 +116,8 @@ export interface IFileService {
 	 * Same as resolve() but supports resolving multiple resources in parallel.
 	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
 	 */
-	resolveAll(toResolve: { resource: URI, options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
-	resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
+	resolveAll(toResolve: { resource: URI; options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
+	resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
 
 	/**
 	 * Finds out if a file/folder identified by the resource exists.
@@ -654,17 +654,18 @@ export const enum FileOperation {
 	CREATE,
 	DELETE,
 	MOVE,
-	COPY
+	COPY,
+	WRITE
 }
 
 export class FileOperationEvent {
 
-	constructor(resource: URI, operation: FileOperation.DELETE);
+	constructor(resource: URI, operation: FileOperation.DELETE | FileOperation.WRITE);
 	constructor(resource: URI, operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY, target: IFileStatWithMetadata);
 	constructor(readonly resource: URI, readonly operation: FileOperation, readonly target?: IFileStatWithMetadata) { }
 
-	isOperation(operation: FileOperation.DELETE): boolean;
-	isOperation(operation: FileOperation.MOVE | FileOperation.COPY | FileOperation.CREATE): this is { readonly target: IFileStatWithMetadata };
+	isOperation(operation: FileOperation.DELETE | FileOperation.WRITE): boolean;
+	isOperation(operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY): this is { readonly target: IFileStatWithMetadata };
 	isOperation(operation: FileOperation): boolean {
 		return this.operation === operation;
 	}
@@ -1171,9 +1172,9 @@ export enum FileKind {
  */
 export const ETAG_DISABLED = '';
 
-export function etag(stat: { mtime: number, size: number }): string;
-export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined;
-export function etag(stat: { mtime: number | undefined, size: number | undefined }): string | undefined {
+export function etag(stat: { mtime: number; size: number }): string;
+export function etag(stat: { mtime: number | undefined; size: number | undefined }): string | undefined;
+export function etag(stat: { mtime: number | undefined; size: number | undefined }): string | undefined {
 	if (typeof stat.size !== 'number' || typeof stat.mtime !== 'number') {
 		return undefined;
 	}

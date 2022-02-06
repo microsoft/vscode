@@ -15,8 +15,8 @@ export class ReplacePattern {
 	private _regExp: RegExp;
 	private _caseOpsRegExp: RegExp;
 
-	constructor(replaceString: string, searchPatternInfo: IPatternInfo)
-	constructor(replaceString: string, parseParameters: boolean, regEx: RegExp)
+	constructor(replaceString: string, searchPatternInfo: IPatternInfo);
+	constructor(replaceString: string, parseParameters: boolean, regEx: RegExp);
 	constructor(replaceString: string, arg2: any, arg3?: any) {
 		this._replacePattern = replaceString;
 		let searchPatternInfo: IPatternInfo;

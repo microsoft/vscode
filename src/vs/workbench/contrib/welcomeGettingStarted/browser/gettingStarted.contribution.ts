@@ -49,7 +49,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, walkthroughID: string | { category: string, step: string } | undefined, toSide: boolean | undefined) {
+	public run(accessor: ServicesAccessor, walkthroughID: string | { category: string; step: string } | undefined, toSide: boolean | undefined) {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
@@ -296,6 +296,18 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install of the extension.")
+		},
+		'workbench.welcomePage.experimental.videoTutorials': {
+			scope: ConfigurationScope.MACHINE,
+			type: 'string',
+			enum: [
+				'off',
+				'on',
+				'experimental'
+			],
+			tags: ['experimental'],
+			default: 'off',
+			description: localize('workbench.welcomePage.videoTutorials', "When enabled, the get started page has additional links to video tutorials.")
 		}
 	}
 });

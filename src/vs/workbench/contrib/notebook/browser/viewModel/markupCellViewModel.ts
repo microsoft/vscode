@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellEditState, CellFindMatch, CellFoldingState, CellLayoutState, EditorFoldingStateDelegate, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellFoldingState, CellLayoutContext, CellLayoutState, EditorFoldingStateDelegate, ICellOutputViewModel, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -122,7 +122,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			this.viewContext.eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this.model)]);
 
 			if (e.foldingStateChanged) {
-				this._updateTotalHeight(this._computeTotalHeight());
+				this._updateTotalHeight(this._computeTotalHeight(), CellLayoutContext.Fold);
 			}
 		}));
 	}
@@ -137,8 +137,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				+ layoutConfiguration.markdownCellTopMargin
 				+ layoutConfiguration.markdownCellBottomMargin
 				+ bottomToolbarGap
-				+ this.viewContext.notebookOptions.computeStatusBarHeight()
-				+ foldHintHeight;
+				+ this.viewContext.notebookOptions.computeStatusBarHeight();
 		} else {
 			// @rebornix
 			// On file open, the previewHeight + bottomToolbarGap for a cell out of viewport can be 0
@@ -149,8 +148,8 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	}
 
 	private _computeFoldHintHeight(): number {
-		return this.foldingState === CellFoldingState.Collapsed ?
-			this.viewContext.notebookOptions.getLayoutConfiguration().markdownFoldHintHeight : 0;
+		return (this.getEditState() === CellEditState.Editing || this.foldingState !== CellFoldingState.Collapsed) ?
+			0 : this.viewContext.notebookOptions.getLayoutConfiguration().markdownFoldHintHeight;
 	}
 
 	updateOptions(e: NotebookOptionsChangeEvent) {
@@ -175,9 +174,9 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		this._onDidChangeState.fire({ foldingStateChanged: true });
 	}
 
-	private _updateTotalHeight(newHeight: number) {
+	private _updateTotalHeight(newHeight: number, context?: CellLayoutContext) {
 		if (newHeight !== this.layoutInfo.totalHeight) {
-			this.layoutChange({ totalHeight: newHeight });
+			this.layoutChange({ totalHeight: newHeight, context });
 		}
 	}
 

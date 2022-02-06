@@ -81,6 +81,9 @@ class UpdatableHoverWidget implements IDisposable {
 			this._cancellationTokenSource = new CancellationTokenSource();
 			const token = this._cancellationTokenSource.token;
 			resolvedContent = await markdownTooltip.markdown(token);
+			if (resolvedContent === undefined) {
+				resolvedContent = markdownTooltip.markdownNotSupportedFallback;
+			}
 
 			if (this.isDisposed || token.isCancellationRequested) {
 				// either the widget has been closed in the meantime

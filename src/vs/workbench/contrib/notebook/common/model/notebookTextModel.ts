@@ -17,7 +17,7 @@ import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/commo
 import { IModelService } from 'vs/editor/common/services/model';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isDefined } from 'vs/base/common/types';
@@ -386,10 +386,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _getCellIndexWithOutputIdHandle(outputId: string) {
 		return this.cells.findIndex(c => !!c.outputs.find(o => o.outputId === outputId));
-	}
-
-	checkCellExistence(handle: number) {
-		return this._cellListeners.has(handle);
 	}
 
 	reset(cells: ICellDto2[], metadata: NotebookDocumentMetadata, transientOptions: TransientOptions): void {

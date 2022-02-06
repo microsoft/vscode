@@ -8,7 +8,7 @@ import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionSt
 import { FileAccess } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -102,11 +102,11 @@ export class LanguageDetectionWorkerHost {
 	}
 
 	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
-		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number; };
+		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
 		type LanguageDetectionStatsClassification = {
-			languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 
 		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {

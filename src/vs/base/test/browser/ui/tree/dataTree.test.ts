@@ -58,7 +58,7 @@ suite('DataTree', function () {
 		};
 
 		const identityProvider = new class implements IIdentityProvider<E> {
-			getId(element: E): { toString(): string; } {
+			getId(element: E): { toString(): string } {
 				return `${element.value}`;
 			}
 		};

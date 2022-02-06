@@ -44,14 +44,14 @@ export interface IWebviewWorkbenchService {
 	): WebviewInput;
 
 	reviveWebview(options: {
-		id: string,
-		viewType: string,
-		title: string,
-		iconPath: WebviewIcons | undefined,
-		state: any,
-		webviewOptions: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
+		id: string;
+		viewType: string;
+		title: string;
+		iconPath: WebviewIcons | undefined;
+		state: any;
+		webviewOptions: WebviewOptions;
+		contentOptions: WebviewContentOptions;
+		extension: WebviewExtensionDescription | undefined;
 		group: number | undefined;
 	}): WebviewInput;
 
@@ -142,7 +142,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 
 
 class RevivalPool {
-	private _awaitingRevival: Array<{ input: WebviewInput, resolve: () => void; }> = [];
+	private _awaitingRevival: Array<{ input: WebviewInput; resolve: () => void }> = [];
 
 	public add(input: WebviewInput, resolve: () => void) {
 		this._awaitingRevival.push({ input, resolve });
@@ -268,15 +268,15 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 	}
 
 	public reviveWebview(options: {
-		id: string,
-		viewType: string,
-		title: string,
-		iconPath: WebviewIcons | undefined,
-		state: any,
-		webviewOptions: WebviewOptions,
-		contentOptions: WebviewContentOptions,
-		extension: WebviewExtensionDescription | undefined,
-		group: number | undefined,
+		id: string;
+		viewType: string;
+		title: string;
+		iconPath: WebviewIcons | undefined;
+		state: any;
+		webviewOptions: WebviewOptions;
+		contentOptions: WebviewContentOptions;
+		extension: WebviewExtensionDescription | undefined;
+		group: number | undefined;
 	}): WebviewInput {
 		const webview = this._webviewService.createWebviewOverlay(options.id, options.webviewOptions, options.contentOptions, options.extension);
 		webview.state = options.state;

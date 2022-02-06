@@ -8,7 +8,8 @@ import { CancellationError, onUnexpectedExternalError } from 'vs/base/common/err
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { InlayHint, InlayHintList, InlayHintsProvider, InlayHintsProviderRegistry } from 'vs/editor/common/languages';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { InlayHint, InlayHintList, InlayHintsProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 
 export class InlayHintAnchor {
@@ -20,17 +21,17 @@ export class InlayHintItem {
 	private _isResolved: boolean = false;
 	private _currentResolve?: Promise<void>;
 
-	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, private readonly _provider: InlayHintsProvider) { }
+	constructor(readonly hint: InlayHint, readonly anchor: InlayHintAnchor, readonly provider: InlayHintsProvider) { }
 
-	with(delta: { anchor: InlayHintAnchor; }): InlayHintItem {
-		const result = new InlayHintItem(this.hint, delta.anchor, this._provider);
+	with(delta: { anchor: InlayHintAnchor }): InlayHintItem {
+		const result = new InlayHintItem(this.hint, delta.anchor, this.provider);
 		result._isResolved = this._isResolved;
 		result._currentResolve = this._currentResolve;
 		return result;
 	}
 
 	async resolve(token: CancellationToken): Promise<void> {
-		if (typeof this._provider.resolveInlayHint !== 'function') {
+		if (typeof this.provider.resolveInlayHint !== 'function') {
 			return;
 		}
 		if (this._currentResolve) {
@@ -51,7 +52,7 @@ export class InlayHintItem {
 
 	private async _doResolve(token: CancellationToken) {
 		try {
-			const newHint = await Promise.resolve(this._provider.resolveInlayHint!(this.hint, token));
+			const newHint = await Promise.resolve(this.provider.resolveInlayHint!(this.hint, token));
 			this.hint.tooltip = newHint?.tooltip ?? this.hint.tooltip;
 			this.hint.label = newHint?.label ?? this.hint.label;
 			this._isResolved = true;
@@ -64,11 +65,11 @@ export class InlayHintItem {
 
 export class InlayHintsFragments {
 
-	static async create(model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlayHintsFragments> {
+	static async create(registry: LanguageFeatureRegistry<InlayHintsProvider>, model: ITextModel, ranges: Range[], token: CancellationToken): Promise<InlayHintsFragments> {
 
 		const data: [InlayHintList, InlayHintsProvider][] = [];
 
-		const promises = InlayHintsProviderRegistry.ordered(model).reverse().map(provider => ranges.map(async range => {
+		const promises = registry.ordered(model).reverse().map(provider => ranges.map(async range => {
 			try {
 				const result = await provider.provideInlayHints(model, range, token);
 				if (result?.hints.length) {

@@ -99,7 +99,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return this.resolveAnyBase(workspaceFolder, config, commandValueMapping);
 	}
 
-	public async resolveAnyMap(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }> {
+	public async resolveAnyMap(workspaceFolder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any; resolvedVariables: Map<string, string> }> {
 		const resolvedVariables = new Map<string, string>();
 		const newConfig = await this.resolveAnyBase(workspaceFolder, config, commandValueMapping, resolvedVariables);
 		return { newConfig, resolvedVariables };

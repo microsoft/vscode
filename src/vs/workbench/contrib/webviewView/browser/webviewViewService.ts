@@ -46,7 +46,7 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 
 	private readonly _resolvers = new Map<string, IWebviewViewResolver>();
 
-	private readonly _awaitingRevival = new Map<string, { webview: WebviewView, resolve: () => void }>();
+	private readonly _awaitingRevival = new Map<string, { webview: WebviewView; resolve: () => void }>();
 
 	private readonly _onNewResolverRegistered = this._register(new Emitter<{ readonly viewType: string }>());
 	public readonly onNewResolverRegistered = this._onNewResolverRegistered.event;

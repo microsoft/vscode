@@ -649,8 +649,15 @@ export interface IEditorOptions {
 	*/
 	guides?: IGuidesOptions;
 
+	/**
+	 * Controls the behavior of the unicode highlight feature
+	 * (by default, ambiguous and invisible characters are highlighted).
+	 */
 	unicodeHighlight?: IUnicodeHighlightOptions;
 
+	/**
+	 * Configures bracket pair colorization (disabled by default).
+	*/
 	bracketPairColorization?: IBracketPairColorizationOptions;
 }
 
@@ -791,7 +798,7 @@ export interface IEditorOption<K extends EditorOption, V> {
 	/**
 	 * @internal
 	 */
-	readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; } | undefined;
+	readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema } | undefined;
 	/**
 	 * @internal
 	 */
@@ -824,9 +831,9 @@ abstract class BaseEditorOption<K extends EditorOption, T, V> implements IEditor
 	public readonly id: K;
 	public readonly name: string;
 	public readonly defaultValue: V;
-	public readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; } | undefined;
+	public readonly schema: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema } | undefined;
 
-	constructor(id: K, name: PossibleKeyName<T>, defaultValue: V, schema?: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }) {
+	constructor(id: K, name: PossibleKeyName<T>, defaultValue: V, schema?: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }) {
 		this.id = id;
 		this.name = name;
 		this.defaultValue = defaultValue;
@@ -2100,7 +2107,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		height: number;
 		lineHeight: number;
 		pixelRatio: number;
-	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number; } {
+	}): { typicalViewportLineCount: number; extraLinesBeyondLastLine: number; desiredRatio: number; minimapLineCount: number } {
 		const typicalViewportLineCount = input.height / input.lineHeight;
 		const extraLinesBeyondLastLine = input.scrollBeyondLastLine ? (typicalViewportLineCount - 1) : 0;
 		const desiredRatio = (input.viewLineCount + extraLinesBeyondLastLine) / (input.pixelRatio * input.height);
@@ -3296,16 +3303,40 @@ export const inUntrustedWorkspace: InUntrustedWorkspace = 'inUntrustedWorkspace'
  * Configuration options for unicode highlighting.
  */
 export interface IUnicodeHighlightOptions {
+
+	/**
+	 * Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.
+	 */
 	nonBasicASCII?: boolean | InUntrustedWorkspace;
+
+	/**
+	 * Controls whether characters that just reserve space or have no width at all are highlighted.
+	 */
 	invisibleCharacters?: boolean;
+
+	/**
+	 * Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.
+	 */
 	ambiguousCharacters?: boolean;
+
+	/**
+	 * Controls whether characters in comments should also be subject to unicode highlighting.
+	 */
 	includeComments?: boolean | InUntrustedWorkspace;
+
+	/**
+	 * Controls whether characters in strings should also be subject to unicode highlighting.
+	 */
 	includeStrings?: boolean | InUntrustedWorkspace;
 
 	/**
-	 * A map of allowed characters (true: allowed).
-	*/
+	 * Defines allowed characters that are not being highlighted.
+	 */
 	allowedCharacters?: Record<string, true>;
+
+	/**
+	 * Unicode characters that are common in allowed locales are not being highlighted.
+	 */
 	allowedLocales?: Record<string | '_os' | '_vscode', true>;
 }
 
@@ -4154,7 +4185,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 //#region smart select
 
 export interface ISmartSelectOptions {
-	selectLeadingAndTrailingWhitespace?: boolean
+	selectLeadingAndTrailingWhitespace?: boolean;
 }
 
 /**

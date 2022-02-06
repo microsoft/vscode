@@ -31,7 +31,7 @@ export interface IExtensionDefinition {
 			flags: string;
 		};
 		publisherDisplayName: string;
-	}
+	};
 }
 
 const root = path.dirname(path.dirname(__dirname));

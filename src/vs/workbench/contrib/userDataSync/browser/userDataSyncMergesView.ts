@@ -108,7 +108,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		this.buttonsContainer.style.width = `${width}px`;
 
 		const numberOfChanges = this.userDataSyncPreview.resources.filter(r => r.syncResource !== SyncResource.GlobalState && (r.localChange !== Change.None || r.remoteChange !== Change.None)).length;
-		const messageHeight = 44;
+		const messageHeight = 66 /* max 3 lines */;
 		super.layoutTreeView(Math.min(height - buttonContainerHeight, ((22 * numberOfChanges) + messageHeight)), width);
 	}
 

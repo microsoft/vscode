@@ -7,7 +7,7 @@ import { RemoteSourceProvider, RemoteSource } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
 
-function parse(url: string): { owner: string, repo: string } | undefined {
+function parse(url: string): { owner: string; repo: string } | undefined {
 	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(url)
 		|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(url);
 	return (match && { owner: match[1], repo: match[2] }) ?? undefined;

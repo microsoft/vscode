@@ -19,7 +19,7 @@ import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/co
 import { IRemoteUserData, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';

@@ -35,7 +35,7 @@ export class DefaultConfiguration extends Disposable {
 	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
 
-	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel, properties: string[] }>());
+	private readonly _onDidChangeConfiguration = this._register(new Emitter<{ defaults: ConfigurationModel; properties: string[] }>());
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	private updateCache: boolean = false;

@@ -107,9 +107,9 @@ export const connectionTokenCookieName = 'vscode-tkn';
 export const connectionTokenQueryName = 'tkn';
 
 class RemoteAuthoritiesImpl {
-	private readonly _hosts: { [authority: string]: string | undefined; } = Object.create(null);
-	private readonly _ports: { [authority: string]: number | undefined; } = Object.create(null);
-	private readonly _connectionTokens: { [authority: string]: string | undefined; } = Object.create(null);
+	private readonly _hosts: { [authority: string]: string | undefined } = Object.create(null);
+	private readonly _ports: { [authority: string]: number | undefined } = Object.create(null);
+	private readonly _connectionTokens: { [authority: string]: string | undefined } = Object.create(null);
 	private _preferredWebSchema: 'http' | 'https' = 'http';
 	private _delegate: ((uri: URI) => URI) | null = null;
 
@@ -128,6 +128,10 @@ class RemoteAuthoritiesImpl {
 
 	setConnectionToken(authority: string, connectionToken: string): void {
 		this._connectionTokens[authority] = connectionToken;
+	}
+
+	getPreferredWebSchema(): 'http' | 'https' {
+		return this._preferredWebSchema;
 	}
 
 	rewrite(uri: URI): URI {

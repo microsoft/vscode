@@ -130,12 +130,12 @@
 
 .monaco-workbench .simple-fr-find-part-wrapper .find-filter-button {
 	color: inherit;
-    margin-left: 2px;
-    float: left;
-    cursor: pointer;
-    box-sizing: border-box;
-    user-select: none;
-    -webkit-user-select: none;
+	margin-left: 2px;
+	float: left;
+	cursor: pointer;
+	box-sizing: border-box;
+	user-select: none;
+	-webkit-user-select: none;
 }
 
 .find-filter-button .monaco-action-bar .action-label {
@@ -144,4 +144,9 @@
 
 .simple-fr-find-part .find-filter-button > .monaco-action-bar .action-label.notebook-filters {
 	padding: 2px;
+}
+
+.monaco-workbench .simple-fr-find-part .monaco-inputbox > .ibwrapper > .input,
+.monaco-workbench .simple-fr-replace-part .monaco-inputbox > .ibwrapper > .input {
+	height: 24px;
 }

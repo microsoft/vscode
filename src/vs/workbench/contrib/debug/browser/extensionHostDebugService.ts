@@ -129,7 +129,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			const lastExtensionDevelopmentWorkspace = this.storageService.get(BrowserExtensionHostDebugService.LAST_EXTENSION_DEVELOPMENT_WORKSPACE_KEY, StorageScope.GLOBAL);
 			if (lastExtensionDevelopmentWorkspace) {
 				try {
-					const serializedWorkspace: { workspaceUri?: UriComponents, folderUri?: UriComponents } = JSON.parse(lastExtensionDevelopmentWorkspace);
+					const serializedWorkspace: { workspaceUri?: UriComponents; folderUri?: UriComponents } = JSON.parse(lastExtensionDevelopmentWorkspace);
 					if (serializedWorkspace.workspaceUri) {
 						debugWorkspace = { workspaceUri: URI.revive(serializedWorkspace.workspaceUri) };
 					} else if (serializedWorkspace.folderUri) {

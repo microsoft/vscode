@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -16,14 +16,14 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
 import { IndentAction, IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { withTestCodeEditor, TestCodeEditorInstantiationOptions, ITestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 
@@ -4829,7 +4829,7 @@ suite('autoClosingPairs', () => {
 					tokenize: undefined!,
 					tokenizeEncoded: function (line: string, hasEOL: boolean, _state: IState): EncodedTokenizationResult {
 						let state = <State>_state;
-						const tokens: { length: number; type: StandardTokenType; }[] = [];
+						const tokens: { length: number; type: StandardTokenType }[] = [];
 						const generateToken = (length: number, type: StandardTokenType, newState?: State) => {
 							if (tokens.length > 0 && tokens[tokens.length - 1].type === type) {
 								// grow last tokens
@@ -4976,7 +4976,7 @@ suite('autoClosingPairs', () => {
 	test('issue #132912: quotes should not auto-close if they are closing a string', () => {
 		const disposables = new DisposableStore();
 		const instantiationService = createCodeEditorServices(disposables);
-		const languageService = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService));
+		const languageService = instantiationService.get(ILanguageService);
 		const mode = disposables.add(new AutoClosingMode(languageService));
 		withTestCodeEditor(
 			disposables.add(instantiateTextModel(instantiationService, 'const t2 = `something ${t1}', mode.languageId)),

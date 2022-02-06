@@ -13,7 +13,6 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -21,6 +20,7 @@ import * as languages from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
@@ -28,7 +28,7 @@ import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contr
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
@@ -89,21 +89,22 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _disposables = new DisposableStore();
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly _debounceInfo: IFeatureDebounceInformation;
-	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem, classNameRef: IDisposable; }>();
+	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem; classNameRef: IDisposable }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
 	private _activeInlayHintPart?: RenderedInlayHintLabelPart;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageFeatureDebounceService _featureDebounce: ILanguageFeatureDebounceService,
 		@IInlayHintsCache private readonly _inlayHintsCache: IInlayHintsCache,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		this._debounceInfo = _featureDebounce.for(languages.InlayHintsProviderRegistry, 'InlayHint', { min: 25 });
-		this._disposables.add(languages.InlayHintsProviderRegistry.onDidChange(() => this._update()));
+		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
+		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModelLanguage(() => this._update()));
 		this._disposables.add(_editor.onDidChangeConfiguration(e => {
@@ -129,7 +130,7 @@ export class InlayHintsController implements IEditorContribution {
 		}
 
 		const model = this._editor.getModel();
-		if (!model || !languages.InlayHintsProviderRegistry.has(model)) {
+		if (!model || !this._languageFeaturesService.inlayHintsProvider.has(model)) {
 			return;
 		}
 
@@ -157,7 +158,7 @@ export class InlayHintsController implements IEditorContribution {
 
 			try {
 				const myToken = cts.token;
-				const inlayHints = await InlayHintsFragments.create(model, this._getHintsRanges(), myToken);
+				const inlayHints = await InlayHintsFragments.create(this._languageFeaturesService.inlayHintsProvider, model, this._getHintsRanges(), myToken);
 				scheduler.delay = this._debounceInfo.update(model, Date.now() - t1);
 				if (myToken.isCancellationRequested) {
 					inlayHints.dispose();
@@ -210,6 +211,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		// mouse gestures
 		this._sessionDisposables.add(this._installLinkGesture());
+		this._sessionDisposables.add(this._installDblClickGesture());
 		this._sessionDisposables.add(this._installContextMenu());
 	}
 
@@ -254,7 +256,7 @@ export class InlayHintsController implements IEditorContribution {
 			}
 		});
 		gesture.onCancel(removeHighlight);
-		gesture.onExecute(e => {
+		gesture.onExecute(async e => {
 			const label = this._getInlayHintLabelPart(e);
 			if (label) {
 				const part = label.part;
@@ -263,11 +265,27 @@ export class InlayHintsController implements IEditorContribution {
 					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.location);
 				} else if (languages.Command.is(part.command)) {
 					// command -> execute it
-					this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? [])).catch(err => this._notificationService.error(err));
+					await this._invokeCommand(part.command, label.item);
 				}
 			}
 		});
 		return gesture;
+	}
+
+	private _installDblClickGesture(): IDisposable {
+		return this._editor.onMouseUp(async e => {
+			if (e.event.detail !== 2) {
+				return;
+			}
+			const part = this._getInlayHintLabelPart(e);
+			if (!part) {
+				return;
+			}
+			await part.item.resolve(CancellationToken.None);
+			if (part.item.hint.command) {
+				await this._invokeCommand(part.item.hint.command, part.item);
+			}
+		});
 	}
 
 	private _installContextMenu(): IDisposable {
@@ -291,6 +309,18 @@ export class InlayHintsController implements IEditorContribution {
 			return options.attachedData;
 		}
 		return undefined;
+	}
+
+	private async _invokeCommand(command: languages.Command, item: InlayHintItem) {
+		try {
+			await this._commandService.executeCommand(command.id, ...(command.arguments ?? []));
+		} catch (err) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				source: item.provider.displayName,
+				message: err
+			});
+		}
 	}
 
 	private _cacheHintsForFastRestore(model: ITextModel): void {
@@ -332,7 +362,7 @@ export class InlayHintsController implements IEditorContribution {
 	private _updateHintsDecorators(ranges: readonly Range[], items: readonly InlayHintItem[]): void {
 
 		// utils to collect/create injected text decorations
-		const newDecorationsData: { item: InlayHintItem, decoration: IModelDeltaDecoration, classNameRef: IDisposable; }[] = [];
+		const newDecorationsData: { item: InlayHintItem; decoration: IModelDeltaDecoration; classNameRef: IDisposable }[] = [];
 		const addInjectedText = (item: InlayHintItem, ref: ClassNameReference, content: string, cursorStops: InjectedTextCursorStops, attachedData?: RenderedInlayHintLabelPart): void => {
 			newDecorationsData.push({
 				item,
@@ -501,17 +531,16 @@ function fixSpace(str: string): string {
 	return str.replace(/[ \t]/g, noBreakWhitespace);
 }
 
-registerEditorContribution(InlayHintsController.ID, InlayHintsController);
-
 CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<languages.InlayHint[]> => {
 
 	const [uri, range] = args;
 	assertType(URI.isUri(uri));
 	assertType(Range.isIRange(range));
 
+	const { inlayHintsProvider } = accessor.get(ILanguageFeaturesService);
 	const ref = await accessor.get(ITextModelService).createModelReference(uri);
 	try {
-		const model = await InlayHintsFragments.create(ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
+		const model = await InlayHintsFragments.create(inlayHintsProvider, ref.object.textEditorModel, [Range.lift(range)], CancellationToken.None);
 		const result = model.items.map(i => i.hint);
 		setTimeout(() => model.dispose(), 0); // dispose after sending to ext host
 		return result;

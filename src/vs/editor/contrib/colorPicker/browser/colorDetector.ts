@@ -17,7 +17,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ColorProviderRegistry } from 'vs/editor/common/languages';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/browser/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -46,7 +46,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this._register(_editor.onDidChangeModel(() => {
@@ -54,7 +55,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			this.onModelChanged();
 		}));
 		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
-		this._register(ColorProviderRegistry.onDidChange(() => this.onModelChanged()));
+		this._register(_languageFeaturesService.colorProvider.onDidChange(() => this.onModelChanged()));
 		this._register(_editor.onDidChangeConfiguration(() => {
 			let prevIsEnabled = this._isEnabled;
 			this._isEnabled = this.isEnabled();
@@ -109,7 +110,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		}
 		const model = this._editor.getModel();
 
-		if (!model || !ColorProviderRegistry.has(model)) {
+		if (!model || !this._languageFeaturesService.colorProvider.has(model)) {
 			return;
 		}
 
@@ -131,7 +132,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 			if (!model) {
 				return Promise.resolve([]);
 			}
-			return getColors(model, token);
+			return getColors(this._languageFeaturesService.colorProvider, model, token);
 		});
 		this._computePromise.then((colorInfos) => {
 			this.updateDecorations(colorInfos);

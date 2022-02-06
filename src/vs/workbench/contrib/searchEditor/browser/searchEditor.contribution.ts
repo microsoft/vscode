@@ -101,7 +101,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContrib
 //#endregion
 
 //#region Input Serializer
-type SerializedSearchEditor = { modelUri: string | undefined, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
+type SerializedSearchEditor = { modelUri: string | undefined; dirty: boolean; config: SearchConfiguration; name: string; matchRanges: Range[]; backingUri: string };
 
 class SearchEditorInputSerializer implements IEditorSerializer {
 
@@ -170,18 +170,18 @@ CommandsRegistry.registerCommand(
 const category = { value: localize('search', "Search Editor"), original: 'Search Editor' };
 
 export type LegacySearchEditorArgs = Partial<{
-	query: string,
-	includes: string,
-	excludes: string,
-	contextLines: number,
-	wholeWord: boolean,
-	caseSensitive: boolean,
-	regexp: boolean,
-	useIgnores: boolean,
-	showIncludesExcludes: boolean,
-	triggerSearch: boolean,
-	focusResults: boolean,
-	location: 'reuse' | 'new'
+	query: string;
+	includes: string;
+	excludes: string;
+	contextLines: number;
+	wholeWord: boolean;
+	caseSensitive: boolean;
+	regexp: boolean;
+	useIgnores: boolean;
+	showIncludesExcludes: boolean;
+	triggerSearch: boolean;
+	focusResults: boolean;
+	location: 'reuse' | 'new';
 }>;
 
 const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearchEditorArgs = {}): OpenSearchEditorArgs => {
@@ -200,7 +200,7 @@ const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearch
 	return config;
 };
 
-export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean, location: 'reuse' | 'new' }>;
+export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
 const openArgDescription = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{

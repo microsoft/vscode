@@ -54,6 +54,7 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 	public readonly scrollTop: number;
 
 	constructor(
+		private readonly _forceIntegerValues: boolean,
 		width: number,
 		scrollWidth: number,
 		scrollLeft: number,
@@ -61,12 +62,14 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 		scrollHeight: number,
 		scrollTop: number
 	) {
-		width = width | 0;
-		scrollWidth = scrollWidth | 0;
-		scrollLeft = scrollLeft | 0;
-		height = height | 0;
-		scrollHeight = scrollHeight | 0;
-		scrollTop = scrollTop | 0;
+		if (this._forceIntegerValues) {
+			width = width | 0;
+			scrollWidth = scrollWidth | 0;
+			scrollLeft = scrollLeft | 0;
+			height = height | 0;
+			scrollHeight = scrollHeight | 0;
+			scrollTop = scrollTop | 0;
+		}
 
 		this.rawScrollLeft = scrollLeft; // before validation
 		this.rawScrollTop = scrollTop; // before validation
@@ -114,6 +117,7 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 
 	public withScrollDimensions(update: INewScrollDimensions, useRawScrollPositions: boolean): ScrollState {
 		return new ScrollState(
+			this._forceIntegerValues,
 			(typeof update.width !== 'undefined' ? update.width : this.width),
 			(typeof update.scrollWidth !== 'undefined' ? update.scrollWidth : this.scrollWidth),
 			useRawScrollPositions ? this.rawScrollLeft : this.scrollLeft,
@@ -125,6 +129,7 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 
 	public withScrollPosition(update: INewScrollPosition): ScrollState {
 		return new ScrollState(
+			this._forceIntegerValues,
 			this.width,
 			this.scrollWidth,
 			(typeof update.scrollLeft !== 'undefined' ? update.scrollLeft : this.rawScrollLeft),
@@ -202,6 +207,21 @@ export interface INewScrollPosition {
 	scrollTop?: number;
 }
 
+export interface IScrollableOptions {
+	/**
+	 * Define if the scroll values should always be integers.
+	 */
+	forceIntegerValues: boolean;
+	/**
+	 * Set the duration (ms) used for smooth scroll animations.
+	 */
+	smoothScrollDuration: number;
+	/**
+	 * A function to schedule an update at the next frame (used for smooth scroll animations).
+	 */
+	scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable;
+}
+
 export class Scrollable extends Disposable {
 
 	_scrollableBrand: void = undefined;
@@ -214,12 +234,12 @@ export class Scrollable extends Disposable {
 	private _onScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onScroll: Event<ScrollEvent> = this._onScroll.event;
 
-	constructor(smoothScrollDuration: number, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
+	constructor(options: IScrollableOptions) {
 		super();
 
-		this._smoothScrollDuration = smoothScrollDuration;
-		this._scheduleAtNextAnimationFrame = scheduleAtNextAnimationFrame;
-		this._state = new ScrollState(0, 0, 0, 0, 0, 0);
+		this._smoothScrollDuration = options.smoothScrollDuration;
+		this._scheduleAtNextAnimationFrame = options.scheduleAtNextAnimationFrame;
+		this._state = new ScrollState(options.forceIntegerValues, 0, 0, 0, 0, 0, 0);
 		this._smoothScrolling = null;
 	}
 

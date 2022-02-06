@@ -13,8 +13,8 @@ import { ITokenizationSupport, MetadataConsts, TokenizationRegistry, StandardTok
 import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
-import { NullState } from 'vs/editor/common/languages/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { TestLineToken } from 'vs/editor/test/common/core/testLineToken';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 
@@ -239,7 +239,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			[new Position(5, 5), new Range(5, 4, 5, 5), new Range(1, 11, 1, 12)],
 		];
 
-		let isABracket: { [lineNumber: number]: { [col: number]: boolean; }; } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
+		let isABracket: { [lineNumber: number]: { [col: number]: boolean } } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
 		for (let i = 0, len = brackets.length; i < len; i++) {
 			let [testPos, b1, b2] = brackets[i];
 			assertIsBracket(model, testPos, [b1, b2]);
@@ -348,7 +348,7 @@ suite('TextModelWithTokens', () => {
 		const mode1 = 'testMode1';
 		const mode2 = 'testMode2';
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService).languageIdCodec);
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 
 		disposables.add(ModesRegistry.registerLanguage({ id: mode1 }));
 		disposables.add(ModesRegistry.registerLanguage({ id: mode2 }));
@@ -450,7 +450,7 @@ suite('TextModelWithTokens', () => {
 		const instantiationService = createModelServices(disposables);
 		const mode = 'testMode';
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService).languageIdCodec);
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 
 		const encodedMode = languageIdCodec!.encodeLanguageId(mode);
 
@@ -669,7 +669,7 @@ suite('TextModelWithTokens regression tests', () => {
 		disposables.add(ModesRegistry.registerLanguage({ id: outerMode }));
 		disposables.add(ModesRegistry.registerLanguage({ id: innerMode }));
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService).languageIdCodec);
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 		const encodedInnerMode = languageIdCodec.encodeLanguageId(innerMode);
 
 		const tokenizationSupport: ITokenizationSupport = {

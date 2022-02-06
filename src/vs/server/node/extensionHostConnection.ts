@@ -6,7 +6,6 @@
 import * as cp from 'child_process';
 import * as net from 'net';
 import { getNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
-import { uriTransformerPath } from 'vs/server/node/remoteUriTransformer';
 import { FileAccess } from 'vs/base/common/network';
 import { join, delimiter } from 'vs/base/common/path';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -48,7 +47,7 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		...userShellEnv,
 		...{
 			VSCODE_LOG_NATIVE: String(isDebug),
-			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
+			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 			VSCODE_EXTHOST_WILL_SEND_SOCKET: 'true',
@@ -200,7 +199,7 @@ export class ExtensionHostConnection {
 			};
 
 			// Run Extension Host as fork of current process
-			const args = ['--type=extensionHost', `--uriTransformerPath=${uriTransformerPath}`];
+			const args = ['--type=extensionHost', `--transformURIs`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
 			if (useHostProxy) {
 				args.push(`--useHostProxy`);

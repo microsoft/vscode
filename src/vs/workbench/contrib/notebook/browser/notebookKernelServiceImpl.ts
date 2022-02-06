@@ -167,7 +167,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult {
 
 		// all applicable kernels
-		const kernels: { kernel: INotebookKernel, instanceAffinity: number, typeAffinity: number, score: number }[] = [];
+		const kernels: { kernel: INotebookKernel; instanceAffinity: number; typeAffinity: number; score: number }[] = [];
 		for (const info of this._kernels.values()) {
 			const score = NotebookKernelService._score(info.kernel, notebook);
 			if (score) {

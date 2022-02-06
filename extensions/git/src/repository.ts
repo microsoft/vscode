@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, SourceControlActionButton } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -20,6 +20,7 @@ import { Log, LogLevel } from './log';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { ActionButtonCommand } from './actionButton';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -967,6 +968,11 @@ export class Repository implements Disposable {
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
 
+		const actionButton = new ActionButtonCommand(this);
+		this.disposables.push(actionButton);
+		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
+		this._sourceControl.actionButton = actionButton.button;
+
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
 
@@ -1072,7 +1078,7 @@ export class Repository implements Disposable {
 		return await this.repository.getCommitTemplate();
 	}
 
-	getConfigs(): Promise<{ key: string; value: string; }[]> {
+	getConfigs(): Promise<{ key: string; value: string }[]> {
 		return this.run(Operation.Config, () => this.repository.getConfigs('local'));
 	}
 
@@ -1153,7 +1159,7 @@ export class Repository implements Disposable {
 		return this.run(Operation.HashObject, () => this.repository.hashObject(data));
 	}
 
-	async add(resources: Uri[], opts?: { update?: boolean; }): Promise<void> {
+	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
 		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath), opts));
 	}
 
@@ -1290,11 +1296,11 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async checkout(treeish: string, opts?: { detached?: boolean; }): Promise<void> {
+	async checkout(treeish: string, opts?: { detached?: boolean }): Promise<void> {
 		await this.run(Operation.Checkout, () => this.repository.checkout(treeish, [], opts));
 	}
 
-	async checkoutTracking(treeish: string, opts: { detached?: boolean; } = {}): Promise<void> {
+	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
 		await this.run(Operation.CheckoutTracking, () => this.repository.checkout(treeish, [], { ...opts, track: true }));
 	}
 
@@ -1327,7 +1333,7 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async fetchDefault(options: { silent?: boolean; } = {}): Promise<void> {
+	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
 		await this._fetch({ silent: options.silent });
 	}
 
@@ -1345,7 +1351,7 @@ export class Repository implements Disposable {
 		await this._fetch(options);
 	}
 
-	private async _fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean; } = {}): Promise<void> {
+	private async _fetch(options: { remote?: string; ref?: string; all?: boolean; prune?: boolean; depth?: number; silent?: boolean } = {}): Promise<void> {
 		if (!options.prune) {
 			const config = workspace.getConfiguration('git', Uri.file(this.root));
 			const prune = config.get<boolean>('pruneOnFetch');
@@ -1571,11 +1577,11 @@ export class Repository implements Disposable {
 		});
 	}
 
-	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string, object: string, size: number; }> {
+	getObjectDetails(ref: string, filePath: string): Promise<{ mode: string; object: string; size: number }> {
 		return this.run(Operation.GetObjectDetails, () => this.repository.getObjectDetails(ref, filePath));
 	}
 
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string; }> {
+	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
@@ -1936,43 +1942,6 @@ export class Repository implements Disposable {
 
 			return undefined;
 		});
-
-		let actionButton: SourceControlActionButton | undefined;
-		if (HEAD !== undefined) {
-			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
-			const postCommitCommand = config.get<string>('postCommitCommand');
-
-			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0 && postCommitCommand !== 'sync' && postCommitCommand !== 'push')) {
-				if (HEAD.name && HEAD.commit) {
-					if (HEAD.upstream) {
-						if (HEAD.ahead) {
-							const rebaseWhenSync = config.get<string>('rebaseWhenSync');
-
-							actionButton = {
-								command: {
-									command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-									title: localize('scm button sync title', "$(sync) {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
-									tooltip: this.syncTooltip,
-									arguments: [this._sourceControl],
-								},
-								description: localize('scm button sync description', "$(sync) Sync Changes {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`)
-							};
-						}
-					} else {
-						actionButton = {
-							command: {
-								command: 'git.publish',
-								title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
-								tooltip: localize('scm button publish tooltip', "Publish Branch"),
-								arguments: [this._sourceControl],
-							}
-						};
-					}
-				}
-			}
-		}
-		this._sourceControl.actionButton = actionButton;
 
 		// set resource groups
 		this.mergeGroup.resourceStates = merge;

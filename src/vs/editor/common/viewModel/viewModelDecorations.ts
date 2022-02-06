@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IModelDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { IViewModelLines } from 'vs/editor/common/viewModel/viewModelLines';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { StandardTokenType } from 'vs/editor/common/languages';
 
@@ -32,7 +32,7 @@ export class ViewModelDecorations implements IDisposable {
 	private readonly _linesCollection: IViewModelLines;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
 
-	private _decorationsCache: { [decorationId: string]: ViewModelDecoration; };
+	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
 
 	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;

@@ -527,7 +527,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 		}
 	}
 
-	private getTarget(context?: IEditorIdentifier): { editor: EditorInput | null, group: IEditorGroup | undefined } {
+	private getTarget(context?: IEditorIdentifier): { editor: EditorInput | null; group: IEditorGroup | undefined } {
 		if (context) {
 			return { editor: context.editor, group: this.editorGroupService.getGroup(context.groupId) };
 		}
@@ -1262,7 +1262,11 @@ export class NavigateForwardAction extends Action {
 	static readonly ID = 'workbench.action.navigateForward';
 	static readonly LABEL = localize('navigateNext', "Go Forward");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
 		super(id, label);
 	}
 
@@ -1276,7 +1280,11 @@ export class NavigateBackwardsAction extends Action {
 	static readonly ID = 'workbench.action.navigateBack';
 	static readonly LABEL = localize('navigatePrevious', "Go Back");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
 		super(id, label);
 	}
 
@@ -1285,31 +1293,39 @@ export class NavigateBackwardsAction extends Action {
 	}
 }
 
-export class NavigateToLastEditLocationAction extends Action {
-
-	static readonly ID = 'workbench.action.navigateToLastEditLocation';
-	static readonly LABEL = localize('navigateToLastEditLocation', "Go to Last Edit Location");
-
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		this.historyService.openLastEditLocation();
-	}
-}
-
 export class NavigateLastAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateLast';
 	static readonly LABEL = localize('navigateLast', "Go Last");
 
-	constructor(id: string, label: string, @IHistoryService private readonly historyService: IHistoryService) {
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
 		super(id, label);
 	}
 
 	override async run(): Promise<void> {
 		this.historyService.last();
+	}
+}
+
+export class NavigateToLastEditLocationAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateToLastEditLocation';
+	static readonly LABEL = localize('navigateToLastEditLocation', "Go to Last Edit Location");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		this.historyService.openLastEditLocation();
 	}
 }
 

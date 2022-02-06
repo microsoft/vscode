@@ -757,11 +757,12 @@
 	vertical-align: middle;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .codicon-close {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .hide-category-button {
 	visibility: hidden;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .getting-started-category:hover .codicon-close {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .getting-started-category:focus-within .hide-category-button,
+.monaco-workbench .part.editor>.content .gettingStartedContainer .getting-started-category:hover .hide-category-button {
 	visibility: visible;
 }
 

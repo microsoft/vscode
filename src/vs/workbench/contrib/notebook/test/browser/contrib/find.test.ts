@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -177,8 +177,6 @@ suite('Notebook Find', () => {
 				}], true, undefined, () => undefined, undefined, true);
 				await found2;
 				assert.strictEqual(model.findMatches.length, 3);
-				assert.strictEqual(model.currentMatch, 3);
-				model.find(false);
 				assert.strictEqual(model.currentMatch, 0);
 				model.find(true);
 				assert.strictEqual(model.currentMatch, 3);

@@ -28,7 +28,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { Iterable } from 'vs/base/common/iterator';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 // --- VIEW MODEL
@@ -359,7 +359,7 @@ export class BulkEditAccessibilityProvider implements IListAccessibilityProvider
 
 export class BulkEditIdentityProvider implements IIdentityProvider<BulkEditElement> {
 
-	getId(element: BulkEditElement): { toString(): string; } {
+	getId(element: BulkEditElement): { toString(): string } {
 		if (element instanceof FileElement) {
 			return element.edit.uri + (element.parent instanceof CategoryElement ? JSON.stringify(element.parent.category.metadata) : '');
 		} else if (element instanceof TextEditElement) {
