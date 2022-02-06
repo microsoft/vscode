@@ -7,17 +7,17 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from 'vs/workbench/services/search/common/search';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
@@ -993,6 +993,7 @@ export class EditorNavigationStack extends Disposable {
 	readonly onDidChange = this._onDidChange.event;
 
 	private readonly mapEditorToDisposable = new Map<EditorInput, DisposableStore>();
+	private readonly mapGroupToDisposable = new Map<GroupIdentifier, IDisposable>();
 
 	private readonly editorHelper = this.instantiationService.createInstance(EditorHelper);
 
@@ -1009,6 +1010,12 @@ export class EditorNavigationStack extends Disposable {
 		return this.stack[this.index];
 	}
 
+	private set current(entry: IEditorNavigationStackEntry | undefined) {
+		if (entry) {
+			this.stack[this.index] = entry;
+		}
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -1023,21 +1030,54 @@ export class EditorNavigationStack extends Disposable {
 		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e.id)));
 	}
 
+	private registerGroupListeners(group: IEditorGroup): void {
+		if (!this.mapGroupToDisposable.has(group.id)) {
+			this.mapGroupToDisposable.set(group.id, group.onWillMoveEditor(e => this.onWillMoveEditor(e)));
+		}
+	}
+
 	private onDidRemoveGroup(groupId: GroupIdentifier): void {
+
+		// Remove from stack
 		this.remove(groupId);
+
+		// Clear group listener
+		this.mapGroupToDisposable.get(groupId)?.dispose();
+		this.mapGroupToDisposable.delete(groupId);
+	}
+
+	private onWillMoveEditor(e: IEditorWillMoveEvent): void {
+		for (const entry of this.stack) {
+			if (entry.groupId !== e.groupId) {
+				continue; // not in the group that reported the event
+			}
+
+			if (!this.editorHelper.matchesEditor(e.editor, entry.editor)) {
+				continue; // not the editor this event is about
+			}
+
+			// Update to target group
+			entry.groupId = e.target;
+		}
 	}
 
 	//#region Stack Mutation
 
 	notifyNavigation(editorPane: IEditorPane | undefined, event?: IEditorPaneSelectionChangeEvent): void {
 		const isSelectionAwareEditorPane = isEditorPaneWithSelection(editorPane);
+		const hasValidEditor = editorPane?.group && editorPane.input && !editorPane.input.isDisposed();
+
+		// Ensure we listen to changes in group
+		if (hasValidEditor) {
+			this.registerGroupListeners(editorPane.group);
+		}
 
 		// Treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
 		// stack but we need to keep our currentEditorSelectionState up to date
 		// with the navigtion that occurs.
 		if (this.navigating) {
-			if (isSelectionAwareEditorPane && editorPane?.group && editorPane.input && !editorPane.input.isDisposed()) {
+			if (isSelectionAwareEditorPane && hasValidEditor) {
 				this.currentSelectionState = new EditorSelectionState({ groupId: editorPane.group.id, editor: editorPane.input }, editorPane.getSelection(), event?.reason);
 			} else {
 				this.currentSelectionState = undefined; // we navigated to a non-selection aware or disposed editor
@@ -1048,7 +1088,7 @@ export class EditorNavigationStack extends Disposable {
 		else {
 
 			// Navigation inside selection aware editor
-			if (isSelectionAwareEditorPane && editorPane?.group && editorPane.input && !editorPane.input.isDisposed()) {
+			if (isSelectionAwareEditorPane && hasValidEditor) {
 				this.onSelectionAwareEditorNavigation(editorPane.group.id, editorPane.input, editorPane.getSelection(), event);
 			}
 
@@ -1056,7 +1096,7 @@ export class EditorNavigationStack extends Disposable {
 			else {
 				this.currentSelectionState = undefined; // at this time we have no active selection aware editor
 
-				if (editorPane?.group && editorPane.input && !editorPane.input.isDisposed()) {
+				if (hasValidEditor) {
 					this.onNonSelectionAwareEditorNavigation(editorPane.group.id, editorPane.input);
 				}
 			}
@@ -1064,6 +1104,10 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	private onSelectionAwareEditorNavigation(groupId: GroupIdentifier, editor: EditorInput, selection: IEditorPaneSelection | undefined, event?: IEditorPaneSelectionChangeEvent): void {
+		if (this.current?.groupId === groupId && !selection && this.editorHelper.matchesEditor(this.current.editor, editor)) {
+			return; // do not push same editor input again of same group if we have no valid selection
+		}
+
 		const stateCandidate = new EditorSelectionState({ groupId, editor }, selection, event?.reason);
 
 		// Add to stack if we dont have a current state or this new state justifies a push
@@ -1081,7 +1125,7 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	private onNonSelectionAwareEditorNavigation(groupId: GroupIdentifier, editor: EditorInput): void {
-		if (this.current?.groupId === groupId && this.editorHelper.matchesEditor(editor, this.current.editor)) {
+		if (this.current?.groupId === groupId && this.editorHelper.matchesEditor(this.current.editor, editor)) {
 			return; // do not push same editor input again of same group
 		}
 
@@ -1100,24 +1144,24 @@ export class EditorNavigationStack extends Disposable {
 		}
 	}
 
-	private doAddOrReplace(groupId: GroupIdentifier, editor: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection, forceReplace?: boolean): void {
+	private doAddOrReplace(groupId: GroupIdentifier, editorCandidate: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection, forceReplace?: boolean): void {
 
 		// Check whether to replace an existing entry or not
 		let replace = false;
 		if (this.current) {
 			if (forceReplace) {
 				replace = true; // replace if we are forced to
-			} else if (this.shouldReplaceStackEntry(this.current, { groupId, editor, selection })) {
+			} else if (this.shouldReplaceStackEntry(this.current, { groupId, editor: editorCandidate, selection })) {
 				replace = true; // replace if the group & input is the same and selection indicates as such
 			}
 		}
 
-		const newStackEditor = this.editorHelper.preferResourceEditorInput(editor);
-		if (!newStackEditor) {
+		const editor = this.editorHelper.preferResourceEditorInput(editorCandidate);
+		if (!editor) {
 			return;
 		}
 
-		const newStackEntry: IEditorNavigationStackEntry = { groupId, editor: newStackEditor, selection };
+		const newStackEntry: IEditorNavigationStackEntry = { groupId, editor, selection };
 
 		// Replace at current position
 		let removedEntries: IEditorNavigationStackEntry[] = [];
@@ -1125,7 +1169,7 @@ export class EditorNavigationStack extends Disposable {
 			if (this.current) {
 				removedEntries.push(this.current);
 			}
-			this.stack[this.index] = newStackEntry;
+			this.current = newStackEntry;
 		}
 
 		// Add to stack at current position
@@ -1150,7 +1194,7 @@ export class EditorNavigationStack extends Disposable {
 					this.previousIndex--;
 				}
 			} else {
-				this.setIndex(this.index + 1);
+				this.setIndex(this.index + 1, true /* skip event, we fire it later */);
 			}
 		}
 
@@ -1161,8 +1205,8 @@ export class EditorNavigationStack extends Disposable {
 
 		// Remove this from the stack unless the stack input is a resource
 		// that can easily be restored even when the input gets disposed
-		if (isEditorInput(newStackEditor)) {
-			this.editorHelper.onEditorDispose(newStackEditor, () => this.remove(newStackEditor), this.mapEditorToDisposable);
+		if (isEditorInput(editor)) {
+			this.editorHelper.onEditorDispose(editor, () => this.remove(editor), this.mapEditorToDisposable);
 		}
 
 		// Event
@@ -1252,6 +1296,11 @@ export class EditorNavigationStack extends Disposable {
 			dispose(disposable);
 		}
 		this.mapEditorToDisposable.clear();
+
+		for (const [, disposable] of this.mapGroupToDisposable) {
+			dispose(disposable);
+		}
+		this.mapGroupToDisposable.clear();
 	}
 
 	override dispose(): void {
@@ -1315,12 +1364,14 @@ export class EditorNavigationStack extends Disposable {
 		return this.navigate();
 	}
 
-	private setIndex(newIndex: number): void {
+	private setIndex(newIndex: number, skipEvent?: boolean): void {
 		this.previousIndex = this.index;
 		this.index = newIndex;
 
 		// Event
-		this._onDidChange.fire();
+		if (!skipEvent) {
+			this._onDidChange.fire();
+		}
 	}
 
 	private async navigate(): Promise<void> {

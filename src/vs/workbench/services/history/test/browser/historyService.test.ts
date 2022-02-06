@@ -58,7 +58,7 @@ suite('HistoryService', function () {
 		disposables.clear();
 	});
 
-	test('back / forward', async () => {
+	test('back / forward: basics', async () => {
 		const [part, historyService] = await createServices();
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
@@ -76,7 +76,7 @@ suite('HistoryService', function () {
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 	});
 
-	test('back / forward is editor group aware', async function () {
+	test('back / forward: is editor group aware', async function () {
 		const [part, historyService, editorService] = await createServices();
 
 		const resource = toResource.call(this, '/path/index.txt');
@@ -122,7 +122,36 @@ suite('HistoryService', function () {
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), otherResource.toString());
 	});
 
-	test('back / forward tracks group removals', async function () {
+	test('back / forward: tracks editor moves across groups', async function () {
+		const [part, historyService, editorService] = await createServices();
+
+		const resource1 = toResource.call(this, '/path/one.txt');
+		const resource2 = toResource.call(this, '/path/two.html');
+
+		const pane1 = await editorService.openEditor({ resource: resource1, options: { pinned: true } });
+		await editorService.openEditor({ resource: resource2, options: { pinned: true } });
+
+		// [one.txt] [>two.html<]
+
+		const sideGroup = part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+
+		// [one.txt] [>two.html<] | <empty>
+
+		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
+		pane1?.group?.moveEditor(pane1.input!, sideGroup);
+		await editorChangePromise;
+
+		// [one.txt] | [>two.html<]
+
+		await historyService.goBack();
+
+		// [>one.txt<] | [two.html]
+
+		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource1.toString());
+	});
+
+	test('back / forward: tracks group removals', async function () {
 		const [part, historyService, editorService] = await createServices();
 
 		const resource1 = toResource.call(this, '/path/one.txt');
@@ -147,7 +176,7 @@ suite('HistoryService', function () {
 		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource2.toString());
 	});
 
-	test('editor navigation stack - navigation', async function () {
+	test('back / forward: editor navigation stack - navigation', async function () {
 		const [, , editorService, , instantiationService] = await createServices();
 
 		const stack = instantiationService.createInstance(EditorNavigationStack);
@@ -210,7 +239,7 @@ suite('HistoryService', function () {
 		assert.strictEqual(stack.canGoBack(), false);
 	});
 
-	test('editor navigation stack - mutations', async function () {
+	test('back / forward: editor navigation stack - mutations', async function () {
 		const [, , editorService, , instantiationService] = await createServices();
 
 		const stack = instantiationService.createInstance(EditorNavigationStack);
