@@ -1311,6 +1311,42 @@ export class NavigateToggleAction extends Action {
 	}
 }
 
+export class NavigateForwardInEditsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateForwardInEditLocations';
+	static readonly LABEL = localize('navigateNextInEdits', "Go Forward in Edit Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goForward(GoFilter.EDITS);
+	}
+}
+
+export class NavigateBackwardsInEditsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateBackInEditLocations';
+	static readonly LABEL = localize('navigatePreviousInEdits', "Go Back in Edit Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goBack(GoFilter.EDITS);
+	}
+}
+
 export class NavigateToLastEditLocationAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateToLastEditLocation';
