@@ -26,7 +26,8 @@
 					"image/png",
 					"image/jpeg",
 					"image/svg+xml",
-					"text/html"
+					"text/html",
+					"application/javascript"
 				]
 			}
 		]

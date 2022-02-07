@@ -65,6 +65,16 @@ function renderHTML(outputInfo: OutputItem, container: HTMLElement): void {
 	domEval(element);
 }
 
+function renderJavascript(outputInfo: OutputItem, container: HTMLElement): void {
+	const str = outputInfo.text();
+	const scriptVal = `<script type="application/javascript">${str}</script>`;
+	const element = document.createElement('div');
+	const trustedHtml = ttPolicy?.createHTML(scriptVal) ?? scriptVal;
+	element.innerHTML = trustedHtml as string;
+	container.appendChild(element);
+	domEval(element);
+}
+
 export const activate: ActivationFunction<void> = (ctx) => {
 	const disposables = new Map<string, IDisposable>();
 
@@ -79,6 +89,15 @@ export const activate: ActivationFunction<void> = (ctx) => {
 						}
 
 						renderHTML(outputInfo, element);
+					}
+					break;
+				case 'application/javascript':
+					{
+						if (!ctx.workspace.isTrusted) {
+							return;
+						}
+
+						renderJavascript(outputInfo, element);
 					}
 					break;
 				case 'image/gif':

@@ -20,33 +20,6 @@ import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/vi
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOutputItemDto, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-class JavaScriptRendererContrib extends Disposable implements IOutputTransformContribution {
-	getType() {
-		return RenderOutputType.Html;
-	}
-
-	getMimetypes() {
-		return ['application/javascript'];
-	}
-
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-
-		const str = getStringValue(item);
-		const scriptVal = `<script type="application/javascript">${str}</script>`;
-
-		return {
-			type: RenderOutputType.Html,
-			source: output,
-			htmlContent: scriptVal
-		};
-	}
-}
 
 class StreamRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
@@ -185,7 +158,6 @@ class PlainTextRendererContrib extends Disposable implements IOutputTransformCon
 	}
 }
 
-OutputRendererRegistry.registerOutputTransform(JavaScriptRendererContrib);
 OutputRendererRegistry.registerOutputTransform(PlainTextRendererContrib);
 OutputRendererRegistry.registerOutputTransform(JSErrorRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);
