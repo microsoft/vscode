@@ -941,7 +941,12 @@ export class ExtHostDebugConsole {
 
 export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, editorTabs: IExtHostEditorTabs, workspaceService?: IExtHostWorkspace) {
+	constructor(folders: vscode.WorkspaceFolder[],
+		editorService: ExtHostDocumentsAndEditors | undefined,
+		configurationService: ExtHostConfigProvider,
+		editorTabs: IExtHostEditorTabs,
+		workspaceService?: IExtHostWorkspace,
+		userHome?: string) {
 		function getActiveUri(): URI | undefined {
 			if (editorService) {
 				const activeEditor = editorService.activeEditor();
@@ -1019,7 +1024,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			}
-		}, undefined, Promise.resolve(process.env));
+		}, undefined, userHome ? Promise.resolve(userHome) : undefined, Promise.resolve(process.env));
 	}
 }
 
