@@ -32,12 +32,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			dom.addDisposableListener(decoration.element, 'click', async () => {
 				await this._clipboardService.writeText(output);
 			});
-			if (newCommand.exitCode) {
-				decoration.element.classList.add('prompt-xterm-error');
-			} else {
-				decoration.element.classList.add('prompt-xterm-decoration');
-			}
+			decoration.element.style.position = 'absolute';
+			decoration.element.style.backgroundColor = newCommand.exitCode ? 'red' : 'green';
 			currentCommand.outputDecoration = decoration;
+
 		}
 	}
 }
