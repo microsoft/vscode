@@ -113,12 +113,11 @@ export class FoldingModel {
 			const startLineNumber = newRegions.getStartLineNumber(index);
 			const endLineNumber = newRegions.getEndLineNumber(index);
 			const isCollapsed = newRegions.isCollapsed(index);
-			const maxColumn = this._textModel.getLineMaxColumn(startLineNumber);
 			const decorationRange = {
 				startLineNumber: startLineNumber,
-				startColumn: Math.max(maxColumn - 1, 1), // make it length == 1 to detect deletions
-				endLineNumber: startLineNumber,
-				endColumn: maxColumn
+				startColumn: this._textModel.getLineMaxColumn(startLineNumber),
+				endLineNumber: endLineNumber,
+				endColumn: this._textModel.getLineMaxColumn(endLineNumber) + 1
 			};
 			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine) });
 			if (isCollapsed && endLineNumber > lastHiddenLine) {
@@ -145,18 +144,16 @@ export class FoldingModel {
 		for (let i = 0, limit = this._regions.length; i < limit; i++) {
 			if (this.regions.isCollapsed(i)) {
 				const hiddenRange = this._regions.toFoldRange(i);
-				if (!isBlocked(hiddenRange.startLineNumber, hiddenRange.endLineNumber)) {
-					let decRange = this._textModel.getDecorationRange(this._editorDecorationIds[i]);
-					if (decRange
-						&& decRange.startColumn === Math.max(decRange.endColumn - 1, 1)
-						&& this._textModel.getLineMaxColumn(decRange.startLineNumber) === decRange.endColumn) { // test that the decoration is still covering the full line else it got deleted
-						hiddenRanges.push({
-							startLineNumber: decRange.startLineNumber,
-							endLineNumber: decRange.startLineNumber + hiddenRange.endLineNumber - hiddenRange.startLineNumber,
-							isCollapsed: true,
-							type: hiddenRange.type
-						});
-					}
+				let decRange = this._textModel.getDecorationRange(this._editorDecorationIds[i]);
+				if (decRange
+					&& !isBlocked(decRange.startLineNumber, decRange.endLineNumber)
+					&& decRange.endLineNumber > decRange.startLineNumber) {
+					hiddenRanges.push({
+						startLineNumber: decRange.startLineNumber,
+						endLineNumber: decRange.startLineNumber + hiddenRange.endLineNumber - hiddenRange.startLineNumber,
+						isCollapsed: true,
+						type: hiddenRange.type
+					});
 				}
 			}
 		}
