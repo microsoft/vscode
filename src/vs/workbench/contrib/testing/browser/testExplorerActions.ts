@@ -19,10 +19,11 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
@@ -735,6 +736,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 
 		const testService = accessor.get(ITestService);
 		const profileService = accessor.get(ITestProfileService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 
 		let bestNodes: InternalTestItem[] = [];
 		let bestRange: Range | undefined;
@@ -750,7 +752,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		// the closest one before the position. Again, if we find several tests
 		// whose range is equal to the closest one, we run them all.
 		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
-			for await (const test of testsInFile(testService.collection, model.uri)) {
+			for await (const test of testsInFile(testService.collection, uriIdentityService, model.uri)) {
 				if (!test.item.range || !(profileService.capabilitiesForTest(test) & this.group)) {
 					continue;
 				}
