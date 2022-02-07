@@ -41,10 +41,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._terminal = terminal;
 	}
 
-	registerOutputDecoration(command: ITerminalCommand): IDecoration | undefined {
+	registerOutputDecoration(command: ITerminalCommand): IDecoration {
 		const output = command.getOutput();
 		if (!command.marker || !this._terminal || !output) {
-			return undefined;
+			throw new Error(`cannot add decoration, ${command.marker}, ${this._terminal}, ${output}`);
 		}
 		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: .5 });
 		if (decoration?.element) {
