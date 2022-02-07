@@ -252,7 +252,7 @@ function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: str
 		};
 	}
 
-	if (distinctElements[0].isDirectory) {
+	if (distinctElements[0].isDirectory && !distinctElements[0].isSymbolicLink) {
 		return { message: nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 

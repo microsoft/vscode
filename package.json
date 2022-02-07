@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.64.0",
-  "distro": "91fce8a983c56d50df300b3767a8848483dfd8f9",
+  "version": "1.65.0",
+  "distro": "6359a423613d04ab1f808fd99ce551f9c7a70d06",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -82,15 +82,15 @@
     "tas-client-umd": "0.1.4",
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.6.1",
-    "vscode-proxy-agent": "^0.11.0",
+    "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "6.0.0",
-    "xterm": "4.17.0-beta.7",
-    "xterm-addon-search": "0.9.0-beta.8",
-    "xterm-addon-serialize": "0.7.0-beta.6",
-    "xterm-addon-unicode11": "0.4.0-beta.1",
-    "xterm-addon-webgl": "0.12.0-beta.21",
-    "xterm-headless": "4.17.0-beta.7",
+    "xterm": "4.18.0-beta.2",
+    "xterm-addon-search": "0.9.0-beta.10",
+    "xterm-addon-serialize": "0.7.0-beta.8",
+    "xterm-addon-unicode11": "0.4.0-beta.3",
+    "xterm-addon-webgl": "0.12.0-beta.24",
+    "xterm-headless": "4.18.0-beta.2",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },

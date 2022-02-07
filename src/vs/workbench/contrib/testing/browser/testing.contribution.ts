@@ -80,7 +80,7 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 });
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Text Extensions...") + `](command:${SearchForTestExtension.ID})`,
+	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Test Extensions...") + `](command:${SearchForTestExtension.ID})`,
 	order: 10
 });
 

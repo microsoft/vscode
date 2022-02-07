@@ -341,8 +341,7 @@ class SharedProcessMain extends Disposable {
 		},
 			configurationService,
 			environmentService,
-			logService,
-			telemetryService
+			logService
 		);
 		await ptyHostService.initialize();
 

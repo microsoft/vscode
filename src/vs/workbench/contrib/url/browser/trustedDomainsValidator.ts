@@ -19,15 +19,11 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IdleValue } from 'vs/base/common/async';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
-type TrustedDomainsDialogActionClassification = {
-	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-};
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 
@@ -128,27 +124,14 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 
 			// Open Link
 			if (choice === 0) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'open' }
-				);
 				return true;
 			}
 			// Copy Link
 			else if (choice === 1) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'copy' }
-				);
 				this._clipboardService.writeText(typeof originalResource === 'string' ? originalResource : resource.toString(true));
 			}
 			// Configure Trusted Domains
 			else if (choice === 3) {
-				this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-					'trustedDomains.dialogAction',
-					{ action: 'configure' }
-				);
-
 				const pickedDomains = await configureOpenerTrustedDomainsHandler(
 					trustedDomains,
 					domainToOpen,
@@ -168,11 +151,6 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 				}
 				return false;
 			}
-
-			this._telemetryService.publicLog2<{ action: string }, TrustedDomainsDialogActionClassification>(
-				'trustedDomains.dialogAction',
-				{ action: 'cancel' }
-			);
 
 			return false;
 		}

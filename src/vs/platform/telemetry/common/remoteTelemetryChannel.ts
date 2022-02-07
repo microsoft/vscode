@@ -8,11 +8,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IRemoteTelemetryService } from 'vs/server/node/remoteTelemetryService';
+import { IServerTelemetryService } from 'vs/platform/telemetry/common/serverTelemetryService';
 
-export class RemoteTelemetryChannel extends Disposable implements IServerChannel {
+export class ServerTelemetryChannel extends Disposable implements IServerChannel {
 	constructor(
-		private readonly telemetryService: IRemoteTelemetryService,
+		private readonly telemetryService: IServerTelemetryService,
 		private readonly telemetryAppender: ITelemetryAppender | null
 	) {
 		super();

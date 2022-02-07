@@ -204,17 +204,23 @@ export interface MarkdownCellLayoutInfo {
 	readonly foldHintHeight: number;
 }
 
+export enum CellLayoutContext {
+	Fold
+}
+
 export interface MarkdownCellLayoutChangeEvent {
 	font?: FontInfo;
 	outerWidth?: number;
 	editorHeight?: number;
 	previewHeight?: number;
 	totalHeight?: number;
+	context?: CellLayoutContext;
 }
 
 export interface ICommonCellViewModelLayoutChangeInfo {
 	totalHeight?: boolean | number;
 	outerWidth?: number;
+	context?: CellLayoutContext;
 }
 export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;

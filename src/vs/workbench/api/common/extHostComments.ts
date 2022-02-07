@@ -11,7 +11,7 @@ import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
@@ -190,7 +190,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			}).then(ranges => ranges ? ranges.map(x => extHostTypeConverter.Range.from(x)) : undefined);
 		}
 
-		$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: modes.Comment, reaction: modes.CommentReaction): Promise<void> {
+		$toggleReaction(commentControllerHandle: number, threadHandle: number, uri: UriComponents, comment: languages.Comment, reaction: languages.CommentReaction): Promise<void> {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
 			if (!commentController || !commentController.reactionHandler) {
@@ -511,13 +511,13 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			proxy.$updateCommentControllerFeatures(this.handle, { reactionHandler: !!handler });
 		}
 
-		private _options: modes.CommentOptions | undefined;
+		private _options: languages.CommentOptions | undefined;
 
 		get options() {
 			return this._options;
 		}
 
-		set options(options: modes.CommentOptions | undefined) {
+		set options(options: languages.CommentOptions | undefined) {
 			this._options = options;
 
 			proxy.$updateCommentControllerFeatures(this.handle, { options: this._options });
@@ -574,7 +574,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		$createCommentThreadTemplate(uriComponents: UriComponents, range: IRange): ExtHostCommentThread {
 			const commentThread = new ExtHostCommentThread(this.id, this.handle, undefined, URI.revive(uriComponents), extHostTypeConverter.Range.to(range), [], this._extension);
-			commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
+			commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 			this._threads.set(commentThread.handle, commentThread);
 			return commentThread;
 		}
@@ -643,7 +643,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		};
 	}
 
-	function convertToReaction(reaction: vscode.CommentReaction): modes.CommentReaction {
+	function convertToReaction(reaction: vscode.CommentReaction): languages.CommentReaction {
 		return {
 			label: reaction.label,
 			iconPath: reaction.iconPath ? extHostTypeConverter.pathOrURIToURI(reaction.iconPath) : undefined,
@@ -652,7 +652,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		};
 	}
 
-	function convertFromReaction(reaction: modes.CommentReaction): vscode.CommentReaction {
+	function convertFromReaction(reaction: languages.CommentReaction): vscode.CommentReaction {
 		return {
 			label: reaction.label || '',
 			count: reaction.count || 0,
@@ -661,16 +661,16 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		};
 	}
 
-	function convertToCollapsibleState(kind: vscode.CommentThreadCollapsibleState | undefined): modes.CommentThreadCollapsibleState {
+	function convertToCollapsibleState(kind: vscode.CommentThreadCollapsibleState | undefined): languages.CommentThreadCollapsibleState {
 		if (kind !== undefined) {
 			switch (kind) {
 				case types.CommentThreadCollapsibleState.Expanded:
-					return modes.CommentThreadCollapsibleState.Expanded;
+					return languages.CommentThreadCollapsibleState.Expanded;
 				case types.CommentThreadCollapsibleState.Collapsed:
-					return modes.CommentThreadCollapsibleState.Collapsed;
+					return languages.CommentThreadCollapsibleState.Collapsed;
 			}
 		}
-		return modes.CommentThreadCollapsibleState.Collapsed;
+		return languages.CommentThreadCollapsibleState.Collapsed;
 	}
 
 	return new ExtHostCommentsImpl();

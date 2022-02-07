@@ -2245,6 +2245,15 @@
           "scope": "resource",
           "default": 1,
           "markdownDescription": "%config.repositoryScanMaxDepth%"
+        },
+        "git.commandsToLog": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "%config.commandsToLog%"
         }
       }
     },

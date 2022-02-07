@@ -19,6 +19,7 @@
     "inlayHints",
     "inlineCompletions",
     "languageStatus",
+    "markdownStringBaseUri",
     "notebookCellExecutionState",
     "notebookConcatTextDocument",
     "notebookContentProvider",

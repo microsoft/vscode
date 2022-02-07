@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
@@ -17,7 +17,7 @@ import { DocumentationExtensionPoint } from 'vs/workbench/contrib/codeActions/co
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 
-export class CodeActionDocumentationContribution extends Disposable implements IWorkbenchContribution, modes.CodeActionProvider {
+export class CodeActionDocumentationContribution extends Disposable implements IWorkbenchContribution, languages.CodeActionProvider {
 
 	private contributions: {
 		title: string;
@@ -63,11 +63,11 @@ export class CodeActionDocumentationContribution extends Disposable implements I
 		});
 	}
 
-	async provideCodeActions(_model: ITextModel, _range: Range | Selection, context: modes.CodeActionContext, _token: CancellationToken): Promise<modes.CodeActionList> {
+	async provideCodeActions(_model: ITextModel, _range: Range | Selection, context: languages.CodeActionContext, _token: CancellationToken): Promise<languages.CodeActionList> {
 		return this.emptyCodeActionsList;
 	}
 
-	public _getAdditionalMenuItems(context: modes.CodeActionContext, actions: readonly modes.CodeAction[]): modes.Command[] {
+	public _getAdditionalMenuItems(context: languages.CodeActionContext, actions: readonly languages.CodeAction[]): languages.Command[] {
 		if (context.only !== CodeActionKind.Refactor.value) {
 			if (!actions.some(action => action.kind && CodeActionKind.Refactor.contains(new CodeActionKind(action.kind)))) {
 				return [];

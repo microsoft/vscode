@@ -124,7 +124,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		this._disposables.add(toDisposable(() => {
 			// EH shut down, complete all executions started by this EH
 			this._executions.forEach(e => {
-				e.complete({ });
+				e.complete({});
 			});
 		}));
 

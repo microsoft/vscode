@@ -38,6 +38,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ButtonBar } from 'vs/base/browser/ui/button/button';
 
 const enum State {
 	Data = 'data',
@@ -114,12 +115,13 @@ export class BulkEditPane extends ViewPane {
 		);
 		this._disposables.add(resourceLabels);
 
+		const contentContainer = document.createElement('div');
+		contentContainer.className = 'content';
+		parent.appendChild(contentContainer);
+
 		// tree
 		const treeContainer = document.createElement('div');
-		treeContainer.className = 'tree';
-		treeContainer.style.width = '100%';
-		treeContainer.style.height = '100%';
-		parent.appendChild(treeContainer);
+		contentContainer.appendChild(treeContainer);
 
 		this._treeDataSource = this._instaService.createInstance(BulkEditDataSource);
 		this._treeDataSource.groupByFile = this._storageService.getBoolean(BulkEditPane._memGroupByFile, StorageScope.GLOBAL, true);
@@ -144,6 +146,21 @@ export class BulkEditPane extends ViewPane {
 		this._disposables.add(this._tree.onContextMenu(this._onContextMenu, this));
 		this._disposables.add(this._tree.onDidOpen(e => this._openElementAsEditor(e)));
 
+		// buttons
+		const buttonsContainer = document.createElement('div');
+		buttonsContainer.className = 'buttons';
+		contentContainer.appendChild(buttonsContainer);
+		const buttonBar = new ButtonBar(buttonsContainer);
+		this._disposables.add(buttonBar);
+
+		const btnConfirm = buttonBar.addButton({ supportIcons: true });
+		btnConfirm.label = localize({ key: 'ok', comment: ['$(check) must not be translated'] }, '$(check) Apply');
+		btnConfirm.onDidClick(() => this.accept(), this, this._disposables);
+
+		const btnCancel = buttonBar.addButton({ /* secondary: true */ });
+		btnCancel.label = localize('cancel', 'Discard');
+		btnCancel.onDidClick(() => this.discard(), this, this._disposables);
+
 		// message
 		this._message = document.createElement('span');
 		this._message.className = 'message';
@@ -156,7 +173,9 @@ export class BulkEditPane extends ViewPane {
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this._tree.layout(height, width);
+		const treeHeight = height - 50;
+		this._tree.getHTMLElement().parentElement!.style.height = `${treeHeight}px`;
+		this._tree.layout(treeHeight, width);
 	}
 
 	private _setState(state: State): void {

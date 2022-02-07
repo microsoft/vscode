@@ -423,6 +423,7 @@ declare namespace monaco {
 		readonly isTrusted?: boolean;
 		readonly supportThemeIcons?: boolean;
 		readonly supportHtml?: boolean;
+		readonly baseUri?: UriComponents;
 		uris?: {
 			[href: string]: UriComponents;
 		};
@@ -731,6 +732,7 @@ declare namespace monaco {
 		 * Test if the range spans multiple lines.
 		 */
 		static spansMultipleLines(range: IRange): boolean;
+		toJSON(): IRange;
 	}
 
 	/**
@@ -6908,6 +6910,7 @@ declare namespace monaco.languages {
 	export interface InlayHint {
 		label: string | InlayHintLabelPart[];
 		tooltip?: string | IMarkdownString;
+		command?: Command;
 		position: IPosition;
 		kind: InlayHintKind;
 		paddingLeft?: boolean;

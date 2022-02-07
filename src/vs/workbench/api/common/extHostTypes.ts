@@ -1353,6 +1353,14 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.supportHtml = value;
 	}
 
+	get baseUri(): vscode.Uri | undefined {
+		return this.#delegate.baseUri;
+	}
+
+	set baseUri(value: vscode.Uri | undefined) {
+		this.#delegate.baseUri = value;
+	}
+
 	appendText(value: string): vscode.MarkdownString {
 		this.#delegate.appendText(value);
 		return this;
@@ -1424,13 +1432,13 @@ export enum InlayHintKind {
 @es5ClassCompat
 export class InlayHintLabelPart {
 
-	label: string;
+	value: string;
 	tooltip?: string | vscode.MarkdownString;
 	location?: Location;
 	command?: vscode.Command;
 
-	constructor(label: string) {
-		this.label = label;
+	constructor(value: string) {
+		this.value = value;
 	}
 }
 
@@ -1443,10 +1451,11 @@ export class InlayHint implements vscode.InlayHint {
 	kind?: vscode.InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;
+	command?: vscode.Command;
 
-	constructor(label: string | InlayHintLabelPart[], position: Position, kind?: vscode.InlayHintKind) {
-		this.label = label;
+	constructor(position: Position, label: string | InlayHintLabelPart[], kind?: vscode.InlayHintKind) {
 		this.position = position;
+		this.label = label;
 		this.kind = kind;
 	}
 }

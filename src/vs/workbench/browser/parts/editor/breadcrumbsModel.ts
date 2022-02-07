@@ -39,7 +39,6 @@ export class BreadcrumbsModel {
 	private readonly _disposables = new DisposableStore();
 	private readonly _fileInfo: FileInfo;
 
-	private readonly _cfgEnabled: BreadcrumbsConfig<boolean>;
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
@@ -56,7 +55,6 @@ export class BreadcrumbsModel {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
 	) {
-		this._cfgEnabled = BreadcrumbsConfig.IsEnabled.bindTo(configurationService);
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
 
@@ -73,12 +71,11 @@ export class BreadcrumbsModel {
 	}
 
 	dispose(): void {
-		this._cfgEnabled.dispose();
+		this._disposables.dispose();
 		this._cfgFilePath.dispose();
 		this._cfgSymbolPath.dispose();
 		this._currentOutline.dispose();
 		this._outlineDisposables.dispose();
-		this._disposables.dispose();
 		this._onDidUpdate.dispose();
 	}
 

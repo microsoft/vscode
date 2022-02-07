@@ -5,13 +5,15 @@
 
 import { illegalArgument } from 'vs/base/common/errors';
 import { escapeIcons } from 'vs/base/common/iconLabels';
-import { UriComponents } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface IMarkdownString {
 	readonly value: string;
 	readonly isTrusted?: boolean;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
+	readonly baseUri?: UriComponents;
 	uris?: { [href: string]: UriComponents };
 }
 
@@ -26,6 +28,7 @@ export class MarkdownString implements IMarkdownString {
 	public isTrusted?: boolean;
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
+	public baseUri?: URI;
 
 	constructor(
 		value: string = '',
@@ -102,7 +105,8 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 		return a.value === b.value
 			&& a.isTrusted === b.isTrusted
 			&& a.supportThemeIcons === b.supportThemeIcons
-			&& a.supportHtml === b.supportHtml;
+			&& a.supportHtml === b.supportHtml
+			&& (a.baseUri === b.baseUri || !!a.baseUri && !!b.baseUri && isEqual(URI.from(a.baseUri), URI.from(b.baseUri)));
 	}
 }
 

@@ -10,7 +10,7 @@ import { ICommand } from 'vs/editor/common/editorCommon';
 import { EncodedTokenizationResult, ColorId, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
 import { CommentRule } from 'vs/editor/common/languages/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILinePreflightData, IPreflightData, ISimpleModel, LineCommentCommand, Type } from 'vs/editor/contrib/comment/browser/lineCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';

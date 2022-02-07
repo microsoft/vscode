@@ -654,17 +654,18 @@ export const enum FileOperation {
 	CREATE,
 	DELETE,
 	MOVE,
-	COPY
+	COPY,
+	WRITE
 }
 
 export class FileOperationEvent {
 
-	constructor(resource: URI, operation: FileOperation.DELETE);
+	constructor(resource: URI, operation: FileOperation.DELETE | FileOperation.WRITE);
 	constructor(resource: URI, operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY, target: IFileStatWithMetadata);
 	constructor(readonly resource: URI, readonly operation: FileOperation, readonly target?: IFileStatWithMetadata) { }
 
-	isOperation(operation: FileOperation.DELETE): boolean;
-	isOperation(operation: FileOperation.MOVE | FileOperation.COPY | FileOperation.CREATE): this is { readonly target: IFileStatWithMetadata };
+	isOperation(operation: FileOperation.DELETE | FileOperation.WRITE): boolean;
+	isOperation(operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY): this is { readonly target: IFileStatWithMetadata };
 	isOperation(operation: FileOperation): boolean {
 		return this.operation === operation;
 	}
