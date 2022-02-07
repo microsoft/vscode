@@ -13,7 +13,7 @@ export class InspectProfilingService implements IV8InspectProfilingService {
 
 	private readonly _sessions = new Map<string, ProfilingSession>();
 
-	async startProfiling(options: { port: number; }): Promise<string> {
+	async startProfiling(options: { port: number }): Promise<string> {
 		const prof = await import('v8-inspect-profiler');
 		const session = await prof.startProfiling({ port: options.port, checkForPaused: true });
 		const id = generateUuid();

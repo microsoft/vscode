@@ -12,9 +12,9 @@ import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 
 export interface ITerminalDecorationData {
-	tooltip: string,
-	statusIcon: string,
-	color: string
+	tooltip: string;
+	statusIcon: string;
+	color: string;
 }
 
 export class TerminalDecorationsProvider implements IDecorationsProvider {

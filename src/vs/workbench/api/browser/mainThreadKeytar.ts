@@ -31,7 +31,7 @@ export class MainThreadKeytar implements MainThreadKeytarShape {
 		return this._credentialsService.findPassword(service);
 	}
 
-	async $findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	async $findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
 		return this._credentialsService.findCredentials(service);
 	}
 

@@ -494,7 +494,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this._resizeSash.state = SashState.Disabled;
 		}
 
-		let data: { startY: number; heightInLines: number; } | undefined;
+		let data: { startY: number; heightInLines: number } | undefined;
 		this._disposables.add(this._resizeSash.onDidStart((e: ISashEvent) => {
 			if (this._viewZone) {
 				data = {

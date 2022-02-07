@@ -64,7 +64,7 @@ interface IWebkitDataTransferItemEntry {
 }
 
 interface IWebkitDataTransferItemEntryReader {
-	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void
+	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void;
 }
 
 export class BrowserFileUpload {
@@ -140,7 +140,7 @@ export class BrowserFileUpload {
 			entries.push(item.webkitGetAsEntry());
 		}
 
-		const results: { isFile: boolean, resource: URI }[] = [];
+		const results: { isFile: boolean; resource: URI }[] = [];
 		const operation: IBrowserUploadOperation = {
 			startTime: Date.now(),
 			progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),
@@ -194,7 +194,7 @@ export class BrowserFileUpload {
 		}
 	}
 
-	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
+	private async doUploadEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: IBrowserUploadOperation, token: CancellationToken): Promise<{ isFile: boolean; resource: URI } | undefined> {
 		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
 			return undefined;
 		}

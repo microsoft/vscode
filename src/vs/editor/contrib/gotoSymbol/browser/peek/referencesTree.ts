@@ -81,7 +81,7 @@ export class StringRepresentationProvider implements IKeyboardNavigationLabelPro
 
 	constructor(@IKeybindingService private readonly _keybindingService: IKeybindingService) { }
 
-	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } {
+	getKeyboardNavigationLabel(element: TreeElement): { toString(): string } {
 		if (element instanceof OneReference) {
 			const parts = element.parent.getPreview(element)?.preview(element.range);
 			if (parts) {
@@ -99,7 +99,7 @@ export class StringRepresentationProvider implements IKeyboardNavigationLabelPro
 
 export class IdentityProvider implements IIdentityProvider<TreeElement> {
 
-	getId(element: TreeElement): { toString(): string; } {
+	getId(element: TreeElement): { toString(): string } {
 		return element instanceof OneReference ? element.id : element.uri;
 	}
 }

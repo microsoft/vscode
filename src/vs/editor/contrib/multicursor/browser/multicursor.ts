@@ -20,7 +20,6 @@ import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { FindMatch, ITextModel, OverviewRulerLane, TrackedRangeStickiness, MinimapPosition } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentHighlightProviderRegistry } from 'vs/editor/common/languages';
 import { CommonFindController } from 'vs/editor/contrib/find/browser/findController';
 import { FindOptionOverride, INewFindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import * as nls from 'vs/nls';
@@ -29,6 +28,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { overviewRulerSelectionHighlightForeground, minimapSelectionOccurrenceHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
 	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
@@ -80,7 +80,7 @@ export class InsertCursorAbove extends EditorAction {
 			return;
 		}
 
-		viewModel.pushStackElement();
+		viewModel.model.pushStackElement();
 		const previousCursorState = viewModel.getCursorStates();
 		viewModel.setCursorStates(
 			args.source,
@@ -133,7 +133,7 @@ export class InsertCursorBelow extends EditorAction {
 			return;
 		}
 
-		viewModel.pushStackElement();
+		viewModel.model.pushStackElement();
 		const previousCursorState = viewModel.getCursorStates();
 		viewModel.setCursorStates(
 			args.source,
@@ -856,7 +856,10 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	private readonly updateSoon: RunOnceScheduler;
 	private state: SelectionHighlighterState | null;
 
-	constructor(editor: ICodeEditor) {
+	constructor(
+		editor: ICodeEditor,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService
+	) {
 		super();
 		this.editor = editor;
 		this._isEnabled = editor.getOption(EditorOption.selectionHighlight);
@@ -1036,7 +1039,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		const hasFindOccurrences = DocumentHighlightProviderRegistry.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
+		const hasFindOccurrences = this._languageFeaturesService.documentHighlightProvider.has(model) && this.editor.getOption(EditorOption.occurrencesHighlight);
 		const decorations = matches.map(r => {
 			return {
 				range: r,

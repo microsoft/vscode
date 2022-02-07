@@ -133,6 +133,11 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		[TerminalSettingId.EnableMultiLinePasteWarning]: {
+			description: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal."),
+			type: 'boolean',
+			default: true
+		},
 		[TerminalSettingId.DrawBoldTextInBrightColors]: {
 			description: localize('terminal.integrated.drawBoldTextInBrightColors', "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."),
 			type: 'boolean',
@@ -500,7 +505,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
-			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {0} in the reply to mean the enter key.\n- To unset a default key, set the value to null.", '`"\\r"`'),
+			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {0} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"\\r"`'),
 			type: 'object',
 			additionalProperties: {
 				oneOf: [{
@@ -515,9 +520,15 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.EnableShellIntegration]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable the experimental shell integration feature which will turn on certain feature such enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
+			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable the experimental shell integration feature which will turn on certain features like enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
 			type: 'boolean',
 			default: false
+		},
+		[TerminalSettingId.ShowShellIntegrationWelcome]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.showShellIntegrationWelcome', "Whether to show the shell integration activated welcome message in the terminal when the feature is enabled."),
+			type: 'boolean',
+			default: true
 		},
 	}
 };

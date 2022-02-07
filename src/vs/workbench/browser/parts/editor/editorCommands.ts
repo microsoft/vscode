@@ -27,7 +27,7 @@ import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { EditorResolution, IEditorOptions, IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -492,22 +492,23 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, resourceArg: UriComponents, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], label?: string, context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, resourceArg: UriComponents | string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], label?: string, context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const openerService = accessor.get(IOpenerService);
 		const pathService = accessor.get(IPathService);
 
-		const resource = URI.revive(resourceArg);
+		const resourceOrString = typeof resourceArg === 'string' ? resourceArg : URI.revive(resourceArg);
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 
 		// use editor options or editor view column or resource scheme
 		// as a hint to use the editor service for opening directly
-		if (optionsArg || typeof columnArg === 'number' || resource.scheme === Schemas.untitled) {
+		if (optionsArg || typeof columnArg === 'number' || matchesScheme(resourceOrString, Schemas.untitled)) {
 			const [options, column] = mixinContext(context, optionsArg, columnArg);
+			const resource = URI.isUri(resourceOrString) ? resourceOrString : URI.parse(resourceOrString);
 
 			let input: IResourceEditorInput | IUntitledTextResourceEditorInput;
-			if (resource.scheme === Schemas.untitled && resource.path.length > 1) {
+			if (matchesScheme(resource, Schemas.untitled) && resource.path.length > 1) {
 				// special case for untitled: we are getting a resource with meaningful
 				// path from an extension to use for the untitled editor. as such, we
 				// have to assume it as an associated resource to use when saving. we
@@ -524,13 +525,13 @@ function registerOpenEditorAPICommands(): void {
 		}
 
 		// do not allow to execute commands from here
-		else if (resource.scheme === 'command') {
+		else if (matchesScheme(resourceOrString, Schemas.command)) {
 			return;
 		}
 
 		// finally, delegate to opener service
 		else {
-			await openerService.open(resource, { openToSide: context?.sideBySide, editorOptions: context?.editorOptions });
+			await openerService.open(resourceOrString, { openToSide: context?.sideBySide, editorOptions: context?.editorOptions });
 		}
 	});
 
@@ -1346,7 +1347,7 @@ function registerOtherEditorCommands(): void {
 	});
 }
 
-function getEditorsContext(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): { editors: IEditorCommandsContext[], groups: Array<IEditorGroup | undefined> } {
+function getEditorsContext(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): { editors: IEditorCommandsContext[]; groups: Array<IEditorGroup | undefined> } {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const listService = accessor.get(IListService);
 
@@ -1383,7 +1384,7 @@ function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, co
 	return undefined;
 }
 
-function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor?: EditorInput } {
+function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup; editor?: EditorInput } {
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;

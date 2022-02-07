@@ -23,7 +23,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IPartsSplash, IColorScheme, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IColorScheme, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -47,6 +47,7 @@ import product from 'vs/platform/product/common/product';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 
 const args = parseArgs(process.argv, OPTIONS);
 
@@ -204,7 +205,7 @@ export class TestNativeHostService implements INativeHostService {
 	async minimizeWindow(): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
-	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
+	async focusWindow(options?: { windowId?: number | undefined } | undefined): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
 	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
@@ -234,7 +235,7 @@ export class TestNativeHostService implements INativeHostService {
 	async installShellCommand(): Promise<void> { }
 	async uninstallShellCommand(): Promise<void> { }
 	async notifyReady(): Promise<void> { }
-	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
+	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }
 	async closeWindow(): Promise<void> { }
 	async closeWindowById(): Promise<void> { }

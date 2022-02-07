@@ -54,36 +54,36 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { LayoutStateKeys, LayoutStateModel, WorkbenchLayoutSettings } from 'vs/workbench/browser/layoutState';
 
 interface IWorkbenchLayoutWindowRuntimeState {
-	fullscreen: boolean,
-	maximized: boolean,
-	hasFocus: boolean,
-	windowBorder: boolean,
+	fullscreen: boolean;
+	maximized: boolean;
+	hasFocus: boolean;
+	windowBorder: boolean;
 	menuBar: {
-		toggled: boolean
-	},
+		toggled: boolean;
+	};
 	zenMode: {
-		transitionDisposables: DisposableStore
-	}
+		transitionDisposables: DisposableStore;
+	};
 }
 
 interface IWorkbenchLayoutWindowInitializationState {
 	views: {
-		defaults: string[] | undefined
+		defaults: string[] | undefined;
 		containerToRestore: {
-			sideBar?: string,
-			panel?: string,
-			auxiliaryBar?: string,
-		}
-	},
+			sideBar?: string;
+			panel?: string;
+			auxiliaryBar?: string;
+		};
+	};
 	editor: {
-		restoreEditors: boolean,
-		editorsToOpen: Promise<IUntypedEditorInput[]> | IUntypedEditorInput[]
-	}
+		restoreEditors: boolean;
+		editorsToOpen: Promise<IUntypedEditorInput[]> | IUntypedEditorInput[];
+	};
 }
 
 interface IWorkbenchLayoutWindowState {
-	runtime: IWorkbenchLayoutWindowRuntimeState,
-	initialization: IWorkbenchLayoutWindowInitializationState,
+	runtime: IWorkbenchLayoutWindowRuntimeState;
+	initialization: IWorkbenchLayoutWindowInitializationState;
 }
 
 enum WorkbenchLayoutClasses {
@@ -97,7 +97,7 @@ enum WorkbenchLayoutClasses {
 	WINDOW_BORDER = 'border'
 }
 
-interface IInitialFilesToOpen { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[]; }
+interface IInitialFilesToOpen { filesToOpenOrCreate?: IPath[]; filesToDiff?: IPath[] }
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
@@ -687,9 +687,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (this.windowState.initialization.views.defaults?.length) {
 				mark('code/willOpenDefaultViews');
 
-				const locationsRestored: { id: string; order: number; }[] = [];
+				const locationsRestored: { id: string; order: number }[] = [];
 
-				const tryOpenView = (view: { id: string; order: number; }): boolean => {
+				const tryOpenView = (view: { id: string; order: number }): boolean => {
 					const location = this.viewDescriptorService.getViewLocationById(view.id);
 					if (location !== null) {
 						const container = this.viewDescriptorService.getViewContainerByViewId(view.id);
@@ -1180,7 +1180,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			[Parts.AUXILIARYBAR_PART]: this.auxiliaryBarPartView
 		};
 
-		const fromJSON = ({ type }: { type: Parts; }) => viewMap[type];
+		const fromJSON = ({ type }: { type: Parts }) => viewMap[type];
 		const workbenchGrid = SerializableGrid.deserialize(
 			this.createGridDescriptor(),
 			{ fromJSON },
@@ -1769,7 +1769,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return undefined;
 	}
 
-	private arrangeEditorNodes(nodes: { editor: ISerializedNode, sideBar?: ISerializedNode, auxiliaryBar?: ISerializedNode }, availableHeight: number, availableWidth: number): ISerializedNode {
+	private arrangeEditorNodes(nodes: { editor: ISerializedNode; sideBar?: ISerializedNode; auxiliaryBar?: ISerializedNode }, availableHeight: number, availableWidth: number): ISerializedNode {
 		if (!nodes.sideBar && !nodes.auxiliaryBar) {
 			nodes.editor.size = availableHeight;
 			return nodes.editor;
@@ -1804,7 +1804,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 	}
 
-	private arrangeMiddleSectionNodes(nodes: { editor: ISerializedNode, panel: ISerializedNode, activityBar: ISerializedNode, sideBar: ISerializedNode, auxiliaryBar: ISerializedNode }, availableWidth: number, availableHeight: number): ISerializedNode[] {
+	private arrangeMiddleSectionNodes(nodes: { editor: ISerializedNode; panel: ISerializedNode; activityBar: ISerializedNode; sideBar: ISerializedNode; auxiliaryBar: ISerializedNode }, availableWidth: number, availableHeight: number): ISerializedNode[] {
 		const activityBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) ? 0 : nodes.activityBar.size;
 		const sideBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN) ? 0 : nodes.sideBar.size;
 		const auxiliaryBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN) ? 0 : nodes.auxiliaryBar.size;
@@ -1953,12 +1953,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 
 		type StartupLayoutEventClassification = {
-			activityBarVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			sideBarVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			auxiliaryBarVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			panelVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			statusbarVisible: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-			sideBarPosition: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			activityBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			sideBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			auxiliaryBarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			panelVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			statusbarVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+			sideBarPosition: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 
 		const layoutDescriptor: StartupLayoutEvent = {

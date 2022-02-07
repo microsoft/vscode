@@ -198,7 +198,7 @@ suite('markdown.DocumentLinkProvider', () => {
 			'[b](https://1.com) `[b](https://2.com)',
 			'` [b](https://3.com)');
 		const links = await getLinksForFile(text);
-		assert.deepStrictEqual(links.map(l => l.target?.authority), ['1.com', '3.com'])
+		assert.deepStrictEqual(links.map(l => l.target?.authority), ['1.com', '3.com']);
 	});
 
 	test('Should not consider links in multiline inline code span with new line after the first backtick', async () => {
@@ -220,5 +220,3 @@ suite('markdown.DocumentLinkProvider', () => {
 		assert.strictEqual(links.length, 1);
 	});
 });
-
-

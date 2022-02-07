@@ -31,10 +31,10 @@ import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDat
 const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
 
-type StorageKeys = { machine: string[], user: string[], unregistered: string[] };
+type StorageKeys = { machine: string[]; user: string[]; unregistered: string[] };
 
 interface IGlobalStateResourceMergeResult extends IAcceptResult {
-	readonly local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> };
+	readonly local: { added: IStringDictionary<IStorageValue>; removed: string[]; updated: IStringDictionary<IStorageValue> };
 	readonly remote: IStringDictionary<IStorageValue> | null;
 }
 
@@ -237,7 +237,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
 		return [{ resource: this.extUri.joinPath(uri, 'globalState.json'), comparableResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI }];
 	}
 
@@ -313,7 +313,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return '{}';
 	}
 
-	private async writeLocalGlobalState({ added, removed, updated }: { added: IStringDictionary<IStorageValue>, updated: IStringDictionary<IStorageValue>, removed: string[] }): Promise<void> {
+	private async writeLocalGlobalState({ added, removed, updated }: { added: IStringDictionary<IStorageValue>; updated: IStringDictionary<IStorageValue>; removed: string[] }): Promise<void> {
 		const argv: IStringDictionary<any> = {};
 		const updatedStorage: IStringDictionary<any> = {};
 		const handleUpdatedStorage = (keys: string[], storage?: IStringDictionary<IStorageValue>): void => {

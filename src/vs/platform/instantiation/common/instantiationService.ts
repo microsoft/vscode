@@ -156,7 +156,7 @@ export class InstantiationService implements IInstantiationService {
 
 	private _createAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>, _trace: Trace): T {
 
-		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace; };
+		type Triple = { id: ServiceIdentifier<any>; desc: SyncDescriptor<any>; _trace: Trace };
 		const graph = new Graph<Triple>(data => data.id.toString());
 
 		let cycleCount = 0;

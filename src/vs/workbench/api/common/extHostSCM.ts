@@ -362,7 +362,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		const snapshot = [...this._resourceStates].sort(compareResourceStates);
 		const diffs = sortedDiff(this._resourceSnapshot, snapshot, compareResourceStates);
 
-		const splices = diffs.map<ISplice<{ rawResource: SCMRawResource, handle: number }>>(diff => {
+		const splices = diffs.map<ISplice<{ rawResource: SCMRawResource; handle: number }>>(diff => {
 			const toInsert = diff.toInsert.map(r => {
 				const handle = this._resourceHandlePool++;
 				this._resourceStatesMap.set(handle, r);
@@ -721,8 +721,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
 		this.logService.trace('ExtHostSCM#createSourceControl', extension.identifier.value, id, label, rootUri);
 
-		type TEvent = { extensionId: string; };
-		type TMeta = { extensionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }; };
+		type TEvent = { extensionId: string };
+		type TMeta = { extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' } };
 		this._telemetry.$publicLog2<TEvent, TMeta>('api/scm/createSourceControl', {
 			extensionId: extension.identifier.value,
 		});

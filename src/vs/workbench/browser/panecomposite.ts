@@ -5,7 +5,7 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
-import { IConstructorSignature0, BrandedService, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature, BrandedService, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { Dimension } from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -153,11 +153,11 @@ export class PaneCompositeDescriptor extends CompositeDescriptor<PaneComposite> 
 		iconUrl?: URI
 	): PaneCompositeDescriptor {
 
-		return new PaneCompositeDescriptor(ctor as IConstructorSignature0<PaneComposite>, id, name, cssClass, order, requestedIndex, iconUrl);
+		return new PaneCompositeDescriptor(ctor as IConstructorSignature<PaneComposite>, id, name, cssClass, order, requestedIndex, iconUrl);
 	}
 
 	private constructor(
-		ctor: IConstructorSignature0<PaneComposite>,
+		ctor: IConstructorSignature<PaneComposite>,
 		id: string,
 		name: string,
 		cssClass?: string,

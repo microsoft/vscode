@@ -142,7 +142,7 @@ vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', lan
 }, { label: 'Launch Targets' });
 
 function registerContextKeyCompletions(): vscode.Disposable {
-	type ContextKeyInfo = { key: string, type?: string, description?: string };
+	type ContextKeyInfo = { key: string; type?: string; description?: string };
 
 	const paths = new Map<vscode.DocumentFilter, JSONPath[]>([
 		[{ language: 'jsonc', pattern: '**/keybindings.json' }, [

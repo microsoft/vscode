@@ -286,7 +286,7 @@ suite('EditorPane', () => {
 		const configurationService = new TestTextResourceConfigurationService();
 		const editorGroupService = new TestEditorGroupsService([testGroup0]);
 
-		interface TestViewState { line: number; }
+		interface TestViewState { line: number }
 
 		const rawMemento = Object.create(null);
 		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);
@@ -419,7 +419,7 @@ suite('EditorPane', () => {
 		}));
 		const editorGroupService = new TestEditorGroupsService([testGroup0]);
 
-		interface TestViewState { line: number; }
+		interface TestViewState { line: number }
 
 		const rawMemento = Object.create(null);
 		const memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService, configurationService);

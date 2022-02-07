@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -74,8 +74,8 @@ export class CommentNode extends Disposable {
 	public isEditing: boolean = false;
 
 	constructor(
-		private commentThread: modes.CommentThread,
-		public comment: modes.Comment,
+		private commentThread: languages.CommentThread,
+		public comment: languages.Comment,
 		private owner: string,
 		private resource: URI,
 		private parentEditor: ICodeEditor,
@@ -124,10 +124,7 @@ export class CommentNode extends Disposable {
 
 	private updateCommentBody(body: string | IMarkdownString) {
 		this._body.innerText = '';
-		if (this._md) {
-			this._body.removeChild(this._md);
-			this._md = undefined;
-		}
+		this._md = undefined;
 		if (typeof body === 'string') {
 			this._body.innerText = body;
 		} else {
@@ -179,7 +176,7 @@ export class CommentNode extends Disposable {
 		this.createActionsToolbar();
 	}
 
-	private getToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[] } {
+	private getToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const contributedActions = menu.getActions({ shouldForwardArgs: true });
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -271,7 +268,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	private createReactionPicker(reactionGroup: modes.CommentReaction[]): ToggleReactionsAction {
+	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
 		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
@@ -494,7 +491,7 @@ export class CommentNode extends Disposable {
 			this._actionsToolbarContainer.classList.remove('hidden');
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
-			if (this.comment.mode === modes.CommentMode.Editing) {
+			if (this.comment.mode === languages.CommentMode.Editing) {
 				this._commentEditor?.focus();
 			}
 		} else {
@@ -519,14 +516,14 @@ export class CommentNode extends Disposable {
 		}));
 	}
 
-	update(newComment: modes.Comment) {
+	update(newComment: languages.Comment) {
 
 		if (newComment.body !== this.comment.body) {
 			this.updateCommentBody(newComment.body);
 		}
 
 		if (newComment.mode !== undefined && newComment.mode !== this.comment.mode) {
-			if (newComment.mode === modes.CommentMode.Editing) {
+			if (newComment.mode === languages.CommentMode.Editing) {
 				this.switchToEditMode();
 			} else {
 				this.removeCommentEditor();
@@ -576,7 +573,7 @@ export class CommentNode extends Disposable {
 	}
 }
 
-function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[] }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (useAlternativeActions) {

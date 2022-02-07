@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import { Api, getExtensionApi } from './api';
 import { CommandManager } from './commands/commandManager';
 import { registerBaseCommands } from './commands/index';
-import { LanguageConfigurationManager } from './languageFeatures/languageConfiguration';
 import { createLazyClientHost, lazilyActivateClient } from './lazyClientHost';
 import { noopRequestCancellerFactory } from './tsServer/cancellation';
 import { noopLogDirectoryProvider } from './tsServer/logDirectoryProvider';
@@ -45,8 +44,6 @@ export function activate(
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
-
-	context.subscriptions.push(new LanguageConfigurationManager());
 
 	const onCompletionAccepted = new vscode.EventEmitter<vscode.CompletionItem>();
 	context.subscriptions.push(onCompletionAccepted);

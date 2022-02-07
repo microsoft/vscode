@@ -3,63 +3,51 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepEqual, equal } from 'assert';
-import { DEFAULT_TERMINAL_OSX } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { deepStrictEqual, strictEqual } from 'assert';
+import { DEFAULT_TERMINAL_OSX, IExternalTerminalConfiguration } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 
+const mockConfig: IExternalTerminalConfiguration = Object.freeze({
+	terminal: {
+		explorerKind: 'external',
+		external: {
+			windowsExec: 'testWindowsShell',
+			osxExec: 'testOSXShell',
+			linuxExec: 'testLinuxShell'
+		}
+	}
+});
+
 suite('ExternalTerminalService', () => {
-	let mockOnExit: Function;
-	let mockOnError: Function;
-	let mockConfig: any;
-
-	setup(() => {
-		mockConfig = {
-			terminal: {
-				explorerKind: 'external',
-				external: {
-					windowsExec: 'testWindowsShell',
-					osxExec: 'testOSXShell',
-					linuxExec: 'testLinuxShell'
-				}
-			}
-		};
-		mockOnExit = (s: any) => s;
-		mockOnError = (e: any) => e;
-	});
-
 	test(`WinTerminalService - uses terminal from configuration`, done => {
-		let testShell = 'cmd';
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
+		const testShell = 'cmd';
+		const testCwd = 'path/to/workspace';
+		const mockSpawner: any = {
 			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(command, testShell, 'shell should equal expected');
-				equal(args[args.length - 1], mockConfig.terminal.external.windowsExec, 'terminal should equal expected');
-				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
+				strictEqual(command, testShell, 'shell should equal expected');
+				strictEqual(args[args.length - 1], mockConfig.terminal.external.windowsExec);
+				strictEqual(opts.cwd, testCwd);
 				done();
 				return {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
+		const testService = new WindowsExternalTerminalService();
+		testService.spawnTerminal(
 			mockSpawner,
-			mockConfig,
+			mockConfig.terminal.external,
 			testShell,
-			testCwd,
-			mockOnExit,
-			mockOnError
+			testCwd
 		);
 	});
 
 	test(`WinTerminalService - uses default terminal when configuration.terminal.external.windowsExec is undefined`, done => {
-		let testShell = 'cmd';
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
+		const testShell = 'cmd';
+		const testCwd = 'path/to/workspace';
+		const mockSpawner: any = {
 			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(args[args.length - 1], WindowsExternalTerminalService.getDefaultTerminalWindows(), 'terminal should equal expected');
+				strictEqual(args[args.length - 1], WindowsExternalTerminalService.getDefaultTerminalWindows());
 				done();
 				return {
 					on: (evt: any) => evt
@@ -67,162 +55,139 @@ suite('ExternalTerminalService', () => {
 			}
 		};
 		mockConfig.terminal.external.windowsExec = undefined;
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
+		const testService = new WindowsExternalTerminalService();
+		testService.spawnTerminal(
 			mockSpawner,
-			mockConfig,
+			mockConfig.terminal.external,
 			testShell,
-			testCwd,
-			mockOnExit,
-			mockOnError
+			testCwd
 		);
 	});
 
 	test(`WinTerminalService - uses default terminal when configuration.terminal.external.windowsExec is undefined`, done => {
-		let testShell = 'cmd';
-		let testCwd = 'c:/foo';
-		let mockSpawner = {
+		const testShell = 'cmd';
+		const testCwd = 'c:/foo';
+		const mockSpawner: any = {
 			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(opts.cwd, 'C:/foo', 'cwd should be uppercase regardless of the case that\'s passed in');
+				strictEqual(opts.cwd, 'C:/foo', 'cwd should be uppercase regardless of the case that\'s passed in');
 				done();
 				return {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
+		const testService = new WindowsExternalTerminalService();
+		testService.spawnTerminal(
 			mockSpawner,
-			mockConfig,
+			mockConfig.terminal.external,
 			testShell,
-			testCwd,
-			mockOnExit,
-			mockOnError
+			testCwd
 		);
 	});
 
 	test(`WinTerminalService - cmder should be spawned differently`, done => {
-		let testShell = 'cmd';
-		mockConfig.terminal.external.windowsExec = 'cmder';
-		let testCwd = 'c:/foo';
-		let mockSpawner = {
+		const testShell = 'cmd';
+		const testCwd = 'c:/foo';
+		const mockSpawner: any = {
 			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				deepEqual(args, ['C:/foo']);
-				equal(opts, undefined);
+				deepStrictEqual(args, ['C:/foo']);
+				strictEqual(opts, undefined);
 				done();
 				return { on: (evt: any) => evt };
 			}
 		};
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
+		const testService = new WindowsExternalTerminalService();
+		testService.spawnTerminal(
 			mockSpawner,
-			mockConfig,
+			{ windowsExec: 'cmder' },
 			testShell,
-			testCwd,
-			mockOnExit,
-			mockOnError
+			testCwd
 		);
 	});
 
 	test(`WinTerminalService - windows terminal should open workspace directory`, done => {
-		let testShell = 'wt';
-		let testCwd = 'c:/foo';
-		let mockSpawner = {
+		const testShell = 'wt';
+		const testCwd = 'c:/foo';
+		const mockSpawner: any = {
 			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(opts.cwd, 'C:/foo');
+				strictEqual(opts.cwd, 'C:/foo');
 				done();
 				return { on: (evt: any) => evt };
 			}
 		};
-		let testService = new WindowsExternalTerminalService();
-		(<any>testService).spawnTerminal(
+		const testService = new WindowsExternalTerminalService();
+		testService.spawnTerminal(
 			mockSpawner,
-			mockConfig,
+			mockConfig.terminal.external,
 			testShell,
-			testCwd,
-			mockOnExit,
-			mockOnError
+			testCwd
 		);
 	});
 
 	test(`MacTerminalService - uses terminal from configuration`, done => {
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
+		const testCwd = 'path/to/workspace';
+		const mockSpawner: any = {
 			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(args[1], mockConfig.terminal.external.osxExec, 'terminal should equal expected');
+				strictEqual(args[1], mockConfig.terminal.external.osxExec);
 				done();
 				return {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		let testService = new MacExternalTerminalService();
-		(<any>testService).spawnTerminal(
+		const testService = new MacExternalTerminalService();
+		testService.spawnTerminal(
 			mockSpawner,
-			mockConfig,
-			testCwd,
-			mockOnExit,
-			mockOnError
+			mockConfig.terminal.external,
+			testCwd
 		);
 	});
 
 	test(`MacTerminalService - uses default terminal when configuration.terminal.external.osxExec is undefined`, done => {
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
+		const testCwd = 'path/to/workspace';
+		const mockSpawner: any = {
 			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(args[1], DEFAULT_TERMINAL_OSX, 'terminal should equal expected');
+				strictEqual(args[1], DEFAULT_TERMINAL_OSX);
 				done();
 				return {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		mockConfig.terminal.external.osxExec = undefined;
-		let testService = new MacExternalTerminalService();
-		(<any>testService).spawnTerminal(
+		const testService = new MacExternalTerminalService();
+		testService.spawnTerminal(
 			mockSpawner,
-			mockConfig,
-			testCwd,
-			mockOnExit,
-			mockOnError
+			{ osxExec: undefined },
+			testCwd
 		);
 	});
 
 	test(`LinuxTerminalService - uses terminal from configuration`, done => {
-		let testCwd = 'path/to/workspace';
-		let mockSpawner = {
+		const testCwd = 'path/to/workspace';
+		const mockSpawner: any = {
 			spawn: (command: any, args: any, opts: any) => {
-				// assert
-				equal(command, mockConfig.terminal.external.linuxExec, 'terminal should equal expected');
-				equal(opts.cwd, testCwd, 'opts.cwd should equal expected');
+				strictEqual(command, mockConfig.terminal.external.linuxExec);
+				strictEqual(opts.cwd, testCwd);
 				done();
 				return {
 					on: (evt: any) => evt
 				};
 			}
 		};
-		let testService = new LinuxExternalTerminalService();
-		(<any>testService).spawnTerminal(
+		const testService = new LinuxExternalTerminalService();
+		testService.spawnTerminal(
 			mockSpawner,
-			mockConfig,
-			testCwd,
-			mockOnExit,
-			mockOnError
+			mockConfig.terminal.external,
+			testCwd
 		);
 	});
 
 	test(`LinuxTerminalService - uses default terminal when configuration.terminal.external.linuxExec is undefined`, done => {
 		LinuxExternalTerminalService.getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
-			let testCwd = 'path/to/workspace';
-			let mockSpawner = {
+			const testCwd = 'path/to/workspace';
+			const mockSpawner: any = {
 				spawn: (command: any, args: any, opts: any) => {
-					// assert
-					equal(command, defaultTerminalLinux, 'terminal should equal expected');
+					strictEqual(command, defaultTerminalLinux);
 					done();
 					return {
 						on: (evt: any) => evt
@@ -230,13 +195,11 @@ suite('ExternalTerminalService', () => {
 				}
 			};
 			mockConfig.terminal.external.linuxExec = undefined;
-			let testService = new LinuxExternalTerminalService();
-			(<any>testService).spawnTerminal(
+			const testService = new LinuxExternalTerminalService();
+			testService.spawnTerminal(
 				mockSpawner,
-				mockConfig,
-				testCwd,
-				mockOnExit,
-				mockOnError
+				mockConfig.terminal.external,
+				testCwd
 			);
 		});
 	});

@@ -302,7 +302,6 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}
 
 		if (backup) {
-			this._workingCopyBackupService.discardBackup(this._workingCopyIdentifier);
 			this.setDirty(true);
 		} else {
 			this.setDirty(false);

@@ -240,7 +240,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	private _getPersisentMetadata() {
-		const filteredMetadata: { [key: string]: any; } = {};
+		const filteredMetadata: { [key: string]: any } = {};
 		const transientCellMetadata = this.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(this.metadata)]);

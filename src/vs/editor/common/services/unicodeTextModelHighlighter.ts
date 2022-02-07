@@ -139,7 +139,7 @@ export type UnicodeHighlighterReason = {
 } | {
 	kind: UnicodeHighlighterReasonKind.Invisible;
 } | {
-	kind: UnicodeHighlighterReasonKind.NonBasicAscii
+	kind: UnicodeHighlighterReasonKind.NonBasicAscii;
 };
 
 class CodePointHighlighter {

@@ -495,9 +495,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(error: WindowError.LOAD, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(type: WindowError, details?: { reason: string, exitCode: number }): Promise<void> {
+	private async onWindowError(error: WindowError.CRASHED, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(type: WindowError, details?: { reason: string; exitCode: number }): Promise<void> {
 
 		switch (type) {
 			case WindowError.CRASHED:
@@ -513,9 +513,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 		};
 		type WindowErrorEvent = {
 			type: WindowError;

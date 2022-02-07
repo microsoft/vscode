@@ -169,7 +169,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return workspace;
 	}
 
-	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = [], remoteAuthority?: string): { workspace: IWorkspaceIdentifier, storedWorkspace: IStoredWorkspace } {
+	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = [], remoteAuthority?: string): { workspace: IWorkspaceIdentifier; storedWorkspace: IStoredWorkspace } {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
 		const untitledWorkspaceConfigFolder = joinPath(this.untitledWorkspacesHome, randomId);
 		const untitledWorkspaceConfigPath = joinPath(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);

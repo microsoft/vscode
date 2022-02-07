@@ -90,7 +90,7 @@ export class Client implements IChannelClient, IDisposable {
 	private _client: IPCClient | null;
 	private channels = new Map<string, IChannel>();
 
-	private readonly _onDidProcessExit = new Emitter<{ code: number, signal: string }>();
+	private readonly _onDidProcessExit = new Emitter<{ code: number; signal: string }>();
 	readonly onDidProcessExit = this._onDidProcessExit.event;
 
 	constructor(private modulePath: string, private options: IIPCOptions) {

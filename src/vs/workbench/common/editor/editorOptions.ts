@@ -25,7 +25,7 @@ export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEdi
 			endColumn: options.selection.endColumn ?? options.selection.startColumn
 		};
 
-		editor.setSelection(range);
+		editor.setSelection(range, options.selectionSource);
 
 		if (options.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
 			editor.revealRangeNearTop(range, scrollType);

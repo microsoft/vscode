@@ -454,7 +454,7 @@ export class CompositeOverflowActivityActionViewItem extends ActivityActionViewI
 
 	constructor(
 		action: ActivityAction,
-		private getOverflowingComposites: () => { id: string, name?: string }[],
+		private getOverflowingComposites: () => { id: string; name?: string }[],
 		private getActiveCompositeId: () => string | undefined,
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => IAction,

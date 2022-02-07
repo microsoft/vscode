@@ -45,7 +45,7 @@ export const enum WordNavigationType {
 	WordStart = 0,
 	WordStartFast = 1,
 	WordEnd = 2,
-	WordAccessibility = 3 // Respect chrome defintion of a word
+	WordAccessibility = 3 // Respect chrome definition of a word
 }
 
 export interface DeleteWordContext {

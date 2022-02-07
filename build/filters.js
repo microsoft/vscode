@@ -12,6 +12,9 @@
  * all ⊃ eol ⊇ indentation ⊃ copyright ⊃ typescript
  */
 
+const { readFileSync } = require('fs');
+const { join } = require('path');
+
 module.exports.all = [
 	'*',
 	'build/**/*',
@@ -156,21 +159,7 @@ module.exports.copyrightFilter = [
 	'!src/vs/editor/test/node/classification/typescript-test.ts',
 ];
 
-module.exports.jsHygieneFilter = [
-	'src/**/*.js',
-	'build/gulpfile.*.js',
-	'!src/vs/loader.js',
-	'!src/vs/css.js',
-	'!src/vs/nls.js',
-	'!src/vs/css.build.js',
-	'!src/vs/nls.build.js',
-	'!src/**/dompurify.js',
-	'!src/**/marked.js',
-	'!src/**/semver.js',
-	'!**/test/**',
-];
-
-module.exports.tsHygieneFilter = [
+module.exports.tsFormattingFilter = [
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'extensions/**/*.ts',
@@ -185,4 +174,14 @@ module.exports.tsHygieneFilter = [
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',
 	'!extensions/html-language-features/server/lib/jquery.d.ts',
+];
+
+module.exports.eslintFilter = [
+	'**/*.js',
+	'**/*.ts',
+	...readFileSync(join(__dirname, '../.eslintignore'))
+		.toString().split(/\r\n|\n/)
+		.filter(line => !line.startsWith('#'))
+		.filter(line => !!line)
+		.map(line => `!${line}`)
 ];

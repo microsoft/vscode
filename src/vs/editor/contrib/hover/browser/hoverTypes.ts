@@ -10,7 +10,7 @@ import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser'
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
+import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IHoverPart {
 	/**
@@ -71,7 +71,7 @@ export class HoverForeignElementAnchor {
 export type HoverAnchor = HoverRangeAnchor | HoverForeignElementAnchor;
 
 export interface IEditorHoverStatusBar {
-	addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IEditorHoverAction;
+	addAction(actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }): IEditorHoverAction;
 	append(element: HTMLElement): HTMLElement;
 }
 
@@ -115,7 +115,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
 }
 
-export type IEditorHoverParticipantCtor = IConstructorSignature1<ICodeEditor, IEditorHoverParticipant>;
+export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;
 
 export const HoverParticipantRegistry = (new class HoverParticipantRegistry {
 

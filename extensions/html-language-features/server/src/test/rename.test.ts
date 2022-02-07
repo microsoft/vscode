@@ -18,7 +18,7 @@ async function testRename(value: string, newName: string, expectedDocContent: st
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
-	const javascriptMode = languageModes.getMode('javascript')
+	const javascriptMode = languageModes.getMode('javascript');
 	const position = document.positionAt(offset);
 
 	if (javascriptMode) {
@@ -36,7 +36,7 @@ async function testRename(value: string, newName: string, expectedDocContent: st
 		const newDocContent = TextDocument.applyEdits(document, edits);
 		assert.strictEqual(newDocContent, expectedDocContent, `Expected: ${expectedDocContent}\nActual: ${newDocContent}`);
 	} else {
-		assert.fail('should have javascriptMode but no')
+		assert.fail('should have javascriptMode but no');
 	}
 }
 
@@ -50,15 +50,15 @@ async function testNoRename(value: string, newName: string): Promise<void> {
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
-	const javascriptMode = languageModes.getMode('javascript')
+	const javascriptMode = languageModes.getMode('javascript');
 	const position = document.positionAt(offset);
 
 	if (javascriptMode) {
 		const workspaceEdit: WorkspaceEdit | null = await javascriptMode.doRename!(document, position, newName);
 
-		assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened')
+		assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened');
 	} else {
-		assert.fail('should have javascriptMode but no')
+		assert.fail('should have javascriptMode but no');
 	}
 }
 
@@ -73,7 +73,7 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 
 		const output = [
 			'<html>',
@@ -84,10 +84,10 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 
-		await testRename(input.join('\n'), 'h', output.join('\n'))
-	})
+		await testRename(input.join('\n'), 'h', output.join('\n'));
+	});
 
 	test('Rename Function', async () => {
 		const input = [
@@ -102,7 +102,7 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 
 		const output = [
 			'<html>',
@@ -116,10 +116,10 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 
-		await testRename(input.join('\n'), 'sayName', output.join('\n'))
-	})
+		await testRename(input.join('\n'), 'sayName', output.join('\n'));
+	});
 
 	test('Rename Function Params', async () => {
 		const input = [
@@ -134,7 +134,7 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 
 		const output = [
 			'<html>',
@@ -148,10 +148,10 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 
-		await testRename(input.join('\n'), 'newName', output.join('\n'))
-	})
+		await testRename(input.join('\n'), 'newName', output.join('\n'));
+	});
 
 	test('Rename Class', async () => {
 		const input = [
@@ -163,7 +163,7 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 
 		const output = [
 			'<html>',
@@ -174,10 +174,10 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 
-		await testRename(input.join('\n'), 'Bar', output.join('\n'))
-	})
+		await testRename(input.join('\n'), 'Bar', output.join('\n'));
+	});
 
 	test('Cannot Rename literal', async () => {
 		const stringLiteralInput = [
@@ -188,7 +188,7 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 		const numberLiteralInput = [
 			'<html>',
 			'<head>',
@@ -197,9 +197,9 @@ suite('HTML Javascript Rename', () => {
 			'</script>',
 			'</head>',
 			'</html>'
-		]
+		];
 
-		await testNoRename(stringLiteralInput.join('\n'), 'something')
-		await testNoRename(numberLiteralInput.join('\n'), 'hhhh')
-	})
+		await testNoRename(stringLiteralInput.join('\n'), 'something');
+		await testNoRename(numberLiteralInput.join('\n'), 'hhhh');
+	});
 });

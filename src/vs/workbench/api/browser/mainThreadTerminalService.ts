@@ -141,7 +141,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
-			disablePersistence: launchConfig.disablePersistence
+			isTransient: launchConfig.isTransient
 		};
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
@@ -154,7 +154,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		await terminal;
 	}
 
-	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean, location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
+	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean; location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
 		if (typeof location === 'object' && 'parentTerminal' in location) {
 			const parentTerminal = await this._extHostTerminals.get(location.parentTerminal.toString());
 			return parentTerminal ? { parentTerminal } : undefined;

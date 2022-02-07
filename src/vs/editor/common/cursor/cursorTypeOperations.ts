@@ -584,7 +584,7 @@ export class TypeOperations {
 		// In order to avoid adding checks for `chIsAlreadyTyped` in all places, we will work
 		// with two conceptual positions, the position before `ch` and the position after `ch`
 		//
-		const positions: { lineNumber: number; beforeColumn: number; afterColumn: number; }[] = selections.map((s) => {
+		const positions: { lineNumber: number; beforeColumn: number; afterColumn: number }[] = selections.map((s) => {
 			const position = s.getPosition();
 			if (chIsAlreadyTyped) {
 				return { lineNumber: position.lineNumber, beforeColumn: position.column - ch.length, afterColumn: position.column };

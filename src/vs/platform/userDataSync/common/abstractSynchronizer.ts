@@ -29,7 +29,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { Change, getLastSyncResourceUri, IRemoteUserData, IResourcePreview as IBaseResourcePreview, ISyncData, ISyncResourceHandle, ISyncResourcePreview as IBaseSyncResourcePreview, IUserData, IUserDataInitializer, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, MergeState, PREVIEW_DIR_NAME, SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncSourceClassification = {
-	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
 export function isSyncData(thing: any): thing is ISyncData {
@@ -713,7 +713,7 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 	protected abstract hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean>;
 
 	abstract hasLocalData(): Promise<boolean>;
-	abstract getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]>;
+	abstract getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
 }
 
 export interface IFileResourcePreview extends IResourcePreview {

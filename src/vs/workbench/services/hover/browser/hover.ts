@@ -96,7 +96,7 @@ export interface IHoverOptions {
 	 * Force the hover position, reducing the size of the hover instead of adjusting the hover
 	 * position.
 	 */
-	forcePosition?: boolean
+	forcePosition?: boolean;
 
 	/**
 	 * Whether to show the hover pointer

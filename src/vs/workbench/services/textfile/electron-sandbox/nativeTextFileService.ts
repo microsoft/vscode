@@ -102,7 +102,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 			ensuredOptions = options;
 		}
 
-		let ensuredLimits: { size?: number; memory?: number; };
+		let ensuredLimits: { size?: number; memory?: number };
 		if (!ensuredOptions.limits) {
 			ensuredLimits = Object.create(null);
 			ensuredOptions.limits = ensuredLimits;

@@ -11,9 +11,11 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILink, ILinksList, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/languages';
+import { ILink, ILinksList, LinkProvider } from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class Link implements ILink {
 
@@ -135,12 +137,12 @@ export class LinksList {
 
 }
 
-export function getLinks(model: ITextModel, token: CancellationToken): Promise<LinksList> {
+export function getLinks(providers: LanguageFeatureRegistry<LinkProvider>, model: ITextModel, token: CancellationToken): Promise<LinksList> {
 
 	const lists: [ILinksList, LinkProvider][] = [];
 
 	// ask all providers for links in parallel
-	const promises = LinkProviderRegistry.ordered(model).reverse().map((provider, i) => {
+	const promises = providers.ordered(model).reverse().map((provider, i) => {
 		return Promise.resolve(provider.provideLinks(model, token)).then(result => {
 			if (result) {
 				lists[i] = [result, provider];
@@ -167,11 +169,12 @@ CommandsRegistry.registerCommand('_executeLinkProvider', async (accessor, ...arg
 		resolveCount = 0;
 	}
 
+	const { linkProvider } = accessor.get(ILanguageFeaturesService);
 	const model = accessor.get(IModelService).getModel(uri);
 	if (!model) {
 		return [];
 	}
-	const list = await getLinks(model, CancellationToken.None);
+	const list = await getLinks(linkProvider, model, CancellationToken.None);
 	if (!list) {
 		return [];
 	}

@@ -717,7 +717,7 @@ export class InteractiveEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } {
+	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
 		return {
 			notebookEditor: this.#notebookWidget.value,
 			codeEditor: this.#codeEditorWidget

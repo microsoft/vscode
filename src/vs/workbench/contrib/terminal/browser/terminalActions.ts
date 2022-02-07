@@ -1207,8 +1207,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const toggledOn = await terminalService.activeInstance?.toggleEscapeSequenceLogging();
-			terminalService.toggleDevTools(toggledOn);
+			await terminalService.toggleEscapeSequenceLogging();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1956,14 +1955,14 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenWebLink,
-				title: { value: localize('workbench.action.terminal.openLastWebLink', "Open Last Web Link"), original: 'Open Last Web Link' },
+				title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last Url Link"), original: 'Open Last Url Link' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('web'));
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('url'));
 		}
 	});
 
@@ -1971,14 +1970,14 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenFileLink,
-				title: { value: localize('workbench.action.terminal.openLastFileLink', "Open Last File Link"), original: 'Open Last File Link' },
+				title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('file'));
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('localFile'));
 		}
 	});
 
@@ -2232,7 +2231,7 @@ function focusNext(accessor: ServicesAccessor): void {
 	listService.lastFocusedList?.focusNext();
 }
 
-export function validateTerminalName(name: string): { content: string, severity: Severity } | null {
+export function validateTerminalName(name: string): { content: string; severity: Severity } | null {
 	if (!name || name.trim().length === 0) {
 		return {
 			content: localize('emptyTerminalNameInfo', "Providing no name will reset it to the default value"),

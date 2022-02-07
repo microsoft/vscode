@@ -16,7 +16,6 @@ import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString } from 'vs/platform/terminal/common/terminal';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -54,6 +53,8 @@ export class TerminalService implements ITerminalService {
 
 	private _terminalEditorActive: IContextKey<boolean>;
 
+	private _escapeSequenceLoggingEnabled: boolean = false;
+
 	private _isShuttingDown: boolean = false;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
@@ -72,7 +73,7 @@ export class TerminalService implements ITerminalService {
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
 
-	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
+	private _editable: { instance: ITerminalInstance; data: IEditableData } | undefined;
 
 	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 	get connectionState(): TerminalConnectionState { return this._connectionState; }
@@ -150,7 +151,6 @@ export class TerminalService implements ITerminalService {
 		@IRemoteAgentService private _remoteAgentService: IRemoteAgentService,
 		@IViewsService private _viewsService: IViewsService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
@@ -171,6 +171,7 @@ export class TerminalService implements ITerminalService {
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onDidChangeActiveGroup.fire, this._onDidChangeActiveGroup);
 		this._terminalInstanceService.onDidCreateInstance(instance => {
+			instance.setEscapeSequenceLogging(this._escapeSequenceLoggingEnabled);
 			this._initInstanceListeners(instance);
 			this._onDidCreateInstance.fire(instance);
 		});
@@ -379,16 +380,7 @@ export class TerminalService implements ITerminalService {
 		}
 		const layoutInfo = await backend.getTerminalLayoutInfo();
 		backend.reduceConnectionGraceTime();
-		const reconnectCounter = await this._recreateTerminalGroups(layoutInfo);
-		/* __GDPR__
-			"terminalReconnection" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		 */
-		const data = {
-			count: reconnectCounter
-		};
-		this._telemetryService.publicLog('terminalReconnection', data);
+		await this._recreateTerminalGroups(layoutInfo);
 		// now that terminals have been restored,
 		// attach listeners to update remote when terminals are changed
 		this._attachProcessLayoutListeners();
@@ -448,6 +440,17 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 		return reconnectCounter;
+	}
+
+	async toggleEscapeSequenceLogging(): Promise<void> {
+		if (this.instances.length === 0) {
+			return;
+		}
+		this._escapeSequenceLoggingEnabled = await this.instances[0].toggleEscapeSequenceLogging();
+		for (let i = 1; i < this.instances.length; i++) {
+			this.instances[i].setEscapeSequenceLogging(this._escapeSequenceLoggingEnabled);
+		}
+		await this._toggleDevTools(this._escapeSequenceLoggingEnabled);
 	}
 
 	private _attachProcessLayoutListeners(): void {
@@ -558,13 +561,14 @@ export class TerminalService implements ITerminalService {
 		this._nativeDelegate = nativeDelegate;
 	}
 
-	async toggleDevTools(open?: boolean): Promise<void> {
+	private async _toggleDevTools(open?: boolean): Promise<void> {
 		if (open) {
 			this._nativeDelegate?.openDevTools();
 		} else {
 			this._nativeDelegate?.toggleDevTools();
 		}
 	}
+
 	private _shouldReviveProcesses(reason: ShutdownReason): boolean {
 		if (!this._configHelper.config.enablePersistentSessions) {
 			return false;
@@ -934,7 +938,7 @@ export class TerminalService implements ITerminalService {
 		// Launch the contributed profile
 		if (contributedProfile) {
 			const resolvedLocation = this.resolveLocation(options?.location);
-			let location: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
+			let location: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean } | undefined;
 			if (splitActiveTerminal) {
 				location = resolvedLocation === TerminalLocation.Editor ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 			} else {
@@ -1074,10 +1078,10 @@ export class TerminalService implements ITerminalService {
 		if (typeof shellLaunchConfig.cwd !== 'string' && shellLaunchConfig.cwd?.scheme === Schemas.file) {
 			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
 				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "⚠ : This shell is open to a {0}local{1} folder, NOT to the virtual folder", '\x1b[3m', '\x1b[23m'), true);
-				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+				shellLaunchConfig.type = 'Local';
 			} else if (this._remoteAgentService.getConnection()) {
 				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalRemote', "⚠ : This shell is running on your {0}local{1} machine, NOT on the connected remote machine", '\x1b[3m', '\x1b[23m'), true);
-				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+				shellLaunchConfig.type = 'Local';
 			}
 		}
 	}

@@ -56,7 +56,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	public $registerWebviewViewProvider(
 		extensionData: extHostProtocol.WebviewExtensionDescription,
 		viewType: string,
-		options: { retainContextWhenHidden?: boolean, serializeBuffersForPostMessage: boolean }
+		options: { retainContextWhenHidden?: boolean; serializeBuffersForPostMessage: boolean }
 	): void {
 		if (this._webviewViewProviders.has(viewType)) {
 			throw new Error(`View provider for ${viewType} already registered`);

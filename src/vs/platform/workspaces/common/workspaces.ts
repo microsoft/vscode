@@ -460,7 +460,7 @@ interface ISerializedRecentWorkspace {
 	workspace: {
 		id: string;
 		configPath: string;
-	}
+	};
 	label?: string;
 	remoteAuthority?: string;
 }
@@ -478,7 +478,7 @@ interface ISerializedRecentFile {
 }
 
 interface ISerializedRecentlyOpenedLegacy {
-	workspaces3: Array<{ id: string; configURIPath: string; } | string>; // workspace or URI.toString() // added in 1.32
+	workspaces3: Array<{ id: string; configURIPath: string } | string>; // workspace or URI.toString() // added in 1.32
 	workspaceLabels?: Array<string | null>; // added in 1.33
 	files2: string[]; // files as URI.toString() // added in 1.32
 	fileLabels?: Array<string | null>; // added in 1.33

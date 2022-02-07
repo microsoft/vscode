@@ -34,16 +34,16 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export type SearchConfiguration = {
-	query: string,
-	filesToInclude: string,
-	filesToExclude: string,
-	contextLines: number,
-	matchWholeWord: boolean,
-	isCaseSensitive: boolean,
-	isRegexp: boolean,
-	useExcludeSettingsAndIgnoreFiles: boolean,
-	showIncludesExcludes: boolean,
-	onlyOpenEditors: boolean,
+	query: string;
+	filesToInclude: string;
+	filesToExclude: string;
+	contextLines: number;
+	matchWholeWord: boolean;
+	isCaseSensitive: boolean;
+	isRegexp: boolean;
+	useExcludeSettingsAndIgnoreFiles: boolean;
+	showIncludesExcludes: boolean;
+	onlyOpenEditors: boolean;
 };
 
 export const SEARCH_EDITOR_EXT = '.code-search';
@@ -304,9 +304,9 @@ export class SearchEditorInput extends EditorInput {
 export const getOrMakeSearchEditorInput = (
 	accessor: ServicesAccessor,
 	existingData: (
-		| { from: 'model', config?: Partial<SearchConfiguration>, modelUri: URI, backupOf?: URI }
-		| { from: 'rawData', resultsContents: string | undefined, config: Partial<SearchConfiguration> }
-		| { from: 'existingFile', fileUri: URI })
+		| { from: 'model'; config?: Partial<SearchConfiguration>; modelUri: URI; backupOf?: URI }
+		| { from: 'rawData'; resultsContents: string | undefined; config: Partial<SearchConfiguration> }
+		| { from: 'existingFile'; fileUri: URI })
 ): SearchEditorInput => {
 
 	const storageService = accessor.get(IStorageService);

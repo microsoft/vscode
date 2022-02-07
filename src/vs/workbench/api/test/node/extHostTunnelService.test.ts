@@ -112,7 +112,7 @@ const procSockets =
 			lrwx------ 1 alex alex 64 Dec  8 15:22 /proc/4496/fd/3 -> socket:[2331511]
 			lrwx------ 1 alex alex 64 Dec  8 15:22 /proc/4496/fd/31 -> socket:[2338285]`;
 
-const processes: { pid: number, cwd: string, cmd: string }[] = [
+const processes: { pid: number; cwd: string; cmd: string }[] = [
 	{
 		pid: 230,
 		cwd: '/mnt/c/WINDOWS/system32',
@@ -121,7 +121,7 @@ const processes: { pid: number, cwd: string, cmd: string }[] = [
 	{
 		pid: 2504,
 		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=extensionHost--uriTransformerPath=/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/vs/server/node/uriTransformer.js--useHostProxy=',
+		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=extensionHost--transformURIs--useHostProxy=',
 	},
 	{
 		pid: 2515,
@@ -205,7 +205,7 @@ const processes: { pid: number, cwd: string, cmd: string }[] = [
 	{
 		pid: 4496,
 		cwd: '/mnt/c/Users/alros/AppData/Local/Programs/Microsoft VS Code Insiders',
-		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node--inspect-brk=0.0.0.0:6899/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=extensionHost--uriTransformerPath=/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/vs/server/node/uriTransformer.js--useHostProxy='
+		cmd: '/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/node--inspect-brk=0.0.0.0:6899/home/alex/.vscode-server-insiders/bin/bc13785d3dd99b4b0e9da9aed17bb79809a50804/out/bootstrap-fork--type=extensionHost--transformURIs--useHostProxy='
 	},
 	{
 		pid: 4507,

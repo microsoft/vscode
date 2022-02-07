@@ -42,6 +42,7 @@ import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/br
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 // declare var __dirname: string;
 
@@ -89,7 +90,8 @@ suite.skip('TextSearch performance (integration)', () => {
 						undoRedoService,
 						new LanguageService(),
 						new TestLanguageConfigurationService(),
-						new LanguageFeatureDebounceService(logService)
+						new LanguageFeatureDebounceService(logService),
+						new LanguageFeaturesService()
 					),
 				],
 				[

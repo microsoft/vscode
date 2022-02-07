@@ -217,7 +217,7 @@ export class CachedExtensionScanner {
 		productService: IProductService,
 		log: ILog,
 		translations: Translations
-	): Promise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
+	): Promise<{ system: IExtensionDescription[]; user: IExtensionDescription[]; development: IExtensionDescription[] }> {
 
 		const version = productService.version;
 		const commit = productService.commit;

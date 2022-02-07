@@ -90,7 +90,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	/**
 	 * Take current platform into account and reduce to primary & secondary.
 	 */
-	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[]; } {
+	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[] } {
 		if (OS === OperatingSystem.Windows) {
 			if (kb && kb.win) {
 				return kb.win;

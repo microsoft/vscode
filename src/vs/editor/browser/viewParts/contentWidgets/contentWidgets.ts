@@ -10,7 +10,7 @@ import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/v
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Constants } from 'vs/base/common/uint';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -32,7 +32,7 @@ class Coordinate {
 export class ViewContentWidgets extends ViewPart {
 
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;
-	private _widgets: { [key: string]: Widget; };
+	private _widgets: { [key: string]: Widget };
 
 	public domNode: FastDomNode<HTMLElement>;
 	public overflowingContentWidgetsDomNode: FastDomNode<HTMLElement>;
@@ -173,8 +173,8 @@ interface IBoxLayoutResult {
 }
 
 interface IRenderData {
-	coordinate: Coordinate,
-	position: ContentWidgetPositionPreference
+	coordinate: Coordinate;
+	position: ContentWidgetPositionPreference;
 }
 
 class Widget {
@@ -257,9 +257,9 @@ class Widget {
 
 		if (this._range) {
 			// Do not trust that widgets give a valid position
-			const validModelRange = this._context.model.validateModelRange(this._range);
-			if (this._context.model.coordinatesConverter.modelPositionIsVisible(validModelRange.getStartPosition()) || this._context.model.coordinatesConverter.modelPositionIsVisible(validModelRange.getEndPosition())) {
-				this._viewRange = this._context.model.coordinatesConverter.convertModelRangeToViewRange(validModelRange);
+			const validModelRange = this._context.viewModel.model.validateRange(this._range);
+			if (this._context.viewModel.coordinatesConverter.modelPositionIsVisible(validModelRange.getStartPosition()) || this._context.viewModel.coordinatesConverter.modelPositionIsVisible(validModelRange.getEndPosition())) {
+				this._viewRange = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(validModelRange);
 			}
 		}
 	}

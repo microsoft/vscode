@@ -423,6 +423,7 @@ declare namespace monaco {
 		readonly isTrusted?: boolean;
 		readonly supportThemeIcons?: boolean;
 		readonly supportHtml?: boolean;
+		readonly baseUri?: UriComponents;
 		uris?: {
 			[href: string]: UriComponents;
 		};
@@ -731,6 +732,7 @@ declare namespace monaco {
 		 * Test if the range spans multiple lines.
 		 */
 		static spansMultipleLines(range: IRange): boolean;
+		toJSON(): IRange;
 	}
 
 	/**
@@ -2351,8 +2353,9 @@ declare namespace monaco.editor {
 		/**
 		 * Set the primary position of the cursor. This will remove any secondary cursors.
 		 * @param position New primary cursor's position
+		 * @param source Source of the call that caused the position
 		 */
-		setPosition(position: IPosition): void;
+		setPosition(position: IPosition, source?: string): void;
 		/**
 		 * Scroll vertically as necessary and reveal a line.
 		 */
@@ -2398,28 +2401,34 @@ declare namespace monaco.editor {
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: IRange): void;
+		setSelection(selection: IRange, source?: string): void;
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: Range): void;
+		setSelection(selection: Range, source?: string): void;
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: ISelection): void;
+		setSelection(selection: ISelection, source?: string): void;
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: Selection): void;
+		setSelection(selection: Selection, source?: string): void;
 		/**
 		 * Set the selections for all the cursors of the editor.
 		 * Cursors will be removed or added, as necessary.
+		 * @param selections The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelections(selections: readonly ISelection[]): void;
+		setSelections(selections: readonly ISelection[], source?: string): void;
 		/**
 		 * Scroll vertically as necessary and reveal lines.
 		 */
@@ -3322,7 +3331,14 @@ declare namespace monaco.editor {
 		 * Controls the behavior of editor guides.
 		*/
 		guides?: IGuidesOptions;
+		/**
+		 * Controls the behavior of the unicode highlight feature
+		 * (by default, ambiguous and invisible characters are highlighted).
+		 */
 		unicodeHighlight?: IUnicodeHighlightOptions;
+		/**
+		 * Configures bracket pair colorization (disabled by default).
+		*/
 		bracketPairColorization?: IBracketPairColorizationOptions;
 	}
 
@@ -3903,15 +3919,33 @@ declare namespace monaco.editor {
 	 * Configuration options for unicode highlighting.
 	 */
 	export interface IUnicodeHighlightOptions {
+		/**
+		 * Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.
+		 */
 		nonBasicASCII?: boolean | InUntrustedWorkspace;
+		/**
+		 * Controls whether characters that just reserve space or have no width at all are highlighted.
+		 */
 		invisibleCharacters?: boolean;
+		/**
+		 * Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.
+		 */
 		ambiguousCharacters?: boolean;
+		/**
+		 * Controls whether characters in comments should also be subject to unicode highlighting.
+		 */
 		includeComments?: boolean | InUntrustedWorkspace;
+		/**
+		 * Controls whether characters in strings should also be subject to unicode highlighting.
+		 */
 		includeStrings?: boolean | InUntrustedWorkspace;
 		/**
-		 * A map of allowed characters (true: allowed).
-		*/
+		 * Defines allowed characters that are not being highlighted.
+		 */
 		allowedCharacters?: Record<string, true>;
+		/**
+		 * Unicode characters that are common in allowed locales are not being highlighted.
+		 */
 		allowedLocales?: Record<string | '_os' | '_vscode', true>;
 	}
 
@@ -6883,6 +6917,7 @@ declare namespace monaco.languages {
 	export interface InlayHint {
 		label: string | InlayHintLabelPart[];
 		tooltip?: string | IMarkdownString;
+		command?: Command;
 		position: IPosition;
 		kind: InlayHintKind;
 		paddingLeft?: boolean;

@@ -5,13 +5,15 @@
 
 import { illegalArgument } from 'vs/base/common/errors';
 import { escapeIcons } from 'vs/base/common/iconLabels';
-import { UriComponents } from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface IMarkdownString {
 	readonly value: string;
 	readonly isTrusted?: boolean;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
+	readonly baseUri?: UriComponents;
 	uris?: { [href: string]: UriComponents };
 }
 
@@ -26,10 +28,11 @@ export class MarkdownString implements IMarkdownString {
 	public isTrusted?: boolean;
 	public supportThemeIcons?: boolean;
 	public supportHtml?: boolean;
+	public baseUri?: URI;
 
 	constructor(
 		value: string = '',
-		isTrustedOrOptions: boolean | { isTrusted?: boolean, supportThemeIcons?: boolean, supportHtml?: boolean } = false,
+		isTrustedOrOptions: boolean | { isTrusted?: boolean; supportThemeIcons?: boolean; supportHtml?: boolean } = false,
 	) {
 		this.value = value;
 		if (typeof this.value !== 'string') {
@@ -99,7 +102,11 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 	} else if (!a || !b) {
 		return false;
 	} else {
-		return a.value === b.value && a.isTrusted === b.isTrusted && a.supportThemeIcons === b.supportThemeIcons;
+		return a.value === b.value
+			&& a.isTrusted === b.isTrusted
+			&& a.supportThemeIcons === b.supportThemeIcons
+			&& a.supportHtml === b.supportHtml
+			&& (a.baseUri === b.baseUri || !!a.baseUri && !!b.baseUri && isEqual(URI.from(a.baseUri), URI.from(b.baseUri)));
 	}
 }
 
@@ -115,7 +122,7 @@ export function removeMarkdownEscapes(text: string): string {
 	return text.replace(/\\([\\`*_{}[\]()#+\-.!])/g, '$1');
 }
 
-export function parseHrefAndDimensions(href: string): { href: string, dimensions: string[] } {
+export function parseHrefAndDimensions(href: string): { href: string; dimensions: string[] } {
 	const dimensions: string[] = [];
 	const splitted = href.split('|').map(s => s.trim());
 	href = splitted[0];

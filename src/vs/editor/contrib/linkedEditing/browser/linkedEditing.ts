@@ -23,13 +23,15 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { LinkedEditingRangeProviderRegistry, LinkedEditingRanges } from 'vs/editor/common/languages';
+import { LinkedEditingRangeProvider, LinkedEditingRanges } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('LinkedEditingInputVisible', false);
@@ -53,6 +55,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 	private _debounceDuration = 200;
 
 	private readonly _editor: ICodeEditor;
+	private readonly _providers: LanguageFeatureRegistry<LinkedEditingRangeProvider>;
 	private _enabled: boolean;
 
 	private readonly _visibleContextKey: IContextKey<boolean>;
@@ -74,10 +77,12 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
 		this._editor = editor;
+		this._providers = languageFeaturesService.linkedEditingRangeProvider;
 		this._enabled = false;
 		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 
@@ -101,7 +106,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 				this.reinitialize(false);
 			}
 		}));
-		this._register(LinkedEditingRangeProviderRegistry.onDidChange(() => this.reinitialize(false)));
+		this._register(this._providers.onDidChange(() => this.reinitialize(false)));
 		this._register(this._editor.onDidChangeModelLanguage(() => this.reinitialize(true)));
 
 		this.reinitialize(true);
@@ -109,7 +114,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 
 	private reinitialize(forceRefresh: boolean) {
 		const model = this._editor.getModel();
-		const isEnabled = model !== null && (this._editor.getOption(EditorOption.linkedEditing) || this._editor.getOption(EditorOption.renameOnType)) && LinkedEditingRangeProviderRegistry.has(model);
+		const isEnabled = model !== null && (this._editor.getOption(EditorOption.linkedEditing) || this._editor.getOption(EditorOption.renameOnType)) && this._providers.has(model);
 		if (isEnabled === this._enabled && !forceRefresh) {
 			return;
 		}
@@ -292,7 +297,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		this._currentRequestModelVersion = modelVersionId;
 		const request = createCancelablePromise(async token => {
 			try {
-				const response = await getLinkedEditingRanges(model, position, token);
+				const response = await getLinkedEditingRanges(this._providers, model, position, token);
 				if (request !== this._currentRequest) {
 					return;
 				}
@@ -429,8 +434,8 @@ registerEditorCommand(new LinkedEditingCommand({
 }));
 
 
-function getLinkedEditingRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<LinkedEditingRanges | undefined | null> {
-	const orderedByScore = LinkedEditingRangeProviderRegistry.ordered(model);
+function getLinkedEditingRanges(providers: LanguageFeatureRegistry<LinkedEditingRangeProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<LinkedEditingRanges | undefined | null> {
+	const orderedByScore = providers.ordered(model);
 
 	// in order of score ask the linked editing range provider
 	// until someone response with a good result
@@ -453,7 +458,10 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-registerModelAndPositionCommand('_executeLinkedEditingProvider', (model, position) => getLinkedEditingRanges(model, position, CancellationToken.None));
+registerModelAndPositionCommand('_executeLinkedEditingProvider', (_accessor, model, position) => {
+	const { linkedEditingRangeProvider } = _accessor.get(ILanguageFeaturesService);
+	return getLinkedEditingRanges(linkedEditingRangeProvider, model, position, CancellationToken.None);
+});
 
 registerEditorContribution(LinkedEditingContribution.ID, LinkedEditingContribution);
 registerEditorAction(LinkedEditingAction);

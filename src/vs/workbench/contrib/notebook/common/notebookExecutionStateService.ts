@@ -47,7 +47,7 @@ export interface INotebookExecutionStateService {
 
 	onDidChangeCellExecution: Event<ICellExecutionStateChangedEvent>;
 
-	forceCancelNotebookExecutions(notebookUri: URI): void
+	forceCancelNotebookExecutions(notebookUri: URI): void;
 	getCellExecutionStatesForNotebook(notebook: URI): INotebookCellExecution[];
 	getCellExecution(cellUri: URI): INotebookCellExecution | undefined;
 	createCellExecution(controllerId: string, notebook: URI, cellHandle: number): INotebookCellExecution;

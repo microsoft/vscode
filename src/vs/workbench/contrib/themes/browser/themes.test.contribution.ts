@@ -23,7 +23,7 @@ import { splitLines } from 'vs/base/common/strings';
 interface IToken {
 	c: string;
 	t: string;
-	r: { [themeName: string]: string | undefined; };
+	r: { [themeName: string]: string | undefined };
 }
 
 interface IThemedToken {
@@ -40,7 +40,7 @@ interface IThemesResult {
 
 class ThemeDocument {
 	private readonly _theme: IWorkbenchColorTheme;
-	private readonly _cache: { [scopes: string]: ThemeRule; };
+	private readonly _cache: { [scopes: string]: ThemeRule };
 	private readonly _defaultColor: string;
 
 	constructor(theme: IWorkbenchColorTheme) {
@@ -194,7 +194,7 @@ class Snapper {
 	}
 
 	private _enrichResult(result: IToken[], themesResult: IThemesResult): void {
-		let index: { [themeName: string]: number; } = {};
+		let index: { [themeName: string]: number } = {};
 		let themeNames = Object.keys(themesResult);
 		for (const themeName of themeNames) {
 			index[themeName] = 0;

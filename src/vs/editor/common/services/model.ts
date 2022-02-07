@@ -38,5 +38,5 @@ export interface IModelService {
 
 	onModelRemoved: Event<ITextModel>;
 
-	onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string; }>;
+	onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string }>;
 }

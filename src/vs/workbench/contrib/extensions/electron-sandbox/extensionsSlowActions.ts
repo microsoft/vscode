@@ -104,7 +104,7 @@ export async function createSlowExtensionAction(
 		return undefined;
 	}
 
-	const data = <{ total_count: number; }>JSON.parse(rawText);
+	const data = <{ total_count: number }>JSON.parse(rawText);
 	if (!data || typeof data.total_count !== 'number') {
 		return undefined;
 	} else if (data.total_count === 0) {

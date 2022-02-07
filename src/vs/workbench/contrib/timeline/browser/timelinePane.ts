@@ -1244,7 +1244,7 @@ class TimelinePaneCommands extends Disposable {
 		return this.getActions(MenuId.TimelineItemContext, { key: 'timelineItem', value: element.contextValue }).secondary;
 	}
 
-	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
+	private getActions(menuId: MenuId, context: { key: string; value?: string }): { primary: IAction[]; secondary: IAction[] } {
 		const contextKeyService = this.contextKeyService.createOverlay([
 			['view', this.pane.id],
 			[context.key, context.value],

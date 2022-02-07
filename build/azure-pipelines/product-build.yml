@@ -122,7 +122,7 @@ variables:
 
 resources:
   containers:
-    - container: vscode-x64
+    - container: vscode-bionic-x64
       image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
@@ -132,6 +132,10 @@ resources:
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-armhf
       image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-armhf
+      endpoint: VSCodeHub
+      options: --user 0:0 --cap-add SYS_ADMIN
+    - container: centos7-devtoolset8-x64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-x64
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: snapcraft
@@ -179,26 +183,42 @@ stages:
                   - template: win32/product-build-win32.yml
 
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
-      - stage: Linux
-        dependsOn:
-          - Compile
+      - stage: LinuxServerDependencies
+        dependsOn: [] # run in parallel to compile stage
         pool:
           vmImage: "Ubuntu-18.04"
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-              - job: Linux
-                container: vscode-x64
+              - job: x64
+                container: centos7-devtoolset8-x64
+                variables:
+                  VSCODE_ARCH: x64
+                  NPM_ARCH: x64
+                steps:
+                  - template: linux/product-build-linux-server.yml
+
+  - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
+      - stage: Linux
+        dependsOn:
+          - Compile
+          - LinuxServerDependencies
+        pool:
+          vmImage: "Ubuntu-18.04"
+        jobs:
+          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - job: Linuxx64
+                container: vscode-bionic-x64
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
                   DISPLAY: ":10"
                 steps:
-                  - template: linux/product-build-linux.yml
+                  - template: linux/product-build-linux-client.yml
 
           - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
               - job: LinuxSnap
                 dependsOn:
-                  - Linux
+                  - Linuxx64
                 container: snapcraft
                 variables:
                   VSCODE_ARCH: x64
@@ -212,7 +232,7 @@ stages:
                   VSCODE_ARCH: armhf
                   NPM_ARCH: armv7l
                 steps:
-                  - template: linux/product-build-linux.yml
+                  - template: linux/product-build-linux-client.yml
 
           # TODO@joaomoreno: We don't ship ARM snaps for now
           - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
@@ -232,7 +252,7 @@ stages:
                   VSCODE_ARCH: arm64
                   NPM_ARCH: arm64
                 steps:
-                  - template: linux/product-build-linux.yml
+                  - template: linux/product-build-linux-client.yml
 
           # TODO@joaomoreno: We don't ship ARM snaps for now
           - ${{ if and(false, eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}:

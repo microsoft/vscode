@@ -18,7 +18,7 @@ namespace NotebookEditorContribution {
 export interface INotebookEditorContribution {
 	readonly [NotebookEditorContribution.type]: string;
 	readonly [NotebookEditorContribution.displayName]: string;
-	readonly [NotebookEditorContribution.selector]?: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
+	readonly [NotebookEditorContribution.selector]?: readonly { filenamePattern?: string; excludeFileNamePattern?: string }[];
 	readonly [NotebookEditorContribution.priority]?: string;
 }
 

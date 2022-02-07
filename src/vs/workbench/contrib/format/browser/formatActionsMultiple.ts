@@ -6,7 +6,7 @@
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { DocumentRangeFormattingEditProviderRegistry, DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider } from 'vs/editor/common/languages';
+import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -29,6 +29,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
 
@@ -305,8 +306,9 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 		}
 		const instaService = accessor.get(IInstantiationService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const model = editor.getModel();
-		const provider = getRealAndSyntheticDocumentFormattersOrdered(model);
+		const provider = getRealAndSyntheticDocumentFormattersOrdered(languageFeaturesService.documentFormattingEditProvider, languageFeaturesService.documentRangeFormattingEditProvider, model);
 		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
 		if (typeof pick === 'number') {
 			await instaService.invokeFunction(formatDocumentWithProvider, provider[pick], editor, FormattingMode.Explicit, CancellationToken.None);
@@ -336,6 +338,7 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 			return;
 		}
 		const instaService = accessor.get(IInstantiationService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const telemetryService = accessor.get(ITelemetryService);
 
 		const model = editor.getModel();
@@ -344,7 +347,7 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 			range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
 		}
 
-		const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
+		const provider = languageFeaturesService.documentRangeFormattingEditProvider.ordered(model);
 		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
 		if (typeof pick === 'number') {
 			await instaService.invokeFunction(formatDocumentRangesWithProvider, provider[pick], editor, range, CancellationToken.None);

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ISerializedWorkspace { id: string; configURIPath: string; remoteAuthority?: string; }
+export interface ISerializedWorkspace { id: string; configURIPath: string; remoteAuthority?: string }
 
-export interface ISerializedFolder { folderUri: string; remoteAuthority?: string; }
+export interface ISerializedFolder { folderUri: string; remoteAuthority?: string }
 
 export interface IBackupWorkspacesFormat {
 	rootURIWorkspaces: ISerializedWorkspace[];

@@ -405,7 +405,7 @@ suite('NotebookConcatDocument', function () {
 		assertLines(barLangDoc, 'barLang-document', 'barLang-document2');
 	});
 
-	function assertOffsetAtPosition(doc: vscode.NotebookConcatTextDocument, offset: number, expected: { line: number, character: number }, reverse = true) {
+	function assertOffsetAtPosition(doc: vscode.NotebookConcatTextDocument, offset: number, expected: { line: number; character: number }, reverse = true) {
 		const actual = doc.positionAt(offset);
 
 		assert.strictEqual(actual.line, expected.line);
@@ -459,7 +459,7 @@ suite('NotebookConcatDocument', function () {
 	});
 
 
-	function assertLocationAtPosition(doc: vscode.NotebookConcatTextDocument, pos: { line: number, character: number }, expected: { uri: URI, line: number, character: number }, reverse = true) {
+	function assertLocationAtPosition(doc: vscode.NotebookConcatTextDocument, pos: { line: number; character: number }, expected: { uri: URI; line: number; character: number }, reverse = true) {
 
 		const actual = doc.locationAt(new Position(pos.line, pos.character));
 		assert.strictEqual(actual.uri.toString(), expected.uri.toString());

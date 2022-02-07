@@ -27,9 +27,9 @@ export interface TimelineItem {
 	timestamp: number;
 	label: string;
 	accessibilityInformation?: IAccessibilityInformation;
-	icon?: URI,
-	iconDark?: URI,
-	themeIcon?: ThemeIcon,
+	icon?: URI;
+	iconDark?: URI;
+	themeIcon?: ThemeIcon;
 	description?: string;
 	detail?: string;
 	command?: Command;
@@ -42,7 +42,7 @@ export interface TimelineItem {
 export interface TimelineChangeEvent {
 	id: string;
 	uri: URI | undefined;
-	reset: boolean
+	reset: boolean;
 }
 
 export interface TimelineOptions {
@@ -61,7 +61,7 @@ export interface Timeline {
 
 	paging?: {
 		cursor: string | undefined;
-	}
+	};
 }
 
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {

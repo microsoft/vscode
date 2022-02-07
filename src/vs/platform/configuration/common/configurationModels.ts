@@ -372,7 +372,7 @@ export class ConfigurationModelParser {
 		return { contents, keys, overrides, restricted: filtered.restricted };
 	}
 
-	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}, restricted: string[] } {
+	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}; restricted: string[] } {
 		if (!options?.scopes && !options?.skipRestricted) {
 			return { raw: properties, restricted: [] };
 		}
@@ -852,7 +852,7 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 	source!: ConfigurationTarget;
 	sourceConfig: any;
 
-	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace, data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
+	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace; data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
 		const keysSet = new Set<string>();
 		change.keys.forEach(key => keysSet.add(key));
 		change.overrides.forEach(([, keys]) => keys.forEach(key => keysSet.add(key)));
@@ -939,7 +939,7 @@ function compare(from: ConfigurationModel | undefined, to: ConfigurationModel | 
 	return { added, removed, updated, overrides };
 }
 
-function compareConfigurationContents(to: { keys: string[], contents: any } | undefined, from: { keys: string[], contents: any } | undefined) {
+function compareConfigurationContents(to: { keys: string[]; contents: any } | undefined, from: { keys: string[]; contents: any } | undefined) {
 	const added = to
 		? from ? to.keys.filter(key => from.keys.indexOf(key) === -1) : [...to.keys]
 		: [];

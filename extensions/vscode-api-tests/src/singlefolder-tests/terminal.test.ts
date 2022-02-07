@@ -347,7 +347,7 @@ import { assertNoRpc, poll } from '../utils';
 		suite('window.onDidWriteTerminalData', () => {
 			test('should listen to all future terminal data events', (done) => {
 				const openEvents: string[] = [];
-				const dataEvents: { name: string, data: string }[] = [];
+				const dataEvents: { name: string; data: string }[] = [];
 				const closeEvents: string[] = [];
 				disposables.push(window.onDidOpenTerminal(e => openEvents.push(e.name)));
 

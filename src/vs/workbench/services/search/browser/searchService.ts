@@ -49,15 +49,16 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	protected _worker: IWorkerClient<ILocalFileSearchSimpleWorker> | null;
 	protected readonly _workerFactory: DefaultWorkerFactory;
 
-	private readonly _onDidRecieveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>, queryId: number }>();
-	readonly onDidRecieveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>, queryId: number }> = this._onDidRecieveTextSearchMatch.event;
+	private readonly _onDidReceiveTextSearchMatch = new Emitter<{ match: IFileMatch<UriComponents>; queryId: number }>();
+	readonly onDidReceiveTextSearchMatch: Event<{ match: IFileMatch<UriComponents>; queryId: number }> = this._onDidReceiveTextSearchMatch.event;
 
-	private cache: { key: string, cache: ISearchComplete } | undefined;
+	private cache: { key: string; cache: ISearchComplete } | undefined;
 
 	private queryId: number = 0;
 
 	constructor(
 		@IFileService private fileService: IFileService,
+		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) {
 		super();
 		this._worker = null;
@@ -65,7 +66,7 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 	}
 
 	sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void {
-		this._onDidRecieveTextSearchMatch.fire({ match, queryId });
+		this._onDidReceiveTextSearchMatch.fire({ match, queryId });
 	}
 
 	@memoize
@@ -102,13 +103,14 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					results: result.results
 				});
 
-				queryDisposables.add(this.onDidRecieveTextSearchMatch(e => {
+				queryDisposables.add(this.onDidReceiveTextSearchMatch(e => {
 					if (e.queryId === queryId) {
 						onProgress?.(reviveMatch(e.match));
 					}
 				}));
 
-				const folderResults = await proxy.searchDirectory(handle, query, fq, queryId);
+				const ignorePathCasing = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
+				const folderResults = await proxy.searchDirectory(handle, query, fq, ignorePathCasing, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push(reviveMatch(folderResult));
 				}
@@ -149,8 +151,8 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					console.error('Could not get directory handle for ', fq);
 					return;
 				}
-
-				const folderResults = await proxy.listDirectory(handle, query, fq, queryId);
+				const caseSensitive = this.uriIdentityService.extUri.ignorePathCasing(fq.folder);
+				const folderResults = await proxy.listDirectory(handle, query, fq, caseSensitive, queryId);
 				for (const folderResult of folderResults.results) {
 					results.push({ resource: URI.joinPath(fq.folder, folderResult) });
 				}

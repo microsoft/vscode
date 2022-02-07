@@ -465,7 +465,7 @@ namespace schema {
 		icon?: IUserFriendlyIcon;
 	}
 
-	export type IUserFriendlyIcon = string | { light: string; dark: string; };
+	export type IUserFriendlyIcon = string | { light: string; dark: string };
 
 	export function isValidCommand(command: IUserFriendlyCommand, collector: ExtensionMessageCollector): boolean {
 		if (!command) {
@@ -598,7 +598,7 @@ commandsExtensionPoint.setHandler(extensions => {
 
 		const { icon, enablement, category, title, shortTitle, command } = userFriendlyCommand;
 
-		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
+		let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
 		if (icon) {
 			if (typeof icon === 'string') {
 				absoluteIcon = ThemeIcon.fromString(icon) ?? { dark: resources.joinPath(extension.description.extensionLocation, icon), light: resources.joinPath(extension.description.extensionLocation, icon) };
@@ -646,7 +646,7 @@ commandsExtensionPoint.setHandler(extensions => {
 interface IRegisteredSubmenu {
 	readonly id: MenuId;
 	readonly label: string;
-	readonly icon?: { dark: URI; light?: URI; } | ThemeIcon;
+	readonly icon?: { dark: URI; light?: URI } | ThemeIcon;
 }
 
 const _submenus = new Map<string, IRegisteredSubmenu>();
@@ -681,7 +681,7 @@ submenusExtensionPoint.setHandler(extensions => {
 				return;
 			}
 
-			let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
+			let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
 			if (entry.value.icon) {
 				if (typeof entry.value.icon === 'string') {
 					absoluteIcon = ThemeIcon.fromString(entry.value.icon) || { dark: resources.joinPath(extension.description.extensionLocation, entry.value.icon) };
@@ -720,7 +720,7 @@ menusExtensionPoint.setHandler(extensions => {
 	_menuRegistrations.clear();
 	_submenuMenuItems.clear();
 
-	const items: { id: MenuId, item: IMenuItem | ISubmenuItem }[] = [];
+	const items: { id: MenuId; item: IMenuItem | ISubmenuItem }[] = [];
 
 	for (let extension of extensions) {
 		const { value, collector } = extension;

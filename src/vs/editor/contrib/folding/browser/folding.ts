@@ -21,7 +21,7 @@ import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
-import { FoldingRangeKind, FoldingRangeProviderRegistry } from 'vs/editor/common/languages';
+import { FoldingRangeKind } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { CollapseMemento, FoldingModel, getNextFoldLine, getParentFoldLine as getParentFoldLine, getPreviousFoldLine, setCollapseStateAtLevel, setCollapseStateForMatchingLines, setCollapseStateForRest, setCollapseStateForType, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateUp, toggleCollapseState } from 'vs/editor/contrib/folding/browser/foldingModel';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/browser/hiddenRangeModel';
@@ -39,6 +39,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import Severity from 'vs/base/common/severity';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
@@ -53,7 +54,7 @@ interface FoldingStateMemento {
 	collapsedRegions?: CollapseMemento;
 	lineCount?: number;
 	provider?: string;
-	foldedImports?: boolean
+	foldedImports?: boolean;
 }
 
 export class FoldingController extends Disposable implements IEditorContribution {
@@ -93,14 +94,15 @@ export class FoldingController extends Disposable implements IEditorContribution
 	private cursorChangedScheduler: RunOnceScheduler | null;
 
 	private readonly localToDispose = this._register(new DisposableStore());
-	private mouseDownInfo: { lineNumber: number, iconClicked: boolean } | null;
+	private mouseDownInfo: { lineNumber: number; iconClicked: boolean } | null;
 
 	constructor(
 		editor: ICodeEditor,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
 		@INotificationService notificationService: INotificationService,
-		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 		this.editor = editor;
@@ -112,7 +114,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this._currentModelHasFoldedImports = false;
 		this._foldingImportsByDefault = options.get(EditorOption.foldingImportsByDefault);
 		this._maxFoldingRegions = options.get(EditorOption.foldingMaximumRegions);
-		this.updateDebounceInfo = languageFeatureDebounceService.for(FoldingRangeProviderRegistry, 'Folding', { min: 200 });
+		this.updateDebounceInfo = languageFeatureDebounceService.for(languageFeaturesService.foldingRangeProvider, 'Folding', { min: 200 });
 
 		this.foldingModel = null;
 		this.hiddenRangeModel = null;
@@ -252,7 +254,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 
 		this.cursorChangedScheduler = new RunOnceScheduler(() => this.revealCursor(), 200);
 		this.localToDispose.add(this.cursorChangedScheduler);
-		this.localToDispose.add(FoldingRangeProviderRegistry.onDidChange(() => this.onFoldingStrategyChanged()));
+		this.localToDispose.add(this.languageFeaturesService.foldingRangeProvider.onDidChange(() => this.onFoldingStrategyChanged()));
 		this.localToDispose.add(this.editor.onDidChangeModelLanguageConfiguration(() => this.onFoldingStrategyChanged())); // covers model language changes as well
 		this.localToDispose.add(this.editor.onDidChangeModelContent(e => this.onDidChangeModelContent(e)));
 		this.localToDispose.add(this.editor.onDidChangeCursorPosition(() => this.onCursorPositionChanged()));
@@ -297,7 +299,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		this.rangeProvider = new IndentRangeProvider(editorModel, this.languageConfigurationService, this._maxFoldingRegions); // fallback
 
 		if (this._useFoldingProviders && this.foldingModel) {
-			let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
+			let foldingProviders = this.languageFeaturesService.foldingRangeProvider.ordered(this.foldingModel.textModel);
 			if (foldingProviders.length === 0 && this.foldingStateMemento && this.foldingStateMemento.collapsedRegions) {
 				const rangeProvider = this.rangeProvider = new InitializingRangeProvider(editorModel, this.foldingStateMemento.collapsedRegions, () => {
 					// if after 30 the InitializingRangeProvider is still not replaced, force a refresh

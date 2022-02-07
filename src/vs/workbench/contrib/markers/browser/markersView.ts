@@ -84,9 +84,9 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 	private readonly panelState: MementoObject;
 
-	private _onDidChangeFilterStats = this._register(new Emitter<{ total: number, filtered: number }>());
-	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }> = this._onDidChangeFilterStats.event;
-	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
+	private _onDidChangeFilterStats = this._register(new Emitter<{ total: number; filtered: number }>());
+	readonly onDidChangeFilterStats: Event<{ total: number; filtered: number }> = this._onDidChangeFilterStats.event;
+	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 	private readonly markersViewModel: MarkersViewModel;
@@ -332,7 +332,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this.renderMessage();
 	}
 
-	private getFilesExcludeExpressions(): { root: URI, expression: IExpression }[] | IExpression {
+	private getFilesExcludeExpressions(): { root: URI; expression: IExpression }[] | IExpression {
 		if (!this.filters.excludedFiles) {
 			return [];
 		}
@@ -814,7 +814,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		return super.getActionViewItem(action);
 	}
 
-	getFilterStats(): { total: number; filtered: number; } {
+	getFilterStats(): { total: number; filtered: number } {
 		if (!this.cachedFilterStats) {
 			this.cachedFilterStats = this.computeFilterStats();
 		}
@@ -822,7 +822,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		return this.cachedFilterStats;
 	}
 
-	private computeFilterStats(): { total: number; filtered: number; } {
+	private computeFilterStats(): { total: number; filtered: number } {
 		let filtered = 0;
 		if (this.tree) {
 			const root = this.tree.getNode();

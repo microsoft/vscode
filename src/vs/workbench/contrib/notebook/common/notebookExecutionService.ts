@@ -16,14 +16,14 @@ export enum CellExecutionUpdateType {
 export interface ICellExecuteOutputEdit {
 	editType: CellExecutionUpdateType.Output;
 	append?: boolean;
-	outputs: IOutputDto[]
+	outputs: IOutputDto[];
 }
 
 export interface ICellExecuteOutputItemEdit {
 	editType: CellExecutionUpdateType.OutputItems;
 	append?: boolean;
 	outputId: string;
-	items: IOutputItemDto[]
+	items: IOutputItemDto[];
 }
 
 export const INotebookExecutionService = createDecorator<INotebookExecutionService>('INotebookExecutionService');

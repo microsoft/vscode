@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
+import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, SafeDisposable } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 namespace Samples {
@@ -313,6 +313,31 @@ suite('Event', function () {
 
 		// assert that all events are delivered in order
 		assert.deepStrictEqual(listener2Events, ['e1', 'e2']);
+	});
+
+	test('Cannot read property \'_actual\' of undefined #142204', function () {
+		const e = new Emitter<number>();
+		const dispo = e.event(() => { });
+		dispo.dispose.call(undefined);  // assert that disposable can be called with this
+	});
+
+	test('SafeDisposable, dispose', function () {
+		let disposed = 0;
+		const actual = toDisposable(() => disposed += 1);
+		const d = new SafeDisposable();
+		d.set(actual);
+		d.dispose();
+		assert.strictEqual(disposed, 1);
+	});
+
+	test('SafeDisposable, unset', function () {
+		let disposed = 0;
+		const actual = toDisposable(() => disposed += 1);
+		const d = new SafeDisposable();
+		d.set(actual);
+		d.unset();
+		d.dispose();
+		assert.strictEqual(disposed, 0);
 	});
 });
 

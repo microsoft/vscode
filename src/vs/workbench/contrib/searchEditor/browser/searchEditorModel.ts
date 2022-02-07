@@ -17,7 +17,7 @@ import { SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor
 import { Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 
-export type SearchEditorData = { resultsModel: ITextModel, configurationModel: SearchConfigurationModel };
+export type SearchEditorData = { resultsModel: ITextModel; configurationModel: SearchConfigurationModel };
 
 export class SearchConfigurationModel {
 	private _onConfigDidUpdate = new Emitter<SearchConfiguration>();

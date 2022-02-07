@@ -9,7 +9,7 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { EncodedTokenizationResult, ILanguageIdCodec, IState, ITokenizationSupport, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
-import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullMode';
+import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';

@@ -41,7 +41,7 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly logExtensionHostCommunication?: boolean;
 
 	// --- Editors to open
-	readonly filesToOpenOrCreate?: IPath[] | undefined
+	readonly filesToOpenOrCreate?: IPath[] | undefined;
 	readonly filesToDiff?: IPath[] | undefined;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

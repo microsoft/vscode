@@ -829,7 +829,7 @@ export abstract class ExtensionDropDownAction extends ExtensionAction {
 		return this._actionViewItem;
 	}
 
-	public override run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][], disposeActionsOnHide: boolean; }): Promise<any> {
+	public override run({ actionGroups, disposeActionsOnHide }: { actionGroups: IAction[][]; disposeActionsOnHide: boolean }): Promise<any> {
 		if (this._actionViewItem) {
 			this._actionViewItem.showMenu(actionGroups, disposeActionsOnHide);
 		}
@@ -1556,7 +1556,7 @@ export class SetColorThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetColorThemeAction.EnabledClass : SetColorThemeAction.DisabledClass;
 	}
 
-	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean; } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.colorThemes = await this.workbenchThemeService.getColorThemes();
 
 		this.update();
@@ -1607,7 +1607,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetFileIconThemeAction.EnabledClass : SetFileIconThemeAction.DisabledClass;
 	}
 
-	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean; } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.fileIconThemes = await this.workbenchThemeService.getFileIconThemes();
 		this.update();
 		if (!this.enabled) {
@@ -1657,7 +1657,7 @@ export class SetProductIconThemeAction extends ExtensionAction {
 		this.class = this.enabled ? SetProductIconThemeAction.EnabledClass : SetProductIconThemeAction.DisabledClass;
 	}
 
-	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean, ignoreFocusLost: boolean; } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
+	override async run({ showCurrentTheme, ignoreFocusLost }: { showCurrentTheme: boolean; ignoreFocusLost: boolean } = { showCurrentTheme: false, ignoreFocusLost: false }): Promise<any> {
 		this.productIconThemes = await this.workbenchThemeService.getProductIconThemes();
 		this.update();
 		if (!this.enabled) {
@@ -1879,7 +1879,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		return Promise.resolve(undefined);
 	}
 
-	private getOrCreateExtensionsFile(extensionsFileResource: URI): Promise<{ created: boolean, extensionsFileResource: URI, content: string; }> {
+	private getOrCreateExtensionsFile(extensionsFileResource: URI): Promise<{ created: boolean; extensionsFileResource: URI; content: string }> {
 		return Promise.resolve(this.fileService.readFile(extensionsFileResource)).then(content => {
 			return { created: false, extensionsFileResource, content: content.value.toString() };
 		}, err => {
@@ -2100,7 +2100,7 @@ export class ToggleSyncExtensionAction extends ExtensionDropDownAction {
 	}
 }
 
-export type ExtensionStatus = { readonly message: IMarkdownString, readonly icon?: ThemeIcon; };
+export type ExtensionStatus = { readonly message: IMarkdownString; readonly icon?: ThemeIcon };
 
 export class ExtensionStatusAction extends ExtensionAction {
 
@@ -2406,7 +2406,7 @@ export class ReinstallAction extends Action {
 			.then(pick => pick && this.reinstallExtension(pick.extension));
 	}
 
-	private getEntries(): Promise<(IQuickPickItem & { extension: IExtension; })[]> {
+	private getEntries(): Promise<(IQuickPickItem & { extension: IExtension })[]> {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(local => {
 				const entries = local
@@ -2417,7 +2417,7 @@ export class ReinstallAction extends Action {
 							label: extension.displayName,
 							description: extension.identifier.id,
 							extension,
-						} as (IQuickPickItem & { extension: IExtension; });
+						} as (IQuickPickItem & { extension: IExtension });
 					});
 				return entries;
 			});

@@ -31,7 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
-type WorkspaceType = { readonly virtual: boolean, readonly trusted: boolean };
+type WorkspaceType = { readonly virtual: boolean; readonly trusted: boolean };
 
 export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
 
@@ -589,7 +589,7 @@ class ExtensionsManager extends Disposable {
 	private _extensions: IExtension[] = [];
 	get extensions(): readonly IExtension[] { return this._extensions; }
 
-	private _onDidChangeExtensions = this._register(new Emitter<{ added: readonly IExtension[], removed: readonly IExtension[] }>());
+	private _onDidChangeExtensions = this._register(new Emitter<{ added: readonly IExtension[]; removed: readonly IExtension[] }>());
 	readonly onDidChangeExtensions = this._onDidChangeExtensions.event;
 
 	private readonly initializePromise;
