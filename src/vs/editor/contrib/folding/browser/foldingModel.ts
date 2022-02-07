@@ -150,7 +150,7 @@ export class FoldingModel {
 					&& decRange.endLineNumber > decRange.startLineNumber) {
 					hiddenRanges.push({
 						startLineNumber: decRange.startLineNumber,
-						endLineNumber: decRange.startLineNumber + hiddenRange.endLineNumber - hiddenRange.startLineNumber,
+						endLineNumber: decRange.endLineNumber,
 						isCollapsed: true,
 						type: hiddenRange.type
 					});
