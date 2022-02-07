@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { fdatasyncSync } from 'fs';
 import * as nls from 'vs/nls';
 
 import { registerColor, ColorIdentifier, ColorDefaults } from 'vs/platform/theme/common/colorRegistry';
@@ -32,11 +33,10 @@ export const TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR = registerColor('termin
 	dark: '#be1100',
 	hc: '#be1100'
 }, nls.localize('terminal.promptDecorationBackground', 'The terminal prompt decoration background color.'));
-
 export const TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR = registerColor('terminal.promptDecorationBackgroundError', {
-	light: '#00000040',
-	dark: '#f07171',
-	hc: '#f07171'
+	light: '#a1260d',
+	dark: '#be1100',
+	hc: '#be1100'
 }, nls.localize('terminal.promptDecorationBackgroundError', 'The terminal prompt decoration background color when there is an exit code.'));
 export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
 	dark: PANEL_BORDER,
