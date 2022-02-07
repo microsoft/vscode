@@ -577,7 +577,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}
 
-		return index + 1;
+		return index;
 	}
 
 	hasCell(cell: ICellViewModel) {
