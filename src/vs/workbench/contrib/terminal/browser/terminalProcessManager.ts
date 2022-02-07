@@ -609,7 +609,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._setProcessState(ProcessState.KilledByProcess);
 		}
 
-		this._onProcessExit.fire(this.shellIntegrationAttempted ? ShellIntegrationExitCode : exitCode);
+		this._onProcessExit.fire(exitCode);
 	}
 
 	private _setProcessState(state: ProcessState) {
