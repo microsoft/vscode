@@ -12,9 +12,9 @@ import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered,
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, DefaultConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
-import { IStoredWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
-import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { equals } from 'vs/base/common/objects';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';

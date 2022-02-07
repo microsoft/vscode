@@ -11,7 +11,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
 
