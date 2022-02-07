@@ -631,7 +631,7 @@ function getPaneCompositeExtension(viewContainerLocation: ViewContainerLocation)
 	}
 }
 
-function getPartByLocation(viewContainerLocation: ViewContainerLocation): Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.PANEL_PART {
+export function getPartByLocation(viewContainerLocation: ViewContainerLocation): Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.PANEL_PART {
 	switch (viewContainerLocation) {
 		case ViewContainerLocation.AuxiliaryBar:
 			return Parts.AUXILIARYBAR_PART;
