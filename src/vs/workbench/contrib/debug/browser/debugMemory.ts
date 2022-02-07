@@ -239,6 +239,7 @@ class MemoryRegionView extends Disposable implements IMemoryRegion {
 		super();
 		this.writable = parent.writable;
 
+		this._register(parent);
 		this._register(parent.onDidInvalidate(e => {
 			const fromOffset = clamp(e.fromOffset - range.fromOffset, 0, this.width);
 			const toOffset = clamp(e.toOffset - range.fromOffset, 0, this.width);
