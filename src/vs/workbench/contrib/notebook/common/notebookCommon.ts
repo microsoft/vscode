@@ -598,8 +598,6 @@ type MimeTypeInfo = {
 
 const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['application/javascript', { supportedByCore: true }],
-	['image/png', { alwaysSecure: true, supportedByCore: true }],
-	['image/jpeg', { alwaysSecure: true, supportedByCore: true }],
 	['image/git', { alwaysSecure: true, supportedByCore: true }],
 	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],

@@ -444,6 +444,7 @@ const webpackMediaConfigFiles = [
 const esbuildMediaScripts = [
 	'markdown-language-features/esbuild.js',
 	'markdown-math/esbuild.js',
+	'notebook-renderers/esbuild.js'
 ];
 
 export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string; outputRoot?: string }[]) {

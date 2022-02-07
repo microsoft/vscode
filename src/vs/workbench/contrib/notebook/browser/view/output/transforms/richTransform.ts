@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -210,42 +210,8 @@ class HTMLRendererContrib extends Disposable implements IOutputTransformContribu
 	}
 }
 
-class ImgRendererContrib extends Disposable implements IOutputTransformContribution {
-	getType() {
-		return RenderOutputType.Mainframe;
-	}
-
-	getMimetypes() {
-		return ['image/png', 'image/jpeg', 'image/gif'];
-	}
-
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const disposable = new DisposableStore();
-
-		const blob = new Blob([item.data.buffer], { type: item.mime });
-		const src = URL.createObjectURL(blob);
-		disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
-
-		const image = document.createElement('img');
-		image.src = src;
-		const display = document.createElement('div');
-		display.classList.add('display');
-		display.appendChild(image);
-		container.appendChild(display);
-
-		return { type: RenderOutputType.Mainframe, disposable };
-	}
-}
-
 OutputRendererRegistry.registerOutputTransform(JavaScriptRendererContrib);
 OutputRendererRegistry.registerOutputTransform(HTMLRendererContrib);
-OutputRendererRegistry.registerOutputTransform(ImgRendererContrib);
 OutputRendererRegistry.registerOutputTransform(PlainTextRendererContrib);
 OutputRendererRegistry.registerOutputTransform(JSErrorRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);
