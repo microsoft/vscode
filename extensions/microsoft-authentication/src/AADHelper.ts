@@ -10,12 +10,13 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { v4 as uuid } from 'uuid';
 import fetch, { Response } from 'node-fetch';
-import { createServer, startServer } from './authServer';
 import { Keychain } from './keychain';
 import Logger from './logger';
 import { toBase64UrlEncoding } from './utils';
 import { sha256 } from './env/node/sha256';
 import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
+import { LoopbackAuthServer } from './authServer';
+import path = require('path');
 
 const localize = nls.loadMessageBundle();
 
@@ -238,63 +239,42 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async createSessionWithLocalServer(scopeData: IScopeData) {
-		const nonce = randomBytes(16).toString('base64');
-		const { server, redirectPromise, codePromise } = createServer(nonce);
+		const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
+		const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
+		const qs = querystring.stringify({
+			response_type: 'code',
+			response_mode: 'query',
+			client_id: scopeData.clientId,
+			redirect_uri: redirectUrl,
+			scope: scopeData.scopesToSend,
+			prompt: 'select_account',
+			code_challenge_method: 'S256',
+			code_challenge: codeChallenge,
+		});
+		const loginUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize?${qs}`;
+		const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl);
+		await server.start();
+		server.state = `${server.port},${encodeURIComponent(server.nonce)}`;
 
-		let token: IToken | undefined;
+		let codeToExchange;
 		try {
-			const port = await startServer(server);
-			vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${port}/signin?nonce=${encodeURIComponent(nonce)}`));
-
-			const redirectReq = await redirectPromise;
-			if ('err' in redirectReq) {
-				const { err, res } = redirectReq;
-				res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
-				res.end();
-				throw err;
-			}
-
-			const host = redirectReq.req.headers.host || '';
-			const updatedPortStr = (/^[^:]+:(\d+)$/.exec(Array.isArray(host) ? host[0] : host) || [])[1];
-			const updatedPort = updatedPortStr ? parseInt(updatedPortStr, 10) : port;
-
-			const state = `${updatedPort},${encodeURIComponent(nonce)}`;
-
-			const codeVerifier = toBase64UrlEncoding(randomBytes(32).toString('base64'));
-			const codeChallenge = toBase64UrlEncoding(await sha256(codeVerifier));
-
-			const loginUrl = `${loginEndpointUrl}${scopeData.tenant}/oauth2/v2.0/authorize?response_type=code&response_mode=query&client_id=${encodeURIComponent(scopeData.clientId)}&redirect_uri=${encodeURIComponent(redirectUrl)}&state=${state}&scope=${encodeURIComponent(scopeData.scopesToSend)}&prompt=select_account&code_challenge_method=S256&code_challenge=${codeChallenge}`;
-
-			redirectReq.res.writeHead(302, { Location: loginUrl });
-			redirectReq.res.end();
-
-			const codeRes = await codePromise;
-			const res = codeRes.res;
-
-			try {
-				if ('err' in codeRes) {
-					throw codeRes.err;
-				}
-				token = await this.exchangeCodeForToken(codeRes.code, codeVerifier, scopeData);
-				if (token.expiresIn) {
-					this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
-				}
-				await this.setToken(token, scopeData);
-				Logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
-				res.writeHead(302, { Location: '/' });
-				const session = await this.convertToSession(token);
-				return session;
-			} catch (err) {
-				res.writeHead(302, { Location: `/?error=${encodeURIComponent(err && err.message || 'Unknown error')}` });
-				throw err;
-			} finally {
-				res.end();
-			}
+			vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${server.port}/signin?nonce=${encodeURIComponent(server.nonce)}`));
+			const { code } = await server.waitForOAuthResponse();
+			codeToExchange = code;
 		} finally {
 			setTimeout(() => {
-				server.close();
+				void server.stop();
 			}, 5000);
 		}
+
+		const token = await this.exchangeCodeForToken(codeToExchange, codeVerifier, scopeData);
+		if (token.expiresIn) {
+			this.setSessionTimeout(token.sessionId, token.refreshToken, scopeData, token.expiresIn * AzureActiveDirectoryService.REFRESH_TIMEOUT_MODIFIER);
+		}
+		await this.setToken(token, scopeData);
+		Logger.info(`Login successful for scopes: ${scopeData.scopeStr}`);
+		const session = await this.convertToSession(token);
+		return session;
 	}
 
 	private async createSessionWithoutLocalServer(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {

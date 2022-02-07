@@ -1236,7 +1236,7 @@ class InlayHintsAdapter {
 	}
 
 	private _isValidInlayHint(hint: vscode.InlayHint, range?: vscode.Range): boolean {
-		if (hint.label.length === 0 || Array.isArray(hint.label) && hint.label.every(part => part.label.length === 0)) {
+		if (hint.label.length === 0 || Array.isArray(hint.label) && hint.label.every(part => part.value.length === 0)) {
 			console.log('INVALID inlay hint, empty label', hint);
 			return false;
 		}
@@ -1257,7 +1257,8 @@ class InlayHintsAdapter {
 		const result: extHostProtocol.IInlayHintDto = {
 			label: '', // fill-in below
 			cacheId: id,
-			tooltip: hint.tooltip && typeConvert.MarkdownString.from(hint.tooltip),
+			tooltip: typeConvert.MarkdownString.fromStrict(hint.tooltip),
+			command: hint.command && this._commands.toInternal(hint.command, disposables),
 			position: typeConvert.Position.from(hint.position),
 			kind: typeConvert.InlayHintKind.from(hint.kind ?? InlayHintKind.Other),
 			paddingLeft: hint.paddingLeft,
@@ -1268,8 +1269,8 @@ class InlayHintsAdapter {
 			result.label = hint.label;
 		} else {
 			result.label = hint.label.map(part => {
-				let result: languages.InlayHintLabelPart = { label: part.label };
-				result.tooltip = part.tooltip && typeConvert.MarkdownString.from(part.tooltip);
+				let result: languages.InlayHintLabelPart = { label: part.value };
+				result.tooltip = typeConvert.MarkdownString.fromStrict(part.tooltip);
 				if (Location.isLocation(part.location)) {
 					result.location = typeConvert.location.from(part.location);
 				}

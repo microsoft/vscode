@@ -7,13 +7,20 @@
 
 declare module 'vscode' {
 
-	enum LanguageStatusSeverity {
+	/**
+	 * Represents the severity of a language status item.
+	 */
+	export enum LanguageStatusSeverity {
 		Information = 0,
 		Warning = 1,
 		Error = 2
 	}
 
-	interface LanguageStatusItem {
+	/**
+	 * A language status item is the preferred way to present language status reports for the active text editors,
+	 * such as selected linter or notifying about a configuration problem.
+	 */
+	export interface LanguageStatusItem {
 
 		/**
 		 * The identifier of this item.
@@ -26,12 +33,18 @@ declare module 'vscode' {
 		name: string | undefined;
 
 		/**
-		 * A {@link DocumentSelector selector} that defines for what documents
+		 * A {@link DocumentSelector selector} that defines for what editors
 		 * this item shows.
 		 */
 		selector: DocumentSelector;
 
-		// todo@jrieken replace with boolean ala needsAttention
+		/**
+		 * The severity of this item.
+		 *
+		 * Defaults to {@link LanguageStatusSeverity.Information information}. You can use this property to
+		 * signal to users that there is a problem that needs attention, like a missing executable or an
+		 * invalid configuration.
+		 */
 		severity: LanguageStatusSeverity;
 
 		/**
@@ -71,6 +84,12 @@ declare module 'vscode' {
 	}
 
 	namespace languages {
+		/**
+		 * Creates a new {@link LanguageStatusItem language status item}.
+		 *
+		 * @param id The identifier of the item.
+		 * @param selector The document selector that defines for what editors the item shows.
+		 */
 		export function createLanguageStatusItem(id: string, selector: DocumentSelector): LanguageStatusItem;
 	}
 }
