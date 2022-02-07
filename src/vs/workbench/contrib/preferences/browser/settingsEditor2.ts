@@ -1511,7 +1511,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private layoutTrees(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (72 + 11 /* header height + editor padding */);
-		const settingsTreeHeight = listHeight - 14;
+		const settingsTreeHeight = listHeight;
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
 		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 

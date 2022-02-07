@@ -125,7 +125,6 @@
 
 .settings-editor > .settings-body {
 	position: relative;
-	margin-top: 14px;
 }
 
 .settings-editor > .settings-body > .no-results-message {
@@ -245,6 +244,14 @@
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element {
+	padding-top: 14px;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element {
+	padding-top: 14px;
 }
 
 .settings-editor > .settings-body .settings-toc-wrapper {
