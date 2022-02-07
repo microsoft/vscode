@@ -13,11 +13,11 @@ import { Schemas } from 'vs/base/common/network';
 import { isAbsolute } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IExtUri, isEqualAuthority } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IBaseWorkspace, IBaseWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IBaseWorkspace, IWorkspaceIdentifier, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
@@ -102,47 +102,6 @@ export function isFolderBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInf
 export function isWorkspaceBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IWorkspaceBackupInfo {
 	return curr && curr.hasOwnProperty('workspace');
 }
-
-//#endregion
-
-//#region Identifiers / Payload
-
-export interface ISerializedSingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-	uri: UriComponents;
-}
-
-export interface ISerializedWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-	configPath: UriComponents;
-}
-
-export function reviveIdentifier(identifier: undefined): undefined;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier): IWorkspaceIdentifier;
-export function reviveIdentifier(identifier: ISerializedSingleFolderWorkspaceIdentifier): ISingleFolderWorkspaceIdentifier;
-export function reviveIdentifier(identifier: IEmptyWorkspaceIdentifier): IEmptyWorkspaceIdentifier;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined {
-
-	// Single Folder
-	const singleFolderIdentifierCandidate = identifier as ISerializedSingleFolderWorkspaceIdentifier | undefined;
-	if (singleFolderIdentifierCandidate?.uri) {
-		return { id: singleFolderIdentifierCandidate.id, uri: URI.revive(singleFolderIdentifierCandidate.uri) };
-	}
-
-	// Multi folder
-	const workspaceIdentifierCandidate = identifier as ISerializedWorkspaceIdentifier | undefined;
-	if (workspaceIdentifierCandidate?.configPath) {
-		return { id: workspaceIdentifierCandidate.id, configPath: URI.revive(workspaceIdentifierCandidate.configPath) };
-	}
-
-	// Empty
-	if (identifier?.id) {
-		return { id: identifier.id };
-	}
-
-	return undefined;
-}
-
-export type IWorkspaceInitializationPayload = IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier;
 
 //#endregion
 

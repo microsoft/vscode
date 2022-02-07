@@ -9,7 +9,7 @@ import { extname } from 'vs/base/common/path';
 import { IWorkspaceFolderProvider } from 'vs/base/common/labels';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
@@ -132,6 +132,8 @@ export interface IWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
 
 export interface IEmptyWorkspaceIdentifier extends IBaseWorkspaceIdentifier { }
 
+export type IAnyWorkspaceIdentifier = IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier;
+
 export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
 	const singleFolderIdentifier = obj as ISingleFolderWorkspaceIdentifier | undefined;
 
@@ -164,6 +166,41 @@ export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier
 	const workspaceIdentifier = obj as IWorkspaceIdentifier | undefined;
 
 	return typeof workspaceIdentifier?.id === 'string' && URI.isUri(workspaceIdentifier.configPath);
+}
+
+export interface ISerializedSingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+	uri: UriComponents;
+}
+
+export interface ISerializedWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
+	configPath: UriComponents;
+}
+
+export function reviveIdentifier(identifier: undefined): undefined;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier): IWorkspaceIdentifier;
+export function reviveIdentifier(identifier: ISerializedSingleFolderWorkspaceIdentifier): ISingleFolderWorkspaceIdentifier;
+export function reviveIdentifier(identifier: IEmptyWorkspaceIdentifier): IEmptyWorkspaceIdentifier;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
+export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined {
+
+	// Single Folder
+	const singleFolderIdentifierCandidate = identifier as ISerializedSingleFolderWorkspaceIdentifier | undefined;
+	if (singleFolderIdentifierCandidate?.uri) {
+		return { id: singleFolderIdentifierCandidate.id, uri: URI.revive(singleFolderIdentifierCandidate.uri) };
+	}
+
+	// Multi folder
+	const workspaceIdentifierCandidate = identifier as ISerializedWorkspaceIdentifier | undefined;
+	if (workspaceIdentifierCandidate?.configPath) {
+		return { id: workspaceIdentifierCandidate.id, configPath: URI.revive(workspaceIdentifierCandidate.configPath) };
+	}
+
+	// Empty
+	if (identifier?.id) {
+		return { id: identifier.id };
+	}
+
+	return undefined;
 }
 
 export const enum WorkbenchState {
