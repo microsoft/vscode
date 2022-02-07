@@ -10,6 +10,7 @@
   "enabledApiProposals": [
     "inlayHints",
     "languageStatus",
+    "markdownStringBaseUri",
     "resolvers",
     "workspaceTrust"
   ],
@@ -36,10 +37,11 @@
     "Programming Languages"
   ],
   "dependencies": {
+    "@vscode/extension-telemetry": "0.4.6",
     "jsonc-parser": "^2.2.1",
     "semver": "5.5.1",
-    "@vscode/extension-telemetry": "0.4.6",
-    "vscode-nls": "^5.0.0"
+    "vscode-nls": "^5.0.0",
+    "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
     "@types/node": "14.x",

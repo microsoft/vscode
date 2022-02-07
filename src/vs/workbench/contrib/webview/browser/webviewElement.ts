@@ -8,7 +8,7 @@ import { addDisposableListener } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { streamToBuffer } from 'vs/base/common/buffer';
+import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -27,8 +27,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
 import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/common/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
@@ -83,7 +83,11 @@ namespace WebviewState {
 		readonly type = Type.Initializing;
 
 		constructor(
-			public readonly pendingMessages: Array<{ readonly channel: string; readonly data?: any }>
+			public readonly pendingMessages: Array<{
+				readonly channel: string;
+				readonly data?: any;
+				readonly transferable: Transferable[];
+			}>
 		) { }
 	}
 
@@ -403,11 +407,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._send('message', { message, transfer });
 	}
 
-	protected _send(channel: string, data?: any): void {
+	protected _send(channel: string, data?: any, transferable: Transferable[] = []): void {
 		if (this._state.type === WebviewState.Type.Initializing) {
-			this._state.pendingMessages.push({ channel, data });
+			this._state.pendingMessages.push({ channel, data, transferable });
 		} else {
-			this.doPostMessage(channel, data);
+			this.doPostMessage(channel, data, transferable);
 		}
 	}
 
@@ -480,9 +484,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return this._webviewContentOrigin;
 	}
 
-	private doPostMessage(channel: string, data?: any): void {
+	private doPostMessage(channel: string, data?: any, transferable: Transferable[] = []): void {
 		if (this.element && this.messagePort) {
-			this.messagePort.postMessage({ channel, args: data });
+			this.messagePort.postMessage({ channel, args: data }, transferable);
 		}
 	}
 
@@ -707,7 +711,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success: {
-					const { buffer } = await streamToBuffer(result.stream);
+					const buffer = await this.streamToBuffer(result.stream);
 					return this._send('did-load-resource', {
 						id,
 						status: 200,
@@ -716,7 +720,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 						data: buffer,
 						etag: result.etag,
 						mtime: result.mtime
-					});
+					}, [buffer]);
 				}
 				case WebviewResourceResponse.Type.NotModified: {
 					return this._send('did-load-resource', {
@@ -744,6 +748,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			status: 404,
 			path: uri.path,
 		});
+	}
+
+	protected async streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
+		const vsBuffer = await streamToBuffer(stream);
+		return vsBuffer.buffer;
 	}
 
 	private async localLocalhost(id: string, origin: string) {

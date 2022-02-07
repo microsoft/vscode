@@ -165,7 +165,7 @@ export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Prom
 			// Invalid transfer
 		}
 	}
-	
+
 	return editors;
 }
 

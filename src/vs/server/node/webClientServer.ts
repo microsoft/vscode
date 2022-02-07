@@ -234,7 +234,7 @@ export class WebClientServer {
 				connectionTokenCookieName,
 				queryConnectionToken,
 				{
-					sameSite: 'strict',
+					sameSite: 'lax',
 					maxAge: 60 * 60 * 24 * 7 /* 1 week */
 				}
 			);
@@ -297,7 +297,7 @@ export class WebClientServer {
 			'media-src \'self\';',
 			`script-src 'self' 'unsafe-eval' ${this._getScriptCspHashes(data).join(' ')} 'sha256-Luz5WwVrEgqx3ZT5ekNejY0UMaLynWfImiCqdaT6CeQ=' http://${remoteAuthority};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
-			`frame-src 'self' https://*.vscode-webview.net ${this._productService.webEndpointUrl || ''} data:;`,
+			`frame-src 'self' https://*.vscode-webview.net data:;`,
 			'worker-src \'self\' data:;',
 			'style-src \'self\' \'unsafe-inline\';',
 			'connect-src \'self\' ws: wss: https:;',
@@ -317,7 +317,7 @@ export class WebClientServer {
 				connectionTokenCookieName,
 				this._connectionToken.value,
 				{
-					sameSite: 'strict',
+					sameSite: 'lax',
 					maxAge: 60 * 60 * 24 * 7 /* 1 week */
 				}
 			);

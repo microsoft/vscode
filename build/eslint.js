@@ -4,20 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 const es = require('event-stream');
-const { readFileSync } = require('fs');
-const { join } = require('path');
 const vfs = require('vinyl-fs');
+const { eslintFilter } = require('./filters');
 
 function eslint() {
-
-	const eslintIgnore = readFileSync(join(__dirname, '../.eslintignore'))
-		.toString().split(/\r\n|\n/)
-		.filter(line => !line.startsWith('#'))
-		.map(line => `!${line}`);
-
 	const gulpeslint = require('gulp-eslint');
 	return vfs
-		.src(['**/*.js', '**/*.ts', ...eslintIgnore], { base: '.', follow: true, allowEmpty: true })
+		.src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
 		.pipe(
 			gulpeslint({
 				configFile: '.eslintrc.json',

@@ -227,14 +227,6 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 
 			let locations: Required<vscode.LocationLink>[] = [];
 
-			// Allow line number, indentation, etc to take you to definition as well.
-			locations.push({
-				targetRange,
-				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, 1),
-				targetUri: currentTarget,
-				originSelectionRange: new vscode.Range(i, 0, i, metadataOffset - 1),
-			});
-
 			let lastEnd = metadataOffset;
 			let offset = 0;
 			ELISION_REGEX.lastIndex = metadataOffset;
@@ -258,8 +250,19 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 					originSelectionRange: new vscode.Range(i, lastEnd, i, line.length),
 				});
 			}
+			// only show result lines in file-level peek
+			if (separator.includes(':')) {
+				currentTargetLocations?.push(...locations);
+			}
 
-			currentTargetLocations?.push(...locations);
+			// Allow line number, indentation, etc to take you to definition as well.
+			let convenienceLocation: Required<vscode.LocationLink> = {
+				targetRange,
+				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, 1),
+				targetUri: currentTarget,
+				originSelectionRange: new vscode.Range(i, 0, i, metadataOffset - 1),
+			};
+			locations.push(convenienceLocation);
 			links[i] = { type: 'result', locations, isContext: separator === ' ', prefixRange: new vscode.Range(i, 0, i, metadataOffset) };
 		}
 	}

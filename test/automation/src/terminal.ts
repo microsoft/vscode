@@ -12,6 +12,7 @@ export enum Selector {
 	Xterm = `#terminal .terminal-wrapper`,
 	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
+	Description = '.label-description',
 	XtermFocused = '.terminal.xterm.focus',
 	PlusButton = '.codicon-plus',
 	EditorGroups = '.editor .split-view-view',
@@ -55,6 +56,7 @@ export enum TerminalCommandId {
 }
 interface TerminalLabel {
 	name?: string;
+	description?: string;
 	icon?: string;
 	color?: string;
 }
@@ -115,7 +117,13 @@ export class Terminal {
 	}
 
 	async assertSingleTab(label: TerminalLabel, editor?: boolean): Promise<void> {
-		await this.assertTabExpected(editor ? Selector.EditorTab : Selector.SingleTab, undefined, label.name ? new RegExp(label.name) : undefined, label.icon, label.color);
+		let regex = undefined;
+		if (label.name && label.description) {
+			regex = new RegExp(label.name + ' - ' + label.description);
+		} else if (label.name) {
+			regex = new RegExp(label.name);
+		}
+		await this.assertTabExpected(editor ? Selector.EditorTab : Selector.SingleTab, undefined, regex, label.icon, label.color);
 	}
 
 	async assertTerminalGroups(expectedGroups: TerminalGroup[]): Promise<void> {
@@ -130,7 +138,7 @@ export class Terminal {
 				while (indexInGroup < terminalsInGroup) {
 					let instance = expectedGroups[groupIndex][indexInGroup];
 					const nameRegex = instance.name && isSplit ? new RegExp('\\s*[├┌└]\\s*' + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
-					await this.assertTabExpected(undefined, index, nameRegex, instance.icon, instance.color);
+					await this.assertTabExpected(undefined, index, nameRegex, instance.icon, instance.color, instance.description);
 					indexInGroup++;
 					index++;
 				}
@@ -142,12 +150,15 @@ export class Terminal {
 		const tabCount = (await this.code.waitForElements(Selector.Tabs, true)).length;
 		const groups: TerminalGroup[] = [];
 		for (let i = 0; i < tabCount; i++) {
-			const instance = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+			const title = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+			const description = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Description}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+
 			const label: TerminalLabel = {
-				name: instance.textContent.replace(/^[├┌└]\s*/, '')
+				name: title.textContent.replace(/^[├┌└]\s*/, ''),
+				description: description.textContent
 			};
 			// It's a new group if the the tab does not start with ├ or └
-			if (instance.textContent.match(/^[├└]/)) {
+			if (title.textContent.match(/^[├└]/)) {
 				groups[groups.length - 1].push(label);
 			} else {
 				groups.push([label]);
@@ -161,10 +172,13 @@ export class Terminal {
 		return tab.textContent;
 	}
 
-	private async assertTabExpected(selector?: string, listIndex?: number, nameRegex?: RegExp, icon?: string, color?: string): Promise<void> {
+	private async assertTabExpected(selector?: string, listIndex?: number, nameRegex?: RegExp, icon?: string, color?: string, description?: string): Promise<void> {
 		if (listIndex) {
 			if (nameRegex) {
 				await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry}`, entry => !!entry && !!entry?.textContent.match(nameRegex));
+				if (description) {
+					await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry} ${Selector.Description}`, e => !!e && e.textContent === description);
+				}
 			}
 			if (color) {
 				await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry} .monaco-icon-label.terminal-icon-terminal_ansi${color}`);

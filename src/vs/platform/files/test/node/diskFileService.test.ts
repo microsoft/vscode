@@ -1717,6 +1717,9 @@ flakySuite('Disk File Service', function () {
 	});
 
 	async function testWriteFile() {
+		let event: FileOperationEvent;
+		disposables.add(service.onDidRunOperation(e => event = e));
+
 		const resource = URI.file(join(testDir, 'small.txt'));
 
 		const content = readFileSync(resource.fsPath).toString();
@@ -1724,6 +1727,10 @@ flakySuite('Disk File Service', function () {
 
 		const newContent = 'Updates to the small file';
 		await service.writeFile(resource, VSBuffer.fromString(newContent));
+
+		assert.ok(event!);
+		assert.strictEqual(event!.resource.fsPath, resource.fsPath);
+		assert.strictEqual(event!.operation, FileOperation.WRITE);
 
 		assert.strictEqual(readFileSync(resource.fsPath).toString(), newContent);
 	}

@@ -17,17 +17,17 @@ export interface WebviewWindowId {
 }
 
 export interface FindInFrameOptions {
-	forward?: boolean;
-	findNext?: boolean;
-	matchCase?: boolean;
+	readonly forward?: boolean;
+	readonly findNext?: boolean;
+	readonly matchCase?: boolean;
 }
 
 export interface FoundInFrameResult {
-	requestId: number;
-	activeMatchOrdinal: number;
-	matches: number;
-	selectionArea: any;
-	finalUpdate: boolean;
+	readonly requestId: number;
+	readonly activeMatchOrdinal: number;
+	readonly matches: number;
+	readonly selectionArea: any;
+	readonly finalUpdate: boolean;
 }
 
 export interface IWebviewManagerService {

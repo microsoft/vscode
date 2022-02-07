@@ -569,14 +569,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.getPosition();
 	}
 
-	public setPosition(position: IPosition): void {
+	public setPosition(position: IPosition, source: string = 'api'): void {
 		if (!this._modelData) {
 			return;
 		}
 		if (!Position.isIPosition(position)) {
 			throw new Error('Invalid arguments');
 		}
-		this._modelData.viewModel.setSelections('api', [{
+		this._modelData.viewModel.setSelections(source, [{
 			selectionStartLineNumber: position.lineNumber,
 			selectionStartColumn: position.column,
 			positionLineNumber: position.lineNumber,
@@ -689,11 +689,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.getSelections();
 	}
 
-	public setSelection(range: IRange): void;
-	public setSelection(editorRange: Range): void;
-	public setSelection(selection: ISelection): void;
-	public setSelection(editorSelection: Selection): void;
-	public setSelection(something: any): void {
+	public setSelection(range: IRange, source?: string): void;
+	public setSelection(editorRange: Range, source?: string): void;
+	public setSelection(selection: ISelection, source?: string): void;
+	public setSelection(editorSelection: Selection, source?: string): void;
+	public setSelection(something: any, source: string = 'api'): void {
 		const isSelection = Selection.isISelection(something);
 		const isRange = Range.isIRange(something);
 
@@ -702,7 +702,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		if (isSelection) {
-			this._setSelectionImpl(<ISelection>something);
+			this._setSelectionImpl(<ISelection>something, source);
 		} else if (isRange) {
 			// act as if it was an IRange
 			const selection: ISelection = {
@@ -711,16 +711,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				positionLineNumber: something.endLineNumber,
 				positionColumn: something.endColumn
 			};
-			this._setSelectionImpl(selection);
+			this._setSelectionImpl(selection, source);
 		}
 	}
 
-	private _setSelectionImpl(sel: ISelection): void {
+	private _setSelectionImpl(sel: ISelection, source: string): void {
 		if (!this._modelData) {
 			return;
 		}
 		const selection = new Selection(sel.selectionStartLineNumber, sel.selectionStartColumn, sel.positionLineNumber, sel.positionColumn);
-		this._modelData.viewModel.setSelections('api', [selection]);
+		this._modelData.viewModel.setSelections(source, [selection]);
 	}
 
 	public revealLines(startLineNumber: number, endLineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {

@@ -111,6 +111,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
+		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
 		private readonly _os: OperatingSystem,
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -143,14 +144,18 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		}
 		const sanitizedLink = matchLink.replace(/:\d+(:\d+)?$/, '');
 		try {
-			const uri = await this._getExactMatch(sanitizedLink);
-			if (uri) {
-				return this._localFileOpener.open({
+			const result = await this._getExactMatch(sanitizedLink);
+			if (result) {
+				const { uri, isDirectory } = result;
+				const linkToOpen = {
 					text: matchLink,
 					uri,
 					bufferRange: link.bufferRange,
 					type: link.type
-				});
+				};
+				if (uri) {
+					return isDirectory ? this._localFolderInWorkspaceOpener.open(linkToOpen) : this._localFileOpener.open(linkToOpen);
+				}
 			}
 		} catch {
 			// Fallback to searching quick access
@@ -187,21 +192,19 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		return text;
 	}
 
-	private async _getExactMatch(sanitizedLink: string): Promise<URI | undefined> {
-		let exactResource: URI | undefined;
+	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {
+		let resourceMatch: IResourceMatch | undefined;
 		if (osPathModule(this._os).isAbsolute(sanitizedLink)) {
 			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
-			const resource = URI.from({ scheme, path: sanitizedLink });
+			const uri = URI.from({ scheme, path: sanitizedLink });
 			try {
-				const fileStat = await this._fileService.resolve(resource);
-				if (fileStat.isFile) {
-					exactResource = resource;
-				}
+				const fileStat = await this._fileService.resolve(uri);
+				resourceMatch = { uri, isDirectory: fileStat.isDirectory };
 			} catch {
-				// File doesn't exist, continue on
+				// File or dir doesn't exist, continue on
 			}
 		}
-		if (!exactResource) {
+		if (!resourceMatch) {
 			const results = await this._searchService.fileSearch(
 				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
 					// Remove optional :row:col from the link as openEditor supports it
@@ -210,11 +213,16 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 				})
 			);
 			if (results.results.length === 1) {
-				exactResource = results.results[0].resource;
+				resourceMatch = { uri: results.results[0].resource };
 			}
 		}
-		return exactResource;
+		return resourceMatch;
 	}
+}
+
+interface IResourceMatch {
+	uri: URI | undefined;
+	isDirectory?: boolean;
 }
 
 export class TerminalUrlLinkOpener implements ITerminalLinkOpener {

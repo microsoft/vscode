@@ -17,7 +17,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/bracketSelections';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/wordSelections';
 import * as nls from 'vs/nls';
@@ -213,7 +213,7 @@ export interface SelectionRangesOptions {
 	selectLeadingAndTrailingWhitespace: boolean;
 }
 
-export async function provideSelectionRanges(registry: LanguageFeatureRegistry<modes.SelectionRangeProvider>, model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
+export async function provideSelectionRanges(registry: LanguageFeatureRegistry<languages.SelectionRangeProvider>, model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
 
 	const providers = registry.all(model)
 		.concat(new WordSelectionRangeProvider()); // ALWAYS have word based selection range

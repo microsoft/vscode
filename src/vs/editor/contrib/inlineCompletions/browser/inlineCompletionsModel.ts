@@ -565,7 +565,7 @@ export async function provideInlineCompletions(
 	const results = await Promise.all(
 		providers.map(
 			async provider => {
-				const completions = await provider.provideInlineCompletions(model, position, context, token);
+				const completions = await Promise.resolve(provider.provideInlineCompletions(model, position, context, token)).catch(onUnexpectedExternalError);
 				return ({
 					completions,
 					provider,

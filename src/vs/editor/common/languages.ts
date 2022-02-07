@@ -1586,37 +1586,6 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
-/**
- * @internal
- */
-export interface AuthenticationSession {
-	id: string;
-	accessToken: string;
-	account: {
-		label: string;
-		id: string;
-	};
-	scopes: ReadonlyArray<string>;
-	idToken?: string;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationSessionsChangeEvent {
-	added: ReadonlyArray<AuthenticationSession>;
-	removed: ReadonlyArray<AuthenticationSession>;
-	changed: ReadonlyArray<AuthenticationSession>;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationProviderInformation {
-	id: string;
-	label: string;
-}
-
 export interface Command {
 	id: string;
 	title: string;
@@ -1833,6 +1802,7 @@ export interface InlayHintLabelPart {
 export interface InlayHint {
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | IMarkdownString;
+	command?: Command;
 	position: IPosition;
 	kind: InlayHintKind;
 	paddingLeft?: boolean;

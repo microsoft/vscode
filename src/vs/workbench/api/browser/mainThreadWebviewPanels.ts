@@ -15,9 +15,9 @@ import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ACTIVE_GROUP, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
@@ -203,14 +203,36 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
 	}
 
-	private getTargetGroupFromShowOptions(showOptions: extHostProtocol.WebviewPanelShowOptions) {
-		if (typeof showOptions.viewColumn !== 'undefined') {
-			if (showOptions.viewColumn >= 0) {
-				return columnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
-			} else {
-				return showOptions.viewColumn;
+	private getTargetGroupFromShowOptions(showOptions: extHostProtocol.WebviewPanelShowOptions): PreferredGroup {
+		if (typeof showOptions.viewColumn === 'undefined'
+			|| showOptions.viewColumn === ACTIVE_GROUP
+			|| (this._editorGroupService.count === 1 && this._editorGroupService.activeGroup.isEmpty)
+		) {
+			return ACTIVE_GROUP;
+		}
+
+		if (showOptions.viewColumn === SIDE_GROUP) {
+			return SIDE_GROUP;
+		}
+
+		if (showOptions.viewColumn >= 0) {
+			// First check to see if an existing group exists
+			const groupInColumn = this._editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[showOptions.viewColumn];
+			if (groupInColumn) {
+				return groupInColumn.id;
+			}
+
+			// We are dealing with an unknown group and therefore need a new group.
+			// Note that the new group's id may not match the one requested. We only allow
+			// creating a single new group, so if someone passes in `showOptions.viewColumn = 99`
+			// and there are two editor groups open, we simply create a third editor group instead
+			// of creating all the groups up to 99.
+			const newGroup = this._editorGroupService.findGroup({ location: GroupLocation.LAST });
+			if (newGroup) {
+				return this._editorGroupService.addGroup(newGroup, GroupDirection.RIGHT);
 			}
 		}
+
 		return ACTIVE_GROUP;
 	}
 

@@ -4,28 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { toResource } from 'vs/base/test/common/utils';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart, registerTestFileEditor, TestServiceAccessor, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { HistoryService } from 'vs/workbench/services/history/browser/historyService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorNavigationStack, HistoryService } from 'vs/workbench/services/history/browser/historyService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { timeout } from 'vs/base/common/async';
+import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
-import { isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { EditorPaneSelectionChangeReason, isResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IResolvedTextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
+import { isLinux } from 'vs/base/common/platform';
+import { TextEditorPaneSelection } from 'vs/workbench/browser/parts/editor/textEditor';
+import { Selection } from 'vs/editor/common/core/selection';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 
 suite('HistoryService', function () {
 
 	const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
 
-	async function createServices(): Promise<[EditorPart, HistoryService, EditorService]> {
+	async function createServices(): Promise<[EditorPart, HistoryService, EditorService, ITextFileService, IInstantiationService]> {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const part = await createEditorPart(instantiationService, disposables);
@@ -37,21 +45,24 @@ suite('HistoryService', function () {
 		const historyService = instantiationService.createInstance(HistoryService);
 		instantiationService.stub(IHistoryService, historyService);
 
-		return [part, historyService, editorService];
+		const accessor = instantiationService.createInstance(TestServiceAccessor);
+
+		return [part, historyService, editorService, accessor.textFileService, instantiationService];
 	}
 
 	const disposables = new DisposableStore();
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)]));
+		disposables.add(registerTestFileEditor());
 	});
 
 	teardown(() => {
 		disposables.clear();
 	});
 
-	test('back / forward', async () => {
-		const [part, historyService, editorService] = await createServices();
+	test('back / forward: basics', async () => {
+		const [part, historyService] = await createServices();
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
 		await part.activeGroup.openEditor(input1, { pinned: true });
@@ -61,37 +72,400 @@ suite('HistoryService', function () {
 		await part.activeGroup.openEditor(input2, { pinned: true });
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 
-		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.back();
-		await editorChangePromise;
+		await historyService.goBack();
 		assert.strictEqual(part.activeGroup.activeEditor, input1);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.forward();
-		await editorChangePromise;
+		await historyService.goForward();
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 	});
 
-	test('back / forward works across groups', async () => {
+	test('back / forward: is editor group aware', async function () {
 		const [part, historyService, editorService] = await createServices();
 
-		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		const input1Group = (await part.activeGroup.openEditor(input1, { pinned: true }))?.group;
+		const resource = toResource.call(this, '/path/index.txt');
+		const otherResource = toResource.call(this, '/path/other.html');
 
-		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		const input2Group = (await part.sideGroup.openEditor(input2, { pinned: true }))?.group;
+		const pane1 = await editorService.openEditor({ resource, options: { pinned: true } });
+		const pane2 = await editorService.openEditor({ resource, options: { pinned: true } }, SIDE_GROUP);
+
+		// [index.txt] | [>index.txt<]
+
+		assert.notStrictEqual(pane1, pane2);
+
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } }, pane2?.group);
+
+		// [index.txt] | [index.txt] [>other.html<]
+
+		await historyService.goBack();
+
+		// [index.txt] | [>index.txt<] [other.html]
+
+		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
+
+		await historyService.goBack();
+
+		// [>index.txt<] | [index.txt] [other.html]
+
+		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
+
+		await historyService.goForward();
+
+		// [index.txt] | [>index.txt<] [other.html]
+
+		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource.toString());
+
+		await historyService.goForward();
+
+		// [index.txt] | [index.txt] [>other.html<]
+
+		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), otherResource.toString());
+	});
+
+	test('back / forward: in-editor text selection changes (user)', async function () {
+		const [, historyService, editorService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+
+		const pane = await editorService.openEditor({ resource, options: { pinned: true } }) as TestTextFileEditor;
+
+		await setTextSelection(historyService, pane, new Selection(1, 2, 1, 2));
+		await setTextSelection(historyService, pane, new Selection(15, 1, 15, 1)); // will be merged and dropped
+		await setTextSelection(historyService, pane, new Selection(16, 1, 16, 1)); // will be merged and dropped
+		await setTextSelection(historyService, pane, new Selection(17, 1, 17, 1));
+		await setTextSelection(historyService, pane, new Selection(30, 5, 30, 8));
+		await setTextSelection(historyService, pane, new Selection(40, 1, 40, 1));
+
+		await historyService.goBack(GoFilter.NONE);
+		assertTextSelection(new Selection(30, 5, 30, 8), pane);
+
+		await historyService.goBack(GoFilter.NONE);
+		assertTextSelection(new Selection(17, 1, 17, 1), pane);
+
+		await historyService.goBack(GoFilter.NONE);
+		assertTextSelection(new Selection(1, 2, 1, 2), pane);
+
+		await historyService.goForward(GoFilter.NONE);
+		assertTextSelection(new Selection(17, 1, 17, 1), pane);
+	});
+
+	test('back / forward: in-editor text selection changes (navigation)', async function () {
+		const [, historyService, editorService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+
+		const pane = await editorService.openEditor({ resource, options: { pinned: true } }) as TestTextFileEditor;
+
+		await setTextSelection(historyService, pane, new Selection(2, 2, 2, 10)); // this is our starting point
+		await setTextSelection(historyService, pane, new Selection(5, 3, 5, 20), EditorPaneSelectionChangeReason.NAVIGATION); // this is our first target definition
+		await setTextSelection(historyService, pane, new Selection(120, 8, 120, 18), EditorPaneSelectionChangeReason.NAVIGATION); // this is our second target definition
+		await setTextSelection(historyService, pane, new Selection(300, 3, 300, 20)); // unrelated user navigation
+		await setTextSelection(historyService, pane, new Selection(500, 3, 500, 20)); // unrelated user navigation
+		await setTextSelection(historyService, pane, new Selection(200, 3, 200, 20)); // unrelated user navigation
+
+		await historyService.goLast(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(120, 8, 120, 18), pane);
+
+		await historyService.goBack(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goBack(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(2, 2, 2, 10), pane);
+
+		await historyService.goForward(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+	});
+
+	test('back / forward: edit selection changes', async function () {
+		const [, historyService, editorService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+
+		const pane = await editorService.openEditor({ resource, options: { pinned: true } }) as TestTextFileEditor;
+
+		await setTextSelection(historyService, pane, new Selection(2, 2, 2, 10));
+		await setTextSelection(historyService, pane, new Selection(50, 3, 50, 20), EditorPaneSelectionChangeReason.EDIT);
+		await setTextSelection(historyService, pane, new Selection(300, 3, 300, 20)); // unrelated user navigation
+		await setTextSelection(historyService, pane, new Selection(500, 3, 500, 20)); // unrelated user navigation
+		await setTextSelection(historyService, pane, new Selection(200, 3, 200, 20)); // unrelated user navigation
+		await setTextSelection(historyService, pane, new Selection(5, 3, 5, 20), EditorPaneSelectionChangeReason.EDIT);
+		await setTextSelection(historyService, pane, new Selection(200, 3, 200, 20)); // unrelated user navigation
+
+		await historyService.goLast(GoFilter.EDITS);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goBack(GoFilter.EDITS);
+		assertTextSelection(new Selection(50, 3, 50, 20), pane);
+
+		await historyService.goForward(GoFilter.EDITS);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+	});
+
+	async function setTextSelection(historyService: IHistoryService, pane: TestTextFileEditor, selection: Selection, reason = EditorPaneSelectionChangeReason.USER): Promise<void> {
+		const promise = Event.toPromise((historyService as HistoryService).onDidChangeEditorNavigationStack);
+		pane.setSelection(new TextEditorPaneSelection(selection), reason);
+		await promise;
+	}
+
+	function assertTextSelection(expected: Selection, pane: EditorPane): void {
+		const options: ITextEditorOptions | undefined = pane.options;
+		if (!options) {
+			assert.fail('EditorPane has no selection');
+		}
+
+		assert.strictEqual(expected.startLineNumber, options.selection?.startLineNumber);
+		assert.strictEqual(expected.startColumn, options.selection?.startColumn);
+		assert.strictEqual(expected.endLineNumber, options.selection?.endLineNumber);
+		assert.strictEqual(expected.endColumn, options.selection?.endColumn);
+	}
+
+	test('back / forward: tracks editor moves across groups', async function () {
+		const [part, historyService, editorService] = await createServices();
+
+		const resource1 = toResource.call(this, '/path/one.txt');
+		const resource2 = toResource.call(this, '/path/two.html');
+
+		const pane1 = await editorService.openEditor({ resource: resource1, options: { pinned: true } });
+		await editorService.openEditor({ resource: resource2, options: { pinned: true } });
+
+		// [one.txt] [>two.html<]
+
+		const sideGroup = part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+
+		// [one.txt] [>two.html<] | <empty>
 
 		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.back();
+		pane1?.group?.moveEditor(pane1.input!, sideGroup);
 		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input1);
-		assert.strictEqual(part.activeGroup, input1Group);
 
-		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
-		historyService.forward();
-		await editorChangePromise;
-		assert.strictEqual(part.activeGroup.activeEditor, input2);
-		assert.strictEqual(part.activeGroup, input2Group);
+		// [one.txt] | [>two.html<]
+
+		await historyService.goBack();
+
+		// [>one.txt<] | [two.html]
+
+		assert.strictEqual(part.activeGroup.id, pane1?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource1.toString());
+	});
+
+	test('back / forward: tracks group removals', async function () {
+		const [part, historyService, editorService] = await createServices();
+
+		const resource1 = toResource.call(this, '/path/one.txt');
+		const resource2 = toResource.call(this, '/path/two.html');
+
+		const pane1 = await editorService.openEditor({ resource: resource1, options: { pinned: true } });
+		const pane2 = await editorService.openEditor({ resource: resource2, options: { pinned: true } }, SIDE_GROUP);
+
+		// [one.txt] | [>two.html<]
+
+		assert.notStrictEqual(pane1, pane2);
+
+		await pane1?.group?.closeAllEditors();
+
+		// [>two.html<]
+
+		await historyService.goBack();
+
+		// [>two.html<]
+
+		assert.strictEqual(part.activeGroup.id, pane2?.group?.id);
+		assert.strictEqual(part.activeGroup.activeEditor?.resource?.toString(), resource2.toString());
+	});
+
+	test('back / forward: editor navigation stack - navigation', async function () {
+		const [, , editorService, , instantiationService] = await createServices();
+
+		const stack = instantiationService.createInstance(EditorNavigationStack);
+
+		const resource = toResource.call(this, '/path/index.txt');
+		const otherResource = toResource.call(this, '/path/index.html');
+		const pane = await editorService.openEditor({ resource, options: { pinned: true } });
+
+		let changed = false;
+		stack.onDidChange(() => changed = true);
+
+		assert.strictEqual(stack.canGoBack(), false);
+		assert.strictEqual(stack.canGoForward(), false);
+		assert.strictEqual(stack.canGoLast(), false);
+
+		// Opening our first editor emits change event
+		stack.notifyNavigation(pane, { reason: EditorPaneSelectionChangeReason.USER });
+		assert.strictEqual(changed, true);
+		changed = false;
+
+		assert.strictEqual(stack.canGoBack(), false);
+		assert.strictEqual(stack.canGoLast(), true);
+
+		// Opening same editor is not treated as new history stop
+		stack.notifyNavigation(pane, { reason: EditorPaneSelectionChangeReason.USER });
+		assert.strictEqual(stack.canGoBack(), false);
+
+		// Opening different editor allows to go back
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
+
+		stack.notifyNavigation(pane, { reason: EditorPaneSelectionChangeReason.USER });
+		assert.strictEqual(changed, true);
+		changed = false;
+
+		assert.strictEqual(stack.canGoBack(), true);
+
+		await stack.goBack();
+		assert.strictEqual(stack.canGoBack(), false);
+		assert.strictEqual(stack.canGoForward(), true);
+		assert.strictEqual(stack.canGoLast(), true);
+
+		await stack.goForward();
+		assert.strictEqual(stack.canGoBack(), true);
+		assert.strictEqual(stack.canGoForward(), false);
+
+		await stack.goPrevious();
+		assert.strictEqual(stack.canGoBack(), false);
+		assert.strictEqual(stack.canGoForward(), true);
+
+		await stack.goPrevious();
+		assert.strictEqual(stack.canGoBack(), true);
+		assert.strictEqual(stack.canGoForward(), false);
+
+		await stack.goBack();
+		await stack.goLast();
+		assert.strictEqual(stack.canGoBack(), true);
+		assert.strictEqual(stack.canGoForward(), false);
+
+		stack.dispose();
+		assert.strictEqual(stack.canGoBack(), false);
+	});
+
+	test('back / forward: editor navigation stack - mutations', async function () {
+		const [, , editorService, , instantiationService] = await createServices();
+
+		const stack = instantiationService.createInstance(EditorNavigationStack);
+
+		const resource = toResource.call(this, '/path/index.txt');
+		const otherResource = toResource.call(this, '/path/index.html');
+		const pane = await editorService.openEditor({ resource, options: { pinned: true } });
+
+		stack.notifyNavigation(pane);
+
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+
+		// Clear
+		assert.strictEqual(stack.canGoBack(), true);
+		stack.clear();
+		assert.strictEqual(stack.canGoBack(), false);
+
+		await editorService.openEditor({ resource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+
+		// Remove (via internal event)
+		assert.strictEqual(stack.canGoBack(), true);
+		stack.remove(new FileOperationEvent(resource, FileOperation.DELETE));
+		assert.strictEqual(stack.canGoBack(), false);
+		stack.clear();
+
+		await editorService.openEditor({ resource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+
+		// Remove (via external event)
+		assert.strictEqual(stack.canGoBack(), true);
+		stack.remove(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], !isLinux));
+		assert.strictEqual(stack.canGoBack(), false);
+		stack.clear();
+
+		await editorService.openEditor({ resource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+
+		// Remove (via editor)
+		assert.strictEqual(stack.canGoBack(), true);
+		stack.remove(pane!.input!);
+		assert.strictEqual(stack.canGoBack(), false);
+		stack.clear();
+
+		await editorService.openEditor({ resource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+
+		// Remove (via group)
+		assert.strictEqual(stack.canGoBack(), true);
+		stack.remove(pane!.group!.id);
+		assert.strictEqual(stack.canGoBack(), false);
+		stack.clear();
+
+		await editorService.openEditor({ resource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
+		stack.notifyNavigation(pane);
+
+		// Move
+		const stat = {
+			ctime: 0,
+			etag: '',
+			mtime: 0,
+			isDirectory: false,
+			isFile: true,
+			isSymbolicLink: false,
+			name: 'other.txt',
+			readonly: false,
+			size: 0,
+			resource: toResource.call(this, '/path/other.txt')
+		};
+		stack.move(new FileOperationEvent(resource, FileOperation.MOVE, stat));
+		await stack.goBack();
+		assert.strictEqual(pane?.input?.resource?.toString(), stat.resource.toString());
+	});
+
+	test('go to last edit location', async function () {
+		const [, historyService, editorService, textFileService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+		const otherResource = toResource.call(this, '/path/index.html');
+		await editorService.openEditor({ resource });
+
+		const model = await textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
+		model.textEditorModel.setValue('Hello World');
+		await timeout(10); // history debounces change events
+
+		await editorService.openEditor({ resource: otherResource });
+
+		const onDidActiveEditorChange = new DeferredPromise<void>();
+		editorService.onDidActiveEditorChange(e => {
+			onDidActiveEditorChange.complete(e);
+		});
+
+		historyService.goLast(GoFilter.EDITS);
+		await onDidActiveEditorChange.p;
+
+		assert.strictEqual(editorService.activeEditor?.resource?.toString(), resource.toString());
+	});
+
+	test('reopen closed editor', async function () {
+		const [, historyService, editorService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+		const pane = await editorService.openEditor({ resource });
+
+		await pane?.group?.closeAllEditors();
+
+		const onDidActiveEditorChange = new DeferredPromise<void>();
+		editorService.onDidActiveEditorChange(e => {
+			onDidActiveEditorChange.complete(e);
+		});
+
+		historyService.reopenLastClosedEditor();
+		await onDidActiveEditorChange.p;
+
+		assert.strictEqual(editorService.activeEditor?.resource?.toString(), resource.toString());
 	});
 
 	test('getHistory', async () => {

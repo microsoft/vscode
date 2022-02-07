@@ -3445,8 +3445,8 @@ declare module 'vscode' {
 	 * A snippet can define tab stops and placeholders with `$1`, `$2`
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
 	 * the end of the snippet. Variables are defined with `$name` and
-	 * `${name:default value}`. The full snippet syntax is documented
-	 * [here](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
+	 * `${name:default value}`. Also see
+	 * [the full snippet syntax](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
 	 */
 	export class SnippetString {
 
@@ -9805,6 +9805,12 @@ declare module 'vscode' {
 		* The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
 		*/
 		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
+
+		/**
+		 * Opt-out of the default terminal persistence on restart and reload.
+		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
+		 */
+		isTransient?: boolean;
 	}
 
 	/**
@@ -9838,6 +9844,12 @@ declare module 'vscode' {
 		 * The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
 		 */
 		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
+
+		/**
+		 * Opt-out of the default terminal persistence on restart and reload.
+		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
+		 */
+		isTransient?: boolean;
 	}
 
 	/**
@@ -12441,21 +12453,26 @@ declare module 'vscode' {
 	 */
 	export interface NotebookDocumentContentOptions {
 		/**
-		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
+		 * Controls if output change events will trigger notebook document content change events and
+		 * if it will be used in the diff editor, defaults to false. If the content provider doesn't
+		 * persist the outputs in the file document, this should be set to true.
 		 */
 		transientOutputs?: boolean;
 
 		/**
-		 * Controls if a cell metadata property change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
+		 * Controls if a cell metadata property change event will trigger notebook document content
+		 * change events and if it will be used in the diff editor, defaults to false. If the
+		 * content provider doesn't persist a metadata property in the file document, it should be
+		 * set to true.
 		 */
 		transientCellMetadata?: { [key: string]: boolean | undefined };
 
 		/**
-		* Controls if a document metadata property change will trigger notebook document content change and if it will be used in the diff editor
-		* Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
-		*/
+		 * Controls if a document metadata property change event will trigger notebook document
+		 * content change event and if it will be used in the diff editor, defaults to false. If the
+		 * content provider doesn't persist a metadata property in the file document, it should be
+		 * set to true.
+		 */
 		transientDocumentMetadata?: { [key: string]: boolean | undefined };
 	}
 
@@ -13081,21 +13098,21 @@ declare module 'vscode' {
 	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
 	 */
 	export interface DebugProtocolMessage {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
+		// Properties: see [ProtocolMessage details](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
 	}
 
 	/**
 	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
 	 */
 	export interface DebugProtocolSource {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+		// Properties: see [Source details](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
 	}
 
 	/**
 	 * A DebugProtocolBreakpoint is an opaque stand-in type for the [Breakpoint](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint) type defined in the Debug Adapter Protocol.
 	 */
 	export interface DebugProtocolBreakpoint {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
+		// Properties: see [Breakpoint details](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
 	}
 
 	/**

@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IActiveEditorChangeEvent } from 'vs/workbench/common/editor';
+import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IActiveEditorChangeEvent, EditorPaneSelectionChangeReason, IEditorPaneSelection } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -18,7 +18,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -180,16 +180,24 @@ export class TestTextResourceEditor extends TextResourceEditor {
 
 export class TestTextFileEditor extends TextFileEditor {
 
-	lastSetOptions: ITextEditorOptions | undefined = undefined;
-
-	override setOptions(options: ITextEditorOptions | undefined): void {
-		this.lastSetOptions = options;
-
-		super.setOptions(options);
-	}
-
 	protected override createEditorControl(parent: HTMLElement, configuration: any): IEditor {
 		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
+	}
+
+	fireSelectionChangeEvent(reason: EditorPaneSelectionChangeReason) {
+		this._onDidChangeSelection.fire({ reason });
+	}
+
+	private _testSelection: IEditorPaneSelection | undefined = undefined;
+
+	setSelection(selection: IEditorPaneSelection | undefined, reason: EditorPaneSelectionChangeReason): void {
+		this._testSelection = selection;
+
+		this._onDidChangeSelection.fire({ reason });
+	}
+
+	override getSelection(): IEditorPaneSelection | undefined {
+		return this._testSelection ?? super.getSelection();
 	}
 }
 
@@ -489,19 +497,19 @@ export class TestHistoryService implements IHistoryService {
 
 	constructor(private root?: URI) { }
 
-	reopenLastClosedEditor(): void { }
-	forward(): void { }
-	back(): void { }
-	last(): void { }
+	async reopenLastClosedEditor(): Promise<void> { }
+	async goForward(): Promise<void> { }
+	async goBack(): Promise<void> { }
+	async goPrevious(): Promise<void> { }
+	async goLast(): Promise<void> { }
 	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
 	clear(): void { }
 	clearRecentlyOpened(): void { }
 	getHistory(): readonly (EditorInput | IResourceEditorInput)[] { return []; }
-	openNextRecentlyUsedEditor(group?: GroupIdentifier): void { }
-	openPreviouslyUsedEditor(group?: GroupIdentifier): void { }
+	async openNextRecentlyUsedEditor(group?: GroupIdentifier): Promise<void> { }
+	async openPreviouslyUsedEditor(group?: GroupIdentifier): Promise<void> { }
 	getLastActiveWorkspaceRoot(_schemeFilter: string): URI | undefined { return this.root; }
 	getLastActiveFile(_schemeFilter: string): URI | undefined { return undefined; }
-	openLastEditLocation(): void { }
 }
 
 export class TestFileDialogService implements IFileDialogService {
@@ -1422,19 +1430,8 @@ export class TestEditorInput extends EditorInput {
 	}
 }
 
-export abstract class TestEditorWithOptions extends EditorPane {
-
-	lastSetOptions: ITextEditorOptions | undefined = undefined;
-
-	override setOptions(options: ITextEditorOptions | undefined): void {
-		this.lastSetOptions = options;
-
-		super.setOptions(options);
-	}
-}
-
 export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], serializerInputId?: string): IDisposable {
-	class TestEditor extends TestEditorWithOptions {
+	class TestEditor extends EditorPane {
 
 		private _scopedContextKeyService: IContextKeyService;
 

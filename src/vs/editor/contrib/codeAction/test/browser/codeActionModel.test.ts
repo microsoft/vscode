@@ -11,7 +11,7 @@ import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
@@ -20,7 +20,7 @@ import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 const testProvider = {
-	provideCodeActions(): modes.CodeActionList {
+	provideCodeActions(): languages.CodeActionList {
 		return {
 			actions: [
 				{ title: 'test', command: { id: 'test-command', title: 'test', arguments: [] } }
@@ -37,7 +37,7 @@ suite('CodeActionModel', () => {
 	let model: TextModel;
 	let markerService: MarkerService;
 	let editor: ICodeEditor;
-	let registry: LanguageFeatureRegistry<modes.CodeActionProvider>;
+	let registry: LanguageFeatureRegistry<languages.CodeActionProvider>;
 	const disposables = new DisposableStore();
 
 	setup(() => {
@@ -70,7 +70,7 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
+				assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
 				assert.ok(e.actions);
 
 				e.actions.then(fixes => {
@@ -113,7 +113,7 @@ suite('CodeActionModel', () => {
 				disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 					assertType(e.type === CodeActionsState.Type.Triggered);
 
-					assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
+					assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
 					assert.ok(e.actions);
 					e.actions.then(fixes => {
 						model.dispose();
@@ -129,7 +129,7 @@ suite('CodeActionModel', () => {
 
 	test('Lightbulb is in the wrong place, #29933', async () => {
 		const reg = registry.register(languageId, {
-			provideCodeActions(_doc, _range): modes.CodeActionList {
+			provideCodeActions(_doc, _range): languages.CodeActionList {
 				return { actions: [], dispose() { /* noop*/ } };
 			}
 		});
@@ -153,7 +153,7 @@ suite('CodeActionModel', () => {
 				disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 					assertType(e.type === CodeActionsState.Type.Triggered);
 
-					assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
+					assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
 					const selection = <Selection>e.rangeOrSelection;
 					assert.strictEqual(selection.selectionStartLineNumber, 1);
 					assert.strictEqual(selection.selectionStartColumn, 1);
@@ -184,7 +184,7 @@ suite('CodeActionModel', () => {
 			disposables.add(model.onDidChangeState((e: CodeActionsState.State) => {
 				assertType(e.type === CodeActionsState.Type.Triggered);
 
-				assert.strictEqual(e.trigger.type, modes.CodeActionTriggerType.Auto);
+				assert.strictEqual(e.trigger.type, languages.CodeActionTriggerType.Auto);
 				++triggerCount;
 
 				// give time for second trigger before completing test

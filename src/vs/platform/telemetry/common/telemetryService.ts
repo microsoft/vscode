@@ -60,13 +60,6 @@ export class TelemetryService implements ITelemetryService {
 
 		this._updateTelemetryLevel();
 		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
-		type OptInClassification = {
-			optIn: { classification: 'SystemMetaData'; purpose: 'BusinessInsight'; isMeasurement: true };
-		};
-		type OptInEvent = {
-			optIn: boolean;
-		};
-		this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._telemetryLevel === TelemetryLevel.USAGE });
 	}
 
 	setExperimentProperty(name: string, value: string): void {

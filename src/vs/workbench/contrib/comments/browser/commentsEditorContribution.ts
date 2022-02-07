@@ -18,7 +18,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/peekView/browser/peekView';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -63,7 +63,7 @@ class CommentingRangeDecoration {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, commentingOptions: ModelDecorationOptions, private commentingRangesInfo: modes.CommentingRanges) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, commentingOptions: ModelDecorationOptions, private commentingRangesInfo: languages.CommentingRanges) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
 		let commentingRangeDecorations = [{
@@ -77,7 +77,7 @@ class CommentingRangeDecoration {
 		this._decorationId = this._editor.deltaDecorations([], commentingRangeDecorations)[0];
 	}
 
-	public getCommentAction(): { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: modes.CommentingRanges } {
+	public getCommentAction(): { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: languages.CommentingRanges } {
 		return {
 			extensionId: this._extensionId,
 			label: this._label,
@@ -402,7 +402,7 @@ export class CommentController implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private displayCommentThread(owner: string, thread: modes.CommentThread, pendingComment: string | null): void {
+	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | null): void {
 		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment);
 		zoneWidget.display(thread.range.startLineNumber);
 		this._commentWidgets.push(zoneWidget);
@@ -496,7 +496,7 @@ export class CommentController implements IEditorContribution {
 		return Promise.resolve();
 	}
 
-	private getCommentProvidersQuickPicks(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: modes.CommentingRanges | undefined }[]) {
+	private getCommentProvidersQuickPicks(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: languages.CommentingRanges | undefined }[]) {
 		const picks: QuickPickInput[] = commentInfos.map((commentInfo) => {
 			const { ownerId, extensionId, label } = commentInfo;
 
@@ -509,7 +509,7 @@ export class CommentController implements IEditorContribution {
 		return picks;
 	}
 
-	private getContextMenuActions(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: modes.CommentingRanges }[], lineNumber: number): IAction[] {
+	private getContextMenuActions(commentInfos: { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: languages.CommentingRanges }[], lineNumber: number): IAction[] {
 		const actions: IAction[] = [];
 
 		commentInfos.forEach(commentInfo => {
@@ -587,7 +587,7 @@ export class CommentController implements IEditorContribution {
 				}
 
 				if (pendingComment) {
-					thread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
+					thread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 				}
 
 				this.displayCommentThread(info.owner, thread, pendingComment);

@@ -11,7 +11,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { EditorWorkerService } from 'vs/editor/browser/services/editorWorkerService';
@@ -95,16 +95,16 @@ suite('suggest, word distance', function () {
 	});
 
 	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {
-		const suggestion: modes.CompletionItem = {
+		const suggestion: languages.CompletionItem = {
 			label,
 			range: { startLineNumber: position.lineNumber, startColumn: position.column - overwriteBefore, endLineNumber: position.lineNumber, endColumn: position.column },
 			insertText: label,
 			kind: 0
 		};
-		const container: modes.CompletionList = {
+		const container: languages.CompletionList = {
 			suggestions: [suggestion]
 		};
-		const provider: modes.CompletionItemProvider = {
+		const provider: languages.CompletionItemProvider = {
 			provideCompletionItems(): any {
 				return;
 			}
