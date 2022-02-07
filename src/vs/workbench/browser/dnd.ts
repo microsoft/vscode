@@ -165,7 +165,7 @@ export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Prom
 			// Invalid transfer
 		}
 	}
-	
+
 	return editors;
 }
 
@@ -769,7 +769,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		return this._register(disposableStore);
 	}
 
-	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType, id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
+	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType; id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
 		element.draggable = true;
 
 		const disposableStore = new DisposableStore();

@@ -9,7 +9,7 @@ import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor,
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { HistoryService } from 'vs/workbench/services/history/browser/history';
+import { HistoryService } from 'vs/workbench/services/history/browser/historyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { DisposableStore } from 'vs/base/common/lifecycle';

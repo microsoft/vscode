@@ -24,6 +24,7 @@ import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExte
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { flatten } from 'vs/base/common/arrays';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 // format notebook
 registerAction2(class extends Action2 {
@@ -53,6 +54,7 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const textModelService = accessor.get(ITextModelService);
 		const editorWorkerService = accessor.get(IEditorWorkerService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const bulkEditService = accessor.get(IBulkEditService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -70,7 +72,9 @@ registerAction2(class extends Action2 {
 				const model = ref.object.textEditorModel;
 
 				const formatEdits = await getDocumentFormattingEditsUntilResult(
-					editorWorkerService, model,
+					editorWorkerService,
+					languageFeaturesService,
+					model,
 					model.getOptions(), CancellationToken.None
 				);
 

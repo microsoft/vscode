@@ -16,7 +16,7 @@ export class NotebookRefCountedStyleSheet {
 	private readonly _styleSheet: HTMLStyleElement;
 	private _refCount: number;
 
-	constructor(readonly widget: { removeEditorStyleSheets: (key: string) => void; }, key: string, styleSheet: HTMLStyleElement) {
+	constructor(readonly widget: { removeEditorStyleSheets: (key: string) => void }, key: string, styleSheet: HTMLStyleElement) {
 		this._key = key;
 		this._styleSheet = styleSheet;
 		this._refCount = 0;

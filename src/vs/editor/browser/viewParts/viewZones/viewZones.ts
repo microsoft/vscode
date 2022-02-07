@@ -9,11 +9,10 @@ import { IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrow
 import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
-import { IViewWhitespaceViewportData } from 'vs/editor/common/viewModel';
+import { IEditorWhitespace, IViewWhitespaceViewportData, IWhitespaceChangeAccessor } from 'vs/editor/common/viewModel';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IWhitespaceChangeAccessor, IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 
 export interface IMyViewZone {
 	whitespaceId: string;
@@ -35,7 +34,7 @@ const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
 export class ViewZones extends ViewPart {
 
-	private _zones: { [id: string]: IMyViewZone; };
+	private _zones: { [id: string]: IMyViewZone };
 	private _lineHeight: number;
 	private _contentWidth: number;
 	private _contentLeft: number;
@@ -82,7 +81,7 @@ export class ViewZones extends ViewPart {
 			oldWhitespaces.set(whitespace.id, whitespace);
 		}
 		let hadAChange = false;
-		this._context.model.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
+		this._context.viewModel.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
 			const keys = Object.keys(this._zones);
 			for (let i = 0, len = keys.length; i < len; i++) {
 				const id = keys[i];
@@ -158,37 +157,37 @@ export class ViewZones extends ViewPart {
 
 		let zoneAfterModelPosition: Position;
 		if (typeof zone.afterColumn !== 'undefined') {
-			zoneAfterModelPosition = this._context.model.validateModelPosition({
+			zoneAfterModelPosition = this._context.viewModel.model.validatePosition({
 				lineNumber: zone.afterLineNumber,
 				column: zone.afterColumn
 			});
 		} else {
-			const validAfterLineNumber = this._context.model.validateModelPosition({
+			const validAfterLineNumber = this._context.viewModel.model.validatePosition({
 				lineNumber: zone.afterLineNumber,
 				column: 1
 			}).lineNumber;
 
 			zoneAfterModelPosition = new Position(
 				validAfterLineNumber,
-				this._context.model.getModelLineMaxColumn(validAfterLineNumber)
+				this._context.viewModel.model.getLineMaxColumn(validAfterLineNumber)
 			);
 		}
 
 		let zoneBeforeModelPosition: Position;
-		if (zoneAfterModelPosition.column === this._context.model.getModelLineMaxColumn(zoneAfterModelPosition.lineNumber)) {
-			zoneBeforeModelPosition = this._context.model.validateModelPosition({
+		if (zoneAfterModelPosition.column === this._context.viewModel.model.getLineMaxColumn(zoneAfterModelPosition.lineNumber)) {
+			zoneBeforeModelPosition = this._context.viewModel.model.validatePosition({
 				lineNumber: zoneAfterModelPosition.lineNumber + 1,
 				column: 1
 			});
 		} else {
-			zoneBeforeModelPosition = this._context.model.validateModelPosition({
+			zoneBeforeModelPosition = this._context.viewModel.model.validatePosition({
 				lineNumber: zoneAfterModelPosition.lineNumber,
 				column: zoneAfterModelPosition.column + 1
 			});
 		}
 
-		const viewPosition = this._context.model.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity);
-		const isVisible = this._context.model.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
+		const viewPosition = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(zoneAfterModelPosition, zone.afterColumnAffinity);
+		const isVisible = this._context.viewModel.coordinatesConverter.modelPositionIsVisible(zoneBeforeModelPosition);
 		return {
 			isInHiddenArea: !isVisible,
 			afterViewLineNumber: viewPosition.lineNumber,
@@ -200,7 +199,7 @@ export class ViewZones extends ViewPart {
 	public changeViewZones(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
 		let zonesHaveChanged = false;
 
-		this._context.model.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
+		this._context.viewModel.changeWhitespace((whitespaceAccessor: IWhitespaceChangeAccessor) => {
 
 			const changeAccessor: IViewZoneChangeAccessor = {
 				addZone: (zone: IViewZone): string => {
@@ -360,7 +359,7 @@ export class ViewZones extends ViewPart {
 
 	public render(ctx: RestrictedRenderingContext): void {
 		const visibleWhitespaces = ctx.viewportData.whitespaceViewportData;
-		const visibleZones: { [id: string]: IViewWhitespaceViewportData; } = {};
+		const visibleZones: { [id: string]: IViewWhitespaceViewportData } = {};
 
 		let hasVisibleZone = false;
 		for (const visibleWhitespace of visibleWhitespaces) {

@@ -383,9 +383,9 @@ export interface ISearchConfigurationProperties {
 	searchOnTypeDebouncePeriod: number;
 	mode: 'view' | 'reuseEditor' | 'newEditor';
 	searchEditor: {
-		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
-		reusePriorSearchConfiguration: boolean,
-		defaultNumberOfContextLines: number | null,
+		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide';
+		reusePriorSearchConfiguration: boolean;
+		defaultNumberOfContextLines: number | null;
 		experimental: {};
 	};
 	sortOrder: SearchSortOrder;
@@ -531,7 +531,7 @@ export interface ISearchEngineSuccess {
 export interface ISerializedSearchError {
 	type: 'error';
 	error: {
-		message: string,
+		message: string;
 		stack: string;
 	};
 }

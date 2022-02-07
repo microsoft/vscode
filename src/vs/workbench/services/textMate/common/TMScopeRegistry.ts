@@ -27,7 +27,7 @@ export interface IValidEmbeddedLanguagesMap {
 
 export class TMScopeRegistry extends Disposable {
 
-	private _scopeNameToLanguageRegistration: { [scopeName: string]: IValidGrammarDefinition; };
+	private _scopeNameToLanguageRegistration: { [scopeName: string]: IValidGrammarDefinition };
 
 	constructor() {
 		super();

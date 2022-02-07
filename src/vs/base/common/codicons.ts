@@ -39,12 +39,12 @@ export class Codicon implements CSSIcon {
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
 
 	// registry
-	private static _allCodicons : Codicon[] = [];
+	private static _allCodicons: Codicon[] = [];
 
 	/**
 	 * @returns Returns all default icons covered by the codicon font. Only to be used by the icon registry in platform.
 	 */
-	public static getAll() : readonly Codicon[] {
+	public static getAll(): readonly Codicon[] {
 		return Codicon._allCodicons;
 	}
 

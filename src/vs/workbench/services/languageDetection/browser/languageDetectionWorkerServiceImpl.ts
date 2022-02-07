@@ -102,11 +102,11 @@ export class LanguageDetectionWorkerHost {
 	}
 
 	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
-		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number; };
+		type LanguageDetectionStats = { languages: string; confidences: string; timeSpent: number };
 		type LanguageDetectionStatsClassification = {
-			languages: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			confidences: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			timeSpent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			languages: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			confidences: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 
 		this._telemetryService.publicLog2<LanguageDetectionStats, LanguageDetectionStatsClassification>('automaticlanguagedetection.stats', {

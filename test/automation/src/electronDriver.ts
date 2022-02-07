@@ -18,7 +18,7 @@ import type { LaunchOptions } from './code';
 
 const repoPath = path.join(__dirname, '../../..');
 
-export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess, client: IDisposable, driver: IDriver, kill: () => Promise<void> }> {
+export async function launch(options: LaunchOptions): Promise<{ electronProcess: ChildProcess; client: IDisposable; driver: IDriver; kill: () => Promise<void> }> {
 	const { codePath, workspacePath, extensionsPath, userDataDir, remote, logger, verbose, extraArgs } = options;
 	const env = { ...process.env };
 	const logsPath = path.join(repoPath, '.build', 'logs', remote ? 'smoke-tests-remote' : 'smoke-tests');

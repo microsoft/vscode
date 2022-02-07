@@ -409,7 +409,7 @@ export function scanBuiltinExtensions(extensionsRoot: string, exclude: string[] 
 
 export function translatePackageJSON(packageJSON: string, packageNLSPath: string) {
 	interface NLSFormat {
-		[key: string]: string | { message: string, comment: string[] };
+		[key: string]: string | { message: string; comment: string[] };
 	}
 	const CharCode_PC = '%'.charCodeAt(0);
 	const packageNls: NLSFormat = JSON.parse(fs.readFileSync(packageNLSPath).toString());
@@ -446,7 +446,7 @@ const esbuildMediaScripts = [
 	'markdown-math/esbuild.js',
 ];
 
-export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string, outputRoot?: string }[]) {
+export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string; outputRoot?: string }[]) {
 	const webpack = require('webpack') as typeof import('webpack');
 
 	const webpackConfigs: webpack.Configuration[] = [];
@@ -515,7 +515,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 	});
 }
 
-async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string, outputRoot?: string }[]) {
+async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string; outputRoot?: string }[]) {
 	function reporter(stdError: string, script: string) {
 		const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
 		fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);

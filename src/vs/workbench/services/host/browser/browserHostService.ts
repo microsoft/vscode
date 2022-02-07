@@ -70,7 +70,7 @@ export interface IWorkspaceProvider {
 	 *
 	 * @returns true if successfully opened, false otherwise.
 	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean>;
+	open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean>;
 }
 
 enum HostShutdownReason {
@@ -381,7 +381,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
 	}
 
-	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<void> {
 
 		// We know that `workspaceProvider.open` will trigger a shutdown
 		// with `options.reuse` so we handle this expected shutdown

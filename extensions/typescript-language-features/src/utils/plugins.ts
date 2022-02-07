@@ -12,7 +12,7 @@ export interface TypeScriptServerPlugin {
 	readonly name: string;
 	readonly enableForWorkspaceTypeScriptVersions: boolean;
 	readonly languages: ReadonlyArray<string>;
-	readonly configNamespace?: string
+	readonly configNamespace?: string;
 }
 
 namespace TypeScriptServerPlugin {
@@ -54,7 +54,7 @@ export class PluginManager extends Disposable {
 	private readonly _onDidUpdatePlugins = this._register(new vscode.EventEmitter<this>());
 	public readonly onDidChangePlugins = this._onDidUpdatePlugins.event;
 
-	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string, config: {} }>());
+	private readonly _onDidUpdateConfig = this._register(new vscode.EventEmitter<{ pluginId: string; config: {} }>());
 	public readonly onDidUpdateConfig = this._onDidUpdateConfig.event;
 
 	public setConfiguration(pluginId: string, config: {}) {

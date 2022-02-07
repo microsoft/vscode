@@ -21,7 +21,7 @@ import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
-import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/view';
+import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view';
 import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { CursorsController } from 'vs/editor/common/cursor/cursor';
@@ -38,11 +38,9 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
-import * as modes from 'vs/editor/common/languages';
 import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
 import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground, editorErrorBackground, editorInfoBackground, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -55,12 +53,13 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
-import { IViewModel } from 'vs/editor/common/viewModel';
+import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 let EDITOR_ID = 0;
 
@@ -228,8 +227,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _id: number;
 	private readonly _configuration: IEditorConfiguration;
 
-	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
-	protected _actions: { [key: string]: editorCommon.IEditorAction; };
+	protected _contributions: { [key: string]: editorCommon.IEditorContribution };
+	protected _actions: { [key: string]: editorCommon.IEditorAction };
 
 	// --- Members logically associated to a model
 	protected _modelData: ModelData | null;
@@ -243,8 +242,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _focusTracker: CodeEditorWidgetFocusTracker;
 
-	private _contentWidgets: { [key: string]: IContentWidgetData; };
-	private _overlayWidgets: { [key: string]: IOverlayWidgetData; };
+	private _contentWidgets: { [key: string]: IContentWidgetData };
+	private _overlayWidgets: { [key: string]: IOverlayWidgetData };
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -266,6 +265,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
@@ -296,7 +296,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._commandService = commandService;
 		this._themeService = themeService;
 		this._register(new EditorContextKeysManager(this, this._contextKeyService));
-		this._register(new EditorModeContext(this, this._contextKeyService));
+		this._register(new EditorModeContext(this, this._contextKeyService, languageFeaturesService));
 
 		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
 
@@ -421,7 +421,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return WordOperations.getWordAtPosition(this._modelData.model, this._configuration.options.get(EditorOption.wordSeparators), position);
 	}
 
-	public getValue(options: { preserveBOM: boolean; lineEnding: string; } | null = null): string {
+	public getValue(options: { preserveBOM: boolean; lineEnding: string } | null = null): string {
 		if (!this._modelData) {
 			return '';
 		}
@@ -901,7 +901,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (typeof newScrollLeft !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._modelData.viewModel.setScrollPosition({
+		this._modelData.viewModel.viewLayout.setScrollPosition({
 			scrollLeft: newScrollLeft
 		}, scrollType);
 	}
@@ -912,7 +912,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (typeof newScrollTop !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._modelData.viewModel.setScrollPosition({
+		this._modelData.viewModel.viewLayout.setScrollPosition({
 			scrollTop: newScrollTop
 		}, scrollType);
 	}
@@ -920,7 +920,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.setScrollPosition(position, scrollType);
+		this._modelData.viewModel.viewLayout.setScrollPosition(position, scrollType);
 	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState | null {
@@ -1463,7 +1463,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.view.getTargetAtClientPoint(clientX, clientY);
 	}
 
-	public getScrolledVisiblePosition(rawPosition: IPosition): { top: number; left: number; height: number; } | null {
+	public getScrolledVisiblePosition(rawPosition: IPosition): { top: number; left: number; height: number } | null {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return null;
 		}
@@ -1541,7 +1541,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			DOMLineBreaksComputerFactory.create(),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
 			(callback) => dom.scheduleAtNextAnimationFrame(callback),
-			this.languageConfigurationService
+			this.languageConfigurationService,
+			this._themeService
 		);
 
 		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
@@ -1705,7 +1706,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const view = new View(
 			commandDelegate,
 			this._configuration,
-			this._themeService,
+			this._themeService.getColorTheme(),
 			viewModel,
 			viewUserInputEvents,
 			this._overflowWidgetsDomNode
@@ -1753,7 +1754,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._codeEditorService.resolveDecorationOptions(typeKey, writable);
 	}
 
-	public getTelemetryData(): { [key: string]: any; } | undefined {
+	public getTelemetryData(): { [key: string]: any } | undefined {
 		return this._telemetryData;
 	}
 
@@ -1910,7 +1911,8 @@ export class EditorModeContext extends Disposable {
 
 	constructor(
 		private readonly _editor: CodeEditorWidget,
-		private readonly _contextKeyService: IContextKeyService
+		private readonly _contextKeyService: IContextKeyService,
+		private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
@@ -1942,22 +1944,22 @@ export class EditorModeContext extends Disposable {
 		this._register(_editor.onDidChangeModelLanguage(update));
 
 		// update when registries change
-		this._register(modes.CompletionProviderRegistry.onDidChange(update));
-		this._register(modes.CodeActionProviderRegistry.onDidChange(update));
-		this._register(modes.CodeLensProviderRegistry.onDidChange(update));
-		this._register(modes.DefinitionProviderRegistry.onDidChange(update));
-		this._register(modes.DeclarationProviderRegistry.onDidChange(update));
-		this._register(modes.ImplementationProviderRegistry.onDidChange(update));
-		this._register(modes.TypeDefinitionProviderRegistry.onDidChange(update));
-		this._register(modes.HoverProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentHighlightProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentSymbolProviderRegistry.onDidChange(update));
-		this._register(modes.ReferenceProviderRegistry.onDidChange(update));
-		this._register(modes.RenameProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
-		this._register(modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(update));
-		this._register(modes.SignatureHelpProviderRegistry.onDidChange(update));
-		this._register(modes.InlayHintsProviderRegistry.onDidChange(update));
+		this._register(_languageFeaturesService.completionProvider.onDidChange(update));
+		this._register(_languageFeaturesService.codeActionProvider.onDidChange(update));
+		this._register(_languageFeaturesService.codeLensProvider.onDidChange(update));
+		this._register(_languageFeaturesService.definitionProvider.onDidChange(update));
+		this._register(_languageFeaturesService.declarationProvider.onDidChange(update));
+		this._register(_languageFeaturesService.implementationProvider.onDidChange(update));
+		this._register(_languageFeaturesService.typeDefinitionProvider.onDidChange(update));
+		this._register(_languageFeaturesService.hoverProvider.onDidChange(update));
+		this._register(_languageFeaturesService.documentHighlightProvider.onDidChange(update));
+		this._register(_languageFeaturesService.documentSymbolProvider.onDidChange(update));
+		this._register(_languageFeaturesService.referenceProvider.onDidChange(update));
+		this._register(_languageFeaturesService.renameProvider.onDidChange(update));
+		this._register(_languageFeaturesService.documentFormattingEditProvider.onDidChange(update));
+		this._register(_languageFeaturesService.documentRangeFormattingEditProvider.onDidChange(update));
+		this._register(_languageFeaturesService.signatureHelpProvider.onDidChange(update));
+		this._register(_languageFeaturesService.inlayHintsProvider.onDidChange(update));
 
 		update();
 	}
@@ -1996,24 +1998,24 @@ export class EditorModeContext extends Disposable {
 		}
 		this._contextKeyService.bufferChangeEvents(() => {
 			this._langId.set(model.getLanguageId());
-			this._hasCompletionItemProvider.set(modes.CompletionProviderRegistry.has(model));
-			this._hasCodeActionsProvider.set(modes.CodeActionProviderRegistry.has(model));
-			this._hasCodeLensProvider.set(modes.CodeLensProviderRegistry.has(model));
-			this._hasDefinitionProvider.set(modes.DefinitionProviderRegistry.has(model));
-			this._hasDeclarationProvider.set(modes.DeclarationProviderRegistry.has(model));
-			this._hasImplementationProvider.set(modes.ImplementationProviderRegistry.has(model));
-			this._hasTypeDefinitionProvider.set(modes.TypeDefinitionProviderRegistry.has(model));
-			this._hasHoverProvider.set(modes.HoverProviderRegistry.has(model));
-			this._hasDocumentHighlightProvider.set(modes.DocumentHighlightProviderRegistry.has(model));
-			this._hasDocumentSymbolProvider.set(modes.DocumentSymbolProviderRegistry.has(model));
-			this._hasReferenceProvider.set(modes.ReferenceProviderRegistry.has(model));
-			this._hasRenameProvider.set(modes.RenameProviderRegistry.has(model));
-			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
-			this._hasInlayHintsProvider.set(modes.InlayHintsProviderRegistry.has(model));
-			this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
-			this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
-			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length + modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
-			this._hasMultipleDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);
+			this._hasCompletionItemProvider.set(this._languageFeaturesService.completionProvider.has(model));
+			this._hasCodeActionsProvider.set(this._languageFeaturesService.codeActionProvider.has(model));
+			this._hasCodeLensProvider.set(this._languageFeaturesService.codeLensProvider.has(model));
+			this._hasDefinitionProvider.set(this._languageFeaturesService.definitionProvider.has(model));
+			this._hasDeclarationProvider.set(this._languageFeaturesService.declarationProvider.has(model));
+			this._hasImplementationProvider.set(this._languageFeaturesService.implementationProvider.has(model));
+			this._hasTypeDefinitionProvider.set(this._languageFeaturesService.typeDefinitionProvider.has(model));
+			this._hasHoverProvider.set(this._languageFeaturesService.hoverProvider.has(model));
+			this._hasDocumentHighlightProvider.set(this._languageFeaturesService.documentHighlightProvider.has(model));
+			this._hasDocumentSymbolProvider.set(this._languageFeaturesService.documentSymbolProvider.has(model));
+			this._hasReferenceProvider.set(this._languageFeaturesService.referenceProvider.has(model));
+			this._hasRenameProvider.set(this._languageFeaturesService.renameProvider.has(model));
+			this._hasSignatureHelpProvider.set(this._languageFeaturesService.signatureHelpProvider.has(model));
+			this._hasInlayHintsProvider.set(this._languageFeaturesService.inlayHintsProvider.has(model));
+			this._hasDocumentFormattingProvider.set(this._languageFeaturesService.documentFormattingEditProvider.has(model) || this._languageFeaturesService.documentRangeFormattingEditProvider.has(model));
+			this._hasDocumentSelectionFormattingProvider.set(this._languageFeaturesService.documentRangeFormattingEditProvider.has(model));
+			this._hasMultipleDocumentFormattingProvider.set(this._languageFeaturesService.documentFormattingEditProvider.all(model).length + this._languageFeaturesService.documentRangeFormattingEditProvider.all(model).length > 1);
+			this._hasMultipleDocumentSelectionFormattingProvider.set(this._languageFeaturesService.documentRangeFormattingEditProvider.all(model).length > 1);
 			this._isInWalkThrough.set(model.uri.scheme === Schemas.walkThroughSnippet);
 		});
 	}

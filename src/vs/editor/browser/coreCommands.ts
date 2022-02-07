@@ -332,7 +332,7 @@ export namespace CoreNavigationCommands {
 		private readonly _minimalReveal: boolean;
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { minimalReveal: boolean; inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { minimalReveal: boolean; inSelectionMode: boolean }) {
 			super(opts);
 			this._minimalReveal = opts.minimalReveal;
 			this._inSelectionMode = opts.inSelectionMode;
@@ -452,7 +452,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _isPaged: boolean;
 
-		constructor(opts: ICommandOptions & { isPaged: boolean; }) {
+		constructor(opts: ICommandOptions & { isPaged: boolean }) {
 			super(opts);
 			this._isPaged = opts.isPaged;
 		}
@@ -490,7 +490,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _isPaged: boolean;
 
-		constructor(opts: ICommandOptions & { isPaged: boolean; }) {
+		constructor(opts: ICommandOptions & { isPaged: boolean }) {
 			super(opts);
 			this._isPaged = opts.isPaged;
 		}
@@ -907,7 +907,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -951,7 +951,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1005,7 +1005,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1083,7 +1083,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1138,7 +1138,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1182,7 +1182,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1256,7 +1256,7 @@ export namespace CoreNavigationCommands {
 				);
 			}
 
-			viewModel.setScrollTop(desiredScrollTop, ScrollType.Smooth);
+			viewModel.viewLayout.setScrollPosition({ scrollTop: desiredScrollTop }, ScrollType.Smooth);
 		}
 
 		private _computeDesiredScrollTop(viewModel: IViewModel, args: EditorScroll_.ParsedArguments): number {
@@ -1276,7 +1276,7 @@ export namespace CoreNavigationCommands {
 				}
 
 				const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1));
-				return viewModel.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+				return viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 			}
 
 			let noOfLines: number;
@@ -1288,7 +1288,7 @@ export namespace CoreNavigationCommands {
 				noOfLines = args.value;
 			}
 			const deltaLines = (args.direction === EditorScroll_.Direction.Up ? -1 : 1) * noOfLines;
-			return viewModel.getScrollTop() + deltaLines * viewModel.cursorConfig.lineHeight;
+			return viewModel.viewLayout.getCurrentScrollTop() + deltaLines * viewModel.cursorConfig.lineHeight;
 		}
 	}
 
@@ -1400,7 +1400,7 @@ export namespace CoreNavigationCommands {
 
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1458,7 +1458,7 @@ export namespace CoreNavigationCommands {
 	class LineCommand extends CoreEditorCommand {
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}
@@ -1491,7 +1491,7 @@ export namespace CoreNavigationCommands {
 	class LastCursorLineCommand extends CoreEditorCommand {
 		private readonly _inSelectionMode: boolean;
 
-		constructor(opts: ICommandOptions & { inSelectionMode: boolean; }) {
+		constructor(opts: ICommandOptions & { inSelectionMode: boolean }) {
 			super(opts);
 			this._inSelectionMode = opts.inSelectionMode;
 		}

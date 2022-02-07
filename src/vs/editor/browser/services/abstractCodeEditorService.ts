@@ -37,8 +37,8 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	protected readonly _onDecorationTypeRegistered: Emitter<string> = this._register(new Emitter<string>());
 	public onDecorationTypeRegistered: Event<string> = this._onDecorationTypeRegistered.event;
 
-	private readonly _codeEditors: { [editorId: string]: ICodeEditor; };
-	private readonly _diffEditors: { [editorId: string]: IDiffEditor; };
+	private readonly _codeEditors: { [editorId: string]: ICodeEditor };
+	private readonly _diffEditors: { [editorId: string]: IDiffEditor };
 	protected _globalStyleSheet: GlobalStyleSheet | null;
 	private readonly _decorationOptionProviders = new Map<string, IModelDecorationOptionsProvider>();
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
@@ -182,7 +182,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 		return provider.resolveDecorationCSSRules();
 	}
 
-	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher; } = {};
+	private readonly _transientWatchers: { [uri: string]: ModelTransientSettingWatcher } = {};
 	private readonly _modelProperties = new Map<string, Map<string, any>>();
 
 	public setModelProperty(resource: URI, key: string, value: any): void {
@@ -252,7 +252,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 
 export class ModelTransientSettingWatcher {
 	public readonly uri: string;
-	private readonly _values: { [key: string]: any; };
+	private readonly _values: { [key: string]: any };
 
 	constructor(uri: string, model: ITextModel, owner: AbstractCodeEditorService) {
 		this.uri = uri;
@@ -522,7 +522,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 }
 
 
-export const _CSS_MAP: { [prop: string]: string; } = {
+export const _CSS_MAP: { [prop: string]: string } = {
 	color: 'color:{0} !important;',
 	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',

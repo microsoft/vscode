@@ -78,7 +78,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		}
 	}
 
-	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ validRecommendations: string[], invalidRecommendations: string[], message: string }> {
+	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ validRecommendations: string[]; invalidRecommendations: string[]; message: string }> {
 
 		const validExtensions: string[] = [];
 		const invalidExtensions: string[] = [];

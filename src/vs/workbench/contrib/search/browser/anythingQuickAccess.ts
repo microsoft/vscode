@@ -57,7 +57,7 @@ interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemW
 
 interface IEditorSymbolAnythingQuickPickItem extends IAnythingQuickPickItem {
 	resource: URI;
-	range: { decoration: IRange, selection: IRange }
+	range: { decoration: IRange; selection: IRange };
 }
 
 function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEditorSymbolAnythingQuickPickItem {
@@ -83,9 +83,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		picker: IQuickPick<IAnythingQuickPickItem> | undefined = undefined;
 
 		editorViewState: {
-			editor: EditorInput,
-			group: IEditorGroup,
-			state: ICodeEditorViewState | IDiffEditorViewState | undefined
+			editor: EditorInput;
+			group: IEditorGroup;
+			state: ICodeEditorViewState | IDiffEditorViewState | undefined;
 		} | undefined = undefined;
 
 		scorerCache: FuzzyScorerCache = Object.create(null);
@@ -644,7 +644,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			), token);
 	}
 
-	private getFileQueryOptions(input: { filePattern?: string, cacheKey?: string, maxResults?: number }): IFileQueryBuilderOptions {
+	private getFileQueryOptions(input: { filePattern?: string; cacheKey?: string; maxResults?: number }): IFileQueryBuilderOptions {
 		return {
 			_reason: 'openFileHandler', // used for telemetry - do not change
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
@@ -866,7 +866,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Helpers
 
-	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { shortAutoSaveDelay: boolean, openSideBySideDirection: 'right' | 'down' | undefined }): IAnythingQuickPickItem {
+	private createAnythingPick(resourceOrEditor: URI | EditorInput | IResourceEditorInput, configuration: { shortAutoSaveDelay: boolean; openSideBySideDirection: 'right' | 'down' | undefined }): IAnythingQuickPickItem {
 		const isEditorHistoryEntry = !URI.isUri(resourceOrEditor);
 
 		let resource: URI | undefined;
@@ -943,7 +943,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		};
 	}
 
-	private async openAnything(resourceOrEditor: URI | EditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean, forcePinned?: boolean }): Promise<void> {
+	private async openAnything(resourceOrEditor: URI | EditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods; preserveFocus?: boolean; range?: IRange; forceOpenSideBySide?: boolean; forcePinned?: boolean }): Promise<void> {
 
 		// Craft some editor options based on quick access usage
 		const editorOptions: ITextEditorOptions = {

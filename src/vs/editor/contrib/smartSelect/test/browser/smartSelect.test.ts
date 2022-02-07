@@ -8,7 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { SelectionRangeProvider, SelectionRangeRegistry } from 'vs/editor/common/languages';
+import { SelectionRangeProvider } from 'vs/editor/common/languages';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IModelService } from 'vs/editor/common/services/model';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/bracketSelections';
@@ -17,6 +17,7 @@ import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browse
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
 import { MockMode, StaticLanguageSelector } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 
 class MockJSMode extends MockMode {
 
@@ -53,6 +54,7 @@ suite('SmartSelect', () => {
 	let disposables: DisposableStore;
 	let modelService: IModelService;
 	let mode: MockJSMode;
+	let providers = new LanguageFeatureRegistry<SelectionRangeProvider>();
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -69,7 +71,7 @@ suite('SmartSelect', () => {
 	async function assertGetRangesToPosition(text: string[], lineNumber: number, column: number, ranges: Range[], selectLeadingAndTrailingWhitespace = true): Promise<void> {
 		let uri = URI.file('test.js');
 		let model = modelService.createModel(text.join('\n'), new StaticLanguageSelector(mode.languageId), uri);
-		let [actual] = await provideSelectionRanges(model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace }, CancellationToken.None);
+		let [actual] = await provideSelectionRanges(providers, model, [new Position(lineNumber, column)], { selectLeadingAndTrailingWhitespace }, CancellationToken.None);
 		let actualStr = actual!.map(r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn).toString());
 		let desiredStr = ranges.reverse().map(r => String(r));
 
@@ -337,7 +339,7 @@ suite('SmartSelect', () => {
 
 	test('Smart select: only add line ranges if they\'re contained by the next range #73850', async function () {
 
-		const reg = SelectionRangeRegistry.register('*', {
+		const reg = providers.register('*', {
 			provideSelectionRanges() {
 				return [[
 					{ range: { startLineNumber: 1, startColumn: 10, endLineNumber: 1, endColumn: 11 } },

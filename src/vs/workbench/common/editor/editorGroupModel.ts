@@ -73,7 +73,7 @@ export interface IMatchOptions {
 export interface IGroupModelChangeEvent {
 
 	/**
-	 * The kind of change that occured in the group model.
+	 * The kind of change that occurred in the group model.
 	 */
 	readonly kind: GroupModelChangeKind;
 
@@ -139,7 +139,7 @@ export interface IGroupEditorCloseEvent extends IGroupEditorChangeEvent {
 	/**
 	 * Signifies the context in which the editor
 	 * is being closed. This allows for understanding
-	 * if a replace or reopen is occuring
+	 * if a replace or reopen is occurring
 	 */
 	readonly context: EditorCloseContext;
 

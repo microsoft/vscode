@@ -277,7 +277,7 @@ export class XLF {
 	static parsePseudo = function (xlfString: string): Promise<ParsedXLF[]> {
 		return new Promise((resolve) => {
 			let parser = new xml2js.Parser();
-			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
+			let files: { messages: Map<string>; originalFilePath: string; language: string }[] = [];
 			parser.parseString(xlfString, function (_err: any, result: any) {
 				const fileNodes: any[] = result['xliff']['file'];
 				fileNodes.forEach(file => {
@@ -304,7 +304,7 @@ export class XLF {
 		return new Promise((resolve, reject) => {
 			let parser = new xml2js.Parser();
 
-			let files: { messages: Map<string>, originalFilePath: string, language: string }[] = [];
+			let files: { messages: Map<string>; originalFilePath: string; language: string }[] = [];
 
 			parser.parseString(xlfString, function (err: any, result: any) {
 				if (err) {

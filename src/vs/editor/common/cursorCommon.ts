@@ -10,12 +10,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { ITextModel, PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { PositionAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { AutoClosingPairs } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { normalizeIndentation } from 'vs/editor/common/core/indentation';
 
@@ -81,10 +80,10 @@ export class CursorConfiguration {
 	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairs: AutoClosingPairs;
 	public readonly surroundingPairs: CharacterMap;
-	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean, bracket: (ch: string) => boolean };
+	public readonly shouldAutoCloseBefore: { quote: (ch: string) => boolean; bracket: (ch: string) => boolean };
 
 	private readonly _languageId: string;
-	private _electricChars: { [key: string]: boolean; } | null;
+	private _electricChars: { [key: string]: boolean } | null;
 
 	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
 		return (
@@ -246,22 +245,6 @@ export interface ICursorSimpleModel {
 	 * @internal
 	 */
 	getLineIndentColumn(lineNumber: number): number;
-}
-
-export class CursorContext {
-	_cursorContextBrand: void = undefined;
-
-	public readonly model: ITextModel;
-	public readonly viewModel: ICursorSimpleModel;
-	public readonly coordinatesConverter: ICoordinatesConverter;
-	public readonly cursorConfig: CursorConfiguration;
-
-	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
-		this.model = model;
-		this.viewModel = viewModel;
-		this.coordinatesConverter = coordinatesConverter;
-		this.cursorConfig = cursorConfig;
-	}
 }
 
 export type PartialCursorState = CursorState | PartialModelCursorState | PartialViewCursorState;

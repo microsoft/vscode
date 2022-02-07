@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -16,7 +16,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
 import { IndentAction, IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { withTestCodeEditor, TestCodeEditorInstantiationOptions, ITestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
@@ -4829,7 +4829,7 @@ suite('autoClosingPairs', () => {
 					tokenize: undefined!,
 					tokenizeEncoded: function (line: string, hasEOL: boolean, _state: IState): EncodedTokenizationResult {
 						let state = <State>_state;
-						const tokens: { length: number; type: StandardTokenType; }[] = [];
+						const tokens: { length: number; type: StandardTokenType }[] = [];
 						const generateToken = (length: number, type: StandardTokenType, newState?: State) => {
 							if (tokens.length > 0 && tokens[tokens.length - 1].type === type) {
 								// grow last tokens

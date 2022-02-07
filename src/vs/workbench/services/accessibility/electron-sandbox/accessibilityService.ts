@@ -21,7 +21,7 @@ interface AccessibilityMetrics {
 	enabled: boolean;
 }
 type AccessibilityMetricsClassification = {
-	enabled: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {

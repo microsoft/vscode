@@ -171,13 +171,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI, target: URI, snapshot?: ITextSnapshot; languageId?: string; encoding?: string; }[]>();
+	private readonly mapCorrelationIdToModelsToRestore = new Map<number, { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[]>();
 
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: remember models to restore after the operation
 		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
-			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; languageId?: string; encoding?: string; }[] = [];
+			const modelsToRestore: { source: URI; target: URI; snapshot?: ITextSnapshot; languageId?: string; encoding?: string }[] = [];
 
 			for (const { source, target } of e.files) {
 				if (source) {
@@ -538,7 +538,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
 		return this.saveParticipants.participate(model, context, token);
 	}
 

@@ -15,7 +15,7 @@ import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } fr
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -622,7 +622,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _startExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): void {
 		const extensionHosts = this._createExtensionHosts(isInitialStart);
 		extensionHosts.forEach((extensionHost) => {
-			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents);
+			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents, this._acquireInternalAPI());
 			processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
 			processManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 			this._extensionHostManagers.push(processManager);
@@ -750,8 +750,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		});
 	}
 
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
-		let result: { [id: string]: IExtensionsStatus; } = Object.create(null);
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
+		let result: { [id: string]: IExtensionsStatus } = Object.create(null);
 		if (this._registry) {
 			const extensions = this._registry.getAllExtensionDescriptions();
 			for (const extension of extensions) {
@@ -838,7 +838,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
-		const affectedExtensionPoints: { [extPointName: string]: boolean; } = Object.create(null);
+		const affectedExtensionPoints: { [extPointName: string]: boolean } = Object.create(null);
 		for (let extensionDescription of affectedExtensions) {
 			if (extensionDescription.contributes) {
 				for (let extPointName in extensionDescription.contributes) {
@@ -881,10 +881,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
 			type ExtensionsMessageClassification = {
-				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				extensionPointId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				message: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				extensionPointId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			type ExtensionsMessageEvent = {
 				type: Severity;
@@ -950,6 +950,26 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
+	private _acquireInternalAPI(): IInternalExtensionService {
+		return {
+			_activateById: (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> => {
+				return this._activateById(extensionId, reason);
+			},
+			_onWillActivateExtension: (extensionId: ExtensionIdentifier): void => {
+				return this._onWillActivateExtension(extensionId);
+			},
+			_onDidActivateExtension: (extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void => {
+				return this._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
+			},
+			_onDidActivateExtensionError: (extensionId: ExtensionIdentifier, error: Error): void => {
+				return this._onDidActivateExtensionError(extensionId, error);
+			},
+			_onExtensionRuntimeError: (extensionId: ExtensionIdentifier, err: Error): void => {
+				return this._onExtensionRuntimeError(extensionId, err);
+			}
+		};
+	}
+
 	public async _activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		const results = await Promise.all(
 			this._extensionHostManagers.map(manager => manager.activate(extensionId, reason))
@@ -960,19 +980,19 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	public _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
+	private _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
 		this._extensionHostActiveExtensions.set(ExtensionIdentifier.toKey(extensionId), extensionId);
 	}
 
-	public _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
+	private _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
 		this._extensionHostActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime, activationReason));
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 
-	public _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
+	private _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
 		type ExtensionActivationErrorClassification = {
-			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			error: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			error: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
 		};
 		type ExtensionActivationErrorEvent = {
 			extensionId: string;
@@ -984,7 +1004,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		});
 	}
 
-	public _onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void {
+	private _onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void {
 		const extensionKey = ExtensionIdentifier.toKey(extensionId);
 		if (!this._extensionHostExtensionRuntimeErrors.has(extensionKey)) {
 			this._extensionHostExtensionRuntimeErrors.set(extensionKey, []);

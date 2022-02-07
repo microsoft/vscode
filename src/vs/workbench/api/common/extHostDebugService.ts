@@ -951,7 +951,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				const tabs = editorTabs.tabs.filter(tab => tab.isActive);
 				if (tabs.length > 0) {
 					// Resolve a resource from the tab
-					const asSideBySideResource = tabs[0].resource as { primary?: URI, secondary?: URI } | undefined;
+					const asSideBySideResource = tabs[0].resource as { primary?: URI; secondary?: URI } | undefined;
 					if (asSideBySideResource && (asSideBySideResource.primary || asSideBySideResource.secondary)) {
 						return asSideBySideResource.primary ?? asSideBySideResource.secondary;
 					} else {

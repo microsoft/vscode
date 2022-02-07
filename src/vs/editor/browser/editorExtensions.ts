@@ -15,7 +15,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MenuId, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IConstructorSignature1, ServicesAccessor as InstantiationServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor as InstantiationServicesAccessor, BrandedService, IInstantiationService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,8 +27,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 
 export type ServicesAccessor = InstantiationServicesAccessor;
-export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, IEditorContribution>;
-export type IDiffEditorContributionCtor = IConstructorSignature1<IDiffEditor, IDiffEditorContribution>;
+export type IEditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
+export type IDiffEditorContributionCtor = IConstructorSignature<IDiffEditorContribution, [IDiffEditor]>;
 
 export interface IEditorContributionDescription {
 	id: string;
@@ -56,7 +56,7 @@ export interface ICommandMenuOptions {
 	order: number;
 	when?: ContextKeyExpression;
 	title: string;
-	icon?: ThemeIcon
+	icon?: ThemeIcon;
 }
 export interface ICommandOptions {
 	id: string;
@@ -338,8 +338,8 @@ export abstract class EditorAction extends EditorCommand {
 
 	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
 		type EditorActionInvokedClassification = {
-			name: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
-			id: { classification: 'SystemMetaData', purpose: 'FeatureInsight', };
+			name: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		type EditorActionInvokedEvent = {
 			name: string;
@@ -420,8 +420,10 @@ export abstract class EditorAction2 extends Action2 {
 // --- Registration of commands and actions
 
 
-export function registerModelAndPositionCommand(id: string, handler: (model: ITextModel, position: Position, ...args: any[]) => any) {
+export function registerModelAndPositionCommand(id: string, handler: (accessor: ServicesAccessor, model: ITextModel, position: Position, ...args: any[]) => any) {
 	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
+
+		const instaService = accessor.get(IInstantiationService);
 
 		const [resource, position] = args;
 		assertType(URI.isUri(resource));
@@ -430,39 +432,13 @@ export function registerModelAndPositionCommand(id: string, handler: (model: ITe
 		const model = accessor.get(IModelService).getModel(resource);
 		if (model) {
 			const editorPosition = Position.lift(position);
-			return handler(model, editorPosition, ...args.slice(2));
+			return instaService.invokeFunction(handler, model, editorPosition, ...args.slice(2));
 		}
 
 		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
 			return new Promise((resolve, reject) => {
 				try {
-					const result = handler(reference.object.textEditorModel, Position.lift(position), args.slice(2));
-					resolve(result);
-				} catch (err) {
-					reject(err);
-				}
-			}).finally(() => {
-				reference.dispose();
-			});
-		});
-	});
-}
-
-export function registerModelCommand(id: string, handler: (model: ITextModel, ...args: any[]) => any) {
-	CommandsRegistry.registerCommand(id, function (accessor, ...args) {
-
-		const [resource] = args;
-		assertType(URI.isUri(resource));
-
-		const model = accessor.get(IModelService).getModel(resource);
-		if (model) {
-			return handler(model, ...args.slice(1));
-		}
-
-		return accessor.get(ITextModelService).createModelReference(resource).then(reference => {
-			return new Promise((resolve, reject) => {
-				try {
-					const result = handler(reference.object.textEditorModel, args.slice(1));
+					const result = instaService.invokeFunction(handler, reference.object.textEditorModel, Position.lift(position), args.slice(2));
 					resolve(result);
 				} catch (err) {
 					reject(err);
@@ -479,7 +455,7 @@ export function registerEditorCommand<T extends EditorCommand>(editorCommand: T)
 	return editorCommand;
 }
 
-export function registerEditorAction<T extends EditorAction>(ctor: { new(): T; }): T {
+export function registerEditorAction<T extends EditorAction>(ctor: { new(): T }): T {
 	const action = new ctor();
 	EditorContributionRegistry.INSTANCE.registerEditorAction(action);
 	return action;
@@ -537,7 +513,7 @@ class EditorContributionRegistry {
 	private readonly editorContributions: IEditorContributionDescription[];
 	private readonly diffEditorContributions: IDiffEditorContributionDescription[];
 	private readonly editorActions: EditorAction[];
-	private readonly editorCommands: { [commandId: string]: EditorCommand; };
+	private readonly editorCommands: { [commandId: string]: EditorCommand };
 
 	constructor() {
 		this.editorContributions = [];

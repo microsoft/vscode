@@ -16,10 +16,10 @@ import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textMo
 
 export interface Params {
 	setup(): Promise<{
-		service: ITextFileService,
-		testDir: string
-	}>
-	teardown(): Promise<void>
+		service: ITextFileService;
+		testDir: string;
+	}>;
+	teardown(): Promise<void>;
 
 	exists(fsPath: string): Promise<boolean>;
 	stat(fsPath: string): Promise<{ size: number }>;

@@ -105,7 +105,7 @@ export class MockDebugService implements IDebugService {
 
 	moveWatchExpression(id: string, position: number): void { }
 
-	updateFunctionBreakpoint(id: string, update: { name?: string, hitCondition?: string, condition?: string }): Promise<void> {
+	updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): Promise<void> {
 		throw new Error('not implemented');
 	}
 
@@ -194,7 +194,7 @@ export class MockSession implements IDebugSession {
 		return false;
 	}
 
-	stepInTargets(frameId: number): Promise<{ id: number; label: string; }[]> {
+	stepInTargets(frameId: number): Promise<{ id: number; label: string }[]> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -206,7 +206,7 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 
-	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined; } | undefined> {
+	dataBreakpointInfo(name: string, variablesReference?: number | undefined): Promise<{ dataId: string | null; description: string; canPersist?: boolean | undefined } | undefined> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -246,7 +246,7 @@ export class MockSession implements IDebugSession {
 	}
 
 	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }
-	logToRepl(sev: Severity, args: any[], frame?: { uri: uri; line: number; column: number; }) { }
+	logToRepl(sev: Severity, args: any[], frame?: { uri: uri; line: number; column: number }) { }
 
 	configuration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
@@ -314,7 +314,7 @@ export class MockSession implements IDebugSession {
 		throw new Error('not implemented');
 	}
 
-	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig }) { }
+	setConfiguration(configuration: { resolved: IConfig; unresolved: IConfig }) { }
 
 	getAllThreads(): IThread[] {
 		return [];

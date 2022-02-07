@@ -27,7 +27,7 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 				new ApiCommandArgument('controllerId', 'Notebook controller Id', v => true, v => v),
 				new ApiCommandArgument('title', 'Interactive editor title', v => true, v => v)
 			],
-			new ApiCommandResult<{ notebookUri: UriComponents, inputUri: UriComponents, notebookEditorId?: string }, { notebookUri: URI, inputUri: URI, notebookEditor?: NotebookEditor }>('Notebook and input URI', (v: { notebookUri: UriComponents, inputUri: UriComponents, notebookEditorId?: string }) => {
+			new ApiCommandResult<{ notebookUri: UriComponents; inputUri: UriComponents; notebookEditorId?: string }, { notebookUri: URI; inputUri: URI; notebookEditor?: NotebookEditor }>('Notebook and input URI', (v: { notebookUri: UriComponents; inputUri: UriComponents; notebookEditorId?: string }) => {
 				if (v.notebookEditorId !== undefined) {
 					const editor = this._extHostNotebooks.getEditorById(v.notebookEditorId);
 					return { notebookUri: URI.revive(v.notebookUri), inputUri: URI.revive(v.inputUri), notebookEditor: editor.apiEditor };

@@ -15,9 +15,9 @@ export interface IExternalTerminalSettings {
 }
 
 export interface ITerminalForPlatform {
-	windows: string,
-	linux: string,
-	osx: string
+	windows: string;
+	linux: string;
+	osx: string;
 }
 
 export interface IExternalTerminalService {
@@ -29,7 +29,7 @@ export interface IExternalTerminalService {
 
 export interface IExternalTerminalConfiguration {
 	terminal: {
-		explorerKind: 'integrated' | 'external',
+		explorerKind: 'integrated' | 'external';
 		external: IExternalTerminalSettings;
 	};
 }

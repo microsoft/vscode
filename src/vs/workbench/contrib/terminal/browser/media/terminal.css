@@ -48,11 +48,16 @@
 .monaco-workbench .pane-body.integrated-terminal .xterm {
 	/* All terminals have at least 10px left/right edge padding and 2 padding on the bottom (so underscores on last line are visible */
 	padding: 0 10px 2px;
-	/* Bottom align the terminal withing the split pane */
+	/* Bottom align the terminal within the split pane */
 	position: absolute;
 	bottom: 0;
 	left: 0;
 	right: 0;
+}
+
+.terminal-side-view .terminal.xterm {
+	/* Top align the terminal within the split pane when the panel is vertical */
+	top: 0;
 }
 
 .monaco-workbench .editor-instance .terminal-wrapper.fixed-dims .xterm,

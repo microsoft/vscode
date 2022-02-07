@@ -43,7 +43,7 @@ const tokenGroupToScopesMap = {
 export type TokenStyleDefinition = SemanticTokenRule | ProbeScope[] | TokenStyleValue;
 export type TokenStyleDefinitions = { [P in keyof TokenStyleData]?: TokenStyleDefinition | undefined };
 
-export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope; };
+export type TextMateThemingRuleDefinitions = { [P in keyof TokenStyleData]?: ITextMateThemingRule | undefined; } & { scope?: ProbeScope };
 
 export class ColorThemeData implements IWorkbenchColorTheme {
 
@@ -690,7 +690,7 @@ function toCSSSelector(extensionId: string, path: string) {
 	return str;
 }
 
-async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[], colors: IColorMap, semanticTokenRules: SemanticTokenRule[], semanticHighlighting: boolean }): Promise<any> {
+async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap; semanticTokenRules: SemanticTokenRule[]; semanticHighlighting: boolean }): Promise<any> {
 	if (resources.extname(themeLocation) === '.json') {
 		const content = await extensionResourceLoaderService.readExtensionResource(themeLocation);
 		let errors: Json.ParseError[] = [];
@@ -749,7 +749,7 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 	}
 }
 
-function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[], colors: IColorMap }): Promise<any> {
+function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap }): Promise<any> {
 	return extensionResourceLoaderService.readExtensionResource(themeLocation).then(content => {
 		try {
 			let contentValue = parsePList(content);
@@ -879,7 +879,7 @@ class TokenColorIndex {
 
 	private _lastColorId: number;
 	private _id2color: string[];
-	private _color2id: { [color: string]: number; };
+	private _color2id: { [color: string]: number };
 
 	constructor() {
 		this._lastColorId = 0;

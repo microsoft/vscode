@@ -132,7 +132,7 @@ class MonacoGenerator {
 	private readonly _isWatch: boolean;
 	public readonly stream: NodeJS.ReadWriteStream;
 
-	private readonly _watchedFiles: { [filePath: string]: boolean; };
+	private readonly _watchedFiles: { [filePath: string]: boolean };
 	private readonly _fsProvider: monacodts.FSProvider;
 	private readonly _declarationResolver: monacodts.DeclarationResolver;
 

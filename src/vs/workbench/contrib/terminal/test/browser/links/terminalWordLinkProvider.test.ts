@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { Terminal } from 'xterm';
-import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -50,8 +49,8 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 };
 
 export interface ITerminalLinkActivationResult {
-	source: 'editor' | 'search',
-	link: string
+	source: 'editor' | 'search';
+	link: string;
 }
 
 class TestFileService extends FileService {

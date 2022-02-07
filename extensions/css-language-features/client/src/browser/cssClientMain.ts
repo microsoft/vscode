@@ -12,7 +12,7 @@ declare const Worker: {
 	new(stringUrl: string): any;
 };
 declare const TextDecoder: {
-	new(encoding?: string): { decode(buffer: ArrayBuffer): string; };
+	new(encoding?: string): { decode(buffer: ArrayBuffer): string };
 };
 
 // this method is called when vs code is activated

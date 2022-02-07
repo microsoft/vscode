@@ -476,8 +476,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 }
 
 interface IInstanceLocation {
-	group: ITerminalGroup,
-	groupIndex: number,
-	instance: ITerminalInstance,
-	instanceIndex: number
+	group: ITerminalGroup;
+	groupIndex: number;
+	instance: ITerminalInstance;
+	instanceIndex: number;
 }

@@ -50,8 +50,8 @@ export interface IViewPaneOptions extends IPaneOptions {
 }
 
 type WelcomeActionClassification = {
-	viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	uri: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	viewId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	uri: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 const viewPaneContainerExpandedIcon = registerIcon('view-pane-container-expanded', Codicon.chevronDown, nls.localize('viewPaneContainerExpandedIcon', 'Icon for an expanded view pane container.'));
@@ -565,7 +565,7 @@ export abstract class ViewPane extends Pane implements IView {
 					const button = new Button(buttonContainer, { title: node.title, supportIcons: true });
 					button.label = node.label;
 					button.onDidClick(_ => {
-						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
+						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
 						this.openerService.open(node.href, { allowCommands: true });
 					}, null, disposables);
 					disposables.add(button);

@@ -25,7 +25,7 @@ import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHost
 
 export class BoundModelReferenceCollection {
 
-	private _data = new Array<{ uri: URI, length: number, dispose(): void }>();
+	private _data = new Array<{ uri: URI; length: number; dispose(): void }>();
 	private _length = 0;
 
 	constructor(
@@ -52,7 +52,7 @@ export class BoundModelReferenceCollection {
 	add(uri: URI, ref: IReference<any>, length: number = 0): void {
 		// const length = ref.object.textEditorModel.getValueLength();
 		let handle: any;
-		let entry: { uri: URI, length: number, dispose(): void };
+		let entry: { uri: URI; length: number; dispose(): void };
 		const dispose = () => {
 			const idx = this._data.indexOf(entry);
 			if (idx >= 0) {
@@ -194,7 +194,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._modelTrackers.set(model.uri, new ModelTracker(model, this._onIsCaughtUpWithContentChanges, this._proxy, this._textFileService));
 	}
 
-	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string; }): void {
+	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string }): void {
 		let { model } = event;
 		if (!this._modelIsSynced.has(model.uri)) {
 			return;
@@ -251,7 +251,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		});
 	}
 
-	$tryCreateDocument(options?: { language?: string, content?: string }): Promise<URI> {
+	$tryCreateDocument(options?: { language?: string; content?: string }): Promise<URI> {
 		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
 	}
 

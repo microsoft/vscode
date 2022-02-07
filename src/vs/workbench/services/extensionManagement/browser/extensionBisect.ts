@@ -36,7 +36,7 @@ export interface IExtensionBisectService {
 	isActive: boolean;
 	disabledCount: number;
 	start(extensions: ILocalExtension[]): Promise<void>;
-	next(seeingBad: boolean): Promise<{ id: string, bad: boolean } | undefined>;
+	next(seeingBad: boolean): Promise<{ id: string; bad: boolean } | undefined>;
 	reset(): Promise<void>;
 }
 
@@ -129,7 +129,7 @@ class ExtensionBisectService implements IExtensionBisectService {
 		await this._storageService.flush();
 	}
 
-	async next(seeingBad: boolean): Promise<{ id: string; bad: boolean; } | undefined> {
+	async next(seeingBad: boolean): Promise<{ id: string; bad: boolean } | undefined> {
 		if (!this._state) {
 			throw new Error('invalid state');
 		}

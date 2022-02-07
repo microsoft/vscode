@@ -43,14 +43,14 @@ export class HoverWidget extends Disposable {
 }
 
 export class HoverAction extends Disposable {
-	public static render(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }, keybindingLabel: string | null) {
+	public static render(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }, keybindingLabel: string | null) {
 		return new HoverAction(parent, actionOptions, keybindingLabel);
 	}
 
 	private readonly actionContainer: HTMLElement;
 	private readonly action: HTMLElement;
 
-	private constructor(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }, keybindingLabel: string | null) {
+	private constructor(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }, keybindingLabel: string | null) {
 		super();
 
 		this.actionContainer = dom.append(parent, $('div.action-container'));

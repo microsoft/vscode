@@ -86,6 +86,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
+import 'vs/editor/common/services/languageFeaturesService';
+
 class SimpleModel implements IResolvedTextEditorModel {
 
 	private readonly model: ITextModel;
@@ -808,7 +810,7 @@ class StandaloneUriLabelService implements ILabelService {
 
 	public readonly onDidChangeFormatters: Event<IFormatterChangeEvent> = Event.None;
 
-	public getUriLabel(resource: URI, options?: { relative?: boolean, forceNoTildify?: boolean }): string {
+	public getUriLabel(resource: URI, options?: { relative?: boolean; forceNoTildify?: boolean }): string {
 		if (resource.scheme === 'file') {
 			return resource.fsPath;
 		}
@@ -819,7 +821,7 @@ class StandaloneUriLabelService implements ILabelService {
 		return basename(resource);
 	}
 
-	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean; }): string {
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: boolean }): string {
 		return '';
 	}
 

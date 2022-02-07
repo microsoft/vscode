@@ -30,7 +30,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemKinds, CompletionList, CompletionProviderRegistry } from 'vs/editor/common/languages';
+import { CompletionContext, CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemKinds, CompletionList } from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
@@ -64,6 +64,7 @@ import { ReplAccessibilityProvider, ReplDataSource, ReplDelegate, ReplEvaluation
 import { CONTEXT_DEBUG_STATE, CONTEXT_IN_DEBUG_REPL, CONTEXT_MULTI_SESSION_REPL, DEBUG_SCHEME, getStateLabel, IDebugConfiguration, IDebugService, IDebugSession, IReplElement, REPL_VIEW_ID, State } from 'vs/workbench/contrib/debug/common/debug';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 const $ = dom.$;
 
@@ -125,7 +126,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IMenuService menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -219,7 +221,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.completionItemProvider.dispose();
 			}
 			if (session.capabilities.supportsCompletionsRequest) {
-				this.completionItemProvider = CompletionProviderRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
+				this.completionItemProvider = this.languageFeaturesService.completionProvider.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 					triggerCharacters: session.capabilities.completionTriggerCharacters || ['.'],
 					provideCompletionItems: async (_: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 						// Disable history navigation because up and down are used to navigate through the suggest widget
@@ -285,7 +287,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		await this.selectSession();
 	}
 
-	getFilterStats(): { total: number, filtered: number } {
+	getFilterStats(): { total: number; filtered: number } {
 		// This could be called before the tree is created when setting this.filterState.filterText value
 		return {
 			total: this.tree?.getNode().children.length ?? 0,

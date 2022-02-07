@@ -146,7 +146,7 @@ class HelpDataSource implements IAsyncDataSource<HelpModel, IHelpItem> {
 	}
 }
 interface IHelpItem {
-	icon: ThemeIcon,
+	icon: ThemeIcon;
 	iconClasses: string[];
 	label: string;
 	handleClick(): Promise<void>;
@@ -723,7 +723,7 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
 			let disposableListener: IDisposable | null = null;
 
-			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string, callback: () => void }[], initialReport: string | null = null): VisibleProgress {
+			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification | null, buttons: { label: string; callback: () => void }[], initialReport: string | null = null): VisibleProgress {
 				if (visibleProgress) {
 					visibleProgress.dispose();
 					visibleProgress = null;
@@ -775,10 +775,10 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 				callback: () => {
 
 					type ReconnectReloadClassification = {
-						remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-						reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-						millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-						attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+						remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+						reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+						millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+						attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 					};
 					type ReconnectReloadEvent = {
 						remoteName: string | undefined;
@@ -819,8 +819,8 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = 0;
 
 						type RemoteConnectionLostClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						};
 						type RemoteConnectionLostEvent = {
 							remoteName: string | undefined;
@@ -853,10 +853,10 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionRunningClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						};
 						type RemoteReconnectionRunningEvent = {
 							remoteName: string | undefined;
@@ -892,11 +892,11 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteReconnectionPermanentFailureClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							handled: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							handled: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						};
 						type RemoteReconnectionPermanentFailureEvent = {
 							remoteName: string | undefined;
@@ -935,10 +935,10 @@ export class RemoteAgentConnectionStatusListener extends Disposable implements I
 						reconnectionAttempts = e.attempt;
 
 						type RemoteConnectionGainClassification = {
-							remoteName: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							reconnectionToken: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							millisSinceLastIncomingData: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-							attempt: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+							remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							reconnectionToken: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							millisSinceLastIncomingData: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+							attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 						};
 						type RemoteConnectionGainEvent = {
 							remoteName: string | undefined;

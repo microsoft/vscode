@@ -14,11 +14,11 @@ import * as util from './util';
 
 type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
 type DarwinDocumentType = {
-	name: string,
-	role: string,
-	ostypes: string[],
-	extensions: string[],
-	iconFile: string,
+	name: string;
+	role: string;
+	ostypes: string[];
+	extensions: string[];
+	iconFile: string;
 };
 
 function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {

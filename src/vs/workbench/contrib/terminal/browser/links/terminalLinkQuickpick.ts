@@ -64,7 +64,7 @@ export class TerminalLinkQuickpick {
 }
 
 export interface ITerminalLinkQuickPickItem extends IQuickPickItem {
-	link: ILink
+	link: ILink;
 }
 
 type LinkQuickPickItem = ITerminalLinkQuickPickItem | IQuickPickSeparator;

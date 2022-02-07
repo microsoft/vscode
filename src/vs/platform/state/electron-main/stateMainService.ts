@@ -13,7 +13,7 @@ import { FileOperationError, FileOperationResult, IFileService } from 'vs/platfo
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 
-type StorageDatabase = { [key: string]: unknown; };
+type StorageDatabase = { [key: string]: unknown };
 
 export class FileStorage {
 
@@ -66,7 +66,7 @@ export class FileStorage {
 		this.setItems([{ key, data }]);
 	}
 
-	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void {
+	setItems(items: readonly { key: string; data?: object | string | number | boolean | undefined | null }[]): void {
 		let save = false;
 
 		for (const { key, data } of items) {
@@ -175,7 +175,7 @@ export class StateMainService implements IStateMainService {
 		this.fileStorage.setItem(key, data);
 	}
 
-	setItems(items: readonly { key: string, data?: object | string | number | boolean | undefined | null }[]): void {
+	setItems(items: readonly { key: string; data?: object | string | number | boolean | undefined | null }[]): void {
 		this.fileStorage.setItems(items);
 	}
 

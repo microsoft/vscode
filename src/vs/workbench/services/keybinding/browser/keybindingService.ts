@@ -38,7 +38,7 @@ import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/men
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
@@ -320,7 +320,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return resolvedKeybinding.getDispatchParts().map(x => x || '[null]').join(' ');
 	}
 
-	private _printResolvedKeybindings(output:string[], input: string, resolvedKeybindings: ResolvedKeybinding[]): void {
+	private _printResolvedKeybindings(output: string[], input: string, resolvedKeybindings: ResolvedKeybinding[]): void {
 		const padLength = 35;
 		const firstRow = `${input.padStart(padLength, ' ')} => `;
 		if (resolvedKeybindings.length === 0) {
@@ -731,6 +731,12 @@ class UserKeybindings extends Disposable {
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keybindingsResource))(() => {
 			logService.debug('Keybindings file changed');
 			this.reloadConfigurationScheduler.schedule();
+		}));
+		this._register(this.fileService.onDidRunOperation((e) => {
+			if (e.operation === FileOperation.WRITE && e.resource.toString() === this.keybindingsResource.toString()) {
+				logService.debug('Keybindings file written');
+				this.reloadConfigurationScheduler.schedule();
+			}
 		}));
 	}
 

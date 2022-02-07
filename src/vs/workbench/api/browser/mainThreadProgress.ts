@@ -22,7 +22,7 @@ class ManageExtensionAction extends Action {
 export class MainThreadProgress implements MainThreadProgressShape {
 
 	private readonly _progressService: IProgressService;
-	private _progress = new Map<number, { resolve: () => void, progress: IProgress<IProgressStep> }>();
+	private _progress = new Map<number, { resolve: () => void; progress: IProgress<IProgressStep> }>();
 	private readonly _proxy: ExtHostProgressShape;
 
 	constructor(

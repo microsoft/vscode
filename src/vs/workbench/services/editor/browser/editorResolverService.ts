@@ -31,12 +31,12 @@ import { Emitter } from 'vs/base/common/event';
 import { IFileService } from 'vs/platform/files/common/files';
 
 interface RegisteredEditor {
-	globPattern: string | glob.IRelativePattern,
-	editorInfo: RegisteredEditorInfo,
-	options?: RegisteredEditorOptions,
-	createEditorInput: EditorInputFactoryFunction,
-	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-	createDiffEditorInput?: DiffEditorInputFactoryFunction
+	globPattern: string | glob.IRelativePattern;
+	editorInfo: RegisteredEditorInfo;
+	options?: RegisteredEditorOptions;
+	createEditorInput: EditorInputFactoryFunction;
+	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined;
+	createDiffEditorInput?: DiffEditorInputFactoryFunction;
 }
 
 type RegisteredEditors = Array<RegisteredEditor>;
@@ -382,7 +382,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	 * Given a resource and an editorId selects the best possible editor
 	 * @returns The editor and whether there was another default which conflicted with it
 	 */
-	private getEditor(resource: URI, editorId: string | EditorResolution.EXCLUSIVE_ONLY | undefined): { editor: RegisteredEditor | undefined, conflictingDefault: boolean } {
+	private getEditor(resource: URI, editorId: string | EditorResolution.EXCLUSIVE_ONLY | undefined): { editor: RegisteredEditor | undefined; conflictingDefault: boolean } {
 
 		const findMatchingEditor = (editors: RegisteredEditors, viewType: string) => {
 			return editors.find((editor) => {
@@ -531,8 +531,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private findExistingEditorsForResource(
 		resource: URI,
 		editorId: string,
-	): Array<{ editor: EditorInput, group: IEditorGroup }> {
-		const out: Array<{ editor: EditorInput, group: IEditorGroup }> = [];
+	): Array<{ editor: EditorInput; group: IEditorGroup }> {
+		const out: Array<{ editor: EditorInput; group: IEditorGroup }> = [];
 		const orderedGroups = distinct([
 			...this.editorGroupService.groups,
 		]);
@@ -752,10 +752,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	private sendEditorResolutionTelemetry(chosenInput: EditorInput): void {
 		type editorResolutionClassification = {
-			viewType: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 		};
 		type editorResolutionEvent = {
-			viewType: string
+			viewType: string;
 		};
 		if (chosenInput.editorId) {
 			this.telemetryService.publicLog2<editorResolutionEvent, editorResolutionClassification>('override.viewType', { viewType: chosenInput.editorId });

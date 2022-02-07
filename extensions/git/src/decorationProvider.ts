@@ -16,7 +16,7 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 	private static Decoration: FileDecoration = { color: new ThemeColor('gitDecoration.ignoredResourceForeground') };
 
 	readonly onDidChangeFileDecorations: Event<Uri[]>;
-	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>>; }>();
+	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>> }>();
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {

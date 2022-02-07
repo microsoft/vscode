@@ -20,7 +20,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
+type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
 
 class ModelEditTask implements IDisposable {
 

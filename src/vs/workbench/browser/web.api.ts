@@ -33,7 +33,7 @@ export interface IWorkbench {
 		* @return A promise that resolves to the returned value of the given command.
 		*/
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
-	}
+	};
 
 	env: {
 
@@ -61,7 +61,7 @@ export interface IWorkbench {
 		 * workbench.
 		 */
 		openUri(target: URI): Promise<boolean>;
-	}
+	};
 
 	/**
 	 * Triggers shutdown of the workbench programmatically. After this method is
@@ -122,13 +122,13 @@ export interface IWorkbenchConstructionOptions {
 	/**
 	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
 	 */
-	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string };
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Endpoints to be used for proxying repository tarball download calls in the browser.
 	 */
-	readonly _tarballProxyEndpoints?: { [providerId: string]: string }
+	readonly _tarballProxyEndpoints?: { [providerId: string]: string };
 
 	//#endregion
 
@@ -282,7 +282,7 @@ export interface IResourceUriProvider {
  */
 export type ExtensionId = string;
 
-export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId, preRelease?: boolean, migrateStorageFrom?: ExtensionId };
+export type MarketplaceExtension = ExtensionId | { readonly id: ExtensionId; preRelease?: boolean; migrateStorageFrom?: ExtensionId };
 
 export interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -328,7 +328,7 @@ export interface ITunnelFactory {
 
 export interface ITunnelOptions {
 
-	remoteAddress: { port: number, host: string };
+	remoteAddress: { port: number; host: string };
 
 	/**
 	 * The desired local port. If this port can't be used, then another will be chosen.
@@ -357,7 +357,7 @@ export interface TunnelCreationOptions {
 
 export interface ITunnel {
 
-	remoteAddress: { port: number, host: string };
+	remoteAddress: { port: number; host: string };
 
 	/**
 	 * The complete local address(ex. localhost:1234)
@@ -399,20 +399,20 @@ export interface ICommand {
 	 * An identifier for the command. Commands can be executed from extensions
 	 * using the `vscode.commands.executeCommand` API using that command ID.
 	 */
-	id: string,
+	id: string;
 
 	/**
 	 * The optional label of the command. If provided, the command will appear
 	 * in the command palette.
 	 */
-	label?: string,
+	label?: string;
 
 	/**
 	 * The optional menus to append this command to. Only valid if `label` is
 	 * provided as well.
 	 * @default Menu.CommandPalette
 	 */
-	menu?: Menu | Menu[],
+	menu?: Menu | Menu[];
 
 	/**
 	 * A function that is being executed with any arguments passed over. The

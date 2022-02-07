@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// @ts-check
+import { UriParts, IRawURITransformer, URITransformer, IURITransformer } from 'vs/base/common/uriIpc';
 
 /**
  * ```
@@ -14,19 +14,10 @@
  * | file          | vscode-local |
  * --------------------------------
  * ```
- * @typedef { import('../../base/common/uriIpc').IRawURITransformer } IRawURITransformer
- * @typedef { import('../../base/common/uriIpc').UriParts } UriParts
- * @typedef { import('../../base/common/uri').UriComponents } UriComponents
- * @param {string} remoteAuthority
- * @returns {IRawURITransformer}
  */
-module.exports = function(remoteAuthority) {
+function createRawURITransformer(remoteAuthority: string): IRawURITransformer {
 	return {
-		/**
-		 * @param {UriParts} uri
-		 * @returns {UriParts}
-		 */
-		transformIncoming: (uri) => {
+		transformIncoming: (uri: UriParts): UriParts => {
 			if (uri.scheme === 'vscode-remote') {
 				return { scheme: 'file', path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
@@ -35,11 +26,7 @@ module.exports = function(remoteAuthority) {
 			}
 			return uri;
 		},
-		/**
-		 * @param {UriParts} uri
-		 * @returns {UriParts}
-		 */
-		transformOutgoing: (uri) => {
+		transformOutgoing: (uri: UriParts): UriParts => {
 			if (uri.scheme === 'file') {
 				return { scheme: 'vscode-remote', authority: remoteAuthority, path: uri.path, query: uri.query, fragment: uri.fragment };
 			}
@@ -48,11 +35,7 @@ module.exports = function(remoteAuthority) {
 			}
 			return uri;
 		},
-		/**
-		 * @param {string} scheme
-		 * @returns {string}
-		 */
-		transformOutgoingScheme: (scheme) => {
+		transformOutgoingScheme: (scheme: string): string => {
 			if (scheme === 'file') {
 				return 'vscode-remote';
 			} else if (scheme === 'vscode-local') {
@@ -61,4 +44,8 @@ module.exports = function(remoteAuthority) {
 			return scheme;
 		}
 	};
-};
+}
+
+export function createURITransformer(remoteAuthority: string): IURITransformer {
+	return new URITransformer(createRawURITransformer(remoteAuthority));
+}

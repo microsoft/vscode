@@ -336,15 +336,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
-		// submit all stats that have been collected
-		// during the build phase
-		if (opts.stats) {
-			result.on('end', () => {
-				const { submitAllStats } = require('./lib/stats');
-				submitAllStats(product, commit).then(() => console.log('Submitted bundle stats!'));
-			});
-		}
-
 		return result.pipe(vfs.dest(destination));
 	};
 }

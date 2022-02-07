@@ -658,13 +658,13 @@ class MockCommandService implements ICommandService {
 
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
-	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined; endWithSeparator?: boolean | undefined; }): string {
+	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined; endWithSeparator?: boolean | undefined }): string {
 		return normalize(resource.fsPath);
 	}
 	getUriBasenameLabel(resource: uri): string {
 		throw new Error('Method not implemented.');
 	}
-	getWorkspaceLabel(workspace: uri | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean; }): string {
+	getWorkspaceLabel(workspace: uri | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean }): string {
 		throw new Error('Method not implemented.');
 	}
 	getHostLabel(scheme: string, authority?: string): string {
@@ -691,7 +691,7 @@ class MockPathService implements IPathService {
 	fileURI(path: string): Promise<uri> {
 		throw new Error('Method not implemented.');
 	}
-	userHome(options?: { preferLocal: boolean; }): Promise<uri> {
+	userHome(options?: { preferLocal: boolean }): Promise<uri> {
 		throw new Error('Method not implemented.');
 	}
 	hasValidBasename(resource: uri, basename?: string): Promise<boolean>;

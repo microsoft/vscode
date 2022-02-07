@@ -11,7 +11,7 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';

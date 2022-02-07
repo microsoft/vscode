@@ -6,7 +6,8 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { CursorCollection } from 'vs/editor/common/cursor/cursorCollection';
-import { CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/cursorCommon';
+import { CursorConfiguration, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/cursorCommon';
+import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
 import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeOperations';
@@ -963,7 +964,7 @@ class CommandExecutor {
 		};
 	}
 
-	private static _getLoserCursorMap(operations: IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
+	private static _getLoserCursorMap(operations: IIdentifiedSingleEditOperation[]): { [index: string]: boolean } {
 		// This is destructive on the array
 		operations = operations.slice(0);
 
@@ -974,7 +975,7 @@ class CommandExecutor {
 		});
 
 		// Operations can not overlap!
-		const loserCursorsMap: { [index: string]: boolean; } = {};
+		const loserCursorsMap: { [index: string]: boolean } = {};
 
 		for (let i = 1; i < operations.length; i++) {
 			const previousOp = operations[i - 1];

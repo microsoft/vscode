@@ -192,7 +192,7 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	readonly hasSaveParticipants = false;
 	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable { return Disposable.None; }
-	async runSaveParticipants(workingCopy: IWorkingCopy, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> { }
+	async runSaveParticipants(workingCopy: IWorkingCopy, context: { reason: SaveReason }, token: CancellationToken): Promise<void> { }
 
 	async delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void> { }
 

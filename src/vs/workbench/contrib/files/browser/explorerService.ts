@@ -32,7 +32,7 @@ export class ExplorerService implements IExplorerService {
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
 	private readonly disposables = new DisposableStore();
-	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
+	private editable: { stat: ExplorerItem; data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private _lexicographicOptions: LexicographicOptions;
 	private cutItems: ExplorerItem[] | undefined;
@@ -153,7 +153,7 @@ export class ExplorerService implements IExplorerService {
 		return this.view.getContext(respectMultiSelection);
 	}
 
-	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
+	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
 		const cancellationTokenSource = new CancellationTokenSource();
 		const promise = this.progressService.withProgress(<IProgressNotificationOptions | IProgressCompositeOptions>{
 			location: options.progressLocation || ProgressLocation.Window,
@@ -219,7 +219,7 @@ export class ExplorerService implements IExplorerService {
 		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
 	}
 
-	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined {
+	getEditable(): { stat: ExplorerItem; data: IEditableData } | undefined {
 		return this.editable;
 	}
 

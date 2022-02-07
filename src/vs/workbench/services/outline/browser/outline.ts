@@ -69,7 +69,7 @@ export interface IOutlineListConfig<E> {
 }
 
 export interface OutlineChangeEvent {
-	affectOnlyActiveElement?: true
+	affectOnlyActiveElement?: true;
 }
 
 export interface IOutline<E> {

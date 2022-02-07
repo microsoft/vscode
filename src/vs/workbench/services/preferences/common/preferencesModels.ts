@@ -629,7 +629,7 @@ export class DefaultSettings extends Disposable {
 		return result;
 	}
 
-	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }, extensionInfo?: IExtensionInfo): ISetting[] {
+	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema }, extensionInfo?: IExtensionInfo): ISetting[] {
 		const result: ISetting[] = [];
 		for (const key in settingsObject) {
 			const prop = settingsObject[key];
@@ -829,7 +829,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	/**
 	 * Translate the ISearchResultGroups to text, and write it to the editor model
 	 */
-	private writeResultGroups(groups: ISearchResultGroup[], startLine: number): { matches: IRange[], settingsGroups: ISettingsGroup[] } {
+	private writeResultGroups(groups: ISearchResultGroup[], startLine: number): { matches: IRange[]; settingsGroups: ISettingsGroup[] } {
 		const contentBuilderOffset = startLine - 1;
 		const builder = new SettingsContentBuilder(contentBuilderOffset);
 

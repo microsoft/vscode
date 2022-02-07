@@ -12,6 +12,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 export const OPEN_FILE_LABEL = localize('openFile', 'Open file in editor');
 export const FOLDER_IN_WORKSPACE_LABEL = localize('focusFolder', 'Focus folder in explorer');
@@ -27,12 +28,11 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private readonly _onInvalidated = new Emitter<void>();
 	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
-
-
 	constructor(
 		private readonly _xterm: Terminal,
 		readonly range: IBufferRange,
 		readonly text: string,
+		readonly actions: IHoverAction[] | undefined,
 		private readonly _viewportY: number,
 		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => Promise<void>,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,

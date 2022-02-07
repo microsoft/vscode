@@ -55,9 +55,7 @@ export class NotebookVisibleCellObserver extends Disposable {
 			return;
 		}
 
-		const rangesWithEnd = this._notebookEditor.visibleRanges
-			.map(range => ({ start: range.start, end: range.end + 1 }));
-		const newVisibleCells = cellRangesToIndexes(rangesWithEnd)
+		const newVisibleCells = cellRangesToIndexes(this._notebookEditor.visibleRanges)
 			.map(index => this._notebookEditor.cellAt(index))
 			.filter(isDefined);
 		const newVisibleHandles = new Set(newVisibleCells.map(cell => cell.handle));

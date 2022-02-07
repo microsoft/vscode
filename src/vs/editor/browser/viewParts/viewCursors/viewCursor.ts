@@ -11,7 +11,7 @@ import { TextEditorCursorStyle, EditorOption } from 'vs/editor/common/config/edi
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
@@ -123,7 +123,7 @@ export class ViewCursor {
 	 */
 	private _getGraphemeAwarePosition(): [Position, string] {
 		const { lineNumber, column } = this._position;
-		const lineContent = this._context.model.getLineContent(lineNumber);
+		const lineContent = this._context.viewModel.getLineContent(lineNumber);
 		const [startOffset, endOffset] = strings.getCharContainingOffset(lineContent, column - 1);
 		return [new Position(lineNumber, startOffset + 1), lineContent.substring(startOffset, endOffset)];
 	}
@@ -176,7 +176,7 @@ export class ViewCursor {
 
 		let textContentClassName = '';
 		if (this._cursorStyle === TextEditorCursorStyle.Block) {
-			const lineData = this._context.model.getViewLineData(position.lineNumber);
+			const lineData = this._context.viewModel.getViewLineData(position.lineNumber);
 			textContent = nextGrapheme;
 			const tokenIndex = lineData.tokens.findTokenIndexAtOffset(position.column - 1);
 			textContentClassName = lineData.tokens.getClassName(tokenIndex);

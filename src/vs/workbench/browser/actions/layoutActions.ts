@@ -1035,7 +1035,7 @@ const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('
 const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
 const zenModeIcon = registerIcon('zenMode', Codicon.target, localize('zenModeIcon', "Represents zen mode"));
 
-type ContextualLayoutVisualIcon = { iconA: ThemeIcon, iconB: ThemeIcon, whenA: ContextKeyExpression };
+type ContextualLayoutVisualIcon = { iconA: ThemeIcon; iconB: ThemeIcon; whenA: ContextKeyExpression };
 type LayoutVisualIcon = ThemeIcon | ContextualLayoutVisualIcon;
 
 function isContextualLayoutVisualIcon(icon: LayoutVisualIcon): icon is ContextualLayoutVisualIcon {

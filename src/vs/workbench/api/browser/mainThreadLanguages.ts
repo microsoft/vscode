@@ -62,7 +62,7 @@ export class MainThreadLanguages implements MainThreadLanguagesShape {
 		}
 	}
 
-	async $tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType, range: IRange }> {
+	async $tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: StandardTokenType; range: IRange }> {
 		const uri = URI.revive(resource);
 		const model = this._modelService.getModel(uri);
 		if (!model) {

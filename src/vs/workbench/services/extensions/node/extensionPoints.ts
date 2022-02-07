@@ -201,7 +201,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * Parses original message bundle, returns null if the original message bundle is null.
 	 */
 	private static resolveOriginalMessageBundle(originalMessageBundle: string | null, errors: json.ParseError[]) {
-		return new Promise<{ [key: string]: string; } | null>((c, e) => {
+		return new Promise<{ [key: string]: string } | null>((c, e) => {
 			if (originalMessageBundle) {
 				pfs.Promises.readFile(originalMessageBundle).then(originalBundleContent => {
 					c(json.parse(originalBundleContent.toString(), errors));
@@ -218,8 +218,8 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * Finds localized message bundle and the original (unlocalized) one.
 	 * If the localized file is not present, returns null for the original and marks original as localized.
 	 */
-	private static findMessageBundles(nlsConfig: NlsConfiguration, basename: string): Promise<{ localized: string; original: string | null; }> {
-		return new Promise<{ localized: string; original: string | null; }>((c, e) => {
+	private static findMessageBundles(nlsConfig: NlsConfiguration, basename: string): Promise<{ localized: string; original: string | null }> {
+		return new Promise<{ localized: string; original: string | null }>((c, e) => {
 			function loop(basename: string, locale: string): void {
 				let toCheck = `${basename}.nls.${locale}.json`;
 				pfs.SymlinkSupport.existsFile(toCheck).then(exists => {
@@ -549,7 +549,7 @@ export class ExtensionScanner {
 		}
 
 		try {
-			let obsolete: { [folderName: string]: boolean; } = {};
+			let obsolete: { [folderName: string]: boolean } = {};
 			if (!isBuiltin) {
 				try {
 					const obsoleteFileContents = await pfs.Promises.readFile(path.join(absoluteFolderPath, '.obsolete'), 'utf8');
@@ -628,7 +628,7 @@ export class ExtensionScanner {
 
 	public static mergeBuiltinExtensions(builtinExtensions: Promise<IExtensionDescription[]>, extraBuiltinExtensions: Promise<IExtensionDescription[]>): Promise<IExtensionDescription[]> {
 		return Promise.all([builtinExtensions, extraBuiltinExtensions]).then(([builtinExtensions, extraBuiltinExtensions]) => {
-			let resultMap: { [id: string]: IExtensionDescription; } = Object.create(null);
+			let resultMap: { [id: string]: IExtensionDescription } = Object.create(null);
 			for (let i = 0, len = builtinExtensions.length; i < len; i++) {
 				resultMap[ExtensionIdentifier.toKey(builtinExtensions[i].identifier)] = builtinExtensions[i];
 			}
