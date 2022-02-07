@@ -40,8 +40,6 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					switch (type) {
 						case 'archive':
 							return `${asset}-archive`;
-						case 'sbom':
-							return `${asset}-sbom`;
 						case 'setup':
 							return asset;
 						case 'user-setup':
@@ -50,13 +48,11 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
 				}
-				case 'server': {
+				case 'server':
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
-					const asset = arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
-					return type === 'sbom' ? `${asset}-sbom` : asset;
-				}
+					return arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
 				case 'web':
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
