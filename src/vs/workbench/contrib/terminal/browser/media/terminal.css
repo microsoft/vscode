@@ -411,3 +411,7 @@
 .prompt-xterm-decoration {
 	background-color: blue;
 }
+
+.prompt-xterm-error {
+	background-color: red;
+}
