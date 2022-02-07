@@ -30,7 +30,7 @@ import 'vs/workbench/api/node/extHost.node.services';
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
 	skipWorkspaceStorageLock?: boolean;
-	useHostProxy?: boolean;
+	useHostProxy?: 'true' | 'false'; // use a string, as undefined is also a valid value
 }
 
 // workaround for https://github.com/microsoft/vscode/issues/85490
@@ -46,12 +46,12 @@ interface ParsedExtHostArgs {
 
 const args = minimist(process.argv.slice(2), {
 	string: [
-		'uriTransformerPath'
+		'uriTransformerPath',
+		'useHostProxy' // 'true' | 'false' | undefined
 	],
 	boolean: [
-		'skipWorkspaceStorageLock',
-		'useHostProxy'
-	]
+		'skipWorkspaceStorageLock'
+	],
 }) as ParsedExtHostArgs;
 
 // With Electron 2.x and node.js 8.x the "natives" module
@@ -336,7 +336,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 	const { initData } = renderer;
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/microsoft/vscode/issues/37708)
-	initData.environment.useHostProxy = !!args.useHostProxy;
+	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
 	initData.environment.skipWorkspaceStorageLock = boolean(args.skipWorkspaceStorageLock, false);
 
 	// host abstraction
