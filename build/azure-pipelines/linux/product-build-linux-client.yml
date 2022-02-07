@@ -371,9 +371,9 @@ steps:
   - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
     displayName: Generate SBOM (server)
     inputs:
-      BuildDropPath: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)
+      BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
       PackageName: Visual Studio Code Server
 
-  - publish: $(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)/_manifest
+  - publish: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)/_manifest
     displayName: Publish SBOM (server)
     artifact: vscode_server_linux_$(VSCODE_ARCH)_sbom

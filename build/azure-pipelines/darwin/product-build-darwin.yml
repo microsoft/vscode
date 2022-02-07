@@ -356,11 +356,11 @@ steps:
   - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
     displayName: Generate SBOM (server)
     inputs:
-      BuildDropPath: $(agent.builddirectory)/vscode-reh-darwin
+      BuildDropPath: $(agent.builddirectory)/vscode-server-darwin
       PackageName: Visual Studio Code Server
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
-  - publish: $(agent.builddirectory)/vscode-reh-darwin/_manifest
+  - publish: $(agent.builddirectory)/vscode-server-darwin/_manifest
     displayName: Publish SBOM (server)
     artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
