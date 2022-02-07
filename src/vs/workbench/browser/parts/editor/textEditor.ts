@@ -194,6 +194,8 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {
+		super.setOptions(options);
+
 		if (options) {
 			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
 		}

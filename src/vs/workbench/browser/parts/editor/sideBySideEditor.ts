@@ -375,6 +375,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	}
 
 	override setOptions(options: ISideBySideEditorOptions | undefined): void {
+		super.setOptions(options);
 
 		// Update focus if target is provided
 		if (typeof options?.target === 'number') {
