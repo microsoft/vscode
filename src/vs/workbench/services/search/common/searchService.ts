@@ -122,7 +122,7 @@ export class SearchService extends Disposable implements ISearchService {
 
 		const providerPromise = (async () => {
 			await Promise.all(providerActivations);
-			this.extensionService.whenInstalledExtensionsRegistered();
+			await this.extensionService.whenInstalledExtensionsRegistered();
 
 			// Cancel faster if search was canceled while waiting for extensions
 			if (token && token.isCancellationRequested) {
