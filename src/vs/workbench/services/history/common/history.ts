@@ -17,10 +17,23 @@ export const IHistoryService = createDecorator<IHistoryService>('historyService'
 export const enum GoFilter {
 
 	/**
+	 * Navigate between editor navigation history
+	 * entries from any kind of navigation source.
+	 */
+	NONE = 0,
+
+	/**
 	 * Only navigate between editor navigation history
 	 * entries that were resulting from edits.
 	 */
-	EDITS = 1
+	EDITS = 1,
+
+	/**
+	 * Only navigate between editor navigation history
+	 * entries that were resulting from navigations, such
+	 * as "Go to definition".
+	 */
+	NAVIGATION = 2
 }
 
 export interface IHistoryService {

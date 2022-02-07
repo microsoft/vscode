@@ -189,7 +189,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 
 		this._widget = this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
 		this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
-		this._widgetDisposableStore.add(this._widget.value!.onDidChangeActiveCell(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.NONE })));
+		this._widgetDisposableStore.add(this._widget.value!.onDidChangeActiveCell(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.USER })));
 
 		if (this._dimension) {
 			this._widget.value!.layout(this._dimension, this._rootElement);

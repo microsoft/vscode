@@ -193,7 +193,7 @@ suite('HistoryService', function () {
 		assert.strictEqual(stack.canGoLast(), false);
 
 		// Opening our first editor emits change event
-		stack.notifyNavigation(pane, { reason: EditorPaneSelectionChangeReason.NONE });
+		stack.notifyNavigation(pane, { reason: EditorPaneSelectionChangeReason.USER });
 		assert.strictEqual(changed, true);
 		changed = false;
 
@@ -201,13 +201,13 @@ suite('HistoryService', function () {
 		assert.strictEqual(stack.canGoLast(), true);
 
 		// Opening same editor is not treated as new history stop
-		stack.notifyNavigation(pane, { reason: EditorPaneSelectionChangeReason.NONE });
+		stack.notifyNavigation(pane, { reason: EditorPaneSelectionChangeReason.USER });
 		assert.strictEqual(stack.canGoBack(), false);
 
 		// Opening different editor allows to go back
 		await editorService.openEditor({ resource: otherResource, options: { pinned: true } });
 
-		stack.notifyNavigation(pane, { reason: EditorPaneSelectionChangeReason.NONE });
+		stack.notifyNavigation(pane, { reason: EditorPaneSelectionChangeReason.USER });
 		assert.strictEqual(changed, true);
 		changed = false;
 

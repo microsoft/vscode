@@ -324,6 +324,21 @@ export const enum TextEditorSelectionRevealType {
 	NearTopIfOutsideViewport = 3,
 }
 
+export const enum TextEditorSelectionSource {
+
+	/**
+	 * Standard source is `api` indicating that the selection
+	 * change was caused by code and not the user.
+	 */
+	DEFAULT = 'api',
+
+	/**
+	 * Navigation source indicates a change that was caused
+	 * by navigating in the text editor, such as "Go to definition"
+	 */
+	NAVIGATION = 'navigation'
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
@@ -336,4 +351,9 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
 	selectionRevealType?: TextEditorSelectionRevealType;
+
+	/**
+	 * Source of the call that caused the selection.
+	 */
+	selectionSource?: TextEditorSelectionSource | string;
 }

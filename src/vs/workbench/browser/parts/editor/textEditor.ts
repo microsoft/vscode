@@ -28,8 +28,9 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -143,8 +144,16 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		if (codeEditor) {
 			this._register(codeEditor.onDidChangeModelLanguage(() => this.updateEditorConfiguration()));
 			this._register(codeEditor.onDidChangeModel(() => this.updateEditorConfiguration()));
-			this._register(codeEditor.onDidChangeCursorPosition(e => this._onDidChangeSelection.fire({ reason: e.source === 'api' ? EditorPaneSelectionChangeReason.NAVIGATION : EditorPaneSelectionChangeReason.NONE })));
+			this._register(codeEditor.onDidChangeCursorPosition(e => this._onDidChangeSelection.fire({ reason: this.toEditorPaneSelectionChangeReason(e) })));
 			this._register(codeEditor.onDidChangeModelContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
+		}
+	}
+
+	private toEditorPaneSelectionChangeReason(e: ICursorPositionChangedEvent): EditorPaneSelectionChangeReason {
+		switch (e.source) {
+			case TextEditorSelectionSource.DEFAULT: return EditorPaneSelectionChangeReason.API;
+			case TextEditorSelectionSource.NAVIGATION: return EditorPaneSelectionChangeReason.NAVIGATION;
+			default: return EditorPaneSelectionChangeReason.USER;
 		}
 	}
 

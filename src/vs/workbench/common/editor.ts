@@ -194,9 +194,21 @@ export interface IEditorPaneSelectionChangeEvent {
 export const enum EditorPaneSelectionChangeReason {
 
 	/**
-	 * The selection was changed for no particular reason.
+	 * The selection was changed as a result of a programmatic
+	 * method invocation.
+	 *
+	 * For a text editor pane, this for example can be a selection
+	 * being restored from previous view state automatically.
 	 */
-	NONE,
+	API = 1,
+
+	/**
+	 * The selection was changed by the user.
+	 *
+	 * This typically means the user changed the selection
+	 * with mouse or keyboard.
+	 */
+	USER,
 
 	/**
 	 * The selection was changed as a result of editing in

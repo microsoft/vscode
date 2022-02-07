@@ -1383,6 +1383,60 @@ export class ReopenClosedEditorAction extends Action {
 	}
 }
 
+export class NavigateForwardInNavigationsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateForwardInNavigationLocations';
+	static readonly LABEL = localize('navigateNextInNavigations', "Go Forward in Navigation Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goForward(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateBackwardsInNavigationsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateBackInNavigationLocations';
+	static readonly LABEL = localize('navigatePreviousInNavigations', "Go Back in Navigation Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goBack(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateToggleInNavigationsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateLastInNavigationLocations';
+	static readonly LABEL = localize('navigateLastInNavigationLocations', "Go Last in Navigation Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goToggle(GoFilter.NAVIGATION);
+	}
+}
+
 export class ClearRecentFilesAction extends Action {
 
 	static readonly ID = 'workbench.action.clearRecentFiles';
