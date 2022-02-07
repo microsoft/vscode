@@ -690,8 +690,8 @@ class MockPathService implements IPathService {
 	fileURI(path: string): Promise<uri> {
 		throw new Error('Method not implemented.');
 	}
-	userHome(options?: { preferLocal: boolean }): Promise<uri> {
-		throw new Error('Method not implemented.');
+	async userHome(options?: { preferLocal: boolean }): Promise<uri> {
+		return uri.file('c:\\users\\username');
 	}
 	hasValidBasename(resource: uri, basename?: string): Promise<boolean>;
 	hasValidBasename(resource: uri, os: platform.OperatingSystem, basename?: string): boolean;
