@@ -488,6 +488,7 @@ function markNodes(ts, languageService, options) {
                                 || memberName === 'toString'
                                 || memberName === 'dispose' // TODO: keeping all `dispose` methods
                                 || /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
+                                || memberName === '[_onDidDispose]' // TODO: keep event dispose symbol
                             ) {
                                 enqueue_black(member);
                             }

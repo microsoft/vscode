@@ -612,6 +612,7 @@ function markNodes(ts: typeof import('typescript'), languageService: ts.Language
 								|| memberName === 'toString'
 								|| memberName === 'dispose'// TODO: keeping all `dispose` methods
 								|| /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
+								|| memberName === '[_onDidDispose]' // TODO: keep event dispose symbol
 							) {
 								enqueue_black(member);
 							}
