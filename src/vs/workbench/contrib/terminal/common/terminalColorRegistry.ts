@@ -27,6 +27,17 @@ export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selec
 	dark: '#FFFFFF40',
 	hc: '#FFFFFF80'
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
+export const TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR = registerColor('terminal.promptDecorationBackground', {
+	light: '#66afe0',
+	dark: '#be1100',
+	hc: '#be1100'
+}, nls.localize('terminal.promptDecorationBackground', 'The terminal prompt decoration background color.'));
+
+export const TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR = registerColor('terminal.promptDecorationBackgroundError', {
+	light: '#00000040',
+	dark: '#f07171',
+	hc: '#f07171'
+}, nls.localize('terminal.promptDecorationBackgroundError', 'The terminal prompt decoration background color when there is an exit code.'));
 export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,

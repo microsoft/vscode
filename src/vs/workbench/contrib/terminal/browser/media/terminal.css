@@ -414,10 +414,12 @@
 }
 
 .terminal-prompt-decoration {
+    transition: opacity 0.5s;
 	transition: all .2s ease-in-out;
 	position: absolute;
+	margin-left: -1%;
 }
 
 .terminal-prompt-decoration:hover {
-	transform: scale(1.5);
+	transform: scale(2, 1);
 }

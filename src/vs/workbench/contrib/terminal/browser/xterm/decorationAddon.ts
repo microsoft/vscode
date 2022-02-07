@@ -9,6 +9,8 @@ import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR, TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: IDecoration[] = [];
@@ -18,7 +20,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		super();
 		capabilities.onDidAddCapability(c => {
 			if (c === TerminalCapability.CommandDetection) {
-				capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(c => this._decorations.push(this.registerOutputDecoration(c)));
+				capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(c => {
+					const element = this.registerOutputDecoration(c);
+					if (element) {
+						this._decorations.push(element);
+					}
+				});
 			}
 		});
 	}
@@ -34,23 +41,28 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._terminal = terminal;
 	}
 
-	registerOutputDecoration(command: ITerminalCommand): IDecoration {
+	registerOutputDecoration(command: ITerminalCommand): IDecoration | undefined {
 		const output = command.getOutput();
 		if (!command.marker || !this._terminal || !output) {
-			throw new Error(`Cannot register output decoration for command: ${command}, terminal: ${this._terminal}, and output: ${output}`);
+			return undefined;
 		}
-		//TODO: disallow negative x, use negative left margin %
-		const decoration = this._terminal.registerDecoration({ marker: command.marker, anchor: 'left', x: -2 });
+		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: .5 });
 		if (decoration?.element) {
 			dom.addDisposableListener(decoration.element, 'click', async () => {
 				await this._clipboardService.writeText(output);
 			});
-			// TODO:apply classes
 			decoration.element.classList.add('terminal-prompt-decoration');
-			decoration.element.style.backgroundColor = command.exitCode ? 'red' : 'blue';
+			decoration.element.classList.add(command.exitCode ? 'error' : 'normal');
 			return decoration;
 		} else {
 			throw new Error('Cannot register decoration for a marker that has already been disposed of');
 		}
 	}
 }
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	const promptDecorationBackground = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR);
+	collector.addRule(`.terminal-prompt-decoration.normal { background-color: ${promptDecorationBackground ? promptDecorationBackground.toString() : ''}; }`);
+	const promptDecorationBackgroundError = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR);
+	collector.addRule(`.terminal-prompt-decoration.error { background-color: ${promptDecorationBackgroundError ? promptDecorationBackgroundError.toString() : ''}; }`);
+});
