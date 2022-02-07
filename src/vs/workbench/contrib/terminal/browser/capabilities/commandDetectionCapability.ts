@@ -26,8 +26,6 @@ export interface ICurrentPartialCommand {
 	commandFinishedMarker?: IMarker;
 
 	command?: string;
-
-	outputDecoration?: IDecoration;
 }
 
 export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {

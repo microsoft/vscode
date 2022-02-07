@@ -32,9 +32,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			dom.addDisposableListener(decoration.element, 'click', async () => {
 				await this._clipboardService.writeText(output);
 			});
-			decoration.element.style.position = 'absolute';
+			decoration.element.classList.add('terminal-prompt-decoration');
 			decoration.element.style.backgroundColor = newCommand.exitCode ? 'red' : 'green';
-			currentCommand.outputDecoration = decoration;
 			return decoration;
 		} else {
 			throw new Error('Cannot register decoration for a marker that has already been disposed of');
