@@ -144,9 +144,12 @@ export class MainThreadEditorTabs {
 	 * @param events The list of events to process
 	 */
 	private _updateTabsModel(events: IEditorsChangeEvent[]): void {
+		console.log(`Total Events: ${events.length}`);
+		console.time('updateTabModel');
 		// Because events are aggregated rebuilding the tab model is much easier
 		// In the future we can optimize certain events rather than full rebuilds
 		this._createTabsModel();
+		console.timeEnd('updateTabModel');
 	}
 	//#region Messages received from Ext Host
 	$moveTab(tab: IEditorTabDto, index: number, viewColumn: EditorGroupColumn): void {

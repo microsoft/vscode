@@ -371,6 +371,30 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
+	// eslint-disable-next-line code-no-test-only
+	test.only('Tabs - move tab', async function () {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
+
+		const tabGroups = window.tabGroups;
+		assert.strictEqual(tabGroups.all.length, 2);
+
+		const group1Tabs = tabGroups.all[0].tabs;
+		assert.strictEqual(group1Tabs.length, 2);
+
+		const group2Tabs = tabGroups.all[1].tabs;
+		assert.strictEqual(group2Tabs.length, 1);
+
+		await group1Tabs[0].move(1, ViewColumn.One);
+		console.log('Tab moved - Integration test');
+	});
 	/*
 	test('Tabs - Ensure tabs getter is correct', async function () {
 		// Reduce test timeout as this test should be quick, so even with 3 retries it will be under 60s.

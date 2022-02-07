@@ -32,13 +32,12 @@ export interface IEditorTabGroup {
 
 export interface IEditorTabGroups {
 	all: IEditorTabGroup[];
+	onDidChangeTabGroup: Event<void>;
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 	readonly _serviceBrand: undefined;
 	tabGroups: IEditorTabGroups;
-	onDidChangeActiveTab: Event<IEditorTab | undefined>;
-	onDidChangeTabs: Event<IEditorTab[]>;
 }
 
 export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostEditorTabs');
@@ -47,14 +46,12 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	readonly _serviceBrand: undefined;
 	private readonly _proxy: MainThreadEditorTabsShape;
 
-	private readonly _onDidChangeTabs = new Emitter<IEditorTab[]>();
-	readonly onDidChangeTabs: Event<IEditorTab[]> = this._onDidChangeTabs.event;
-
-	private readonly _onDidChangeActiveTab = new Emitter<IEditorTab | undefined>();
-	readonly onDidChangeActiveTab: Event<IEditorTab | undefined> = this._onDidChangeActiveTab.event;
+	private readonly _onDidChangeTabGroup = new Emitter<void>();
+	readonly onDidChangeTabGroup: Event<void> = this._onDidChangeTabGroup.event;
 
 	private _tabGroups: IEditorTabGroups = {
-		all: []
+		all: [],
+		onDidChangeTabGroup: this._onDidChangeTabGroup.event
 	};
 
 	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
@@ -79,6 +76,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				tabs
 			}));
 		}
+		this._onDidChangeTabGroup.fire();
 	}
 
 	private createExtHostTabObject(tabDto: IEditorTabDto, index: number) {

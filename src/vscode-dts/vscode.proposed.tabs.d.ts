@@ -84,6 +84,11 @@ declare module 'vscode' {
 		 */
 		all: TabGroup[];
 
+		/**
+	 * Fires when any of the groups have a change occured
+		 */
+		onDidChangeTabGroup: Event<void>;
+
 	}
 
 	interface TabGroup {
