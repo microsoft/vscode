@@ -185,33 +185,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputTransformCon
 	}
 }
 
-class HTMLRendererContrib extends Disposable implements IOutputTransformContribution {
-	getType() {
-		return RenderOutputType.Html;
-	}
-
-	getMimetypes() {
-		return ['text/html', 'image/svg+xml'];
-	}
-
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const str = getStringValue(item);
-		return {
-			type: RenderOutputType.Html,
-			source: output,
-			htmlContent: str
-		};
-	}
-}
-
 OutputRendererRegistry.registerOutputTransform(JavaScriptRendererContrib);
-OutputRendererRegistry.registerOutputTransform(HTMLRendererContrib);
 OutputRendererRegistry.registerOutputTransform(PlainTextRendererContrib);
 OutputRendererRegistry.registerOutputTransform(JSErrorRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);

@@ -24,7 +24,9 @@
 				"mimeTypes": [
 					"image/gif",
 					"image/png",
-					"image/jpeg"
+					"image/jpeg",
+					"image/svg+xml",
+					"text/html"
 				]
 			}
 		]
