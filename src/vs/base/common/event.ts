@@ -103,11 +103,19 @@ export namespace Event {
 	}
 
 	function snapshot<T>(event: Event<T>, disposable: DisposableStore | undefined): Event<T> {
+		// let stack = Stacktrace.create();
+		// let count = 0;
 		let listener: IDisposable;
 		const emitter = new Emitter<T>({
 			onFirstListenerAdd() {
 				listener = event(emitter.fire, emitter);
 			},
+			// onListenerDidAdd() {
+			// 	if (++count === 2) {
+			// 		console.warn('snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here');
+			// 		stack.print();
+			// 	}
+			// },
 			onLastListenerRemove() {
 				listener.dispose();
 			}
