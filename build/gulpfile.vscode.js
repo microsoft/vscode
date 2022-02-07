@@ -60,6 +60,7 @@ const vscodeResources = [
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
 	'out-build/vs/base/common/performance.js',
+	'out-build/vs/base/common/stripComments.js',
 	'out-build/vs/base/node/languagePacks.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
