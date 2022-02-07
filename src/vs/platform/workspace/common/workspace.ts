@@ -11,7 +11,6 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
@@ -334,7 +333,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 
 	constructor(
 		data: IWorkspaceFolderData,
-		readonly raw?: IStoredWorkspaceFolder
+		readonly raw?: { path: string; name?: string } | { uri: string; name?: string }
 	) {
 		this.uri = data.uri;
 		this.index = data.index;
