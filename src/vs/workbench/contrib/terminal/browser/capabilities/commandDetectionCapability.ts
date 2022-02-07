@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IBuffer, IDecoration, IMarker, Terminal } from 'xterm';
+import { IBuffer, IMarker, Terminal } from 'xterm';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -28,7 +25,7 @@ export interface ICurrentPartialCommand {
 	command?: string;
 }
 
-export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
+export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
 	protected _commands: ITerminalCommand[] = [];
@@ -37,9 +34,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _currentCommand: ICurrentPartialCommand = {};
 	private _isWindowsPty: boolean = false;
 
-	private _decorationAddon: DecorationAddon;
-	private _decorations: IDecoration[] = [];
-
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
@@ -47,20 +41,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	constructor(
 		private readonly _terminal: Terminal,
-		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
-	) {
-		super();
-		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon);
-		this._decorationAddon.activate(_terminal);
-	}
-
-	override dispose(): void {
-		for (const decoration of this._decorations) {
-			decoration.dispose();
-		}
-		super.dispose();
-	}
+		@ILogService private readonly _logService: ILogService
+	) { }
 
 	setCwd(value: string) {
 		this._cwd = value;
@@ -165,7 +147,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				marker: this._currentCommand.commandStartMarker
 			};
 			this._commands.push(newCommand);
-			this._decorations.push(this._decorationAddon.registerOutputDecoration(this._currentCommand, newCommand));
 			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();

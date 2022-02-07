@@ -30,7 +30,9 @@ import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_F
 import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -61,9 +63,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
+	private _decorationAddon?: DecorationAddon;
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
+	get decoration(): DecorationAddon { return this._decorationAddon!; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {
@@ -88,7 +92,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
 		this.target = location;
@@ -150,6 +155,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._commandTrackerAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+		this._decorationAddon = new DecorationAddon(this._clipboardService, capabilities);
+		this.raw.loadAddon(this._decorationAddon);
 	}
 
 	attachToElement(container: HTMLElement) {
