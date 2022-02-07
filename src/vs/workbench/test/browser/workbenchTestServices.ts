@@ -500,7 +500,7 @@ export class TestHistoryService implements IHistoryService {
 	async reopenLastClosedEditor(): Promise<void> { }
 	async goForward(): Promise<void> { }
 	async goBack(): Promise<void> { }
-	async goToggle(): Promise<void> { }
+	async goPrevious(): Promise<void> { }
 	async goLast(): Promise<void> { }
 	removeFromHistory(_input: EditorInput | IResourceEditorInput): void { }
 	clear(): void { }

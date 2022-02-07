@@ -301,8 +301,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return this.getStack(filter).goBack();
 	}
 
-	goToggle(filter?: GoFilter): Promise<void> {
-		return this.getStack(filter).goToggle();
+	goPrevious(filter?: GoFilter): Promise<void> {
+		return this.getStack(filter).goPrevious();
 	}
 
 	goLast(filter?: GoFilter): Promise<void> {
@@ -1370,7 +1370,7 @@ export class EditorNavigationStack extends Disposable {
 		return this.navigate();
 	}
 
-	goToggle(): Promise<void> {
+	goPrevious(): Promise<void> {
 
 		// If we never navigated, just go back
 		if (this.previousIndex === -1) {

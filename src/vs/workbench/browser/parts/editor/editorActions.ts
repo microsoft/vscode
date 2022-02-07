@@ -1260,7 +1260,7 @@ export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
 export class NavigateForwardAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateForward';
-	static readonly LABEL = localize('navigateNext', "Go Forward");
+	static readonly LABEL = localize('navigateForward', "Go Forward");
 
 	constructor(
 		id: string,
@@ -1271,14 +1271,14 @@ export class NavigateForwardAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		await this.historyService.goForward();
+		await this.historyService.goForward(GoFilter.NONE);
 	}
 }
 
 export class NavigateBackwardsAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateBack';
-	static readonly LABEL = localize('navigatePrevious', "Go Back");
+	static readonly LABEL = localize('navigateBack', "Go Back");
 
 	constructor(
 		id: string,
@@ -1289,14 +1289,14 @@ export class NavigateBackwardsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		await this.historyService.goBack();
+		await this.historyService.goBack(GoFilter.NONE);
 	}
 }
 
-export class NavigateToggleAction extends Action {
+export class NavigatePreviousAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateLast';
-	static readonly LABEL = localize('navigateLast', "Go Last");
+	static readonly LABEL = localize('navigatePrevious', "Go Previous");
 
 	constructor(
 		id: string,
@@ -1307,14 +1307,14 @@ export class NavigateToggleAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		await this.historyService.goToggle();
+		await this.historyService.goPrevious(GoFilter.NONE);
 	}
 }
 
 export class NavigateForwardInEditsAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateForwardInEditLocations';
-	static readonly LABEL = localize('navigateNextInEdits', "Go Forward in Edit Locations");
+	static readonly LABEL = localize('navigateForwardInEdits', "Go Forward in Edit Locations");
 
 	constructor(
 		id: string,
@@ -1332,7 +1332,7 @@ export class NavigateForwardInEditsAction extends Action {
 export class NavigateBackwardsInEditsAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateBackInEditLocations';
-	static readonly LABEL = localize('navigatePreviousInEdits', "Go Back in Edit Locations");
+	static readonly LABEL = localize('navigateBackInEdits', "Go Back in Edit Locations");
 
 	constructor(
 		id: string,
@@ -1344,6 +1344,24 @@ export class NavigateBackwardsInEditsAction extends Action {
 
 	override async run(): Promise<void> {
 		await this.historyService.goBack(GoFilter.EDITS);
+	}
+}
+
+export class NavigatePreviousInEditsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigatePreviousInEditLocations';
+	static readonly LABEL = localize('navigatePreviousInEdits', "Go Previous in Edit Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goPrevious(GoFilter.EDITS);
 	}
 }
 
@@ -1365,28 +1383,10 @@ export class NavigateToLastEditLocationAction extends Action {
 	}
 }
 
-export class ReopenClosedEditorAction extends Action {
-
-	static readonly ID = 'workbench.action.reopenClosedEditor';
-	static readonly LABEL = localize('reopenClosedEditor', "Reopen Closed Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IHistoryService private readonly historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		await this.historyService.reopenLastClosedEditor();
-	}
-}
-
 export class NavigateForwardInNavigationsAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateForwardInNavigationLocations';
-	static readonly LABEL = localize('navigateNextInNavigations', "Go Forward in Navigation Locations");
+	static readonly LABEL = localize('navigateForwardInNavigations', "Go Forward in Navigation Locations");
 
 	constructor(
 		id: string,
@@ -1404,7 +1404,7 @@ export class NavigateForwardInNavigationsAction extends Action {
 export class NavigateBackwardsInNavigationsAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateBackInNavigationLocations';
-	static readonly LABEL = localize('navigatePreviousInNavigations', "Go Back in Navigation Locations");
+	static readonly LABEL = localize('navigateBackInNavigations', "Go Back in Navigation Locations");
 
 	constructor(
 		id: string,
@@ -1419,10 +1419,10 @@ export class NavigateBackwardsInNavigationsAction extends Action {
 	}
 }
 
-export class NavigateToggleInNavigationsAction extends Action {
+export class NavigatePreviousInNavigationsAction extends Action {
 
-	static readonly ID = 'workbench.action.navigateLastInNavigationLocations';
-	static readonly LABEL = localize('navigateLastInNavigationLocations', "Go Last in Navigation Locations");
+	static readonly ID = 'workbench.action.navigatePreviousInNavigationLocations';
+	static readonly LABEL = localize('navigatePreviousInNavigationLocations', "Go Previous in Navigation Locations");
 
 	constructor(
 		id: string,
@@ -1433,7 +1433,43 @@ export class NavigateToggleInNavigationsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		await this.historyService.goToggle(GoFilter.NAVIGATION);
+		await this.historyService.goPrevious(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateToLastNavigationLocationAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateToLastNavigationLocation';
+	static readonly LABEL = localize('navigateToLastNavigationLocation', "Go to Last Navigation Location");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goLast(GoFilter.NAVIGATION);
+	}
+}
+
+export class ReopenClosedEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.reopenClosedEditor';
+	static readonly LABEL = localize('reopenClosedEditor', "Reopen Closed Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.reopenLastClosedEditor();
 	}
 }
 

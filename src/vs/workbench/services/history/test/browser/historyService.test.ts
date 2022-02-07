@@ -322,11 +322,11 @@ suite('HistoryService', function () {
 		assert.strictEqual(stack.canGoBack(), true);
 		assert.strictEqual(stack.canGoForward(), false);
 
-		await stack.goToggle();
+		await stack.goPrevious();
 		assert.strictEqual(stack.canGoBack(), false);
 		assert.strictEqual(stack.canGoForward(), true);
 
-		await stack.goToggle();
+		await stack.goPrevious();
 		assert.strictEqual(stack.canGoBack(), true);
 		assert.strictEqual(stack.canGoForward(), false);
 
