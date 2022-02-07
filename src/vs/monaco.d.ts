@@ -2353,8 +2353,9 @@ declare namespace monaco.editor {
 		/**
 		 * Set the primary position of the cursor. This will remove any secondary cursors.
 		 * @param position New primary cursor's position
+		 * @param source Source of the call that caused the position
 		 */
-		setPosition(position: IPosition): void;
+		setPosition(position: IPosition, source?: string): void;
 		/**
 		 * Scroll vertically as necessary and reveal a line.
 		 */
@@ -2400,28 +2401,34 @@ declare namespace monaco.editor {
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: IRange): void;
+		setSelection(selection: IRange, source?: string): void;
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: Range): void;
+		setSelection(selection: Range, source?: string): void;
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: ISelection): void;
+		setSelection(selection: ISelection, source?: string): void;
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: Selection): void;
+		setSelection(selection: Selection, source?: string): void;
 		/**
 		 * Set the selections for all the cursors of the editor.
 		 * Cursors will be removed or added, as necessary.
+		 * @param selections The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelections(selections: readonly ISelection[]): void;
+		setSelections(selections: readonly ISelection[], source?: string): void;
 		/**
 		 * Scroll vertically as necessary and reveal lines.
 		 */

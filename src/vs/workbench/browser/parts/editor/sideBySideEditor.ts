@@ -7,7 +7,7 @@ import 'vs/css!./media/sidebysideeditor';
 import { localize } from 'vs/nls';
 import { Dimension, $, clearNode, multibyteAwareBtoa } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions, SIDE_BY_SIDE_EDITOR_ID, SideBySideEditor as Side } from 'vs/workbench/common/editor';
+import { IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions, SIDE_BY_SIDE_EDITOR_ID, SideBySideEditor as Side, IEditorPaneSelection, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, isEditorPaneWithSelection, EditorPaneSelectionCompareResult } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -45,7 +45,20 @@ function isSideBySideEditorViewState(thing: unknown): thing is ISideBySideEditor
 	return typeof candidate?.primary === 'object' && typeof candidate.secondary === 'object';
 }
 
-export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEditorViewState> {
+interface ISideBySideEditorOptions extends IEditorOptions {
+
+	/**
+	 * Whether the editor options should apply to
+	 * the primary or secondary side.
+	 *
+	 * If a target side is provided, that side will
+	 * also receive keyboard focus unless focus is
+	 * to be preserved.
+	 */
+	target?: Side.PRIMARY | Side.SECONDARY;
+}
+
+export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEditorViewState> implements IEditorPaneWithSelection {
 
 	static readonly ID: string = SIDE_BY_SIDE_EDITOR_ID;
 
@@ -83,6 +96,9 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 	private _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number } | undefined>());
 	override readonly onDidChangeSizeConstraints = Event.any(this.onDidCreateEditors.event, this._onDidChangeSizeConstraints.event);
+
+	private readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	//#endregion
 
@@ -229,7 +245,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		return localize('sideBySideEditor', "Side by Side Editor");
 	}
 
-	override async setInput(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: SideBySideEditorInput, options: ISideBySideEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const oldInput = this.input;
 		await super.setInput(input, options, context, token);
 
@@ -260,21 +276,37 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 			this.secondaryEditorPane?.setInput(input.secondary, secondary, context, token),
 			this.primaryEditorPane?.setInput(input.primary, primary, context, token)
 		]);
+
+		// Update focus if target is provided
+		if (typeof options?.target === 'number') {
+			this.lastFocusedSide = options.target;
+		}
 	}
 
-	private loadViewState(input: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined; secondary: IEditorOptions | undefined; viewState: ISideBySideEditorViewState | undefined } {
+	private loadViewState(input: SideBySideEditorInput, options: ISideBySideEditorOptions | undefined, context: IEditorOpenContext): { primary: IEditorOptions | undefined; secondary: IEditorOptions | undefined; viewState: ISideBySideEditorViewState | undefined } {
 		const viewState = isSideBySideEditorViewState(options?.viewState) ? options?.viewState : this.loadEditorViewState(input, context);
 
-		const primaryOptions: IEditorOptions = {
-			...options,
-			viewState: viewState?.primary
-		};
-
+		let primaryOptions: IEditorOptions = Object.create(null);
 		let secondaryOptions: IEditorOptions | undefined = undefined;
+
+		// Depending on the optional `target` property, we apply
+		// the provided options to either the primary or secondary
+		// side
+
+		if (options?.target === Side.SECONDARY) {
+			secondaryOptions = { ...options };
+		} else {
+			primaryOptions = { ...options };
+		}
+
+		primaryOptions.viewState = viewState?.primary;
+
 		if (viewState?.secondary) {
-			secondaryOptions = {
-				viewState: viewState.secondary
-			};
+			if (!secondaryOptions) {
+				secondaryOptions = { viewState: viewState.secondary };
+			} else {
+				secondaryOptions.viewState = viewState?.secondary;
+			}
 		}
 
 		return { primary: primaryOptions, secondary: secondaryOptions, viewState };
@@ -312,6 +344,11 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		editorPane.create(container);
 		editorPane.setVisible(this.isVisible(), this.group);
 
+		// Track selections if supported
+		if (isEditorPaneWithSelection(editorPane)) {
+			this.editorDisposables.add(editorPane.onDidChangeSelection(e => this._onDidChangeSelection.fire(e)));
+		}
+
 		// Track for disposal
 		this.editorDisposables.add(editorPane);
 
@@ -325,7 +362,27 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		this._onDidChangeControl.fire();
 	}
 
-	override setOptions(options: IEditorOptions | undefined): void {
+	getSelection(): IEditorPaneSelection | undefined {
+		const lastFocusedEditorPane = this.getLastFocusedEditorPane();
+		if (isEditorPaneWithSelection(lastFocusedEditorPane)) {
+			const selection = lastFocusedEditorPane.getSelection();
+			if (selection) {
+				return new SideBySideAwareEditorPaneSelection(selection, lastFocusedEditorPane === this.primaryEditorPane ? Side.PRIMARY : Side.SECONDARY);
+			}
+		}
+
+		return undefined;
+	}
+
+	override setOptions(options: ISideBySideEditorOptions | undefined): void {
+		super.setOptions(options);
+
+		// Update focus if target is provided
+		if (typeof options?.target === 'number') {
+			this.lastFocusedSide = options.target;
+		}
+
+		// Apply to focused side
 		this.getLastFocusedEditorPane()?.setOptions(options);
 	}
 
@@ -467,5 +524,34 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		if (this.primaryEditorContainer) {
 			clearNode(this.primaryEditorContainer);
 		}
+	}
+}
+
+class SideBySideAwareEditorPaneSelection implements IEditorPaneSelection {
+
+	constructor(
+		private readonly selection: IEditorPaneSelection,
+		private readonly side: Side.PRIMARY | Side.SECONDARY
+	) { }
+
+	compare(other: IEditorPaneSelection): EditorPaneSelectionCompareResult {
+		if (!(other instanceof SideBySideAwareEditorPaneSelection)) {
+			return EditorPaneSelectionCompareResult.DIFFERENT;
+		}
+
+		if (this.side !== other.side) {
+			return EditorPaneSelectionCompareResult.DIFFERENT;
+		}
+
+		return this.selection.compare(other.selection);
+	}
+
+	restore(options: IEditorOptions): ISideBySideEditorOptions {
+		const sideBySideEditorOptions: ISideBySideEditorOptions = {
+			...options,
+			target: this.side
+		};
+
+		return this.selection.restore(sideBySideEditorOptions);
 	}
 }
