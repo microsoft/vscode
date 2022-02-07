@@ -16,9 +16,9 @@ function Get-PipelineArtifact {
 		}
 
 		Write-Host $res.value
-		Write-Host res.value | Where-Object { $_.name -Like $Name -and $_.name -NotContains "sbom" }
+		Write-Host $res.value | Where-Object { $_.name -Like $Name -and $_.name -NotContains "sbom" }
 
-		$res.value | Where-Object { $_.name -Like $Name -and $_.name -NotContains "_sbom" }
+		$res.value | Where-Object { $_.name -Like $Name }
 	} catch {
 		Write-Warning $_
 	}
