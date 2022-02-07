@@ -154,10 +154,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 				// Since we are aggregating over potentially multiple events
 				// with a debounce delay, try to preserve the most significant
-				// selection change reason that is not `API`.
+				// selection change reason that is not `USER` or `API`.
 
 				let reason: EditorPaneSelectionChangeReason;
-				if (last && last.reason !== EditorPaneSelectionChangeReason.API) {
+				if (last?.reason === EditorPaneSelectionChangeReason.EDIT || last?.reason === EditorPaneSelectionChangeReason.NAVIGATION) {
 					reason = last.reason;
 				} else {
 					reason = current.reason;
@@ -325,7 +325,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 				const previous = this.globalDefaultEditorNavigationStack.previous;
 				if (previous) {
-					this.globalNavigationsEditorNavigationStack.add(previous);
+					this.globalNavigationsEditorNavigationStack.addOrReplace(previous.groupId, previous.editor, previous.selection);
 				}
 				this.globalNavigationsEditorNavigationStack.notifyNavigation(editorPane, event);
 				break;
@@ -1158,17 +1158,17 @@ export class EditorNavigationStack extends Disposable {
 
 	private doAdd(groupId: GroupIdentifier, editor: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection): void {
 		if (!this.navigating) {
-			this.doAddOrReplace(groupId, editor, selection);
+			this.addOrReplace(groupId, editor, selection);
 		}
 	}
 
 	private doReplace(groupId: GroupIdentifier, editor: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection): void {
 		if (!this.navigating) {
-			this.doAddOrReplace(groupId, editor, selection, true /* force replace */);
+			this.addOrReplace(groupId, editor, selection, true /* force replace */);
 		}
 	}
 
-	private doAddOrReplace(groupId: GroupIdentifier, editorCandidate: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection, forceReplace?: boolean): void {
+	addOrReplace(groupId: GroupIdentifier, editorCandidate: EditorInput | IResourceEditorInput, selection?: IEditorPaneSelection, forceReplace?: boolean): void {
 
 		// Check whether to replace an existing entry or not
 		let replace = false;
@@ -1185,10 +1185,7 @@ export class EditorNavigationStack extends Disposable {
 			return;
 		}
 
-		this.add({ groupId, editor, selection }, replace);
-	}
-
-	add(newStackEntry: IEditorNavigationStackEntry, replace?: boolean): void {
+		const newStackEntry: IEditorNavigationStackEntry = { groupId, editor, selection };
 
 		// Replace at current position
 		let removedEntries: IEditorNavigationStackEntry[] = [];
@@ -1232,7 +1229,6 @@ export class EditorNavigationStack extends Disposable {
 
 		// Remove this from the stack unless the stack input is a resource
 		// that can easily be restored even when the input gets disposed
-		const editor = newStackEntry.editor;
 		if (isEditorInput(editor)) {
 			this.editorHelper.onEditorDispose(editor, () => this.remove(editor), this.mapEditorToDisposable);
 		}

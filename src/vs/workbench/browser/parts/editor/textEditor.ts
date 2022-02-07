@@ -45,7 +45,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	private static readonly VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
-	private readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
+	protected readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	private editorControl: IEditor | undefined;
