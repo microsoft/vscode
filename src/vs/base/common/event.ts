@@ -52,25 +52,25 @@ export namespace Event {
 	/**
 	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function map<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables));
+	export function map<I, O>(event: Event<I>, map: (i: I) => O, disposable?: DisposableStore): Event<O> {
+		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables), disposable);
 	}
 
 	/**
 	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables));
+	export function forEach<I>(event: Event<I>, each: (i: I) => void, disposable?: DisposableStore): Event<I> {
+		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables), disposable);
 	}
 
 	/**
 	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T): Event<T>;
-	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
-	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
-	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables));
+	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T, disposable?: DisposableStore): Event<T>;
+	export function filter<T>(event: Event<T>, filter: (e: T) => boolean, disposable?: DisposableStore): Event<T>;
+	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R, disposable?: DisposableStore): Event<R>;
+	export function filter<T>(event: Event<T>, filter: (e: T) => boolean, disposable?: DisposableStore): Event<T> {
+		return snapshot((listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables), disposable);
 	}
 
 	/**
@@ -93,19 +93,16 @@ export namespace Event {
 	/**
 	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O): Event<O> {
+	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O, disposable?: DisposableStore): Event<O> {
 		let output: O | undefined = initial;
 
 		return map<I, O>(event, e => {
 			output = merge(output, e);
 			return output;
-		});
+		}, disposable);
 	}
 
-	/**
-	 * @deprecated DO NOT use, this leaks memory
-	 */
-	function snapshot<T>(event: Event<T>): Event<T> {
+	function snapshot<T>(event: Event<T>, disposable: DisposableStore | undefined): Event<T> {
 		let listener: IDisposable;
 		const emitter = new Emitter<T>({
 			onFirstListenerAdd() {
@@ -115,6 +112,10 @@ export namespace Event {
 				listener.dispose();
 			}
 		});
+
+		if (disposable) {
+			disposable.add(emitter);
+		}
 
 		return emitter.event;
 	}
@@ -151,15 +152,15 @@ export namespace Event {
 	/**
 	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
 	 */
-	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
+	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<T>;
 	/**
 	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
 	 */
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O>;
 	/**
 	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
 	 */
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
 
 		let subscription: IDisposable;
 		let output: O | undefined = undefined;
@@ -196,13 +197,17 @@ export namespace Event {
 			}
 		});
 
+		if (disposable) {
+			disposable.add(emitter);
+		}
+
 		return emitter.event;
 	}
 
 	/**
 	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): Event<T> {
+	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b, disposable?: DisposableStore): Event<T> {
 		let firstCall = true;
 		let cache: T;
 
@@ -211,16 +216,16 @@ export namespace Event {
 			firstCall = false;
 			cache = value;
 			return shouldEmit;
-		});
+		}, disposable);
 	}
 
 	/**
 	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T): [Event<T>, Event<U>] {
+	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T, disposable?: DisposableStore): [Event<T>, Event<U>] {
 		return [
-			Event.filter(event, isT),
-			Event.filter(event, e => !isT(e)) as Event<U>,
+			Event.filter(event, isT, disposable),
+			Event.filter(event, e => !isT(e), disposable) as Event<U>,
 		];
 	}
 
@@ -274,6 +279,7 @@ export namespace Event {
 	}
 
 	export interface IChainableEvent<T> {
+
 		event: Event<T>;
 		map<O>(fn: (i: T) => O): IChainableEvent<O>;
 		forEach(fn: (i: T) => void): IChainableEvent<T>;
