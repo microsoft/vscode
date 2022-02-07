@@ -115,11 +115,11 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		// is up to date. This prevents issues, as in #138632, #138835, #138922.
 		this._register(this.testService.onWillProcessDiff(diff => {
 			for (const entry of diff) {
-				let uri: URI | undefined;
-				if (entry[0] === TestDiffOpType.Add || entry[0] === TestDiffOpType.Update) {
-					uri = entry[1].item?.uri;
-				} else if (entry[0] === TestDiffOpType.Remove) {
-					uri = this.testService.collection.getNodeById(entry[1])?.item.uri;
+				let uri: URI | undefined | null;
+				if (entry.op === TestDiffOpType.Add || entry.op === TestDiffOpType.Update) {
+					uri = entry.item.item?.uri;
+				} else if (entry.op === TestDiffOpType.Remove) {
+					uri = this.testService.collection.getNodeById(entry.itemId)?.item.uri;
 				}
 
 				const rec = uri && this.decorationCache.get(uri);
