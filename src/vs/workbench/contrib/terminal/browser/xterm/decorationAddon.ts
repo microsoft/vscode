@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICurrentPartialCommand } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalAddon, Terminal } from 'xterm';
+import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
@@ -22,10 +22,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._terminal = terminal;
 	}
 
-	registerOutputDecoration(currentCommand: ICurrentPartialCommand, newCommand: ITerminalCommand): void {
+	registerOutputDecoration(currentCommand: ICurrentPartialCommand, newCommand: ITerminalCommand): IDecoration {
 		const output = newCommand.getOutput();
 		if (!currentCommand.commandStartMarker || !this._terminal || !output) {
-			return;
+			throw new Error(`Cannot register output decoration for command: ${currentCommand}, terminal: ${this._terminal}, and output: ${output}`);
 		}
 		const decoration = this._terminal.registerDecoration({ marker: currentCommand.commandStartMarker, anchor: 'left', x: -2 });
 		if (decoration?.element) {
@@ -35,7 +35,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			decoration.element.style.position = 'absolute';
 			decoration.element.style.backgroundColor = newCommand.exitCode ? 'red' : 'green';
 			currentCommand.outputDecoration = decoration;
-
+			return decoration;
+		} else {
+			throw new Error('Cannot register decoration for a marker that has already been disposed of');
 		}
 	}
 }

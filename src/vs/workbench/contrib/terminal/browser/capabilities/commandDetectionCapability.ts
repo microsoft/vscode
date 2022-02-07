@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
@@ -29,7 +30,7 @@ export interface ICurrentPartialCommand {
 	outputDecoration?: IDecoration;
 }
 
-export class CommandDetectionCapability implements ICommandDetectionCapability {
+export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
 	protected _commands: ITerminalCommand[] = [];
@@ -39,6 +40,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _isWindowsPty: boolean = false;
 
 	private _decorationAddon: DecorationAddon;
+	private _decorations: IDecoration[] = [];
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
@@ -50,8 +52,16 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
+		super();
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon);
 		this._decorationAddon.activate(_terminal);
+	}
+
+	override dispose(): void {
+		for (const decoration of this._decorations) {
+			decoration.dispose();
+		}
+		super.dispose();
 	}
 
 	setCwd(value: string) {
@@ -157,7 +167,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				marker: this._currentCommand.commandStartMarker
 			};
 			this._commands.push(newCommand);
-			this._decorationAddon.registerOutputDecoration(this._currentCommand, newCommand);
+			this._decorations.push(this._decorationAddon.registerOutputDecoration(this._currentCommand, newCommand));
 			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();
