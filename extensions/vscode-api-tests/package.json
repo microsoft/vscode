@@ -18,7 +18,6 @@
     "fsChunks",
     "inlayHints",
     "inlineCompletions",
-    "languageStatus",
     "markdownStringBaseUri",
     "notebookCellExecutionState",
     "notebookConcatTextDocument",
