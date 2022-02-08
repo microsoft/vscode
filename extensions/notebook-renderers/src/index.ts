@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ActivationFunction, OutputItem } from 'vscode-notebook-renderer';
+import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
 import { handleANSIOutput } from './ansi';
 import { truncatedArrayOfString } from './textHelper';
 
@@ -108,7 +108,7 @@ function renderError(outputInfo: OutputItem, container: HTMLElement): void {
 	container.classList.add('error');
 }
 
-function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean): void {
+function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
 	const outputContainer = container.parentElement;
 	if (!outputContainer) {
 		// should never happen
@@ -135,7 +135,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	element.classList.add('output-stream');
 
 	const text = outputInfo.text();
-	truncatedArrayOfString([text], 30, element);
+	truncatedArrayOfString([text], ctx.settings.lineLimit, element);
 	container.appendChild(element);
 	container.setAttribute('output-mime-type', outputInfo.mime);
 	if (error) {
@@ -143,17 +143,18 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	}
 }
 
-function renderText(outputInfo: OutputItem, container: HTMLElement): void {
+function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('.output-plaintext');
 	const text = outputInfo.text();
-	truncatedArrayOfString([text], 30, contentNode);
+	truncatedArrayOfString([text], ctx.settings.lineLimit, contentNode);
 	container.appendChild(contentNode);
 
 }
 
 export const activate: ActivationFunction<void> = (ctx) => {
 	const disposables = new Map<string, IDisposable>();
+	const latestContext = ctx as (RendererContext<void> & { readonly settings: { readonly lineLimit: number } });
 
 	return {
 		renderOutputItem: (outputInfo, element) => {
@@ -195,18 +196,18 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'application/x.notebook.stdout':
 				case 'application/x.notebook.stream':
 					{
-						renderStream(outputInfo, element, false);
+						renderStream(outputInfo, element, false, latestContext);
 					}
 					break;
 				case 'application/vnd.code.notebook.stderr':
 				case 'application/x.notebook.stderr':
 					{
-						renderStream(outputInfo, element, true);
+						renderStream(outputInfo, element, true, latestContext);
 					}
 					break;
 				case 'text/plain':
 					{
-						renderText(outputInfo, element);
+						renderText(outputInfo, element, latestContext);
 					}
 					break;
 				default:
