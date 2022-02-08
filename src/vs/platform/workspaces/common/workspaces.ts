@@ -17,7 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IBaseWorkspace, IWorkspaceIdentifier, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
@@ -121,16 +121,6 @@ export function isRawUriWorkspaceFolder(obj: unknown): obj is IRawUriWorkspaceFo
 	const candidate = obj as IRawUriWorkspaceFolder | undefined;
 
 	return typeof candidate?.uri === 'string' && (!candidate.name || typeof candidate.name === 'string');
-}
-
-export interface IRawFileWorkspaceFolder {
-	path: string;
-	name?: string;
-}
-
-export interface IRawUriWorkspaceFolder {
-	uri: string;
-	name?: string;
 }
 
 export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;

@@ -8,8 +8,8 @@ import { join } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IRawFileWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { IRawFileWorkspaceFolder, Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Workspace', () => {
 
@@ -75,7 +75,7 @@ suite('Workspace', () => {
 
 		assert.strictEqual(actual.length, 1);
 		assert.strictEqual(actual[0].uri.fsPath, testFolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].stored).path, '/src/test');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test');
 		assert.strictEqual(actual[0].index, 0);
 		assert.strictEqual(actual[0].name, 'test');
 	});
@@ -85,7 +85,7 @@ suite('Workspace', () => {
 
 		assert.strictEqual(actual.length, 1);
 		assert.strictEqual(actual[0].uri.fsPath, testFolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].stored).path, './test');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, './test');
 		assert.strictEqual(actual[0].index, 0);
 		assert.strictEqual(actual[0].name, 'test');
 	});
@@ -96,7 +96,7 @@ suite('Workspace', () => {
 		assert.strictEqual(actual.length, 1);
 
 		assert.strictEqual(actual[0].uri.fsPath, testFolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].stored).path, '/src/test');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test');
 		assert.strictEqual(actual[0].index, 0);
 		assert.strictEqual(actual[0].name, 'hello');
 	});
@@ -106,17 +106,17 @@ suite('Workspace', () => {
 
 		assert.strictEqual(actual.length, 3);
 		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].stored).path, '/src/test2');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
 		assert.strictEqual(actual[0].index, 0);
 		assert.strictEqual(actual[0].name, 'test2');
 
 		assert.strictEqual(actual[1].uri.fsPath, test3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].stored).path, '/src/test3');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/src/test3');
 		assert.strictEqual(actual[1].index, 1);
 		assert.strictEqual(actual[1].name, 'test3');
 
 		assert.strictEqual(actual[2].uri.fsPath, test1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].stored).path, '/src/test1');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, '/src/test1');
 		assert.strictEqual(actual[2].index, 2);
 		assert.strictEqual(actual[2].name, 'test1');
 	});
@@ -126,17 +126,17 @@ suite('Workspace', () => {
 
 		assert.strictEqual(actual.length, 3);
 		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].stored).path, '/src/test2');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
 		assert.strictEqual(actual[0].index, 0);
 		assert.strictEqual(actual[0].name, 'test2');
 
 		assert.strictEqual(actual[1].uri.fsPath, test3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].stored).path, '/src/test3');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/src/test3');
 		assert.strictEqual(actual[1].index, 1);
 		assert.strictEqual(actual[1].name, 'noName');
 
 		assert.strictEqual(actual[2].uri.fsPath, test1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].stored).path, '/src/test1');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, '/src/test1');
 		assert.strictEqual(actual[2].index, 2);
 		assert.strictEqual(actual[2].name, 'test1');
 	});
@@ -146,17 +146,17 @@ suite('Workspace', () => {
 
 		assert.strictEqual(actual.length, 3);
 		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].stored).path, '/src/test2');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
 		assert.strictEqual(actual[0].index, 0);
 		assert.strictEqual(actual[0].name, 'test2');
 
 		assert.strictEqual(actual[1].uri.fsPath, abcTest3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].stored).path, '/abc/test3');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/abc/test3');
 		assert.strictEqual(actual[1].index, 1);
 		assert.strictEqual(actual[1].name, 'noName');
 
 		assert.strictEqual(actual[2].uri.fsPath, test1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].stored).path, './test1');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, './test1');
 		assert.strictEqual(actual[2].index, 2);
 		assert.strictEqual(actual[2].name, 'test1');
 	});
@@ -166,12 +166,12 @@ suite('Workspace', () => {
 
 		assert.strictEqual(actual.length, 2);
 		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].stored).path, '/src/test2');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
 		assert.strictEqual(actual[0].index, 0);
 		assert.strictEqual(actual[0].name, 'test2');
 
 		assert.strictEqual(actual[1].uri.fsPath, test1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].stored).path, '/src/test1');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/src/test1');
 		assert.strictEqual(actual[1].index, 1);
 		assert.strictEqual(actual[1].name, 'test1');
 	});
@@ -181,17 +181,17 @@ suite('Workspace', () => {
 
 		assert.strictEqual(actual.length, 3);
 		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].stored).path, '/src/test2');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
 		assert.strictEqual(actual[0].index, 0);
 		assert.strictEqual(actual[0].name, 'test2');
 
 		assert.strictEqual(actual[1].uri.fsPath, test3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].stored).path, '/src/test3');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, '/src/test3');
 		assert.strictEqual(actual[1].index, 1);
 		assert.strictEqual(actual[1].name, 'noName');
 
 		assert.strictEqual(actual[2].uri.fsPath, abcTest1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].stored).path, '/abc/test1');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, '/abc/test1');
 		assert.strictEqual(actual[2].index, 2);
 		assert.strictEqual(actual[2].name, 'test1');
 	});
@@ -201,17 +201,17 @@ suite('Workspace', () => {
 
 		assert.strictEqual(actual.length, 3);
 		assert.strictEqual(actual[0].uri.fsPath, test2FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].stored).path, '/src/test2');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[0].raw).path, '/src/test2');
 		assert.strictEqual(actual[0].index, 0);
 		assert.strictEqual(actual[0].name, 'test2');
 
 		assert.strictEqual(actual[1].uri.fsPath, test3FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].stored).path, './test3');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[1].raw).path, './test3');
 		assert.strictEqual(actual[1].index, 1);
 		assert.strictEqual(actual[1].name, 'test3');
 
 		assert.strictEqual(actual[2].uri.fsPath, abcTest1FolderUri.fsPath);
-		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].stored).path, '/abc/test1');
+		assert.strictEqual((<IRawFileWorkspaceFolder>actual[2].raw).path, '/abc/test1');
 		assert.strictEqual(actual[2].index, 2);
 		assert.strictEqual(actual[2].name, 'test1');
 	});
