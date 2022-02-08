@@ -63,7 +63,7 @@ import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workben
 import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
-import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
+import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate } from 'vs/workbench/contrib/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
@@ -77,6 +77,7 @@ import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/servic
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/search';
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 
 const $ = dom.$;
 
@@ -724,7 +725,16 @@ export class SearchView extends ViewPane {
 			{
 				identityProvider,
 				accessibilityProvider: this.treeAccessibilityProvider,
-				dnd: this.instantiationService.createInstance(SearchDND),
+				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, element => {
+					if (element instanceof FileMatch) {
+						return element.resource;
+					}
+					if (element instanceof Match) {
+						const range = element.range();
+						return element.parent().resource.with({ fragment: `${range.startLineNumber},${range.startColumn}-${range.endLineNumber},${range.endColumn}` });
+					}
+					return null;
+				}),
 				multipleSelectionSupport: false,
 				selectionNavigation: true,
 				overrideStyles: {
