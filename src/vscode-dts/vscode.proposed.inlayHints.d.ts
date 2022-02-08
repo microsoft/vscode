@@ -28,6 +28,7 @@ declare module 'vscode' {
 
 	/**
 	 * Inlay hint kinds.
+	 * TODO@API defines the colors
 	 */
 	export enum InlayHintKind {
 		Other = 0,
