@@ -48,11 +48,6 @@ for (let dir of dirs) {
 		continue;
 	}
 
-	if (/^remote/.test(dir) && process.platform === 'linux' && (process.arch === 'x64' || process.env['npm_config_arch'] === 'x64')) {
-		// linux x64: do not execute `yarn` on remote folder
-		continue;
-	}
-
 	if (dir === 'build/lib/watch') {
 		// node modules for watching, specific to host node version, not electron
 		yarnInstallBuildDependencies();
@@ -67,6 +62,7 @@ for (let dir of dirs) {
 		if (process.env['VSCODE_REMOTE_CC']) { env['CC'] = process.env['VSCODE_REMOTE_CC']; }
 		if (process.env['VSCODE_REMOTE_CXX']) { env['CXX'] = process.env['VSCODE_REMOTE_CXX']; }
 		if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
+		if (process.env['CFLAGS']) { delete env['CFLAGS']; }
 		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 		opts = { env };
