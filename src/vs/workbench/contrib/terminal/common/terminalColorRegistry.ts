@@ -37,6 +37,11 @@ export const TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR = registerColor('
 	dark: '#be1100',
 	hc: '#be1100'
 }, nls.localize('terminal.promptDecorationBackgroundError', 'The terminal prompt decoration background color when there is an exit code.'));
+export const TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_NO_OUTPUT = registerColor('terminal.promptDecorationBackgroundNoOutput', {
+	light: '#808080',
+	dark: '#808080',
+	hc: '#808080'
+}, nls.localize('terminal.promptDecorationBackgroundNoOutput', 'The terminal prompt decoration background color when there is no output.'));
 export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,
