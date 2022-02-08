@@ -5,13 +5,26 @@
 
 import { handleANSIOutput } from './ansi';
 
-// const SIZE_LIMIT = 65535;
+function generateViewMoreElement(outputId: string) {
+	const container = document.createElement('span');
+	const first = document.createElement('span');
+	first.textContent = 'Output exceeds the ';
+	const second = document.createElement('a');
+	second.textContent = 'size limit';
+	second.href = `command:workbench.action.openSettings?["notebook.output.textLineLimit"]`;
+	const third = document.createElement('span');
+	third.textContent = '. Open the full output data';
+	const forth = document.createElement('a');
+	forth.textContent = ' in a text editor';
+	forth.href = `command:workbench.action.openLargeOutput?${outputId}`;
+	container.appendChild(first);
+	container.appendChild(second);
+	container.appendChild(third);
+	container.appendChild(forth);
+	return container;
+}
 
-export function truncatedArrayOfString(outputs: string[], linesLimit: number, container: HTMLElement) {
-	// const fullLen = outputs.reduce((p, c) => {
-	// 	return p + c.length;
-	// }, 0);
-
+export function truncatedArrayOfString(id: string, outputs: string[], linesLimit: number, container: HTMLElement) {
 	let buffer = outputs.join('\n').split(/\r|\n|\r\n/g);
 	let lineCount = buffer.length;
 
@@ -21,7 +34,7 @@ export function truncatedArrayOfString(outputs: string[], linesLimit: number, co
 		return;
 	}
 
-	// container.appendChild(generateViewMoreElement(notebookUri, cellViewModel, outputId, disposables, openerService));
+	container.appendChild(generateViewMoreElement(id));
 
 	const div = document.createElement('div');
 	container.appendChild(div);
@@ -34,5 +47,5 @@ export function truncatedArrayOfString(outputs: string[], linesLimit: number, co
 
 	const div2 = document.createElement('div');
 	container.appendChild(div2);
-	div2.appendChild(handleANSIOutput(buffer.slice(linesLimit - 5).join('\n')));
+	div2.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n')));
 }

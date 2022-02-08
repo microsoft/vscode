@@ -394,7 +394,6 @@ class CellInfoContentProvider {
 
 	private _getResult(data: {
 		notebook: URI;
-		handle: number;
 		outputId?: string | undefined;
 	}, cell: NotebookCellTextModel) {
 		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
@@ -436,7 +435,7 @@ class CellInfoContentProvider {
 		}
 
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
-		const cell = ref.object.notebook.cells.find(cell => cell.handle === data.handle);
+		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId));
 
 		if (!cell) {
 			return null;

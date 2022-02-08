@@ -11,6 +11,8 @@ interface IDisposable {
 	dispose(): void;
 }
 
+
+
 function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable {
 	const blob = new Blob([outputInfo.data()], { type: outputInfo.mime });
 	const src = URL.createObjectURL(blob);
@@ -125,7 +127,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 			const text = outputInfo.text();
 
 			const element = document.createElement('span');
-			truncatedArrayOfString([text], 30, element);
+			truncatedArrayOfString(outputInfo.id, [text], 30, element);
 			outputElement.appendChild(element);
 			return;
 		}
@@ -135,7 +137,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 	element.classList.add('output-stream');
 
 	const text = outputInfo.text();
-	truncatedArrayOfString([text], ctx.settings.lineLimit, element);
+	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
 	container.appendChild(element);
 	container.setAttribute('output-mime-type', outputInfo.mime);
 	if (error) {
@@ -147,7 +149,7 @@ function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: Rendere
 	const contentNode = document.createElement('div');
 	contentNode.classList.add('.output-plaintext');
 	const text = outputInfo.text();
-	truncatedArrayOfString([text], ctx.settings.lineLimit, contentNode);
+	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, contentNode);
 	container.appendChild(contentNode);
 
 }
@@ -156,6 +158,22 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	const disposables = new Map<string, IDisposable>();
 	const latestContext = ctx as (RendererContext<void> & { readonly settings: { readonly lineLimit: number } });
 
+	const style = document.createElement('style');
+	style.textContent = `
+	.output-stream {
+		line-height: 22px;
+		font-family: var(--notebook-cell-output-font-family);
+		white-space: pre-wrap;
+		word-wrap: break-word;
+
+		font-size: var(--notebook-cell-output-font-size);
+		user-select: text;
+		-webkit-user-select: text;
+		-ms-user-select: text;
+		cursor: auto;
+	}
+	`;
+	document.body.appendChild(style);
 	return {
 		renderOutputItem: (outputInfo, element) => {
 			switch (outputInfo.mime) {
