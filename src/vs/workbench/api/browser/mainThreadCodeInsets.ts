@@ -10,9 +10,9 @@ import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { reviveWebviewContentOptions } from 'vs/workbench/api/browser/mainThreadWebviews';
-import { ExtHostContext, ExtHostEditorInsetsShape, IExtHostContext, IWebviewContentOptions, MainContext, MainThreadEditorInsetsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostEditorInsetsShape, IWebviewContentOptions, MainContext, MainThreadEditorInsetsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IWebviewService, IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
-import { extHostNamedCustomer } from '../common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 // todo@jrieken move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
@@ -89,7 +89,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const disposables = new DisposableStore();
 
-		const webview = this._webviewService.createWebviewElement('' + handle, {
+		const webview = this._webviewService.createWebviewElement('mainThreadCodeInsets_' + handle, {
 			enableFindWidget: false,
 		}, reviveWebviewContentOptions(options), { id: extensionId, location: URI.revive(extensionLocation) });
 

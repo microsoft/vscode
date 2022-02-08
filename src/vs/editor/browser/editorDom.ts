@@ -62,9 +62,43 @@ export class EditorPagePosition {
 	) { }
 }
 
+/**
+ * Coordinates relative to the the (top;left) of the editor that can be used safely with other internal editor metrics.
+ * **NOTE**: This position is obtained by taking page coordinates and transforming them relative to the
+ * editor's (top;left) position in a way in which scale transformations are taken into account.
+ * **NOTE**: These coordinates could be negative if the mouse position is outside the editor.
+ */
+export class CoordinatesRelativeToEditor {
+	_positionRelativeToEditorBrand: void = undefined;
+
+	constructor(
+		public readonly x: number,
+		public readonly y: number
+	) { }
+}
+
 export function createEditorPagePosition(editorViewDomNode: HTMLElement): EditorPagePosition {
 	const editorPos = dom.getDomNodePagePosition(editorViewDomNode);
 	return new EditorPagePosition(editorPos.left, editorPos.top, editorPos.width, editorPos.height);
+}
+
+export function createCoordinatesRelativeToEditor(editorViewDomNode: HTMLElement, editorPagePosition: EditorPagePosition, pos: PageCoordinates) {
+	// The editor's page position is read from the DOM using getBoundingClientRect().
+	//
+	// getBoundingClientRect() returns the actual dimensions, while offsetWidth and offsetHeight
+	// reflect the unscaled size. We can use this difference to detect a transform:scale()
+	// and we will apply the transformation in inverse to get mouse coordinates that make sense inside the editor.
+	//
+	// This could be expanded to cover rotation as well maybe by walking the DOM up from `editorViewDomNode`
+	// and computing the effective transformation matrix using getComputedStyle(element).transform.
+	//
+	const scaleX = editorPagePosition.width / editorViewDomNode.offsetWidth;
+	const scaleY = editorPagePosition.height / editorViewDomNode.offsetHeight;
+
+	// Adjust mouse offsets if editor appears to be scaled via transforms
+	const relativeX = (pos.x - editorPagePosition.x) / scaleX;
+	const relativeY = (pos.y - editorPagePosition.y) / scaleY;
+	return new CoordinatesRelativeToEditor(relativeX, relativeY);
 }
 
 export class EditorMouseEvent extends StandardMouseEvent {
@@ -80,10 +114,18 @@ export class EditorMouseEvent extends StandardMouseEvent {
 	 */
 	public readonly editorPos: EditorPagePosition;
 
+	/**
+	 * Coordinates relative to the (top;left) of the editor.
+	 * *NOTE*: These coordinates are preferred because they take into account transformations applied to the editor.
+	 * *NOTE*: These coordinates could be negative if the mouse position is outside the editor.
+	 */
+	public readonly relativePos: CoordinatesRelativeToEditor;
+
 	constructor(e: MouseEvent, editorViewDomNode: HTMLElement) {
 		super(e);
 		this.pos = new PageCoordinates(this.posx, this.posy);
 		this.editorPos = createEditorPagePosition(editorViewDomNode);
+		this.relativePos = createCoordinatesRelativeToEditor(editorViewDomNode, this.editorPos, this.pos);
 	}
 }
 
@@ -227,6 +269,8 @@ export class GlobalEditorMouseMoveMonitor extends Disposable {
  * Reference counting and delayed garbage collection ensure that no rules leak.
 */
 export class DynamicCssRules {
+	private static _idPool = 0;
+	private readonly _instanceId = ++DynamicCssRules._idPool;
 	private _counter = 0;
 	private readonly _rules = new Map<string, RefCountedCssRule>();
 
@@ -254,7 +298,7 @@ export class DynamicCssRules {
 		let existingRule = this._rules.get(key);
 		if (!existingRule) {
 			const counter = this._counter++;
-			existingRule = new RefCountedCssRule(key, `dyn-rule-${counter}`,
+			existingRule = new RefCountedCssRule(key, `dyn-rule-${this._instanceId}-${counter}`,
 				dom.isInShadowDOM(this._editor.getContainerDomNode())
 					? this._editor.getContainerDomNode()
 					: undefined,
@@ -296,11 +340,12 @@ export interface CssProperties {
 	backgroundColor?: string | ThemeColor;
 	opacity?: string;
 	verticalAlign?: string;
-
+	cursor?: string;
 	margin?: string;
 	padding?: string;
 	width?: string;
 	height?: string;
+	display?: string;
 }
 
 class RefCountedCssRule {

@@ -40,7 +40,7 @@ interface ExperimentSettings {
 	state?: ExperimentState;
 }
 
-let experimentData: { [i: string]: any; } = {
+let experimentData: { [i: string]: any } = {
 	experiments: []
 };
 

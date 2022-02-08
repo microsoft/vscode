@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { iconRegistry, Codicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService, IKeyMods, IPickOptions, IQuickPickSeparator, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IExtensionTerminalProfile, ITerminalProfile, ITerminalProfileObject, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
@@ -12,7 +12,10 @@ import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/brow
 import * as nls from 'vs/nls';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IQuickPickTerminalObject } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IQuickPickTerminalObject, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { basename } from 'vs/base/common/path';
 
 
 type DefaultProfileName = string;
@@ -143,10 +146,17 @@ export class TerminalProfileQuickpick {
 		quickPickItems.push({ type: 'separator', label: nls.localize('ICreateContributedTerminalProfileOptions', "contributed") });
 		const contributedProfiles: IProfileQuickPickItem[] = [];
 		for (const contributed of this._terminalProfileService.contributedProfiles) {
-			if (typeof contributed.icon === 'string' && contributed.icon.startsWith('$(')) {
-				contributed.icon = contributed.icon.substring(2, contributed.icon.length - 1);
+			let icon: ThemeIcon | undefined;
+			if (typeof contributed.icon === 'string') {
+				if (contributed.icon.startsWith('$(')) {
+					icon = ThemeIcon.fromString(contributed.icon);
+				} else {
+					icon = ThemeIcon.fromId(contributed.icon);
+				}
 			}
-			const icon = contributed.icon && typeof contributed.icon === 'string' ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
+			if (!icon || !getIconRegistry().getIcon(icon.id)) {
+				icon = Codicon.terminal;
+			}
 			const uriClasses = getUriClasses(contributed, this._themeService.getColorTheme().type, true);
 			const colorClass = getColorClass(contributed);
 			const iconClasses = [];
@@ -199,6 +209,7 @@ export class TerminalProfileQuickpick {
 		}];
 		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
 		const label = `$(${icon.id}) ${profile.profileName}`;
+		const friendlyPath = profile.isFromPath ? basename(profile.path) : profile.path;
 		const colorClass = getColorClass(profile);
 		const iconClasses = [];
 		if (colorClass) {
@@ -215,9 +226,9 @@ export class TerminalProfileQuickpick {
 				}
 				return e;
 			}).join(' ');
-			return { label, description: `${profile.path} ${argsString}`, profile, profileName: profile.profileName, buttons, iconClasses };
+			return { label, description: `${friendlyPath} ${argsString}`, profile, profileName: profile.profileName, buttons, iconClasses };
 		}
-		return { label, description: profile.path, profile, profileName: profile.profileName, buttons, iconClasses };
+		return { label, description: friendlyPath, profile, profileName: profile.profileName, buttons, iconClasses };
 	}
 
 	private _sortProfileQuickPickItems(items: IProfileQuickPickItem[], defaultProfileName: string) {
@@ -237,4 +248,8 @@ export interface IProfileQuickPickItem extends IQuickPickItem {
 	profile: ITerminalProfile | IExtensionTerminalProfile;
 	profileName: string;
 	keyMods?: IKeyMods | undefined;
+}
+
+export interface ITerminalQuickPickItem extends IPickerQuickAccessItem {
+	terminal: ITerminalInstance;
 }

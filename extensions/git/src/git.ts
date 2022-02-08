@@ -9,10 +9,10 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import * as which from 'which';
 import { EventEmitter } from 'events';
-import * as iconv from 'iconv-lite-umd';
+import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
-import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions } from './util';
-import { CancellationToken, Progress, Uri } from 'vscode';
+import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
+import { CancellationToken, ConfigurationChangeEvent, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
@@ -20,7 +20,6 @@ import { StringDecoder } from 'string_decoder';
 
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
-const isWindows = process.platform === 'win32';
 
 export interface IGit {
 	path: string;
@@ -84,7 +83,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 				return e('git not found');
 			}
 
-			const path = gitPathBuffer.toString().replace(/^\s+|\s+$/g, '');
+			const path = gitPathBuffer.toString().trim();
 
 			function getVersion(path: string) {
 				if (!onValidate(path)) {
@@ -368,6 +367,7 @@ export class Git {
 	readonly userAgent: string;
 	readonly version: string;
 	private env: any;
+	private commandsToLog: string[] = [];
 
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
@@ -377,6 +377,18 @@ export class Git {
 		this.version = options.version;
 		this.userAgent = options.userAgent;
 		this.env = options.env || {};
+
+		const onConfigurationChanged = (e?: ConfigurationChangeEvent) => {
+			if (e !== undefined && !e.affectsConfiguration('git.commandsToLog')) {
+				return;
+			}
+
+			const config = workspace.getConfiguration('git');
+			this.commandsToLog = config.get<string[]>('commandsToLog', []);
+		};
+
+		workspace.onDidChangeConfiguration(onConfigurationChanged, this);
+		onConfigurationChanged();
 	}
 
 	compareGitVersionTo(version: string): -1 | 0 | 1 {
@@ -531,10 +543,22 @@ export class Git {
 			child.stdin!.end(options.input, 'utf8');
 		}
 
+		const startTime = Date.now();
 		const bufferResult = await exec(child, options.cancellationToken);
 
-		if (options.log !== false && bufferResult.stderr.length > 0) {
-			this.log(`${bufferResult.stderr}\n`);
+		if (options.log !== false) {
+			// command
+			this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
+
+			// stdout
+			if (args.length > 0 && this.commandsToLog.includes(args[0]) && bufferResult.stdout.length > 0) {
+				this.log(`${bufferResult.stdout}\n`);
+			}
+
+			// stderr
+			if (bufferResult.stderr.length > 0) {
+				this.log(`${bufferResult.stderr}\n`);
+			}
 		}
 
 		let encoding = options.encoding || 'utf8';
@@ -583,10 +607,6 @@ export class Git {
 
 		if (options.cwd) {
 			options.cwd = sanitizePath(options.cwd);
-		}
-
-		if (options.log !== false) {
-			this.log(`> git ${args.join(' ')}\n`);
 		}
 
 		return cp.spawn(this.path, args, options);
@@ -858,7 +878,7 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async getConfigs(scope: string): Promise<{ key: string; value: string; }[]> {
+	async getConfigs(scope: string): Promise<{ key: string; value: string }[]> {
 		const args = ['config'];
 
 		if (scope) {
@@ -960,7 +980,7 @@ export class Repository {
 		return stdout;
 	}
 
-	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string, object: string, size: number }> {
+	async getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number }> {
 		if (!treeish) { // index
 			const elements = await this.lsfiles(path);
 
@@ -998,7 +1018,7 @@ export class Repository {
 	async getGitRelativePath(ref: string, relativePath: string): Promise<string> {
 		const relativePathLowercase = relativePath.toLowerCase();
 		const dirname = path.posix.dirname(relativePath) + '/';
-		const elements: { file: string; }[] = ref ? await this.lstree(ref, dirname) : await this.lsfiles(dirname);
+		const elements: { file: string }[] = ref ? await this.lstree(ref, dirname) : await this.lsfiles(dirname);
 		const element = elements.filter(file => file.file.toLowerCase() === relativePathLowercase)[0];
 
 		if (!element) {
@@ -1008,7 +1028,7 @@ export class Repository {
 		return element.file;
 	}
 
-	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+	async detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
 		const child = await this.stream(['show', '--textconv', object]);
 		const buffer = await readBytes(child.stdout!, 4100);
 
@@ -1195,7 +1215,7 @@ export class Repository {
 					break;
 
 				// Rename contains two paths, the second one is what the file is renamed/copied to.
-				case 'R':
+				case 'R': {
 					if (index >= entries.length) {
 						break;
 					}
@@ -1214,7 +1234,7 @@ export class Repository {
 					});
 
 					continue;
-
+				}
 				default:
 					// Unknown status
 					break entriesLoop;
@@ -1308,7 +1328,7 @@ export class Repository {
 		await this.exec(['update-index', add, '--cacheinfo', mode, hash, path]);
 	}
 
-	async checkout(treeish: string, paths: string[], opts: { track?: boolean, detached?: boolean } = Object.create(null)): Promise<void> {
+	async checkout(treeish: string, paths: string[], opts: { track?: boolean; detached?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['checkout', '-q'];
 
 		if (opts.track) {
@@ -1570,7 +1590,7 @@ export class Repository {
 		await this.exec(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean, readonly cancellationToken?: CancellationToken } = {}): Promise<void> {
+	async fetch(options: { remote?: string; ref?: string; all?: boolean; prune?: boolean; depth?: number; silent?: boolean; readonly cancellationToken?: CancellationToken } = {}): Promise<void> {
 		const args = ['fetch'];
 		const spawnOptions: SpawnOptions = {
 			cancellationToken: options.cancellationToken,
@@ -1793,10 +1813,13 @@ export class Repository {
 	}
 
 	async dropStash(index?: number): Promise<void> {
-		const args = ['stash', 'drop'];
+		const args = ['stash'];
 
 		if (typeof index === 'number') {
+			args.push('drop');
 			args.push(`stash@{${index}}`);
+		} else {
+			args.push('clear');
 		}
 
 		try {
@@ -1810,8 +1833,8 @@ export class Repository {
 		}
 	}
 
-	getStatus(opts?: { limit?: number, ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
-		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
+	getStatus(opts?: { limit?: number; ignoreSubmodules?: boolean }): Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }> {
+		return new Promise<{ status: IFileStatus[]; statusLength: number; didHitLimit: boolean }>((c, e) => {
 			const parser = new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
 			const args = ['status', '-z', '-u'];
@@ -1835,10 +1858,10 @@ export class Repository {
 					}));
 				}
 
-				c({ status: parser.status, didHitLimit: false });
+				c({ status: parser.status, statusLength: parser.status.length, didHitLimit: false });
 			};
 
-			const limit = opts?.limit ?? 5000;
+			const limit = opts?.limit ?? 10000;
 			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 
@@ -1847,7 +1870,7 @@ export class Repository {
 					child.stdout!.removeListener('data', onStdoutData);
 					child.kill();
 
-					c({ status: parser.status.slice(0, limit), didHitLimit: true });
+					c({ status: parser.status.slice(0, limit), statusLength: parser.status.length, didHitLimit: true });
 				}
 			};
 
@@ -1891,7 +1914,7 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate', contains?: string, pattern?: string, count?: number }): Promise<Ref[]> {
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate'; contains?: string; pattern?: string; count?: number }): Promise<Ref[]> {
 		const args = ['for-each-ref'];
 
 		if (opts?.count) {

@@ -73,9 +73,9 @@ export interface IPickerQuickAccessProviderOptions<T extends IPickerQuickAccessI
 }
 
 export type Pick<T> = T | IQuickPickSeparator;
-export type PicksWithActive<T> = { items: readonly Pick<T>[], active?: T };
+export type PicksWithActive<T> = { items: readonly Pick<T>[]; active?: T };
 export type Picks<T> = readonly Pick<T>[] | PicksWithActive<T>;
-export type FastAndSlowPicks<T> = { picks: Picks<T>, additionalPicks: Promise<Picks<T>> };
+export type FastAndSlowPicks<T> = { picks: Picks<T>; additionalPicks: Promise<Picks<T>> };
 
 function isPicksWithActive<T>(obj: unknown): obj is PicksWithActive<T> {
 	const candidate = obj as PicksWithActive<T>;
@@ -298,7 +298,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 						case TriggerAction.REFRESH_PICKER:
 							updatePickerItems();
 							break;
-						case TriggerAction.REMOVE_ITEM:
+						case TriggerAction.REMOVE_ITEM: {
 							const index = picker.items.indexOf(item);
 							if (index !== -1) {
 								const items = picker.items.slice();
@@ -313,6 +313,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 								picker.keepScrollPosition = keepScrollPositionBefore;
 							}
 							break;
+						}
 					}
 				}
 			}

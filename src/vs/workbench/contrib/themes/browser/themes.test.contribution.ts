@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { IGrammar, StackElement } from 'vscode-textmate';
-import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
+import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
+import type { IGrammar, StackElement } from 'vscode-textmate';
+import { TokenizationRegistry, TokenMetadata } from 'vs/editor/common/languages';
 import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
 import { Color } from 'vs/base/common/color';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -23,7 +23,7 @@ import { splitLines } from 'vs/base/common/strings';
 interface IToken {
 	c: string;
 	t: string;
-	r: { [themeName: string]: string | undefined; };
+	r: { [themeName: string]: string | undefined };
 }
 
 interface IThemedToken {
@@ -40,7 +40,7 @@ interface IThemesResult {
 
 class ThemeDocument {
 	private readonly _theme: IWorkbenchColorTheme;
-	private readonly _cache: { [scopes: string]: ThemeRule; };
+	private readonly _cache: { [scopes: string]: ThemeRule };
 	private readonly _defaultColor: string;
 
 	constructor(theme: IWorkbenchColorTheme) {
@@ -89,7 +89,7 @@ class ThemeDocument {
 class Snapper {
 
 	constructor(
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@ITextMateService private readonly textMateService: ITextMateService
 	) {
@@ -194,7 +194,7 @@ class Snapper {
 	}
 
 	private _enrichResult(result: IToken[], themesResult: IThemesResult): void {
-		let index: { [themeName: string]: number; } = {};
+		let index: { [themeName: string]: number } = {};
 		let themeNames = Object.keys(themesResult);
 		for (const themeName of themeNames) {
 			index[themeName] = 0;
@@ -216,7 +216,7 @@ class Snapper {
 	}
 
 	public captureSyntaxTokens(fileName: string, content: string): Promise<IToken[]> {
-		const languageId = this.modeService.getModeIdByFilepathOrFirstLine(URI.file(fileName));
+		const languageId = this.languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(fileName));
 		return this.textMateService.createGrammar(languageId!).then((grammar) => {
 			if (!grammar) {
 				return [];

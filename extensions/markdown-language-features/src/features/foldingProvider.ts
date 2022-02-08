@@ -6,7 +6,7 @@
 import Token = require('markdown-it/lib/token');
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContents } from '../tableOfContentsProvider';
 
 const rangeLimit = 5000;
 
@@ -38,7 +38,7 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 		const regionMarkers = tokens.filter(isRegionMarker)
 			.map(token => ({ line: token.map[0], isStart: isStartRegion(token.content) }));
 
-		const nestingStack: { line: number, isStart: boolean }[] = [];
+		const nestingStack: { line: number; isStart: boolean }[] = [];
 		return regionMarkers
 			.map(marker => {
 				if (marker.isStart) {
@@ -54,9 +54,8 @@ export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvi
 	}
 
 	private async getHeaderFoldingRanges(document: vscode.TextDocument) {
-		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
-		return toc.map(entry => {
+		const toc = await TableOfContents.create(this.engine, document);
+		return toc.entries.map(entry => {
 			let endLine = entry.location.range.end.line;
 			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
 				endLine = endLine - 1;

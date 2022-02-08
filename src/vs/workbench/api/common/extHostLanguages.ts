@@ -98,6 +98,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			command: undefined,
 			text: '',
 			detail: '',
+			busy: false
 		};
 
 		let soonHandle: IDisposable | undefined;
@@ -115,7 +116,8 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 					detail: data.detail ?? '',
 					severity: data.severity === LanguageStatusSeverity.Error ? Severity.Error : data.severity === LanguageStatusSeverity.Warning ? Severity.Warning : Severity.Info,
 					command: data.command && this._commands.toInternal(data.command, commandDisposables),
-					accessibilityInfo: data.accessibilityInformation
+					accessibilityInfo: data.accessibilityInformation,
+					busy: data.busy
 				});
 			}, 0);
 		};
@@ -177,6 +179,13 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			},
 			set command(value) {
 				data.command = value;
+				updateAsync();
+			},
+			get busy() {
+				return data.busy;
+			},
+			set busy(value: boolean) {
+				data.busy = value;
 				updateAsync();
 			}
 		};

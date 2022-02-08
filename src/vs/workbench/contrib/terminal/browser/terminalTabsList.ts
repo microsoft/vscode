@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -46,6 +46,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
+import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 const $ = DOM.$;
 
@@ -95,7 +96,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
-				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop)
+				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
+				openOnSingleClick: true
 			},
 			contextKeyService,
 			listService,
@@ -107,6 +109,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
+			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
 			this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh()),
@@ -303,6 +306,22 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				template.context.hoverActions.push(...status.hoverActions);
 			}
 		}
+
+		let shellIntegrationString = '';
+		const shellIntegrationCapabilities: TerminalCapability[] = [];
+		if (instance.capabilities.has(TerminalCapability.CommandDetection)) {
+			shellIntegrationCapabilities.push(TerminalCapability.CommandDetection);
+		}
+		if (instance.capabilities.has(TerminalCapability.CwdDetection)) {
+			shellIntegrationCapabilities.push(TerminalCapability.CwdDetection);
+		}
+		if (shellIntegrationCapabilities.length > 0) {
+			shellIntegrationString += `\n\n---\n\n ${localize('shellIntegration.enabled', "Shell integration is enabled")}`;
+			for (const capability of shellIntegrationCapabilities) {
+				shellIntegrationString += `\n- ${this._getCapabilityName(capability)}`;
+			}
+		}
+
 		const iconId = getIconId(instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
@@ -360,7 +379,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 				badges: hasText
 			},
 			title: {
-				markdown: new MarkdownString(instance.title + statusString, { supportThemeIcons: true }),
+				markdown: new MarkdownString(instance.title + shellIntegrationString + statusString, { supportThemeIcons: true }),
 				markdownNotSupportedFallback: undefined
 			},
 			extraClasses
@@ -465,7 +484,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		// If the instance is within the selection, split all selected
 		const actions = [
 			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
-				this._runForSelectionOrInstance(instance, e => this._terminalService.createTerminal({ location: { parentTerminal: e } }));
+				this._runForSelectionOrInstance(instance, async e => {
+					this._terminalService.createTerminal({ location: { parentTerminal: e } });
+				});
 			}),
 			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
 				this._runForSelectionOrInstance(instance, e => this._terminalService.safeDisposeTerminal(e));
@@ -491,6 +512,18 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 		this._terminalGroupService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
+	}
+
+	private _getCapabilityName(capability: TerminalCapability): string | undefined {
+		switch (capability) {
+			case TerminalCapability.CwdDetection:
+			case TerminalCapability.NaiveCwdDetection:
+				return localize('capability.cwdDetection', "Current working directory detection");
+			case TerminalCapability.CommandDetection:
+				return localize('capability.commandDetection', "Command detection");
+			case TerminalCapability.PartialCommandDetection:
+				return localize('capability.partialCommandDetection', "Command detection (partial)");
+		}
 	}
 }
 
@@ -548,7 +581,6 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 	) {
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
 	}
@@ -710,8 +742,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		this._terminalService.setActiveInstance(instance);
 
-		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.remoteAuthority);
-		instance.sendText(preparedPath, false);
 		instance.focus();
+		await instance.sendPath(path, false);
 	}
 }

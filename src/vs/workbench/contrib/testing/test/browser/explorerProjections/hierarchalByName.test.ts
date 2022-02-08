@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { AbstractTreeViewState } from 'vs/base/browser/ui/tree/abstractTree';
 import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 
 suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
@@ -25,7 +26,7 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
 		};
 
-		harness = new TestTreeTestHarness(l => new HierarchicalByNameProjection(l, resultsService as any));
+		harness = new TestTreeTestHarness(l => new HierarchicalByNameProjection(AbstractTreeViewState.empty(), l, resultsService as any));
 	});
 
 	teardown(() => {
@@ -41,13 +42,13 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 
 	test('updates render if second test provider appears', async () => {
 		harness.flush();
-		harness.pushDiff([
-			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'root2', undefined)) },
-		], [
-			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'c', undefined)) },
-		]);
+		harness.pushDiff({
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'root2', undefined)) },
+		}, {
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'c', undefined)) },
+		});
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'root', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'b' }] },

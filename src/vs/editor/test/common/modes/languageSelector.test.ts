@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { score } from 'vs/editor/common/modes/languageSelector';
+import { score } from 'vs/editor/common/languageSelector';
 
 suite('LanguageSelector', function () {
 

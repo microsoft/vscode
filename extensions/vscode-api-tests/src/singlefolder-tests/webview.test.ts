@@ -113,7 +113,7 @@ suite('vscode API - webview', () => {
 			</script>`);
 		await ready;
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const firstResponse = await sendReceiveMessage(webview, { type: 'add' });
 		assert.strictEqual(firstResponse.value, 1);
 
 		// Swap away from the webview
@@ -126,11 +126,11 @@ suite('vscode API - webview', () => {
 		await ready2;
 
 		// We should still have old state
-		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const secondResponse = await sendReceiveMessage(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews should preserve their context when they are moved between view columns', async () => {
+	test.skip('webviews should preserve their context when they are moved between view columns', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/141001
 		const doc = await vscode.workspace.openTextDocument(testDocument);
 		await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
 
@@ -140,25 +140,27 @@ suite('vscode API - webview', () => {
 		webview.webview.html = statefulWebviewHtml;
 		await ready;
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const firstResponse = await sendReceiveMessage(webview, { type: 'add' });
 		assert.strictEqual(firstResponse.value, 1);
 
 		// Now move webview to new view column
 		webview.reveal(vscode.ViewColumn.Two);
 
 		// We should still have old state
-		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const secondResponse = await sendReceiveMessage(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews with retainContextWhenHidden should preserve their context when they are hidden', async () => {
+	test.skip('webviews with retainContextWhenHidden should preserve their context when they are hidden', async function () {
+		this.retries(3);
+
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMessage(webview);
 
 		webview.webview.html = statefulWebviewHtml;
 		await ready;
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const firstResponse = await sendReceiveMessage(webview, { type: 'add' });
 		assert.strictEqual((await firstResponse).value, 1);
 
 		// Swap away from the webview
@@ -169,11 +171,11 @@ suite('vscode API - webview', () => {
 		webview.reveal(vscode.ViewColumn.One);
 
 		// We should still have old state
-		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const secondResponse = await sendReceiveMessage(webview, { type: 'get' });
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	test('webviews with retainContextWhenHidden should preserve their page position when hidden', async () => {
+	test.skip('webviews with retainContextWhenHidden should preserve their page position when hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMessage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -209,7 +211,7 @@ suite('vscode API - webview', () => {
 		webview.reveal(vscode.ViewColumn.One);
 
 		// We should still have old scroll pos
-		const secondResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const secondResponse = await sendReceiveMessage(webview, { type: 'get' });
 		assert.strictEqual(Math.round(secondResponse.value), 100);
 	});
 
@@ -220,7 +222,7 @@ suite('vscode API - webview', () => {
 		webview.webview.html = statefulWebviewHtml;
 		await ready;
 
-		const firstResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const firstResponse = await sendReceiveMessage(webview, { type: 'add' });
 		assert.strictEqual((await firstResponse).value, 1);
 
 		// Swap away from the webview
@@ -228,19 +230,19 @@ suite('vscode API - webview', () => {
 		await vscode.window.showTextDocument(doc);
 
 		// Try posting a message to our hidden webview
-		const secondResponse = await sendRecieveMessage(webview, { type: 'add' });
+		const secondResponse = await sendReceiveMessage(webview, { type: 'add' });
 		assert.strictEqual((await secondResponse).value, 2);
 
 		// Now show webview again
 		webview.reveal(vscode.ViewColumn.One);
 
 		// We should still have old state
-		const thirdResponse = await sendRecieveMessage(webview, { type: 'get' });
+		const thirdResponse = await sendReceiveMessage(webview, { type: 'get' });
 		assert.strictEqual(thirdResponse.value, 2);
 	});
 
 
-	test('webviews should only be able to load resources from workspace by default', async () => {
+	test.skip('webviews should only be able to load resources from workspace by default', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/139960
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', {
 			viewColumn: vscode.ViewColumn.One
 		}, {
@@ -275,29 +277,29 @@ suite('vscode API - webview', () => {
 
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('image.png'));
-			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+			const response = await sendReceiveMessage(webview, { src: imagePath.toString() });
 			assert.strictEqual(response.value, true);
 		}
 		// {
 		// 	// #102188. Resource filename containing special characters like '%', '#', '?'.
 		// 	const imagePath = webview.webview.asWebviewUri(workspaceFile('image%02.png'));
-		// 	const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+		// 	const response = await sendReceiveMessage(webview, { src: imagePath.toString() });
 		// 	assert.strictEqual(response.value, true);
 		// }
 		// {
 		// 	// #102188. Resource filename containing special characters like '%', '#', '?'.
 		// 	const imagePath = webview.webview.asWebviewUri(workspaceFile('image%.png'));
-		// 	const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+		// 	const response = await sendReceiveMessage(webview, { src: imagePath.toString() });
 		// 	assert.strictEqual(response.value, true);
 		// }
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('no-such-image.png'));
-			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+			const response = await sendReceiveMessage(webview, { src: imagePath.toString() });
 			assert.strictEqual(response.value, false);
 		}
 		{
 			const imagePath = webview.webview.asWebviewUri(workspaceFile('..', '..', '..', 'resources', 'linux', 'code.png'));
-			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+			const response = await sendReceiveMessage(webview, { src: imagePath.toString() });
 			assert.strictEqual(response.value, false);
 		}
 	});
@@ -321,16 +323,16 @@ suite('vscode API - webview', () => {
 			</script>`);
 
 		{
-			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(workspaceFile('sub', 'image.png')).toString() });
+			const response = sendReceiveMessage(webview, { src: webview.webview.asWebviewUri(workspaceFile('sub', 'image.png')).toString() });
 			assert.strictEqual((await response).value, true);
 		}
 		{
-			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(workspaceFile('image.png')).toString() });
+			const response = sendReceiveMessage(webview, { src: webview.webview.asWebviewUri(workspaceFile('image.png')).toString() });
 			assert.strictEqual((await response).value, false);
 		}
 	});
 
-	test('webviews using hard-coded old style vscode-resource uri should work', async () => {
+	test.skip('webviews using hard-coded old style vscode-resource uri should work', async () => { // TODO@mjbvz https://github.com/microsoft/vscode/issues/139572
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [workspaceFile('sub')]
@@ -355,7 +357,7 @@ suite('vscode API - webview', () => {
 			// Firefox service workers never seem to get any 'fetch' requests here. Other browsers work fine
 			return;
 		}
-		const firstResponse = await sendRecieveMessage(webview, { src: imagePath.toString() });
+		const firstResponse = await sendReceiveMessage(webview, { src: imagePath.toString() });
 
 		assert.strictEqual(firstResponse.value, true);
 	});
@@ -572,7 +574,7 @@ function getMessage<R = any>(webview: vscode.WebviewPanel): Promise<R> {
 	});
 }
 
-function sendRecieveMessage<T = {}, R = any>(webview: vscode.WebviewPanel, message: T): Promise<R> {
+function sendReceiveMessage<T = {}, R = any>(webview: vscode.WebviewPanel, message: T): Promise<R> {
 	const p = getMessage<R>(webview);
 	webview.webview.postMessage(message);
 	return p;

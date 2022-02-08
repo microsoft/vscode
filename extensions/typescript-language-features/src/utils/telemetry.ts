@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
+import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
 import { memoize } from './memoize';
 
 interface PackageInfo {

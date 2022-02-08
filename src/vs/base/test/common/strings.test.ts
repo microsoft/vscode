@@ -208,24 +208,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.containsRTL('זוהי עובדה מבוססת שדעתו'), true);
 	});
 
-	test('containsEmoji', () => {
-		assert.strictEqual(strings.containsEmoji('a'), false);
-		assert.strictEqual(strings.containsEmoji(''), false);
-		assert.strictEqual(strings.containsEmoji(strings.UTF8_BOM_CHARACTER + 'a'), false);
-		assert.strictEqual(strings.containsEmoji('hello world!'), false);
-		assert.strictEqual(strings.containsEmoji('هناك حقيقة مثبتة منذ زمن طويل'), false);
-		assert.strictEqual(strings.containsEmoji('זוהי עובדה מבוססת שדעתו'), false);
-
-		assert.strictEqual(strings.containsEmoji('a📚📚b'), true);
-		assert.strictEqual(strings.containsEmoji('1F600 # 😀 grinning face'), true);
-		assert.strictEqual(strings.containsEmoji('1F47E # 👾 alien monster'), true);
-		assert.strictEqual(strings.containsEmoji('1F467 1F3FD # 👧🏽 girl: medium skin tone'), true);
-		assert.strictEqual(strings.containsEmoji('26EA # ⛪ church'), true);
-		assert.strictEqual(strings.containsEmoji('231B # ⌛ hourglass'), true);
-		assert.strictEqual(strings.containsEmoji('2702 # ✂ scissors'), true);
-		assert.strictEqual(strings.containsEmoji('1F1F7 1F1F4  # 🇷🇴 Romania'), true);
-	});
-
 	test('issue #115221: isEmojiImprecise misses ⭐', () => {
 		const codePoint = strings.getNextCodePoint('⭐', '⭐'.length, 0);
 		assert.strictEqual(strings.isEmojiImprecise(codePoint), true);

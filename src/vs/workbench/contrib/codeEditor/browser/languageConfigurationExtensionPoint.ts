@@ -8,13 +8,13 @@ import { ParseError, parse, getNodeType } from 'vs/base/common/json';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { CharacterPair, CommentRule, EnterAction, ExplicitLanguageConfiguration, FoldingRules, IAutoClosingPair, IAutoClosingPairConditional, IndentAction, IndentationRule, OnEnterRule } from 'vs/editor/common/languages/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
+import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 
@@ -82,14 +82,14 @@ export class LanguageConfigurationFileHandler {
 
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._done = new Set<string>();
 
 		// Listen for hints that a language configuration is needed/usefull and then load it once
-		this._modeService.onDidEncounterLanguage((languageIdentifier) => {
+		this._languageService.onDidEncounterLanguage((languageIdentifier) => {
 			// Modes can be instantiated before the extension points have finished registering
 			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 				this._loadConfigurationsForMode(languageIdentifier);
@@ -106,7 +106,7 @@ export class LanguageConfigurationFileHandler {
 		}
 		this._done.add(languageId);
 
-		const configurationFiles = this._modeService.getConfigurationFiles(languageId);
+		const configurationFiles = this._languageService.getConfigurationFiles(languageId);
 		configurationFiles.forEach((configFileLocation) => this._handleConfigFile(languageId, configFileLocation));
 	}
 
@@ -480,9 +480,9 @@ const schema: IJSONSchema = {
 		bracketPair: {
 			type: 'array',
 			items: [{
-				$ref: '#definitions/openBracket'
+				$ref: '#/definitions/openBracket'
 			}, {
-				$ref: '#definitions/closeBracket'
+				$ref: '#/definitions/closeBracket'
 			}]
 		}
 	},
@@ -517,7 +517,7 @@ const schema: IJSONSchema = {
 			description: nls.localize('schema.brackets', 'Defines the bracket symbols that increase or decrease the indentation.'),
 			type: 'array',
 			items: {
-				$ref: '#definitions/bracketPair'
+				$ref: '#/definitions/bracketPair'
 			}
 		},
 		colorizedBracketPairs: {
@@ -525,7 +525,7 @@ const schema: IJSONSchema = {
 			description: nls.localize('schema.colorizedBracketPairs', 'Defines the bracket pairs that are colorized by their nesting level if bracket pair colorization is enabled.'),
 			type: 'array',
 			items: {
-				$ref: '#definitions/bracketPair'
+				$ref: '#/definitions/bracketPair'
 			}
 		},
 		autoClosingPairs: {
@@ -534,15 +534,15 @@ const schema: IJSONSchema = {
 			type: 'array',
 			items: {
 				oneOf: [{
-					$ref: '#definitions/bracketPair'
+					$ref: '#/definitions/bracketPair'
 				}, {
 					type: 'object',
 					properties: {
 						open: {
-							$ref: '#definitions/openBracket'
+							$ref: '#/definitions/openBracket'
 						},
 						close: {
-							$ref: '#definitions/closeBracket'
+							$ref: '#/definitions/closeBracket'
 						},
 						notIn: {
 							type: 'array',
@@ -566,15 +566,15 @@ const schema: IJSONSchema = {
 			type: 'array',
 			items: {
 				oneOf: [{
-					$ref: '#definitions/bracketPair'
+					$ref: '#/definitions/bracketPair'
 				}, {
 					type: 'object',
 					properties: {
 						open: {
-							$ref: '#definitions/openBracket'
+							$ref: '#/definitions/openBracket'
 						},
 						close: {
-							$ref: '#definitions/closeBracket'
+							$ref: '#/definitions/closeBracket'
 						}
 					}
 				}]

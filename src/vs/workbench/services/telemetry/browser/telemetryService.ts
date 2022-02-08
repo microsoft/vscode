@@ -15,14 +15,14 @@ import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel } fro
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { ITelemetryAppender, NullTelemetryService, supportsTelemetry, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
 
 class WebAppInsightsAppender implements ITelemetryAppender {
 	private _aiClient: ApplicationInsights | undefined;
 	private _aiClientLoaded = false;
-	private _telemetryCache: { eventName: string, data: any }[] = [];
+	private _telemetryCache: { eventName: string; data: any }[] = [];
 
 	constructor(private _eventPrefix: string, aiKey: string) {
 		const endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
@@ -110,7 +110,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	public readonly sendErrorTelemetry = false;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,

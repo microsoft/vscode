@@ -28,6 +28,7 @@ textarea {
 	display: block;
 	width: 100%;
 	border: none;
+	margin-right: 0.3em;
 	font-family: var(--vscode-font-family);
 	padding: var(--input-padding-vertical) var(--input-padding-horizontal);
 	color: var(--vscode-input-foreground);
@@ -42,25 +43,25 @@ textarea::placeholder {
 
 button {
 	border: none;
-	padding: var(--input-padding-vertical) var(--input-padding-horizontal);
+	padding: 3px;
 	text-align: center;
 	outline: 1px solid transparent;
-	outline-offset: 2px !important;
 	color: var(--vscode-icon-foreground);
 	background: none;
+	border-radius: 5px;
 }
 
 button:hover:not(:disabled) {
 	cursor: pointer;
-	color: var(--vscode-button-foreground);
-	background: var(--vscode-button-hoverBackground);
+	color: var(--vscode-toolbar-hoverForeground);
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 button:disabled {
 	opacity: 0.5;
-	background: var(--vscode-button-background);
 }
 
+input:focus,
 button:focus {
 	outline-color: var(--vscode-focusBorder);
 }

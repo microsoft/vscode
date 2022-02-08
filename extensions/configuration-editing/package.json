@@ -51,9 +51,9 @@
           ".devcontainer.json"
         ],
         "filenamePatterns": [
-					"**/.devcontainer/devcontainer.json",
+          "**/.devcontainer/devcontainer.json",
           "**/User/snippets/*.json"
-				]
+        ]
       }
     ],
     "jsonValidation": [
@@ -136,6 +136,10 @@
       {
         "fileMatch": "%APP_SETTINGS_HOME%/globalStorage/ms-vscode-remote.remote-containers/imageConfigs/*.json",
         "url": "./schemas/attachContainer.schema.json"
+      },
+      {
+        "fileMatch": "**/quality/*/product.json",
+        "url": "vscode://schemas/vscode-product"
       }
     ]
   },

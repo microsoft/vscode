@@ -132,9 +132,11 @@ export class Checkbox extends Widget {
 		this.applyStyles();
 
 		this.onclick(this.domNode, (ev) => {
-			this.checked = !this._checked;
-			this._onChange.fire(false);
-			ev.preventDefault();
+			if (this.enabled) {
+				this.checked = !this._checked;
+				this._onChange.fire(false);
+				ev.preventDefault();
+			}
 		});
 
 		this.ignoreGesture(this.domNode);
@@ -191,9 +193,9 @@ export class Checkbox extends Widget {
 
 	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : '';
 			this.domNode.style.color = this._checked && this._opts.inputActiveOptionForeground ? this._opts.inputActiveOptionForeground.toString() : 'inherit';
-			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : 'transparent';
+			this.domNode.style.backgroundColor = this._checked && this._opts.inputActiveOptionBackground ? this._opts.inputActiveOptionBackground.toString() : '';
 		}
 	}
 

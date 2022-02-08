@@ -28,7 +28,7 @@ export interface IOpenEditorResult {
 	 * placeholder in certain cases, e.g. when workspace trust
 	 * is required, or an editor fails to restore.
 	 *
-	 * Will be `undefined` if an error occured while trying to
+	 * Will be `undefined` if an error occurred while trying to
 	 * open the editor and in cases where no placeholder is being
 	 * used.
 	 */
@@ -62,7 +62,7 @@ export class EditorPanes extends Disposable {
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
-	private _onDidChangeSizeConstraints = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	private _onDidChangeSizeConstraints = this._register(new Emitter<{ width: number; height: number } | undefined>());
 	readonly onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
 
 	//#endregion
@@ -251,7 +251,7 @@ export class EditorPanes extends Disposable {
 		this._onDidChangeSizeConstraints.fire(undefined);
 	}
 
-	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<{ changed: boolean, cancelled: boolean }> {
+	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<{ changed: boolean; cancelled: boolean }> {
 
 		// If the input did not change, return early and only
 		// apply the options unless the options instruct us to
@@ -268,9 +268,16 @@ export class EditorPanes extends Disposable {
 		// started will cancel the previous one.
 		const operation = this.editorOperation.start(this.layoutService.isRestored() ? 800 : 3200);
 
-		// Set the input to the editor pane
 		let cancelled = false;
 		try {
+
+			// Clear the current input before setting new input
+			// This ensures that a slow loading input will not
+			// be visible for the duration of the new input to
+			// load (https://github.com/microsoft/vscode/issues/34697)
+			editorPane.clearInput();
+
+			// Set the input to the editor pane
 			await editorPane.setInput(editor, options, context, operation.token);
 
 			if (!operation.isCurrent()) {
@@ -309,7 +316,7 @@ export class EditorPanes extends Disposable {
 	}
 
 	closeEditor(editor: EditorInput): void {
-		if (this._activeEditorPane && this._activeEditorPane.input && editor.matches(this._activeEditorPane.input)) {
+		if (this._activeEditorPane?.input && editor.matches(this._activeEditorPane.input)) {
 			this.doHideActiveEditorPane();
 		}
 	}

@@ -9,7 +9,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
-import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { isTypeScriptDocument } from '../utils/languageIds';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
 
@@ -167,11 +167,11 @@ export default class FileConfigurationManager extends Disposable {
 
 		const config = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
-			document.uri);
+			document);
 
 		const preferencesConfig = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
-			document.uri);
+			document);
 
 		const preferences: Proto.UserPreferences = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
@@ -186,7 +186,7 @@ export default class FileConfigurationManager extends Disposable {
 			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
-			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.includeCompletionsWithClassMemberSnippets', true),
+			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
 			...getInlayHintsPreferences(config),

@@ -7,8 +7,8 @@ import assert = require('assert');
 import { splitLines } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { BeforeEditPositionMapper, TextEditInfo } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/beforeEditPositionMapper';
-import { Length, lengthOfString, lengthToObj, lengthToPosition, toLength } from 'vs/editor/common/model/bracketPairs/bracketPairsTree/length';
+import { BeforeEditPositionMapper, TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
+import { Length, lengthOfString, lengthToObj, lengthToPosition, toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 
 suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
 	test('Single-Line 1', () => {
@@ -392,7 +392,7 @@ class PositionOffsetTransformer {
 	}
 }
 
-function applyLineColumnEdits(text: string, edits: { range: IRange, text: string }[]): string {
+function applyLineColumnEdits(text: string, edits: { range: IRange; text: string }[]): string {
 	const transformer = new PositionOffsetTransformer(text);
 	const offsetEdits = edits.map(e => {
 		const range = Range.lift(e.range);

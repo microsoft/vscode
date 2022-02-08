@@ -111,7 +111,7 @@ export class TaskQuickPick extends Disposable {
 		return tasks;
 	}
 
-	private dedupeConfiguredAndRecent(recentTasks: (Task | ConfiguringTask)[], configuredTasks: (Task | ConfiguringTask)[]): { configuredTasks: (Task | ConfiguringTask)[], recentTasks: (Task | ConfiguringTask)[] } {
+	private dedupeConfiguredAndRecent(recentTasks: (Task | ConfiguringTask)[], configuredTasks: (Task | ConfiguringTask)[]): { configuredTasks: (Task | ConfiguringTask)[]; recentTasks: (Task | ConfiguringTask)[] } {
 		let dedupedConfiguredTasks: (Task | ConfiguringTask)[] = [];
 		const foundRecentTasks: boolean[] = Array(recentTasks.length).fill(false);
 		for (let j = 0; j < configuredTasks.length; j++) {
@@ -142,7 +142,7 @@ export class TaskQuickPick extends Disposable {
 		return { configuredTasks: dedupedConfiguredTasks, recentTasks: prunedRecentTasks };
 	}
 
-	public async getTopLevelEntries(defaultEntry?: TaskQuickPickEntry): Promise<{ entries: QuickPickInput<TaskTwoLevelQuickPickEntry>[], isSingleConfigured?: Task | ConfiguringTask }> {
+	public async getTopLevelEntries(defaultEntry?: TaskQuickPickEntry): Promise<{ entries: QuickPickInput<TaskTwoLevelQuickPickEntry>[]; isSingleConfigured?: Task | ConfiguringTask }> {
 		if (this.topLevelEntries !== undefined) {
 			return { entries: this.topLevelEntries };
 		}

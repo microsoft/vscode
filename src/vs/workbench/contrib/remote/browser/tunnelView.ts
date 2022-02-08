@@ -34,7 +34,8 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { URI } from 'vs/base/common/uri';
-import { isAllInterfaces, isLocalhost, isPortPrivileged, ITunnelService, RemoteTunnel, TunnelPrivacy, TunnelPrivacyId, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
+import { isAllInterfaces, isLocalhost, isPortPrivileged, ITunnelService, RemoteTunnel, TunnelPrivacyId, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
+import { TunnelPrivacy } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -568,7 +569,7 @@ class TunnelItem implements ITunnelItem {
 		public tunnelType: TunnelType,
 		public remoteHost: string,
 		public remotePort: number,
-		public source: { source: TunnelSource, description: string },
+		public source: { source: TunnelSource; description: string },
 		public hasRunningProcess: boolean,
 		public protocol: TunnelProtocol,
 		public localUri?: URI,
@@ -1039,7 +1040,7 @@ namespace LabelTunnelAction {
 	}
 
 	export function handler(): ICommandHandler {
-		return async (accessor, arg): Promise<{ port: number, label: string } | undefined> => {
+		return async (accessor, arg): Promise<{ port: number; label: string } | undefined> => {
 			const context = isITunnelItem(arg) ? arg : accessor.get(IContextKeyService).getContextKeyValue<ITunnelItem | undefined>(TunnelViewSelectionKeyName);
 			if (context) {
 				return new Promise(resolve => {
@@ -1079,7 +1080,7 @@ export namespace ForwardPortAction {
 	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
 	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
 
-	function validateInput(remoteExplorerService: IRemoteExplorerService, value: string, canElevate: boolean): { content: string, severity: Severity } | null {
+	function validateInput(remoteExplorerService: IRemoteExplorerService, value: string, canElevate: boolean): { content: string; severity: Severity } | null {
 		const parsed = parseAddress(value);
 		if (!parsed) {
 			return { content: invalidPortString, severity: Severity.Error };
@@ -1107,7 +1108,7 @@ export namespace ForwardPortAction {
 			remoteExplorerService.setEditable(undefined, TunnelEditId.New, {
 				onFinish: async (value, success) => {
 					remoteExplorerService.setEditable(undefined, TunnelEditId.New, null);
-					let parsed: { host: string, port: number } | undefined;
+					let parsed: { host: string; port: number } | undefined;
 					if (success && (parsed = parseAddress(value))) {
 						remoteExplorerService.forward({
 							remote: { host: parsed.host, port: parsed.port },
@@ -1133,7 +1134,7 @@ export namespace ForwardPortAction {
 				prompt: forwardPrompt,
 				validateInput: (value) => Promise.resolve(validateInput(remoteExplorerService, value, tunnelService.canElevate))
 			});
-			let parsed: { host: string, port: number } | undefined;
+			let parsed: { host: string; port: number } | undefined;
 			if (value && (parsed = parseAddress(value))) {
 				remoteExplorerService.forward({
 					remote: { host: parsed.host, port: parsed.port },
@@ -1145,7 +1146,7 @@ export namespace ForwardPortAction {
 }
 
 interface QuickPickTunnel extends IQuickPickItem {
-	tunnel?: ITunnelItem
+	tunnel?: ITunnelItem;
 }
 
 function makeTunnelPicks(tunnels: Tunnel[], remoteExplorerService: IRemoteExplorerService, tunnelService: ITunnelService): QuickPickInput<QuickPickTunnel>[] {
@@ -1359,7 +1360,7 @@ namespace ChangeLocalPortAction {
 	export const ID = 'remote.tunnel.changeLocalPort';
 	export const LABEL = nls.localize('remote.tunnel.changeLocalPort', "Change Local Address Port");
 
-	function validateInput(value: string, canElevate: boolean): { content: string, severity: Severity } | null {
+	function validateInput(value: string, canElevate: boolean): { content: string; severity: Severity } | null {
 		if (!value.match(/^[0-9]+$/)) {
 			return { content: invalidPortString, severity: Severity.Error };
 		} else if (Number(value) >= maxPortNumber) {

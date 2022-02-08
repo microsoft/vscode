@@ -10,18 +10,26 @@ import { joinLines } from './util';
 
 const testFileA = workspaceFile('a.md');
 
+const debug = false;
+
+function debugLog(...args: any[]) {
+	if (debug) {
+		console.log(...args);
+	}
+}
+
 function workspaceFile(...segments: string[]) {
 	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, ...segments);
 }
 
 async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]> {
-	console.log('getting links', file.toString(), Date.now());
+	debugLog('getting links', file.toString(), Date.now());
 	const r = (await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', file))!;
-	console.log('got links', file.toString(), Date.now());
+	debugLog('got links', file.toString(), Date.now());
 	return r;
 }
 
-suite('Markdown Document links', () => {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Markdown Document links', () => {
 
 	setup(async () => {
 		// the tests make the assumption that link providers are already registered
@@ -149,21 +157,21 @@ function assertActiveDocumentUri(expectedUri: vscode.Uri) {
 }
 
 async function withFileContents(file: vscode.Uri, contents: string): Promise<void> {
-	console.log('openTextDocument', file.toString(), Date.now());
+	debugLog('openTextDocument', file.toString(), Date.now());
 	const document = await vscode.workspace.openTextDocument(file);
-	console.log('showTextDocument', file.toString(), Date.now());
+	debugLog('showTextDocument', file.toString(), Date.now());
 	const editor = await vscode.window.showTextDocument(document);
-	console.log('editTextDocument', file.toString(), Date.now());
+	debugLog('editTextDocument', file.toString(), Date.now());
 	await editor.edit(edit => {
 		edit.replace(new vscode.Range(0, 0, 1000, 0), contents);
 	});
-	console.log('opened done', vscode.window.activeTextEditor?.document.toString(), Date.now());
+	debugLog('opened done', vscode.window.activeTextEditor?.document.toString(), Date.now());
 }
 
 async function executeLink(link: vscode.DocumentLink) {
-	console.log('executeingLink', link.target?.toString(), Date.now());
+	debugLog('executeingLink', link.target?.toString(), Date.now());
 
 	const args = JSON.parse(decodeURIComponent(link.target!.query));
 	await vscode.commands.executeCommand(link.target!.path, args);
-	console.log('executedLink', vscode.window.activeTextEditor?.document.toString(), Date.now());
+	debugLog('executedLink', vscode.window.activeTextEditor?.document.toString(), Date.now());
 }

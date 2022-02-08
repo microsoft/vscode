@@ -28,12 +28,12 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 * and keeps the available terminal profiles updated
 */
 export class TerminalProfileService implements ITerminalProfileService {
-	private _ifNoProfilesTryAgain: boolean = true;
 	private _webExtensionContributedProfileContextKey: IContextKey<boolean>;
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
 	private _defaultProfileName?: string;
+	private _platformConfigJustRefreshed = false;
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 
 	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
@@ -41,7 +41,9 @@ export class TerminalProfileService implements ITerminalProfileService {
 
 	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
 	get availableProfiles(): ITerminalProfile[] {
-		this.refreshAvailableProfiles();
+		if (!this._platformConfigJustRefreshed) {
+			this.refreshAvailableProfiles();
+		}
 		return this._availableProfiles || [];
 	}
 	get contributedProfiles(): IExtensionTerminalProfile[] {
@@ -60,14 +62,6 @@ export class TerminalProfileService implements ITerminalProfileService {
 		// that contributes a profile
 		this._extensionService.onDidChangeExtensions(() => this.refreshAvailableProfiles());
 
-		this._configurationService.onDidChangeConfiguration(async e => {
-			const platformKey = await this.getPlatformKey();
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
-				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
-				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
-				this.refreshAvailableProfiles();
-			}
-		});
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
 		this._updateWebContextKey();
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
@@ -75,6 +69,26 @@ export class TerminalProfileService implements ITerminalProfileService {
 		// this long.
 		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
 		this.refreshAvailableProfiles();
+		this._setupConfigListener();
+	}
+
+	private async _setupConfigListener(): Promise<void> {
+		const platformKey = await this.getPlatformKey();
+
+		this._configurationService.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
+				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
+				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
+				if (e.source !== ConfigurationTarget.DEFAULT) {
+					// when _refreshPlatformConfig is called within refreshAvailableProfiles
+					// on did change configuration is fired. this can lead to an infinite recursion
+					this.refreshAvailableProfiles();
+					this._platformConfigJustRefreshed = false;
+				} else {
+					this._platformConfigJustRefreshed = true;
+				}
+			}
+		});
 	}
 
 	_serviceBrand: undefined;
@@ -89,17 +103,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 	}
 
 	protected async _refreshAvailableProfilesNow(): Promise<void> {
-		const profiles = await this._detectProfiles();
-		if (profiles.length === 0 && this._ifNoProfilesTryAgain) {
-			// available profiles get updated when a terminal is created
-			// or relevant config changes.
-			// if there are no profiles, we want to refresh them again
-			// since terminal creation can't happen in this case and users
-			// might not think to try changing the config
-			this._ifNoProfilesTryAgain = false;
-			await this._refreshAvailableProfilesNow();
-			return;
-		}
+		const profiles = await this._detectProfiles(true);
 		const profilesChanged = !(equals(profiles, this._availableProfiles, profilesEqual));
 		const contributedProfilesChanged = await this._updateContributedProfiles();
 		if (profilesChanged || contributedProfilesChanged) {
@@ -107,7 +111,7 @@ export class TerminalProfileService implements ITerminalProfileService {
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
 			this._updateWebContextKey();
-			await this._refreshPlatformConfig(profiles);
+			await this._refreshPlatformConfig(this._availableProfiles);
 		}
 	}
 

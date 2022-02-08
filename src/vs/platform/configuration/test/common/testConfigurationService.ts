@@ -6,7 +6,9 @@
 import { Emitter } from 'vs/base/common/event';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { getConfigurationKeys, getConfigurationValue, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { getConfigurationValue, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService, IConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class TestConfigurationService implements IConfigurationService {
 	public _serviceBrand: undefined;
@@ -68,7 +70,7 @@ export class TestConfigurationService implements IConfigurationService {
 
 	public keys() {
 		return {
-			default: getConfigurationKeys(),
+			default: Object.keys(Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()),
 			user: Object.keys(this.configuration),
 			workspace: [],
 			workspaceFolder: []

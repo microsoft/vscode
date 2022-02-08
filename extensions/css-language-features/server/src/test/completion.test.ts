@@ -31,7 +31,7 @@ suite('Completions', () => {
 		}
 	};
 
-	async function assertCompletions(value: string, expected: { count?: number, items?: ItemDescription[] }, testUri: string, workspaceFolders?: WorkspaceFolder[], lang: string = 'css'): Promise<any> {
+	async function assertCompletions(value: string, expected: { count?: number; items?: ItemDescription[] }, testUri: string, workspaceFolders?: WorkspaceFolder[], lang: string = 'css'): Promise<any> {
 		const offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 

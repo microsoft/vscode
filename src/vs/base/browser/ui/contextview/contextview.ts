@@ -130,7 +130,7 @@ export class ContextView extends Disposable {
 	private shadowRoot: ShadowRoot | null = null;
 	private shadowRootHostElement: HTMLElement | null = null;
 
-	constructor(container: HTMLElement, domPosition: ContextViewDOMPosition) {
+	constructor(container: HTMLElement | null, domPosition: ContextViewDOMPosition) {
 		super();
 
 		this.view = DOM.$('.context-view');

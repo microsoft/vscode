@@ -16,7 +16,7 @@ import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/ex
 interface IIconExtensionPoint {
 	id: string;
 	description: string;
-	default: { fontId: string; fontCharacter: string; } | string;
+	default: { fontId: string; fontCharacter: string } | string;
 }
 
 interface IIconFontExtensionPoint {
@@ -153,9 +153,13 @@ export class IconExtensionPoint {
 					if (typeof defaultIcon === 'string') {
 						iconRegistry.registerIcon(iconContribution.id, { id: defaultIcon }, iconContribution.description);
 					} else if (typeof defaultIcon === 'object' && typeof defaultIcon.fontId === 'string' && typeof defaultIcon.fontCharacter === 'string') {
+						const fontId = getFontId(extension.description, defaultIcon.fontId);
 						iconRegistry.registerIcon(iconContribution.id, {
-							fontId: getFontId(extension.description, defaultIcon.fontId),
 							fontCharacter: defaultIcon.fontCharacter,
+							font: {
+								id: fontId,
+								getDefinition: () => iconRegistry.getIconFont(fontId)
+							}
 						}, iconContribution.description);
 					} else {
 						collector.error(nls.localize('invalid.icons.default', "'configuration.icons.default' must be either a reference to the id of an other theme icon (string) or a icon definition (object) with properties `fontId` and `fontCharacter`."));

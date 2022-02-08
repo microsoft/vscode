@@ -41,7 +41,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 		try {
 			if (isInCodespaces()) {
 				// Call into the codespaces extension to fork the repository
-				const resp = await commands.executeCommand<{ repository: CreateForkResponseData, ref: string }>('github.codespaces.forkRepository');
+				const resp = await commands.executeCommand<{ repository: CreateForkResponseData; ref: string }>('github.codespaces.forkRepository');
 				if (!resp) {
 					throw new Error('Unable to fork respository');
 				}

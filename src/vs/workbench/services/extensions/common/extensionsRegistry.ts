@@ -11,9 +11,11 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES, ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { values } from 'vs/base/common/collections';
+import { productSchemaId } from 'vs/platform/product/common/productService';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -244,6 +246,11 @@ export const schema: IJSONSchema = {
 				type: 'string',
 				defaultSnippets: [
 					{
+						label: 'onWebviewPanel',
+						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emmited when a webview is loaded of a certain viewType'),
+						body: 'onWebviewPanel:viewType'
+					},
+					{
 						label: 'onLanguage',
 						description: nls.localize('vscode.extension.activationEvents.onLanguage', 'An activation event emitted whenever a file that resolves to the specified language gets opened.'),
 						body: 'onLanguage:${1:languageId}'
@@ -287,6 +294,11 @@ export const schema: IJSONSchema = {
 						label: 'onStartupFinished',
 						description: nls.localize('vscode.extension.activationEvents.onStartupFinished', 'An activation event emitted after the start-up finished (after all `*` activated extensions have finished activating).'),
 						body: 'onStartupFinished'
+					},
+					{
+						label: 'onTaskType',
+						description: nls.localize('vscode.extension.activationEvents.onTaskType', 'An activation event emitted whenever tasks of a certain type need to be listed or resolved.'),
+						body: 'onTaskType:${1:taskType}'
 					},
 					{
 						label: 'onFileSystem',
@@ -561,3 +573,29 @@ Registry.add(PRExtensions.ExtensionsRegistry, new ExtensionsRegistryImpl());
 export const ExtensionsRegistry: ExtensionsRegistryImpl = Registry.as(PRExtensions.ExtensionsRegistry);
 
 schemaRegistry.registerSchema(schemaId, schema);
+
+
+schemaRegistry.registerSchema(productSchemaId, {
+	properties: {
+		extensionAllowedProposedApi: {
+			type: 'array',
+			deprecationMessage: nls.localize('product.extensionAllowedProposedApi', "Use `extensionEnabledApiProposals` instead.")
+		},
+		extensionEnabledApiProposals: {
+			description: nls.localize('product.extensionEnabledApiProposals', "API proposals that the respective extensions can freely use."),
+			type: 'object',
+			properties: {},
+			additionalProperties: {
+				anyOf: [{
+					type: 'array',
+					uniqueItems: true,
+					items: {
+						type: 'string',
+						enum: Object.keys(allApiProposals),
+						markdownEnumDescriptions: values(allApiProposals)
+					}
+				}]
+			}
+		}
+	}
+});

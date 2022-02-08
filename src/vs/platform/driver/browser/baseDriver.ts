@@ -57,7 +57,6 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 	async getElements(selector: string, recursive: boolean): Promise<IElement[]> {
 		const query = document.querySelectorAll(selector);
 		const result: IElement[] = [];
-
 		for (let i = 0; i < query.length; i++) {
 			const element = query.item(i);
 			result.push(this.serializeElement(element, recursive));
@@ -100,7 +99,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		};
 	}
 
-	async getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+	async getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }> {
 		const offset = typeof xoffset === 'number' && typeof yoffset === 'number' ? { x: xoffset, y: yoffset } : undefined;
 		return this._getElementXY(selector, offset);
 	}
@@ -159,7 +158,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core._coreService.triggerDataEvent(text);
+		xterm._core.coreService.triggerDataEvent(text);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {
@@ -177,7 +176,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		});
 	}
 
-	protected async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
+	protected async _getElementXY(selector: string, offset?: { x: number; y: number }): Promise<{ x: number; y: number }> {
 		const element = document.querySelector(selector);
 
 		if (!element) {

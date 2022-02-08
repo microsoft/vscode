@@ -40,7 +40,7 @@ import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-export type IOpenRecentAction = IAction & { uri: URI, remoteAuthority?: string };
+export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarFileMenu,
@@ -221,7 +221,7 @@ export abstract class MenubarControl extends Disposable {
 		this.menuUpdater.schedule();
 	}
 
-	protected calculateActionLabel(action: { id: string; label: string; }): string {
+	protected calculateActionLabel(action: { id: string; label: string }): string {
 		let label = action.label;
 		switch (action.id) {
 			default:
@@ -336,7 +336,7 @@ export abstract class MenubarControl extends Disposable {
 
 			return this.hostService.openWindow([openable], {
 				forceNewWindow: !!openInNewWindow,
-				remoteAuthority
+				remoteAuthority: remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
 			});
 		});
 

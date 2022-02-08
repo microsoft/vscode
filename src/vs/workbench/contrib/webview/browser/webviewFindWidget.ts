@@ -14,13 +14,14 @@ export interface WebviewFindDelegate {
 	readonly onDidStopFind: Event<void>;
 	readonly checkImeCompletionState: boolean;
 	find(value: string, previous: boolean): void;
-	startFind(value: string): void;
+	updateFind(value: string): void;
 	stopFind(keepSelection?: boolean): void;
 	focus(): void;
 }
 
 export class WebviewFindWidget extends SimpleFindWidget {
-	protected _findWidgetFocused: IContextKey<boolean>;
+
+	protected readonly _findWidgetFocused: IContextKey<boolean>;
 
 	constructor(
 		private readonly _delegate: WebviewFindDelegate,
@@ -53,10 +54,10 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		this._delegate.focus();
 	}
 
-	public _onInputChanged(): boolean {
+	protected _onInputChanged(): boolean {
 		const val = this.inputValue;
 		if (val) {
-			this._delegate.startFind(val);
+			this._delegate.updateFind(val);
 		} else {
 			this._delegate.stopFind(false);
 		}

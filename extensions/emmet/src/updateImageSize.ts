@@ -7,7 +7,7 @@
 
 import { TextEditor, Position, window, TextEdit } from 'vscode';
 import * as path from 'path';
-import { getImageSize } from './imageSizeHelper';
+import { getImageSize, ImageInfoWithScale } from './imageSizeHelper';
 import { getFlatNode, iterateCSSToken, getCssPropertyFromRule, isStyleSheet, validate, offsetRangeToVsRange } from './util';
 import { HtmlNode, CssToken, HtmlToken, Attribute, Property } from 'EmmetFlatNode';
 import { locateFile } from './locateFile';
@@ -108,11 +108,11 @@ function updateImageSizeCSS(editor: TextEditor, position: Position, fetchNode: (
 
 	return locateFile(path.dirname(editor.document.fileName), src)
 		.then(getImageSize)
-		.then((size: any): TextEdit[] => {
+		.then((size: ImageInfoWithScale | undefined): TextEdit[] => {
 			// since this action is asynchronous, we have to ensure that editor wasn't
 			// changed and user didn't moved caret outside <img> node
 			const prop = fetchNode(editor, position);
-			if (prop && getImageSrcCSS(editor, prop, position) === src) {
+			if (size && prop && getImageSrcCSS(editor, prop, position) === src) {
 				return updateCSSNode(editor, prop, size.width, size.height);
 			}
 			return [];

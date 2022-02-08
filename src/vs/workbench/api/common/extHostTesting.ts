@@ -21,14 +21,14 @@ import { InvalidTestItemError, TestItemImpl, TestItemRootImpl } from 'vs/workben
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
 import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, RunTestForControllerRequest, TestResultState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, RunTestForControllerRequest, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
-	controller: vscode.TestController,
-	profiles: Map<number, vscode.TestRunProfile>,
-	collection: SingleUseTestCollection,
+	controller: vscode.TestController;
+	profiles: Map<number, vscode.TestRunProfile>;
+	collection: SingleUseTestCollection;
 }
 
 export class ExtHostTesting implements ExtHostTestingShape {
@@ -55,7 +55,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.registerTestProvider
 	 */
-	public createTestController(controllerId: string, label: string): vscode.TestController {
+	public createTestController(controllerId: string, label: string, refreshHandler?: (token: CancellationToken) => Thenable<void> | void): vscode.TestController {
 		if (this.controllers.has(controllerId)) {
 			throw new Error(`Attempt to insert a duplicate controller with ID "${controllerId}"`);
 		}
@@ -75,7 +75,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			set label(value: string) {
 				label = value;
 				collection.root.label = value;
-				proxy.$updateControllerLabel(controllerId, label);
+				proxy.$updateController(controllerId, { label });
+			},
+			get refreshHandler() {
+				return refreshHandler;
+			},
+			set refreshHandler(value: ((token: CancellationToken) => Thenable<void> | void) | undefined) {
+				refreshHandler = value;
+				proxy.$updateController(controllerId, { canRefresh: !!value });
 			},
 			get id() {
 				return controllerId;
@@ -109,17 +116,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			},
 		};
 
-		// back compat:
-		(controller as any).createRunConfiguration = controller.createRunProfile;
-
-		proxy.$registerTestController(controllerId, label);
+		proxy.$registerTestController(controllerId, label, !!refreshHandler);
 		disposable.add(toDisposable(() => proxy.$unregisterTestController(controllerId)));
 
 		const info: ControllerInfo = { controller, collection, profiles: profiles };
 		this.controllers.set(controllerId, info);
 		disposable.add(toDisposable(() => this.controllers.delete(controllerId)));
 
-		disposable.add(collection.onDidGenerateDiff(diff => proxy.$publishDiff(controllerId, diff)));
+		disposable.add(collection.onDidGenerateDiff(diff => proxy.$publishDiff(controllerId, diff.map(TestsDiffOp.serialize))));
 
 		return controller;
 	}
@@ -147,6 +151,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 		}
 
 		await this.proxy.$runTests({
+			isUiTriggered: false,
 			targets: [{
 				testIds: req.include?.map(t => t.id) ?? [controller.collection.root.id],
 				profileGroup: profileGroupToBitset[profile.kind],
@@ -176,6 +181,11 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/** @inheritdoc */
 	$configureRunProfile(controllerId: string, profileId: number) {
 		this.controllers.get(controllerId)?.profiles.get(profileId)?.configureHandler?.();
+	}
+
+	/** @inheritdoc */
+	async $refreshTests(controllerId: string, token: CancellationToken) {
+		await this.controllers.get(controllerId)?.controller.refreshHandler?.(token);
 	}
 
 	/**
@@ -210,8 +220,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * Receives a test update from the main thread. Called (eventually) whenever
 	 * tests change.
 	 */
-	public $acceptDiff(diff: TestsDiff): void {
-		this.observer.applyDiff(diff);
+	public $acceptDiff(diff: TestsDiffOp.Serialized[]): void {
+		this.observer.applyDiff(diff.map(TestsDiffOp.deserialize));
 	}
 
 	/**
@@ -282,7 +292,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 }
 
 class TestRunTracker extends Disposable {
-	private readonly tasks = new Map</* task ID */string, { run: vscode.TestRun, coverage: TestRunCoverageBearer }>();
+	private readonly tasks = new Map</* task ID */string, { run: vscode.TestRun; coverage: TestRunCoverageBearer }>();
 	private readonly sharedTestIds = new Set<string>();
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());
@@ -450,7 +460,7 @@ class TestRunTracker extends Disposable {
 			return;
 		}
 
-		const chain: ITestItem[] = [];
+		const chain: ITestItem.Serialized[] = [];
 		const root = this.dto.colllection.root;
 		while (true) {
 			const converted = Convert.TestItem.from(test as TestItemImpl);

@@ -7,9 +7,9 @@ import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/codeeditor';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
@@ -17,11 +17,11 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ModelService } from 'vs/editor/common/services/modelService';
+import { CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -40,11 +40,11 @@ suite('Editor - Range decorations', () => {
 		disposables = new DisposableStore();
 		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IEditorService, new TestEditorService());
-		instantiationService.stub(IModeService, ModeServiceImpl);
+		instantiationService.stub(ILanguageService, LanguageService);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
-		codeEditor = createTestCodeEditor({ model: model });
+		codeEditor = createTestCodeEditor(model);
 
 		instantiationService.stub(IEditorService, 'activeEditor', { get resource() { return codeEditor.getModel()!.uri; } });
 		instantiationService.stub(IEditorService, 'activeTextEditorControl', codeEditor);
@@ -143,7 +143,7 @@ suite('Editor - Range decorations', () => {
 	}
 
 	function aModel(resource: URI, content: string = text): TextModel {
-		let model = createTextModel(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
+		let model = createTextModel(content, undefined, undefined, resource);
 		modelsToDispose.push(model);
 		return model;
 	}
@@ -164,6 +164,6 @@ suite('Editor - Range decorations', () => {
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IThemeService, new TestThemeService());
-		return instantiationService.createInstance(ModelServiceImpl);
+		return instantiationService.createInstance(ModelService);
 	}
 });

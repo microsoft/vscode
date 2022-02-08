@@ -14,7 +14,7 @@ jobs:
   windows:
     name: Windows
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,19 +69,33 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
+
       - name: Run Unit Tests (Electron)
         run: .\scripts\test.bat
 
-      - name: Run Unit Tests (Browser)
-        run: yarn test-browser --browser chromium
+      - name: Run Unit Tests (node.js)
+        run: yarn test-node
+
+      - name: Run Unit Tests (Browser, Chromium)
+        run: yarn test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
 
+      - name: Run Integration Tests (Browser, Firefox)
+        timeout-minutes: 20
+        run: .\scripts\test-web-integration.bat --browser firefox
+
+      - name: Run Integration Tests (Remote)
+        timeout-minutes: 20
+        run: .\scripts\test-remote-integration.bat
+
   linux:
     name: Linux
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -132,22 +146,38 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
+
       - name: Run Unit Tests (Electron)
         id: electron-unit-tests
         run: DISPLAY=:10 ./scripts/test.sh
 
-      - name: Run Unit Tests (Browser)
+      - name: Run Unit Tests (node.js)
+        id: nodejs-unit-tests
+        run: yarn test-node
+
+      - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
-        run: DISPLAY=:10 yarn test-browser --browser chromium
+        run: DISPLAY=:10 yarn test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
+      - name: Run Integration Tests (Browser, Chromium)
+        id: browser-integration-tests
+        run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser chromium
+
+      - name: Run Integration Tests (Remote)
+        id: electron-remote-integration-tests
+        timeout-minutes: 15
+        run: DISPLAY=:10 ./scripts/test-remote-integration.sh
+
   darwin:
     name: macOS
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -188,6 +218,9 @@ jobs:
       - name: Compile and Download
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
+      - name: Compile Integration Tests
+        run: yarn --cwd test/integration/browser compile
+
       # This is required for keytar unittests, otherwise we hit
       # https://github.com/atom/node-keytar/issues/76
       - name: Create temporary keychain
@@ -199,16 +232,26 @@ jobs:
       - name: Run Unit Tests (Electron)
         run: DISPLAY=:10 ./scripts/test.sh
 
-      - name: Run Unit Tests (Browser)
-        run: DISPLAY=:10 yarn test-browser --browser chromium
+      - name: Run Unit Tests (node.js)
+        run: yarn test-node
+
+      - name: Run Unit Tests (Browser, Chromium)
+        run: DISPLAY=:10 yarn test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
+      - name: Run Integration Tests (Browser, Webkit)
+        run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser webkit
+
+      - name: Run Integration Tests (Remote)
+        timeout-minutes: 15
+        run: DISPLAY=:10 ./scripts/test-remote-integration.sh
+
   hygiene:
     name: Hygiene, Layering and Monaco Editor
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -246,6 +289,9 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: yarn --frozen-lockfile --network-timeout 180000
 
+      - name: Download Playwright
+        run: yarn playwright-install
+
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
 
@@ -254,6 +300,9 @@ jobs:
 
       - name: Compile /build/
         run: yarn --cwd build compile
+
+      - name: Check clean git state
+        run: ./.github/workflows/check-clean-git-state.sh
 
       - name: Run eslint
         run: yarn eslint
@@ -270,6 +319,10 @@ jobs:
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle
 
+      - name: Editor ESM sources check
+        working-directory: ./test/monaco
+        run: yarn run esm-check
+
       - name: Typings validation prep
         run: |
           mkdir typings-test
@@ -282,16 +335,13 @@ jobs:
           echo "import '../out-monaco-editor-core';" > a.ts
           ../node_modules/.bin/tsc --noEmit
 
-      - name: Webpack Editor
+      - name: Package Editor with Webpack
         working-directory: ./test/monaco
-        run: yarn run bundle
+        run: yarn run bundle-webpack
 
       - name: Compile Editor Tests
         working-directory: ./test/monaco
         run: yarn run compile
-
-      - name: Download Playwright
-        run: yarn playwright-install
 
       - name: Run Editor Tests
         timeout-minutes: 5

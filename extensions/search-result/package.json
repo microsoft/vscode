@@ -27,6 +27,9 @@
       "supported": true
     }
   },
+  "enabledApiProposals": [
+    "documentFiltersExclusive"
+  ],
   "contributes": {
     "configurationDefaults": {
       "[search-result]": {

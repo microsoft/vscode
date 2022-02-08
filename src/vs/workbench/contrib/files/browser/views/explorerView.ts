@@ -20,7 +20,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
@@ -51,11 +51,12 @@ import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
+import { IExplorerService, IExplorerView } from 'vs/workbench/contrib/files/browser/files';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -136,7 +137,7 @@ export interface IExplorerViewContainerDelegate {
 	didOpenElement(event?: UIEvent): void;
 }
 
-export class ExplorerView extends ViewPane {
+export class ExplorerView extends ViewPane implements IExplorerView {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
@@ -185,6 +186,7 @@ export class ExplorerView extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExplorerService private readonly explorerService: IExplorerService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
@@ -380,6 +382,8 @@ export class ExplorerView extends ViewPane {
 
 		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
 
+		const getFileNestingSettings = () => this.configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+
 		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
 			compressionEnabled: isCompressionEnabled(),
@@ -405,7 +409,26 @@ export class ExplorerView extends ViewPane {
 			filter: this.filter,
 			sorter: this.instantiationService.createInstance(FileSorter),
 			dnd: this.instantiationService.createInstance(FileDragAndDrop),
+			collapseByDefault: (e) => {
+				if (e instanceof ExplorerItem) {
+					if (e.hasNests && getFileNestingSettings().expand) {
+						return false;
+					}
+				}
+				return true;
+			},
 			autoExpandSingleChildren: true,
+			expandOnlyOnTwistieClick: (e: unknown) => {
+				if (e instanceof ExplorerItem) {
+					if (e.hasNests) {
+						return true;
+					}
+					else if (this.configurationService.getValue<'singleClick' | 'doubleClick'>('workbench.tree.expandMode') === 'doubleClick') {
+						return true;
+					}
+				}
+				return false;
+			},
 			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
@@ -600,9 +623,23 @@ export class ExplorerView extends ViewPane {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, false, {
-			diffIdentityProvider: identityProvider
-		});
+		if (this.configurationService.getValue<IFilesConfiguration>()?.explorer?.experimental?.fileNesting?.enabled) {
+			return (async () => {
+				try {
+					await this.tree.updateChildren(toRefresh, recursive, false, {
+						diffIdentityProvider: identityProvider
+					});
+				} catch (e) {
+					this.notificationService.error('Internal error in file explorer. This may be due to experimental file nesting.');
+					console.error('Unepxected error', e, 'in refreshing explorer. This may be due to experimental file nesting.');
+					return;
+				}
+			})();
+		} else {
+			return this.tree.updateChildren(toRefresh, recursive, false, {
+				diffIdentityProvider: identityProvider
+			});
+		}
 	}
 
 	override getOptimalWidth(): number {

@@ -49,7 +49,7 @@ function deserializeMapping(serializedMapping: ISerializedMapping) {
 
 export interface IRawMixedKeyboardMapping {
 	[key: string]: {
-		value: string,
+		value: string;
 		withShift: string;
 		withAltGr: string;
 		withShiftAltGr: string;

@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRelativePatternDto } from 'vs/workbench/api/common/extHost.protocol';
 import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
@@ -30,8 +31,8 @@ function es5ClassCompat(target: Function): any {
 @es5ClassCompat
 export class Disposable {
 
-	static from(...inDisposables: { dispose(): any; }[]): Disposable {
-		let disposables: ReadonlyArray<{ dispose(): any; }> | undefined = inDisposables;
+	static from(...inDisposables: { dispose(): any }[]): Disposable {
+		let disposables: ReadonlyArray<{ dispose(): any }> | undefined = inDisposables;
 		return new Disposable(function () {
 			if (disposables) {
 				for (const disposable of disposables) {
@@ -175,9 +176,9 @@ export class Position {
 		}
 	}
 
-	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
+	translate(change: { lineDelta?: number; characterDelta?: number }): Position;
 	translate(lineDelta?: number, characterDelta?: number): Position;
-	translate(lineDeltaOrChange: number | undefined | { lineDelta?: number; characterDelta?: number; }, characterDelta: number = 0): Position {
+	translate(lineDeltaOrChange: number | undefined | { lineDelta?: number; characterDelta?: number }, characterDelta: number = 0): Position {
 
 		if (lineDeltaOrChange === null || characterDelta === null) {
 			throw illegalArgument();
@@ -199,9 +200,9 @@ export class Position {
 		return new Position(this.line + lineDelta, this.character + characterDelta);
 	}
 
-	with(change: { line?: number; character?: number; }): Position;
+	with(change: { line?: number; character?: number }): Position;
 	with(line?: number, character?: number): Position;
-	with(lineOrChange: number | undefined | { line?: number; character?: number; }, character: number = this.character): Position {
+	with(lineOrChange: number | undefined | { line?: number; character?: number }, character: number = this.character): Position {
 
 		if (lineOrChange === null || character === null) {
 			throw illegalArgument();
@@ -334,9 +335,9 @@ export class Range {
 		return this._start.line === this._end.line;
 	}
 
-	with(change: { start?: Position, end?: Position; }): Range;
+	with(change: { start?: Position; end?: Position }): Range;
 	with(start?: Position, end?: Position): Range;
-	with(startOrChange: Position | undefined | { start?: Position, end?: Position; }, end: Position = this.end): Range {
+	with(startOrChange: Position | undefined | { start?: Position; end?: Position }, end: Position = this.end): Range {
 
 		if (startOrChange === null || end === null) {
 			throw illegalArgument();
@@ -638,15 +639,15 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- file
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean; ignoreIfNotExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
@@ -873,7 +874,7 @@ export enum DiagnosticSeverity {
 @es5ClassCompat
 export class Location {
 
-	static isLocation(thing: any): thing is Location {
+	static isLocation(thing: any): thing is vscode.Location {
 		if (thing instanceof Location) {
 			return true;
 		}
@@ -1352,6 +1353,14 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.supportHtml = value;
 	}
 
+	get baseUri(): vscode.Uri | undefined {
+		return this.#delegate.baseUri;
+	}
+
+	set baseUri(value: vscode.Uri | undefined) {
+		this.#delegate.baseUri = value;
+	}
+
 	appendText(value: string): vscode.MarkdownString {
 		this.#delegate.appendText(value);
 		return this;
@@ -1421,16 +1430,32 @@ export enum InlayHintKind {
 }
 
 @es5ClassCompat
-export class InlayHint {
-	text: string;
+export class InlayHintLabelPart {
+
+	value: string;
+	tooltip?: string | vscode.MarkdownString;
+	location?: Location;
+	command?: vscode.Command;
+
+	constructor(value: string) {
+		this.value = value;
+	}
+}
+
+@es5ClassCompat
+export class InlayHint implements vscode.InlayHint {
+
+	label: string | InlayHintLabelPart[];
+	tooltip?: string | vscode.MarkdownString;
 	position: Position;
 	kind?: vscode.InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	paddingLeft?: boolean;
+	paddingRight?: boolean;
+	command?: vscode.Command;
 
-	constructor(text: string, position: Position, kind?: vscode.InlayHintKind) {
-		this.text = text;
+	constructor(position: Position, label: string | InlayHintLabelPart[], kind?: vscode.InlayHintKind) {
 		this.position = position;
+		this.label = label;
 		this.kind = kind;
 	}
 }
@@ -1499,7 +1524,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	preselect?: boolean;
 	insertText?: string | SnippetString;
 	keepWhitespace?: boolean;
-	range?: Range | { inserting: Range; replacing: Range; };
+	range?: Range | { inserting: Range; replacing: Range };
 	commitCharacters?: string[];
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
@@ -1678,7 +1703,7 @@ export class Color {
 	}
 }
 
-export type IColorFormat = string | { opaque: string, transparent: string; };
+export type IColorFormat = string | { opaque: string; transparent: string };
 
 @es5ClassCompat
 export class ColorInformation {
@@ -1994,19 +2019,19 @@ export enum TaskScope {
 }
 
 export class CustomExecution implements vscode.CustomExecution {
-	private _callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
-	constructor(callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	private _callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
+	constructor(callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public set callback(value: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): ((resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public get callback(): ((resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }
@@ -2273,7 +2298,7 @@ export class TreeItem {
 
 	label?: string | vscode.TreeItemLabel;
 	resourceUri?: URI;
-	iconPath?: string | URI | { light: string | URI; dark: string | URI; };
+	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
 	tooltip?: string | vscode.MarkdownString;
@@ -2295,6 +2320,30 @@ export enum TreeItemCollapsibleState {
 	Collapsed = 1,
 	Expanded = 2
 }
+
+@es5ClassCompat
+export class TreeDataTransferItem {
+	async asString(): Promise<string> {
+		return JSON.stringify(this.value);
+	}
+
+	constructor(public readonly value: any) { }
+}
+
+@es5ClassCompat
+export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
+	private readonly _items: Map<string, T> = new Map();
+	get(mimeType: string): T | undefined {
+		return this._items.get(mimeType);
+	}
+	set(mimeType: string, value: T): void {
+		this._items.set(mimeType, value);
+	}
+	forEach(callbackfn: (value: T, key: string) => void): void {
+		this._items.forEach(callbackfn);
+	}
+}
+
 
 @es5ClassCompat
 export class ThemeIcon {
@@ -2332,15 +2381,26 @@ export enum ConfigurationTarget {
 
 @es5ClassCompat
 export class RelativePattern implements IRelativePattern {
-	base: string;
+
 	pattern: string;
 
-	// expose a `baseFolder: URI` property as a workaround for the short-coming
-	// of `IRelativePattern` only supporting `base: string` which always translates
-	// to a `file://` URI. With `baseFolder` we can support non-file based folders
-	// in searches
-	// (https://github.com/microsoft/vscode/commit/6326543b11cf4998c8fd1564cab5c429a2416db3)
-	readonly baseFolder?: URI;
+	private _base!: string;
+	get base(): string {
+		return this._base;
+	}
+	set base(base: string) {
+		this._base = base;
+		this._baseUri = URI.file(base);
+	}
+
+	private _baseUri!: URI;
+	get baseUri(): URI {
+		return this._baseUri;
+	}
+	set baseUri(baseUri: URI) {
+		this._baseUri = baseUri;
+		this._base = baseUri.fsPath;
+	}
 
 	constructor(base: vscode.WorkspaceFolder | URI | string, pattern: string) {
 		if (typeof base !== 'string') {
@@ -2354,17 +2414,22 @@ export class RelativePattern implements IRelativePattern {
 		}
 
 		if (typeof base === 'string') {
-			this.baseFolder = URI.file(base);
-			this.base = base;
+			this.baseUri = URI.file(base);
 		} else if (URI.isUri(base)) {
-			this.baseFolder = base;
-			this.base = base.fsPath;
+			this.baseUri = base;
 		} else {
-			this.baseFolder = base.uri;
-			this.base = base.uri.fsPath;
+			this.baseUri = base.uri;
 		}
 
 		this.pattern = pattern;
+	}
+
+	toJSON(): IRelativePatternDto {
+		return {
+			pattern: this.pattern,
+			base: this.base,
+			baseUri: this.baseUri.toJSON()
+		};
 	}
 }
 
@@ -2883,17 +2948,6 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
-export enum DebugConfigurationProviderTriggerKind {
-	/**
-	 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
-	 */
-	Initial = 1,
-	/**
-	 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
-	 */
-	Dynamic = 2
-}
-
 //#endregion
 
 @es5ClassCompat
@@ -2902,6 +2956,11 @@ export class QuickInputButtons {
 	static readonly Back: vscode.QuickInputButton = { iconPath: new ThemeIcon('arrow-left') };
 
 	private constructor() { }
+}
+
+export enum QuickPickItemKind {
+	Separator = -1,
+	Default = 0,
 }
 
 export enum ExtensionKind {
@@ -3000,7 +3059,7 @@ export class NotebookRange {
 		}
 	}
 
-	with(change: { start?: number, end?: number }): NotebookRange {
+	with(change: { start?: number; end?: number }): NotebookRange {
 		let start = this._start;
 		let end = this._end;
 
@@ -3085,7 +3144,7 @@ export class NotebookCellOutputItem {
 			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
 	}
 
-	static error(err: Error | { name: string, message?: string, stack?: string }): NotebookCellOutputItem {
+	static error(err: Error | { name: string; message?: string; stack?: string }): NotebookCellOutputItem {
 		const obj = {
 			name: err.name,
 			message: err.message,
@@ -3281,7 +3340,7 @@ export enum StandardTokenType {
 	Other = 0,
 	Comment = 1,
 	String = 2,
-	RegEx = 4
+	RegEx = 3
 }
 
 

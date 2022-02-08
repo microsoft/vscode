@@ -14,7 +14,7 @@ import { MarshalledId, MarshalledObject } from 'vs/base/common/marshalling';
 import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
-import { getStringIdentifierForProxy, IRPCProtocol, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { getStringIdentifierForProxy, IRPCProtocol, Proxied, ProxyIdentifier, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export interface JSONStringifyReplacer {
 	(key: string, value: any): any;
@@ -130,8 +130,8 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private readonly _locals: any[];
 	private readonly _proxies: any[];
 	private _lastMessageId: number;
-	private readonly _cancelInvokedHandlers: { [req: string]: () => void; };
-	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
+	private readonly _cancelInvokedHandlers: { [req: string]: () => void };
+	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise };
 	private _responsiveState: ResponsiveState;
 	private _unacknowledgedCount: number;
 	private _unresponsiveTime: number;
@@ -236,7 +236,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		return transformIncomingURIs(obj, this._uriTransformer);
 	}
 
-	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
+	public getProxy<T>(identifier: ProxyIdentifier<T>): Proxied<T> {
 		const { nid: rpcId, sid } = identifier;
 		if (!this._proxies[rpcId]) {
 			this._proxies[rpcId] = this._createProxy(rpcId, sid);
@@ -270,7 +270,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		for (let i = 0, len = identifiers.length; i < len; i++) {
 			const identifier = identifiers[i];
 			if (!this._locals[identifier.nid]) {
-				throw new Error(`Missing actor ${identifier.sid} (isMain: ${identifier.isMain})`);
+				throw new Error(`Missing proxy instance ${identifier.sid}`);
 			}
 		}
 	}
@@ -682,7 +682,7 @@ class MessageBuffer {
 				case ArgType.VSBuffer:
 					arr[i] = this.readVSBuffer();
 					break;
-				case ArgType.SerializedObjectWithBuffers:
+				case ArgType.SerializedObjectWithBuffers: {
 					const bufferCount = this.readUInt32();
 					const jsonString = this.readLongString();
 					const buffers: VSBuffer[] = [];
@@ -691,6 +691,7 @@ class MessageBuffer {
 					}
 					arr[i] = new SerializableObjectWithBuffers(parseJsonAndRestoreBufferRefs(jsonString, buffers, null));
 					break;
+				}
 				case ArgType.Undefined:
 					arr[i] = undefined;
 					break;
@@ -706,7 +707,7 @@ const enum SerializedRequestArgumentType {
 }
 
 type SerializedRequestArguments =
-	| { readonly type: SerializedRequestArgumentType.Simple; args: string; }
+	| { readonly type: SerializedRequestArgumentType.Simple; args: string }
 	| { readonly type: SerializedRequestArgumentType.Mixed; args: MixedArg[] };
 
 
@@ -779,7 +780,7 @@ class MessageIO {
 		return result.buffer;
 	}
 
-	public static deserializeRequestJSONArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[]; } {
+	public static deserializeRequestJSONArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[] } {
 		const rpcId = buff.readUInt8();
 		const method = buff.readShortString();
 		const args = buff.readLongString();
@@ -805,7 +806,7 @@ class MessageIO {
 		return result.buffer;
 	}
 
-	public static deserializeRequestMixedArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[]; } {
+	public static deserializeRequestMixedArgs(buff: MessageBuffer): { rpcId: number; method: string; args: any[] } {
 		const rpcId = buff.readUInt8();
 		const method = buff.readShortString();
 		const rawargs = buff.readMixedArray();
@@ -963,8 +964,8 @@ const enum ArgType {
 
 
 type MixedArg =
-	| { readonly type: ArgType.String, readonly value: VSBuffer }
-	| { readonly type: ArgType.VSBuffer, readonly value: VSBuffer }
-	| { readonly type: ArgType.SerializedObjectWithBuffers, readonly value: VSBuffer, readonly buffers: readonly VSBuffer[] }
+	| { readonly type: ArgType.String; readonly value: VSBuffer }
+	| { readonly type: ArgType.VSBuffer; readonly value: VSBuffer }
+	| { readonly type: ArgType.SerializedObjectWithBuffers; readonly value: VSBuffer; readonly buffers: readonly VSBuffer[] }
 	| { readonly type: ArgType.Undefined }
 	;

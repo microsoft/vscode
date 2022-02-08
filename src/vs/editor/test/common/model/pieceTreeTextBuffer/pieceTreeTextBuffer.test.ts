@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { DefaultEndOfLine, ITextSnapshot } from 'vs/editor/common/model';
+import { DefaultEndOfLine, ITextSnapshot, SearchData } from 'vs/editor/common/model';
 import { PieceTreeBase } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeBase';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { NodeColor, SENTINEL, TreeNode } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { splitLines } from 'vs/base/common/strings';
 
 const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\r\n';
@@ -180,7 +179,7 @@ function depth(n: TreeNode): number {
 	return (n.color === NodeColor.Black ? 1 : 0) + depth(n.left);
 }
 
-function assertValidNode(n: TreeNode): { size: number, lf_cnt: number } {
+function assertValidNode(n: TreeNode): { size: number; lf_cnt: number } {
 	if (n === SENTINEL) {
 		return { size: 0, lf_cnt: 0 };
 	}

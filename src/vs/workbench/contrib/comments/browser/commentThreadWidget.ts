@@ -13,17 +13,16 @@ import * as strings from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/modes';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { peekViewBorder } from 'vs/editor/contrib/peekView/peekView';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
+import * as languages from 'vs/editor/common/languages';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import * as nls from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -73,7 +72,7 @@ export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 		return null;
 	}
 
-	const data = e.target.detail as IMarginData;
+	const data = e.target.detail;
 	const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 	// don't collide with folding and git decorations
@@ -143,7 +142,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	public get owner(): string {
 		return this._owner;
 	}
-	public get commentThread(): modes.CommentThread {
+	public get commentThread(): languages.CommentThread {
 		return this._commentThread;
 	}
 
@@ -153,15 +152,15 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	private _commentMenus: CommentMenus;
 
-	private _commentOptions: modes.CommentOptions | undefined;
+	private _commentOptions: languages.CommentOptions | undefined;
 
 	constructor(
 		editor: ICodeEditor,
 		private _owner: string,
-		private _commentThread: modes.CommentThread,
+		private _commentThread: languages.CommentThread,
 		private _pendingComment: string | null,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModeService private modeService: IModeService,
+		@ILanguageService private languageService: ILanguageService,
 		@IModelService private modelService: IModelService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
@@ -189,7 +188,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		this._resizeObserver = null;
-		this._isExpanded = _commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded;
+		this._isExpanded = _commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this._submitActionsDisposables = [];
 		this._formActions = null;
@@ -205,7 +204,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 		this._applyTheme(this.themeService.getColorTheme());
 
-		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer({ editor }, this.modeService, this.openerService));
+		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer({ editor }, this.languageService, this.openerService));
 		this._parentEditor = editor;
 	}
 
@@ -316,7 +315,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	public collapse(): Promise<void> {
-		this._commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Collapsed;
+		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
 			this.deleteCommentThread();
 			return Promise.resolve();
@@ -335,18 +334,18 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	toggleExpand(lineNumber: number) {
 		if (this._isExpanded) {
-			this._commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Collapsed;
+			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 			this.hide();
 			if (!this._commentThread.comments || !this._commentThread.comments.length) {
 				this.deleteCommentThread();
 			}
 		} else {
-			this._commentThread.collapsibleState = modes.CommentThreadCollapsibleState.Expanded;
+			this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);
 		}
 	}
 
-	async update(commentThread: modes.CommentThread) {
+	async update(commentThread: languages.CommentThread) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 		this._threadIsEmpty.set(!newCommentsLen);
@@ -392,7 +391,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					lastCommentElement = newElement.domNode;
 				}
 
-				if (currentComment.mode === modes.CommentMode.Editing) {
+				if (currentComment.mode === languages.CommentMode.Editing) {
 					newElement.switchToEditMode();
 					newCommentsInEditMode.push(newElement);
 				}
@@ -425,7 +424,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.show({ lineNumber, column: 1 }, 2);
 		}
 
-		if (this._commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded) {
+		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
 			this.show({ lineNumber, column: 1 }, 2);
 		} else {
 			this.hide();
@@ -488,7 +487,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 				this._commentElements.push(newCommentNode);
 				this._commentsElement.appendChild(newCommentNode.domNode);
-				if (comment.mode === modes.CommentMode.Editing) {
+				if (comment.mode === languages.CommentMode.Editing) {
 					newCommentNode.switchToEditMode();
 				}
 			}
@@ -508,7 +507,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			subtree: true
 		});
 
-		if (this._commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded) {
+		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);
 		}
 
@@ -562,7 +561,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			resource = resource.with({ authority: commentController.id });
 		}
 
-		const model = this.modelService.createModel(this._pendingComment || '', this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+		const model = this.modelService.createModel(this._pendingComment || '', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 		this._disposables.add(model);
 		commentEditor.setModel(model);
 		this._disposables.add(commentEditor);
@@ -602,7 +601,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadDisposables.push(commentEditor.getModel()!.onDidChangeContent(() => {
 			let modelContent = commentEditor.getValue();
 			if (this._commentThread.input && this._commentThread.input.uri === commentEditor.getModel()!.uri && this._commentThread.input.value !== modelContent) {
-				let newInput: modes.CommentInput = this._commentThread.input;
+				let newInput: languages.CommentInput = this._commentThread.input;
 				newInput.value = modelContent;
 				this._commentThread.input = newInput;
 			}
@@ -659,14 +658,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCollasibleState(state => {
-			if (state === modes.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
+			if (state === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded) {
 				const lineNumber = this._commentThread.range.startLineNumber;
 
 				this.show({ lineNumber, column: 1 }, 2);
 				return;
 			}
 
-			if (state === modes.CommentThreadCollapsibleState.Collapsed && this._isExpanded) {
+			if (state === languages.CommentThreadCollapsibleState.Collapsed && this._isExpanded) {
 				this.hide();
 				return;
 			}
@@ -723,7 +722,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentFormActions.setActions(menu);
 	}
 
-	private createNewCommentNode(comment: modes.Comment): CommentNode {
+	private createNewCommentNode(comment: languages.Comment): CommentNode {
 		let newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
 			this._commentThread,
 			comment,

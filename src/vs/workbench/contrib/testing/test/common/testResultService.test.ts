@@ -11,12 +11,12 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { NullLogService } from 'vs/platform/log/common/log';
 import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
 import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
-import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, getInitializedMainTestCollection, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, getInitializedMainTestCollection, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export const emptyOutputController = () => new LiveOutputController(
@@ -62,7 +62,17 @@ suite('Workbench - Test Results Service', () => {
 		r.addTask({ id: 't', name: undefined, running: true });
 
 		tests = testStubs.nested();
-		await tests.expand(tests.root.id, Infinity);
+		const ok = await Promise.race([
+			Promise.resolve(tests.expand(tests.root.id, Infinity)).then(() => true),
+			timeout(1000).then(() => false),
+		]);
+
+		// todo@connor4312: debug for tests #137853:
+		if (!ok) {
+			throw new Error('timed out while expanding, diff: ' + JSON.stringify(tests.collectDiff()));
+		}
+
+
 		r.addTestChainToRun('ctrlId', [
 			Convert.TestItem.from(tests.root),
 			Convert.TestItem.from(tests.root.children.get('id-a') as TestItemImpl),
@@ -214,7 +224,7 @@ suite('Workbench - Test Results Service', () => {
 
 		test('serializes and re-hydrates', async () => {
 			results.push(r);
-			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Passed);
+			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Passed, 42);
 			r.markComplete();
 			await timeout(10); // allow persistImmediately async to happen
 
@@ -230,12 +240,9 @@ suite('Workbench - Test Results Service', () => {
 
 			const [rehydrated, actual] = results.getStateById(tests.root.id)!;
 			const expected: any = { ...r.getStateById(tests.root.id)! };
-			delete expected.tasks[0].duration; // delete undefined props that don't survive serialization
-			delete expected.item.range;
-			delete expected.item.description;
 			expected.item.uri = actual.item.uri;
-
-			assert.deepStrictEqual(actual, { ...expected, src: undefined, retired: true, children: [new TestId(['ctrlId', 'id-a']).toString()] });
+			expected.item.children = actual.item.children;
+			assert.deepStrictEqual(actual, { ...expected, retired: true, children: [new TestId(['ctrlId', 'id-a']).toString()] });
 			assert.deepStrictEqual(rehydrated.counts, r.counts);
 			assert.strictEqual(typeof rehydrated.completedAt, 'number');
 		});
@@ -282,7 +289,6 @@ suite('Workbench - Test Results Service', () => {
 				tasks: [{ state, duration: 0, messages: [] }],
 				computedState: state,
 				ownComputedState: state,
-				retired: undefined,
 				children: [],
 			}]
 		}, () => Promise.resolve(bufferToStream(VSBuffer.alloc(0))));
@@ -311,7 +317,7 @@ suite('Workbench - Test Results Service', () => {
 		});
 	});
 
-	test('resultItemParents', () => {
+	test('resultItemParents', function () {
 		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())!)], [
 			r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString()),
 			r.getStateById(new TestId(['ctrlId', 'id-a']).toString()),

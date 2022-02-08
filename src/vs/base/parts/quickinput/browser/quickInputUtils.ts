@@ -11,7 +11,7 @@ import 'vs/css!./media/quickInput';
 const iconPathToClass: Record<string, string> = {};
 const iconClassGenerator = new IdGenerator('quick-input-button-icon-');
 
-export function getIconClass(iconPath: { dark: URI; light?: URI; } | undefined): string | undefined {
+export function getIconClass(iconPath: { dark: URI; light?: URI } | undefined): string | undefined {
 	if (!iconPath) {
 		return undefined;
 	}

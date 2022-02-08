@@ -3,33 +3,72 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ok } from 'assert';
-import { ParsedArgs } from 'minimist';
-import { Application } from '../../../../automation';
-import { afterSuite, beforeSuite } from '../../utils';
+import { Application, Terminal, TerminalCommandId, TerminalCommandIdWithValue } from '../../../../automation';
 
-export function setup(opts: ParsedArgs) {
+const CONTRIBUTED_PROFILE_NAME = `JavaScript Debug Terminal`;
+const ANY_PROFILE_NAME = '^((?!JavaScript Debug Terminal).)*$';
+
+export function setup() {
 	describe('Terminal Profiles', () => {
-		let app: Application;
-
-		beforeSuite(opts);
-		afterSuite(opts);
-
+		// Acquire automation API
+		let terminal: Terminal;
 		before(function () {
-			app = this.app;
+			const app = this.app as Application;
+			terminal = app.workbench.terminal;
 		});
 
-		it('should launch the default profile', async function () {
-			await app.workbench.terminal.showTerminal();
+		it('should launch the default profile', async () => {
+			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
+		});
 
-			// Verify the terminal buffer has some content
-			await app.workbench.terminal.waitForTerminalText(buffer => {
-				return buffer.some(e => e.length > 0);
-			}, 'The terminal buffer should have some content');
+		it.skip('should set the default profile to a contributed one', async () => {
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
+			await terminal.createTerminal();
+			await terminal.assertSingleTab({ name: CONTRIBUTED_PROFILE_NAME });
+		});
 
-			// Verify the terminal single tab shows up and has a title
-			const terminalTab = await app.code.waitForElement('.single-terminal-tab');
-			ok(terminalTab.textContent.trim().length > 0);
+		it.skip('should use the default contributed profile on panel open and for splitting', async () => {
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, CONTRIBUTED_PROFILE_NAME);
+			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.runCommand(TerminalCommandId.Split);
+			await terminal.assertTerminalGroups([[{ name: CONTRIBUTED_PROFILE_NAME }, { name: CONTRIBUTED_PROFILE_NAME }]]);
+		});
+
+		it('should set the default profile', async () => {
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.SelectDefaultProfile, process.platform === 'win32' ? 'PowerShell' : undefined);
+			await terminal.createTerminal();
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
+		});
+
+		it('should use the default profile on panel open and for splitting', async () => {
+			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
+			await terminal.runCommand(TerminalCommandId.Split);
+			await terminal.assertTerminalGroups([[{}, {}]]);
+		});
+
+		it('createWithProfile command should create a terminal with a profile', async () => {
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile);
+			await terminal.assertSingleTab({ name: ANY_PROFILE_NAME });
+		});
+
+		it.skip('createWithProfile command should create a terminal with a contributed profile', async () => {
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, CONTRIBUTED_PROFILE_NAME);
+			await terminal.assertSingleTab({ name: CONTRIBUTED_PROFILE_NAME });
+		});
+
+		it('createWithProfile command should create a split terminal with a profile', async () => {
+			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, undefined, true);
+			await terminal.assertTerminalGroups([[{}, {}]]);
+		});
+
+		it.skip('createWithProfile command should create a split terminal with a contributed profile', async () => {
+			await terminal.runCommand(TerminalCommandId.Show);
+			await terminal.assertSingleTab({});
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, CONTRIBUTED_PROFILE_NAME, true);
+			await terminal.assertTerminalGroups([[{ name: ANY_PROFILE_NAME }, { name: CONTRIBUTED_PROFILE_NAME }]]);
 		});
 	});
 }

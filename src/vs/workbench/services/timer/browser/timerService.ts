@@ -383,7 +383,7 @@ export interface IStartupMetrics {
 	readonly totalmem?: number;
 	readonly freemem?: number;
 	readonly meminfo?: IMemoryInfo;
-	readonly cpus?: { count: number; speed: number; model: string; };
+	readonly cpus?: { count: number; speed: number; model: string };
 	readonly loadavg?: number[];
 }
 
@@ -526,12 +526,12 @@ export abstract class AbstractTimerService implements ITimerService {
 		// event and it is "normalized" to a relative timestamp where the first mark
 		// defines the start
 		for (const [source, marks] of this.getPerformanceMarks()) {
-			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number; };
+			type Mark = { source: string; name: string; relativeStartTime: number; startTime: number };
 			type MarkClassification = {
-				source: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
-				name: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth'; },
-				relativeStartTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
-				startTime: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; },
+				source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				relativeStartTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 			};
 
 			let lastMark: perf.PerformanceMark = marks[0];

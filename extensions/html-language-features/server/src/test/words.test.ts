@@ -10,7 +10,7 @@ import * as path from 'path';
 suite('HTML Language Configuration', () => {
 	const config = JSON.parse((fs.readFileSync(path.join(__dirname, '../../../../html/language-configuration.json')).toString()));
 
-	function createRegex(str: string | { pattern: string, flags: string }): RegExp {
+	function createRegex(str: string | { pattern: string; flags: string }): RegExp {
 		if (typeof str === 'string') {
 			return new RegExp(str, 'g');
 		}

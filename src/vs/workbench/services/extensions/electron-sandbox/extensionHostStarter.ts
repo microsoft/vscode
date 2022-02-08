@@ -3,13 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerMainProcessRemoteService, registerSharedProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
 
-const location = 'main' as 'main' | 'shared';
-
-if (location === 'main') {
-	registerMainProcessRemoteService(IExtensionHostStarter, ipcExtensionHostStarterChannelName, { supportsDelayedInstantiation: true });
-} else {
-	registerSharedProcessRemoteService(IExtensionHostStarter, ipcExtensionHostStarterChannelName, { supportsDelayedInstantiation: true });
-}
+registerMainProcessRemoteService(IExtensionHostStarter, ipcExtensionHostStarterChannelName, { supportsDelayedInstantiation: true });

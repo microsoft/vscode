@@ -16,8 +16,6 @@ import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/s
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
-import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/showCandidate';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -25,6 +23,10 @@ import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/d
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -158,8 +160,43 @@ workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, 
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);
+
+const enableDiagnostics = true;
+
+if (enableDiagnostics) {
+	class TriggerReconnectAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.triggerReconnect',
+				title: { value: localize('triggerReconnect', "Connection: Trigger Reconnect"), original: 'Connection: Trigger Reconnect' },
+				category: CATEGORIES.Developer,
+				f1: true,
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			PersistentConnection.debugTriggerReconnection();
+		}
+	}
+
+	class PauseSocketWriting extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.pauseSocketWriting',
+				title: { value: localize('pauseSocketWriting', "Connection: Pause socket writing"), original: 'Connection: Pause socket writing' },
+				category: CATEGORIES.Developer,
+				f1: true,
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			PersistentConnection.debugPauseSocketWriting();
+		}
+	}
+
+	registerAction2(TriggerReconnectAction);
+	registerAction2(PauseSocketWriting);
+}
 
 const extensionKindSchema: IJSONSchema = {
 	type: 'string',

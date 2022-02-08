@@ -13,7 +13,7 @@ import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/termina
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -65,8 +65,8 @@ class MockTerminalProfileService implements Partial<ITerminalProfileService>{
 
 class MockQuickInputService implements Partial<IQuickInputService> {
 	_pick: IProfileQuickPickItem = powershellPick;
-	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: true; }, token?: CancellationToken): Promise<IProfileQuickPickItem[] | undefined>;
-	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: false; }, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
+	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: true }, token?: CancellationToken): Promise<IProfileQuickPickItem[] | undefined>;
+	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: false }, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
 	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: Omit<IPickOptions<IProfileQuickPickItem>, 'canPickMany'>, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
 	async pick(picks: any, options?: any, token?: any): Promise<IProfileQuickPickItem | IProfileQuickPickItem[] | undefined> {
 		Promise.resolve(picks);
@@ -157,7 +157,7 @@ suite('TerminalProfileService', () => {
 		remoteAgentService = new TestRemoteAgentService();
 		terminalInstanceService = new TestTerminalInstanceService();
 		extensionService = new TestTerminalExtensionService();
-		environmentService = { configuration: {}, remoteAuthority: undefined } as IWorkbenchEnvironmentService;
+		environmentService = { remoteAuthority: undefined } as IWorkbenchEnvironmentService;
 		instantiationService = new TestInstantiationService();
 
 		let themeService = new TestThemeService();
@@ -213,7 +213,7 @@ suite('TerminalProfileService', () => {
 					}
 				}
 			});
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
 			await terminalProfileService.refreshAndAwaitAvailableProfiles();
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 			deepStrictEqual(terminalProfileService.contributedProfiles, []);
@@ -229,7 +229,7 @@ suite('TerminalProfileService', () => {
 					}
 				}
 			});
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
 			await terminalProfileService.refreshAndAwaitAvailableProfiles();
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 			deepStrictEqual(terminalProfileService.contributedProfiles, []);
@@ -245,7 +245,7 @@ suite('TerminalProfileService', () => {
 					}
 				}
 			});
-			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
+			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, source: ConfigurationTarget.USER } as any);
 			await terminalProfileService.refreshAndAwaitAvailableProfiles();
 			deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
 			deepStrictEqual(terminalProfileService.contributedProfiles, []);
@@ -258,7 +258,7 @@ suite('TerminalProfileService', () => {
 	});
 
 	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
-		environmentService = { configuration: {}, remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
+		environmentService = { remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		terminalProfileService = instantiationService.createInstance(TestTerminalProfileService);
 		await terminalProfileService.hasRefreshedProfiles;
@@ -283,7 +283,6 @@ suite('TerminalProfileService', () => {
 				}
 			}
 		});
-		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 		await terminalProfileService.hasRefreshedProfiles;
 		deepStrictEqual(calls, [
 			[powershellProfile]
@@ -310,17 +309,6 @@ suite('TerminalProfileService', () => {
 
 	test('should call refreshAvailableProfiles _onDidChangeExtensions', async () => {
 		extensionService._onDidChangeExtensions.fire();
-		const calls: ITerminalProfile[][] = [];
-		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
-		await terminalProfileService.hasRefreshedProfiles;
-		deepStrictEqual(calls, [
-			[powershellProfile]
-		]);
-		deepStrictEqual(terminalProfileService.availableProfiles, [powershellProfile]);
-		deepStrictEqual(terminalProfileService.contributedProfiles, [jsdebugProfile]);
-	});
-	test('should call refreshAvailableProfiles again if no profiles are returned from local/remoteTerminalService', async () => {
-		terminalInstanceService.setReturnNone();
 		const calls: ITerminalProfile[][] = [];
 		terminalProfileService.onDidChangeAvailableProfiles(e => calls.push(e));
 		await terminalProfileService.hasRefreshedProfiles;

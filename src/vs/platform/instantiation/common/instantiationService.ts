@@ -129,7 +129,7 @@ export class InstantiationService implements IInstantiationService {
 		}
 	}
 
-	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
+	protected _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
 		let thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
 			return this._safeCreateAndCacheServiceInstance(id, thing, _trace.branch(id, true));
@@ -156,7 +156,7 @@ export class InstantiationService implements IInstantiationService {
 
 	private _createAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>, _trace: Trace): T {
 
-		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace; };
+		type Triple = { id: ServiceIdentifier<any>; desc: SyncDescriptor<any>; _trace: Trace };
 		const graph = new Graph<Triple>(data => data.id.toString());
 
 		let cycleCount = 0;
@@ -263,7 +263,7 @@ const enum TraceType {
 	Creation, Invocation, Branch
 }
 
-class Trace {
+export class Trace {
 
 	private static readonly _None = new class extends Trace {
 		constructor() { super(-1, null); }

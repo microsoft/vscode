@@ -6,7 +6,8 @@
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -14,8 +15,8 @@ import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { getDocumentFormattingEditsUntilResult, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { getDocumentFormattingEditsUntilResult, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/browser/format';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -23,6 +24,7 @@ import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExte
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { flatten } from 'vs/base/common/arrays';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 // format notebook
 registerAction2(class extends Action2 {
@@ -52,6 +54,7 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const textModelService = accessor.get(ITextModelService);
 		const editorWorkerService = accessor.get(IEditorWorkerService);
+		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const bulkEditService = accessor.get(IBulkEditService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
@@ -69,7 +72,9 @@ registerAction2(class extends Action2 {
 				const model = ref.object.textEditorModel;
 
 				const formatEdits = await getDocumentFormattingEditsUntilResult(
-					editorWorkerService, model,
+					editorWorkerService,
+					languageFeaturesService,
+					model,
 					model.getOptions(), CancellationToken.None
 				);
 

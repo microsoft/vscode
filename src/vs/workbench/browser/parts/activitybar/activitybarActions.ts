@@ -24,8 +24,8 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
-import { AuthenticationSession } from 'vs/editor/common/modes';
+import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -38,6 +38,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -101,10 +102,10 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 	private logAction(action: string) {
 		type ActivityBarActionClassification = {
-			viewletId: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+			viewletId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
-		this.telemetryService.publicLog2<{ viewletId: String, action: String; }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
+		this.telemetryService.publicLog2<{ viewletId: String; action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
 	}
 }
 
@@ -209,6 +210,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICredentialsService private readonly credentialsService: ICredentialsService,
 	) {
 		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
@@ -222,7 +224,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 			try {
 				const sessions = await this.authenticationService.getSessions(providerId);
 
-				const groupedSessions: { [label: string]: AuthenticationSession[]; } = {};
+				const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
 				sessions.forEach(session => {
 					if (groupedSessions[session.account.label]) {
 						groupedSessions[session.account.label].push(session);
@@ -239,7 +241,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 
 		const result = await Promise.all(allSessions);
 		let menus: IAction[] = [];
-		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
+		const authenticationSession = await getCurrentAuthenticationSessionInfo(this.credentialsService, this.productService);
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
 

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
+import { flakySuite } from 'vs/base/test/common/testUtils';
 
-suite('IndexedDB', () => {
+flakySuite('IndexedDB', () => {
 
 	let indexedDB: IndexedDB;
 
@@ -15,7 +16,9 @@ suite('IndexedDB', () => {
 	});
 
 	teardown(() => {
-		indexedDB.close();
+		if (indexedDB) {
+			indexedDB.close();
+		}
 	});
 
 	test('runInTransaction', async () => {

@@ -270,7 +270,7 @@ export class MarkerService implements IMarkerService {
 		}
 	}
 
-	read(filter: { owner?: string; resource?: URI; severities?: number, take?: number; } = Object.create(null)): IMarker[] {
+	read(filter: { owner?: string; resource?: URI; severities?: number; take?: number } = Object.create(null)): IMarker[] {
 
 		let { owner, resource, severities, take } = filter;
 

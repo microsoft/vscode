@@ -48,17 +48,14 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		function findName(cmd: string): string {
 
-			const SHARED_PROCESS_HINT = /--disable-blink-features=Auxclick/;
-			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper\.exe/;
+			const SHARED_PROCESS_HINT = /--vscode-window-kind=shared-process/;
+			const ISSUE_REPORTER_HINT = /--vscode-window-kind=issue-reporter/;
+			const PROCESS_EXPLORER_HINT = /--vscode-window-kind=process-explorer/;
+			const UTILITY_NETWORK_HINT = /--utility-sub-type=network/;
 			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
 			const WINDOWS_PTY = /\\pipe\\winpty-control/;
 			const WINDOWS_CONSOLE_HOST = /conhost\.exe/;
 			const TYPE = /--type=([a-zA-Z-]+)/;
-
-			// find windows file watcher
-			if (WINDOWS_WATCHER_HINT.exec(cmd)) {
-				return 'watcherService ';
-			}
 
 			// find windows crash reporter
 			if (WINDOWS_CRASH_REPORTER.exec(cmd)) {
@@ -83,7 +80,19 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						return 'shared-process';
 					}
 
+					if (ISSUE_REPORTER_HINT.exec(cmd)) {
+						return 'issue-reporter';
+					}
+
+					if (PROCESS_EXPLORER_HINT.exec(cmd)) {
+						return 'process-explorer';
+					}
+
 					return `window`;
+				} else if (matches[1] === 'utility') {
+					if (UTILITY_NETWORK_HINT.exec(cmd)) {
+						return 'utility-network-service';
+					}
 				}
 				return matches[1];
 			}

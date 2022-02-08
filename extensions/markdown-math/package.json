@@ -26,8 +26,7 @@
     "languages": [
       {
         "id": "markdown-math",
-        "aliases": [],
-        "configuration": "./language-configuration.json"
+        "aliases": []
       }
     ],
     "grammars": [
@@ -43,7 +42,7 @@
           "text.html.markdown"
         ],
         "embeddedLanguages": {
-          "meta.embedded.math.markdown": "markdown-math"
+          "meta.embedded.math.markdown": "latex"
         }
       },
       {
@@ -53,7 +52,7 @@
           "text.html.markdown"
         ],
         "embeddedLanguages": {
-          "meta.embedded.math.markdown": "markdown-math"
+          "meta.embedded.math.markdown": "latex"
         }
       }
     ],

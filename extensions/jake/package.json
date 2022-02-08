@@ -24,7 +24,7 @@
   },
   "main": "./out/main",
   "activationEvents": [
-    "onCommand:workbench.action.tasks.runTask"
+    "onTaskType:jake"
   ],
   "capabilities": {
     "virtualWorkspaces": false,

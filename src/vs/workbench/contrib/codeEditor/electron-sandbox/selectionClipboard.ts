@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, Handler } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
@@ -97,7 +97,7 @@ class SelectionClipboardPastePreventer implements IWorkbenchContribution {
 			document.addEventListener('mouseup', (e) => {
 				if (e.button === 1) {
 					// middle button
-					const config = configurationService.getValue<{ selectionClipboard: boolean; }>('editor');
+					const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
 					if (!config.selectionClipboard) {
 						// selection clipboard is disabled
 						// try to stop the upcoming paste

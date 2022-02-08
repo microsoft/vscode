@@ -17,9 +17,9 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -41,12 +41,15 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+import { Codicon } from 'vs/base/common/codicons';
+import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { getIconRegistry, registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+const layoutControlIcon = registerIcon('layout-control', Codicon.layout, localize('layoutControlIcon', "Icon for the layout control menu found in the title bar."));
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -95,7 +98,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -377,13 +380,10 @@ export class TitlebarPart extends Part implements ITitleService {
 			if (isWeb) {
 				const homeIndicator = this.environmentService.options?.homeIndicator;
 				if (homeIndicator) {
-					let codicon = iconRegistry.get(homeIndicator.icon);
-					if (!codicon) {
-						codicon = Codicon.code;
-					}
+					const icon: ThemeIcon = getIconRegistry().getIcon(homeIndicator.icon) ? { id: homeIndicator.icon } : Codicon.code;
 
 					this.appIcon.setAttribute('href', homeIndicator.href);
-					this.appIcon.classList.add(...codicon.classNamesArray);
+					this.appIcon.classList.add(...ThemeIcon.asClassNameArray(icon));
 					this.appIconBadge = document.createElement('div');
 					this.appIconBadge.classList.add('home-bar-icon-badge');
 					this.appIcon.appendChild(this.appIconBadge);
@@ -418,7 +418,7 @@ export class TitlebarPart extends Part implements ITitleService {
 					actionViewItemProvider: action => {
 						if (action instanceof SubmenuAction) {
 							return new DropdownMenuActionViewItem(action, action.actions, this.contextMenuService, {
-								classNames: Codicon.editorLayout.classNamesArray,
+								classNames: ThemeIcon.asClassNameArray(layoutControlIcon),
 								anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 								keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
 							});
@@ -581,8 +581,14 @@ export class TitlebarPart extends Part implements ITitleService {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
 				(this.title.style as any).zoom = `${1 / getZoomFactor()}`;
+				if (this.windowControls) {
+					(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
+				}
 			} else {
 				(this.title.style as any).zoom = '';
+				if (this.windowControls) {
+					(this.windowControls.style as any).zoom = '';
+				}
 			}
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());

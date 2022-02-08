@@ -12,6 +12,7 @@ import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { listProcesses } from 'vs/base/node/ps';
 import { localize } from 'vs/nls';
 import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo } from 'vs/platform/diagnostics/common/diagnostics';
+import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -54,6 +55,7 @@ export class IssueMainService implements ICommonIssueService {
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
+		@IDiagnosticsMainService private readonly diagnosticsMainService: IDiagnosticsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
@@ -64,7 +66,7 @@ export class IssueMainService implements ICommonIssueService {
 
 	private registerListeners(): void {
 		ipcMain.on('vscode:issueSystemInfoRequest', async event => {
-			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
+			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
 			const msg = await this.diagnosticsService.getSystemInfo(info, remoteData);
 
 			this.safeSend(event, 'vscode:issueSystemInfoResponse', msg);
@@ -77,7 +79,7 @@ export class IssueMainService implements ICommonIssueService {
 				const mainPid = await this.launchMainService.getMainProcessId();
 				processes.push({ name: localize('local', "Local"), rootProcess: await listProcesses(mainPid) });
 
-				const remoteDiagnostics = await this.launchMainService.getRemoteDiagnostics({ includeProcesses: true });
+				const remoteDiagnostics = await this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true });
 				remoteDiagnostics.forEach(data => {
 					if (isRemoteDiagnosticError(data)) {
 						processes.push({
@@ -150,7 +152,7 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo: { id: any; from: any; args: any; }) => {
+		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo: { id: any; from: any; args: any }) => {
 			const { id, from, args } = commandInfo;
 
 			let parentWindow: BrowserWindow | null;
@@ -212,7 +214,7 @@ export class IssueMainService implements ICommonIssueService {
 					title: localize('issueReporter', "Issue Reporter"),
 					zoomLevel: data.zoomLevel,
 					alwaysOnTop: false
-				});
+				}, 'issue-reporter');
 
 				// Store into config object URL
 				issueReporterWindowConfigUrl.update({
@@ -250,7 +252,9 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		}
 
-		this.issueReporterWindow?.focus();
+		if (this.issueReporterWindow) {
+			this.focusWindow(this.issueReporterWindow);
+		}
 	}
 
 	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
@@ -267,7 +271,7 @@ export class IssueMainService implements ICommonIssueService {
 					title: localize('processExplorer', "Process Explorer"),
 					zoomLevel: data.zoomLevel,
 					alwaysOnTop: true
-				});
+				}, 'process-explorer');
 
 				// Store into config object URL
 				processExplorerWindowConfigUrl.update({
@@ -298,10 +302,20 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		}
 
-		this.processExplorerWindow?.focus();
+		if (this.processExplorerWindow) {
+			this.focusWindow(this.processExplorerWindow);
+		}
 	}
 
-	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions): BrowserWindow {
+	private focusWindow(window: BrowserWindow): void {
+		if (window.isMinimized()) {
+			window.restore();
+		}
+
+		window.focus();
+	}
+
+	private createBrowserWindow<T>(position: IWindowState, ipcObjectUrl: IIPCObjectUrl<T>, options: IBrowserWindowOptions, windowKind: string): BrowserWindow {
 		const window = new BrowserWindow({
 			fullscreen: false,
 			skipTaskbar: true,
@@ -316,7 +330,7 @@ export class IssueMainService implements ICommonIssueService {
 			backgroundColor: options.backgroundColor || IssueMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
 				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
-				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
+				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, `--vscode-window-kind=${windowKind}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,
 				spellcheck: false,
@@ -334,7 +348,7 @@ export class IssueMainService implements ICommonIssueService {
 	}
 
 	async getSystemStatus(): Promise<string> {
-		const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
+		const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: false, includeWorkspaceMetadata: false })]);
 
 		return this.diagnosticsService.getDiagnostics(info, remoteData);
 	}
@@ -410,7 +424,7 @@ export class IssueMainService implements ICommonIssueService {
 
 	private async getPerformanceInfo(): Promise<PerformanceInfo> {
 		try {
-			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.launchMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })]);
+			const [info, remoteData] = await Promise.all([this.launchMainService.getMainProcessInfo(), this.diagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true })]);
 			return await this.diagnosticsService.getPerformanceInfo(info, remoteData);
 		} catch (error) {
 			this.logService.warn('issueService#getPerformanceInfo ', error.message);

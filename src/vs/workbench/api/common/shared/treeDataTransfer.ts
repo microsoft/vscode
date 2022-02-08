@@ -16,12 +16,11 @@ export interface TreeDataTransferDTO {
 
 export namespace TreeDataTransferConverter {
 	export function toITreeDataTransfer(value: TreeDataTransferDTO): ITreeDataTransfer {
-		const newDataTransfer: ITreeDataTransfer = {
-			items: new Map<string, ITreeDataTransferItem>()
-		};
+		const newDataTransfer: ITreeDataTransfer = new Map<string, ITreeDataTransferItem>();
 		value.types.forEach((type, index) => {
-			newDataTransfer.items.set(type, {
-				asString: async () => value.items[index].asString
+			newDataTransfer.set(type, {
+				asString: async () => value.items[index].asString,
+				value: undefined
 			});
 		});
 		return newDataTransfer;
@@ -32,7 +31,7 @@ export namespace TreeDataTransferConverter {
 			types: [],
 			items: []
 		};
-		const entries = Array.from(value.items.entries());
+		const entries = Array.from(value.entries());
 		for (const entry of entries) {
 			newDTO.types.push(entry[0]);
 			newDTO.items.push({

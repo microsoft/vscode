@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContents } from '../tableOfContentsProvider';
 import { isMarkdownFile } from './file';
 import { extname } from './path';
 
@@ -104,8 +104,8 @@ function getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
 }
 
 async function tryRevealLineUsingTocFragment(engine: MarkdownEngine, editor: vscode.TextEditor, fragment: string): Promise<boolean> {
-	const toc = new TableOfContentsProvider(engine, editor.document);
-	const entry = await toc.lookup(fragment);
+	const toc = await TableOfContents.create(engine, editor.document);
+	const entry = toc.lookup(fragment);
 	if (entry) {
 		const lineStart = new vscode.Range(entry.line, 0, entry.line, 0);
 		editor.selection = new vscode.Selection(lineStart.start, lineStart.end);
@@ -129,11 +129,11 @@ function tryRevealLineUsingLineFragment(editor: vscode.TextEditor, fragment: str
 	return false;
 }
 
-export async function resolveLinkToMarkdownFile(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
+export async function resolveUriToMarkdownFile(resource: vscode.Uri): Promise<vscode.TextDocument | undefined> {
 	try {
-		const standardLink = await tryResolveLinkToMarkdownFile(resource);
-		if (standardLink) {
-			return standardLink;
+		const doc = await tryResolveUriToMarkdownFile(resource);
+		if (doc) {
+			return doc;
 		}
 	} catch {
 		// Noop
@@ -141,13 +141,13 @@ export async function resolveLinkToMarkdownFile(resource: vscode.Uri): Promise<v
 
 	// If no extension, try with `.md` extension
 	if (extname(resource.path) === '') {
-		return tryResolveLinkToMarkdownFile(resource.with({ path: resource.path + '.md' }));
+		return tryResolveUriToMarkdownFile(resource.with({ path: resource.path + '.md' }));
 	}
 
 	return undefined;
 }
 
-async function tryResolveLinkToMarkdownFile(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
+async function tryResolveUriToMarkdownFile(resource: vscode.Uri): Promise<vscode.TextDocument | undefined> {
 	let document: vscode.TextDocument;
 	try {
 		document = await vscode.workspace.openTextDocument(resource);
@@ -155,7 +155,7 @@ async function tryResolveLinkToMarkdownFile(resource: vscode.Uri): Promise<vscod
 		return undefined;
 	}
 	if (isMarkdownFile(document)) {
-		return document.uri;
+		return document;
 	}
 	return undefined;
 }
