@@ -137,16 +137,28 @@ export function matchesSomeScheme(target: URI | string, ...schemes: string[]): b
 	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
-export function selectionFragment(target: URI): { startLineNumber: number; startColumn: number } | undefined {
-	let selection: { startLineNumber: number; startColumn: number } | undefined = undefined;
-	const match = /^L?(\d+)(?:,(\d+))?/.exec(target.fragment);
+/**
+ * file:///some/file.js#73
+ * file:///some/file.js#L73
+ * file:///some/file.js#73,84
+ * file:///some/file.js#L73,84
+ * file:///some/file.js#73-83
+ * file:///some/file.js#L73-L83
+ * file:///some/file.js#73,84-83,52
+ * file:///some/file.js#L73,84-L83,52
+ */
+export function selectionFragment(target: URI): { startLineNumber: number; startColumn: number; endLineNumber?: number; endColumn?: number } | undefined {
+	let selection: { startLineNumber: number; startColumn: number; endLineNumber?: number; endColumn?: number } | undefined = undefined;
+	const match = /^L?(\d+)(?:,(\d+))?(-L?(\d+)(?:,(\d+))?)?/.exec(target.fragment);
 	if (match) {
-		// support file:///some/file.js#73,84
-		// support file:///some/file.js#L73
 		selection = {
 			startLineNumber: parseInt(match[1]),
-			startColumn: match[2] ? parseInt(match[2]) : 1
+			startColumn: match[2] ? parseInt(match[2]) : 1,
 		};
+		if (match[4]) {
+			selection.endLineNumber = parseInt(match[4]);
+			selection.endColumn = match[5] ? parseInt(match[5]) : 1;
+		}
 	}
 	return selection;
 }

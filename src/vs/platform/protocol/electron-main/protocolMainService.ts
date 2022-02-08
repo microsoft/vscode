@@ -8,7 +8,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { TernarySearchTree } from 'vs/base/common/map';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isLinux } from 'vs/base/common/platform';
-import { extname } from 'vs/base/common/resources';
+import { extname, normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -84,31 +84,41 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	//#region vscode-file://
 
 	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
-		const uri = URI.parse(request.url);
-
-		// Restore the `vscode-file` URI to a `file` URI so that we can
-		// ensure the root is valid and properly tell Chrome where the
-		// resource is at.
-		const fileUri = FileAccess.asFileUri(uri);
+		const uri = this.requestToFileUri(request);
 
 		// first check by validRoots
-		if (this.validRoots.findSubstr(fileUri)) {
+		if (this.validRoots.findSubstr(uri)) {
 			return callback({
-				path: fileUri.fsPath
+				path: uri.fsPath
 			});
 		}
 
 		// then check by validExtensions
-		if (this.validExtensions.has(extname(fileUri))) {
+		if (this.validExtensions.has(extname(uri))) {
 			return callback({
-				path: fileUri.fsPath
+				path: uri.fsPath
 			});
 		}
 
 		// finally block to load the resource
-		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
+		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${uri.fsPath} from ${Schemas.vscodeFileResource}: protocol (original URL: ${request.url})`);
 
 		return callback({ error: -3 /* ABORTED */ });
+	}
+
+	private requestToFileUri(request: Electron.ProtocolRequest): URI {
+
+		// 1.) Use `URI.parse()` util from us to convert the raw
+		//     URL into our URI.
+		const requestUri = URI.parse(request.url);
+
+		// 2.) Use `FileAccess.asFileUri` to convert back from a
+		//     `vscode-file:` URI to a `file:` URI.
+		const unnormalizedFileUri = FileAccess.asFileUri(requestUri);
+
+		// 3.) Strip anything from the URI that could result in
+		//     relative paths (such as "..") by using `normalize`
+		return normalizePath(unnormalizedFileUri);
 	}
 
 	//#endregion

@@ -19,7 +19,7 @@ import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Mimes } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -35,6 +35,9 @@ import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITreeDataTransfer } from 'vs/workbench/common/views';
 import { selectionFragment } from 'vs/platform/opener/common/opener';
+import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 
 //#region Editor / Resources DND
 
@@ -403,7 +406,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		if (isEditorIdentifier(resourceOrEditor)) {
 			editor = resourceOrEditor.editor.toUntyped({ preserveViewState: resourceOrEditor.groupId });
 		} else if (URI.isUri(resourceOrEditor)) {
-			editor = { resource: resourceOrEditor };
+			const selection = selectionFragment(resourceOrEditor);
+			editor = { resource: resourceOrEditor, options: selection ? { selection } : undefined };
 		} else if (!resourceOrEditor.isDirectory) {
 			editor = { resource: resourceOrEditor.resource };
 		}
@@ -862,6 +866,43 @@ export function toggleDropEffect(dataTransfer: DataTransfer | null, dropEffect: 
 	}
 
 	dataTransfer.dropEffect = shouldHaveIt ? dropEffect : 'none';
+}
+
+export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
+	constructor(
+		private readonly toResource: (e: T) => URI | null,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) { }
+
+	getDragURI(element: T): string | null {
+		const resource = this.toResource(element);
+		return resource ? resource.toString() : null;
+	}
+
+	getDragLabel(elements: T[]): string | undefined {
+		const resources = coalesce(elements.map(this.toResource));
+		return resources.length === 1 ? basename(resources[0]) : resources.length > 1 ? String(resources.length) : undefined;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const resources: URI[] = [];
+		for (const element of (data as ElementsDragAndDropData<T>).elements) {
+			const resource = this.toResource(element);
+			if (resource) {
+				resources.push(resource);
+			}
+		}
+		if (resources.length) {
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
+		}
+	}
+
+	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		return false;
+	}
+
+	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void { }
 }
 
 //#endregion

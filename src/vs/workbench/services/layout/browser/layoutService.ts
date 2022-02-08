@@ -99,6 +99,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 */
 	readonly onDidChangeCenteredLayout: Event<boolean>;
 
+	/*
+	 * Emit when panel position changes.
+	 */
+	readonly onDidChangePanelPosition: Event<string>;
+
 	/**
 	 * Emit when panel alignment changes.
 	 */
@@ -200,6 +205,16 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Toggles the menu bar visibility.
 	 */
 	toggleMenuBar(): void;
+
+	/*
+	 * Gets the current panel position. Note that the panel can be hidden too.
+	 */
+	getPanelPosition(): Position;
+
+	/**
+	 * Sets the panel position.
+	 */
+	setPanelPosition(position: Position): void;
 
 	/**
 	 *
