@@ -201,8 +201,7 @@ stages:
         dependsOn:
           - Compile
           - LinuxServerDependencies
-        pool:
-          vmImage: "Ubuntu-18.04"
+        pool: vscode-1es
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - job: Linuxx64
