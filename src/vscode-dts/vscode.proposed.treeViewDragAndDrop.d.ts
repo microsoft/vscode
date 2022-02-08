@@ -68,6 +68,7 @@ declare module 'vscode' {
 	/**
 	 * Provides support for drag and drop in `TreeView`.
 	 */
+	// todo@API formalize mime types, either `text/uri-list` and or `application/vnd.code.XYZ` (see NotebookOutputItem)
 	export interface TreeDragAndDropController<T> {
 
 		/**
