@@ -3,23 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const { createModuleDescription, createEditorWorkerModuleDescription } = require('./vs/base/buildfile');
+"use strict";
 
-exports.base = [
-	{
-		name: 'vs/editor/common/services/editorSimpleWorker',
-		include: ['vs/base/common/worker/simpleWorker'],
-		prepend: ['vs/loader.js', 'vs/nls.js'],
-		append: ['vs/base/worker/workerMain'],
-		dest: 'vs/base/worker/workerMain.js'
-	},
-	{
-		name: 'vs/base/common/worker/simpleWorker',
-	},
-	{
-		name: 'vs/platform/extensions/node/extensionHostStarterWorker',
-		exclude: ['vs/base/common/worker/simpleWorker']
-	}
+
+const {
+	createModuleDescription,
+	createEditorWorkerModuleDescription
+} = require('./vs/base/buildfile');
+
+exports.base = [{
+	name: 'vs/editor/common/services/editorSimpleWorker',
+	include: ['vs/base/common/worker/simpleWorker'],
+	prepend: ['vs/loader.js', 'vs/nls.js'],
+	append: ['vs/base/worker/workerMain'],
+	dest: 'vs/base/worker/workerMain.js'
+},
+{
+	name: 'vs/base/common/worker/simpleWorker',
+},
+{
+	name: 'vs/platform/extensions/node/extensionHostStarterWorker',
+	exclude: ['vs/base/common/worker/simpleWorker']
+}
 ];
 
 exports.workerExtensionHost = [createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorker')];
