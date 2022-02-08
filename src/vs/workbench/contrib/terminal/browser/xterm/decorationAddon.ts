@@ -32,8 +32,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: IDecoration[] = [];
 	protected _terminal: Terminal | undefined;
 
-	private readonly _onRunCommandRequested = this._register(new Emitter<string>());
-	readonly onRunCommandRequested = this._onRunCommandRequested.event;
+	private readonly _onDidRequestRunCommand = this._register(new Emitter<string>());
+	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
 
 	constructor(
 		@IClipboardService private readonly _clipboardService: IClipboardService,
@@ -67,24 +67,28 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	registerPromptDecoration(command: ITerminalCommand): IDecoration | undefined {
 		if (!command.marker) {
-			throw new Error(`cannot add decoration, for command: ${command}, and terminal: ${this._terminal}`);
+			throw new Error(`cannot add decoration for command: ${command}, and terminal: ${this._terminal}`);
 		} else if (!this._terminal || command.command.trim().length === 0) {
 			return undefined;
 		}
+
 		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: DecorationProperties.Width });
 		const target = decoration?.element;
 
 		if (!target) {
 			throw new Error('Cannot register decoration for a marker that has already been disposed of');
 		}
+
 		this._createContextMenu(target, command);
 		this._createHover(target, command);
+
 		target.classList.add(DecorationSelector.PromptDecoration);
 		if (!command.hasOutput) {
 			target.classList.add(DecorationSelector.NoOutput);
 		} else if (command.exitCode) {
 			target.classList.add(DecorationSelector.Error);
 		}
+
 		return decoration;
 	}
 
@@ -111,15 +115,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private async _getDecorationActions(command: ITerminalCommand): Promise<IAction[]> {
 		const copyOutputAction = {
-			class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: 'Copy Output', enabled: true,
+			class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: localize("terminal.copyOutput", 'Copy Output'), enabled: true,
 			run: async () => {
 				await this._clipboardService.writeText(command.getOutput()!);
 			}
 		};
 		const rerunCommandAction = {
-			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: 'Re-run Command', enabled: true,
+			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Re-run Command'), enabled: true,
 			run: async () => {
-				this._onRunCommandRequested.fire(command.command);
+				this._onDidRequestRunCommand.fire(command.command);
 			}
 		};
 		return command.hasOutput ? [copyOutputAction, rerunCommandAction] : [rerunCommandAction];

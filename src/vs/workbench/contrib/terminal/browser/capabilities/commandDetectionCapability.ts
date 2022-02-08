@@ -10,7 +10,7 @@ import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/co
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IBuffer, IMarker, Terminal } from 'xterm';
 
-export interface ICurrentPartialCommand {
+interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
 
 	promptStartMarker?: IMarker;
@@ -146,13 +146,13 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const timestamp = Date.now();
 			const newCommand = {
 				command,
+				marker: this._currentCommand.commandStartMarker,
 				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
+				hasOutput: (this._currentCommand.commandExecutedMarker!.line < this._currentCommand.commandFinishedMarker!.line),
 				getOutput: () => getOutputForCommand(clonedPartialCommand, buffer),
 				getTimeFromNow: () => fromNow(timestamp, true),
-				marker: this._currentCommand.commandStartMarker,
-				hasOutput: (this._currentCommand.commandExecutedMarker!.line < this._currentCommand.commandFinishedMarker!.line)
 			};
 			this._commands.push(newCommand);
 			this._onCommandFinished.fire(newCommand);
@@ -171,6 +171,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 function getOutputForCommand(command: ICurrentPartialCommand, buffer: IBuffer): string | undefined {
 	const startLine = command.commandExecutedMarker!.line;
 	const endLine = command.commandFinishedMarker!.line;
+
 	if (startLine === endLine) {
 		return undefined;
 	}

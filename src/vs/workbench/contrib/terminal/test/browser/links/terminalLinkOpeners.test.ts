@@ -170,9 +170,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					cwd,
 					timestamp: 0,
 					getOutput() { return undefined; },
-					getTimeFromNow() {
-						return undefined;
-					},
+					getTimeFromNow() { return undefined; },
 					marker: {
 						line: 0
 					} as Partial<IXtermMarker> as any,
