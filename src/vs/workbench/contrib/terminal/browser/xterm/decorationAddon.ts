@@ -12,8 +12,15 @@ import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contr
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR, TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR, TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_NO_OUTPUT } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Codicon } from 'vs/base/common/codicons';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IAction } from 'vs/base/common/actions';
+
+const enum DecorationSelector {
+	PromptDecoration = 'terminal-prompt-decoration',
+	Error = 'error',
+	Normal = 'normal',
+	NoOutput = 'no-output'
+}
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: IDecoration[] = [];
@@ -50,50 +57,57 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerOutputDecoration(command: ITerminalCommand): IDecoration {
-		if (!command.marker || !this._terminal || !command.endMarker) {
-			throw new Error(`cannot add decoration, ${command.marker}, ${this._terminal}`);
+		if (!this._terminal || !command.marker || !command.endMarker || !command.startMarker) {
+			throw new Error(`cannot add decoration, for command: ${command}, and terminal: ${this._terminal}`);
 		}
 		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: .5 });
-		if (decoration?.element && command.command.trim().length > 0) {
-			const hasOutput = command.endMarker!.line - command.startMarker!.line > 0;
-			console.log(hasOutput, command.getOutput());
-			dom.addDisposableListener(decoration.element, 'click', async () => {
-				const copyOutputAction = { class: 'copy-output', icon: Codicon.output, tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: 'Copy Output', enabled: true, run: async () => await this._clipboardService.writeText(command.getOutput()!) };
-				const rerunCommandAction = {
-					class: 'rerun-command', icon: Codicon.run, tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: 'Re-run Command', enabled: true,
-					run: async () => {
-						await this._terminal!.writeln(command.command);
-					}
-				};
-				this._contextMenuService.showContextMenu({
-					getAnchor: () => decoration.element!,
-					getActions: () => hasOutput ? [copyOutputAction, rerunCommandAction] : [rerunCommandAction],
-				});
-			});
-			dom.addDisposableListener(decoration.element, 'mouseenter', async () => {
-				this._hoverService.showHover({ content: 'Show Actions', target: decoration.element! });
-			});
-			dom.addDisposableListener(decoration.element, 'mouseleave', async () => {
+		const target = decoration?.element;
+		if (target && command.command.trim().length > 0) {
+			const hasOutput = command.endMarker.line - command.startMarker.line > 0;
+			this._register(dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
+				const actions = await this._getDecorationActions(command, hasOutput);
+				this._contextMenuService.showContextMenu({ getAnchor: () => target, getActions: () => actions });
+			}));
+			this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
+				this._hoverService.showHover({ content: 'Show Actions', target });
+			}));
+			this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
 				this._hoverService.hideHover();
-			});
-			decoration.element.classList.add('terminal-prompt-decoration');
+			}));
+			target.classList.add(DecorationSelector.PromptDecoration);
 			if (hasOutput) {
-				decoration.element.classList.add(command.exitCode ? 'error' : 'normal');
+				target.classList.add(command.exitCode ? DecorationSelector.Error : DecorationSelector.Normal);
 			} else {
-				decoration.element.classList.add('no-output');
+				target.classList.add(DecorationSelector.NoOutput);
 			}
 			return decoration;
 		} else {
 			throw new Error('Cannot register decoration for a marker that has already been disposed of');
 		}
 	}
+
+	private async _getDecorationActions(command: ITerminalCommand, hasOutput?: boolean): Promise<IAction[]> {
+		const copyOutputAction = {
+			class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: 'Copy Output', enabled: true,
+			run: async () => {
+				await this._clipboardService.writeText(command.getOutput()!);
+			}
+		};
+		const rerunCommandAction = {
+			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: 'Re-run Command', enabled: true,
+			run: async () => {
+				await this._terminal!.writeln(command.command);
+			}
+		};
+		return hasOutput ? [copyOutputAction, rerunCommandAction] : [rerunCommandAction];
+	}
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const promptDecorationBackground = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR);
-	collector.addRule(`.terminal-prompt-decoration.normal { background-color: ${promptDecorationBackground ? promptDecorationBackground.toString() : ''}; }`);
+	collector.addRule(`.terminal-prompt-decoration.${DecorationSelector.Normal} { background-color: ${promptDecorationBackground ? promptDecorationBackground.toString() : ''}; }`);
 	const promptDecorationBackgroundError = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR);
-	collector.addRule(`.terminal-prompt-decoration.error { background-color: ${promptDecorationBackgroundError ? promptDecorationBackgroundError.toString() : ''}; }`);
+	collector.addRule(`.terminal-prompt-decoration.${DecorationSelector.Error} { background-color: ${promptDecorationBackgroundError ? promptDecorationBackgroundError.toString() : ''}; }`);
 	const promptDecorationBackgroundNoOutput = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_NO_OUTPUT);
-	collector.addRule(`.terminal-prompt-decoration.no-output { background-color: ${promptDecorationBackgroundNoOutput ? promptDecorationBackgroundNoOutput.toString() : ''}; }`);
+	collector.addRule(`.terminal-prompt-decoration.${DecorationSelector.NoOutput} { background-color: ${promptDecorationBackgroundNoOutput ? promptDecorationBackgroundNoOutput.toString() : ''}; }`);
 });
