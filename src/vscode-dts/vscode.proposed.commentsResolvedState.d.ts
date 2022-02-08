@@ -7,25 +7,37 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/127473
 
-	export interface CommentThreadDecorations {
+	export class CommentThreadDecorations {
+		static HighEmphasis: CommentThreadDecorations;
+		static LowEmphasis: CommentThreadDecorations;
 
 		/**
 		 * Icon that will show in association with a comment thread.
 		 */
-		readonly iconPath: string | Uri | ThemeIcon;
+		readonly iconPath?: string | Uri | ThemeIcon;
 
 		/**
 		 * Color that will show in association with the comment thread.
 		 */
 		readonly color?: ThemeColor;
+
+		constructor(iconPath?: string | Uri | ThemeIcon, color?: ThemeColor);
 	}
 
 	export interface CommentThread {
 		/**
-		 * Optional current state of the {@link Comment}
+		 * The decorations for a {@link CommentThread}.
 		 */
-		state?: { label: string, tooltip: string, includeInCount: boolean };
+		decoration?: CommentThreadDecorations;
 
-		decoration?: CommentThreadDecorations
+		/**
+		 * The accessibility information associated with the label of the {@link CommentThread}.
+		 */
+		labelAccessibilityInformation?: AccessibilityInformation;
+
+		/**
+		 * The tooltip associated with the label of hte {@link CommentThread}.
+		 */
+		labelTooltip?: string;
 	}
 }
