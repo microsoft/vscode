@@ -559,7 +559,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					category,
 					f1: true,
-					title: nls.localize('settings.focusSearch', "Focus Settings Search")
+					title: { value: nls.localize('settings.focusSearch', "Focus Settings Search"), original: 'Focus Settings Search' }
 				});
 			}
 
@@ -578,7 +578,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					category,
 					f1: true,
-					title: nls.localize('settings.clearResults', "Clear Settings Search Results")
+					title: { value: nls.localize('settings.clearResults', "Clear Settings Search Results"), original: 'Clear Settings Search Results' }
 				});
 			}
 
@@ -665,7 +665,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							when: CONTEXT_SETTINGS_ROW_FOCUS
 						}],
 					category,
-					title: nls.localize('settings.focusSettingsTOC', "Focus Settings Table of Contents")
+					title: { value: nls.localize('settings.focusSettingsTOC', "Focus Settings Table of Contents"), original: 'Focus Settings Table of Contents' }
 				});
 			}
 
@@ -716,7 +716,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					f1: true,
 					category,
-					title: nls.localize('settings.showContextMenu', "Show Setting Context Menu")
+					title: { value: nls.localize('settings.showContextMenu', "Show Setting Context Menu"), original: 'Show Setting Context Menu' }
 				});
 			}
 
@@ -740,7 +740,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					},
 					f1: true,
 					category,
-					title: nls.localize('settings.focusLevelUp', "Move Focus Up One Level")
+					title: { value: nls.localize('settings.focusLevelUp', "Move Focus Up One Level"), original: 'Move Focus Up One Level' }
 				});
 			}
 
