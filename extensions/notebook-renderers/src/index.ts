@@ -5,6 +5,7 @@
 
 import type { ActivationFunction, OutputItem } from 'vscode-notebook-renderer';
 import { handleANSIOutput } from './ansi';
+import { truncatedArrayOfString } from './textHelper';
 
 interface IDisposable {
 	dispose(): void;
@@ -76,20 +77,18 @@ function renderJavascript(outputInfo: OutputItem, container: HTMLElement): void 
 	domEval(element);
 }
 
-function renderError(outputIfo: OutputItem, container: HTMLElement): void {
+function renderError(outputInfo: OutputItem, container: HTMLElement): void {
 	const element = document.createElement('div');
 	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
 
 	let err: ErrorLike;
 	try {
-		err = <ErrorLike>JSON.parse(outputIfo.text());
+		err = <ErrorLike>JSON.parse(outputInfo.text());
 	} catch (e) {
 		console.log(e);
 		return;
 	}
-
-	console.log(err);
 
 	if (err.stack) {
 		const stack = document.createElement('pre');
@@ -107,6 +106,50 @@ function renderError(outputIfo: OutputItem, container: HTMLElement): void {
 	}
 
 	container.classList.add('error');
+}
+
+function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean): void {
+	const outputContainer = container.parentElement;
+	if (!outputContainer) {
+		// should never happen
+		return;
+	}
+
+	const prev = outputContainer.previousSibling;
+	if (prev) {
+		// OutputItem in the same cell
+		// check if the previous item is a stream
+		const outputElement = (prev.firstChild as HTMLElement | null);
+		if (outputElement && outputElement.getAttribute('output-mime-type') === outputInfo.mime) {
+			// same stream
+			const text = outputInfo.text();
+
+			const element = document.createElement('span');
+			truncatedArrayOfString([text], 30, element);
+			outputElement.appendChild(element);
+			return;
+		}
+	}
+
+	const element = document.createElement('span');
+	element.classList.add('output-stream');
+
+	const text = outputInfo.text();
+	truncatedArrayOfString([text], 30, element);
+	container.appendChild(element);
+	container.setAttribute('output-mime-type', outputInfo.mime);
+	if (error) {
+		container.classList.add('error');
+	}
+}
+
+function renderText(outputInfo: OutputItem, container: HTMLElement): void {
+	const contentNode = document.createElement('div');
+	contentNode.classList.add('.output-plaintext');
+	const text = outputInfo.text();
+	truncatedArrayOfString([text], 30, contentNode);
+	container.appendChild(contentNode);
+
 }
 
 export const activate: ActivationFunction<void> = (ctx) => {
@@ -137,6 +180,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'image/gif':
 				case 'image/png':
 				case 'image/jpeg':
+				case 'image/git':
 					{
 						const disposable = renderImage(outputInfo, element);
 						disposables.set(outputInfo.id, disposable);
@@ -146,6 +190,25 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					{
 						renderError(outputInfo, element);
 					}
+					break;
+				case 'application/vnd.code.notebook.stdout':
+				case 'application/x.notebook.stdout':
+				case 'application/x.notebook.stream':
+					{
+						renderStream(outputInfo, element, false);
+					}
+					break;
+				case 'application/vnd.code.notebook.stderr':
+				case 'application/x.notebook.stderr':
+					{
+						renderStream(outputInfo, element, true);
+					}
+					break;
+				case 'text/plain':
+					{
+						renderText(outputInfo, element);
+					}
+					break;
 				default:
 					break;
 			}

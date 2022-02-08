@@ -95,7 +95,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/execute/execution';
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
-import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionStateServiceImpl';
 import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';

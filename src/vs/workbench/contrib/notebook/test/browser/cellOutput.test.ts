@@ -16,12 +16,15 @@ import { ICellOutputViewModel, IOutputTransformContribution, IRenderOutput, Rend
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
-import { getStringValue } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { BUILTIN_RENDERER_ID, CellEditType, CellKind, IOutputDto, IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, valueBytesFromString, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+
+export function getStringValue(item: IOutputItemDto): string {
+	return item.data.toString();
+}
 
 OutputRendererRegistry.registerOutputTransform(class implements IOutputTransformContribution {
 	getType() { return RenderOutputType.Mainframe; }
