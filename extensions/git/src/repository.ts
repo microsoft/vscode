@@ -1181,7 +1181,9 @@ export class Repository implements Disposable {
 	async revert(resources: Uri[]): Promise<void> {
 		await this.run(Operation.RevertFiles, async () => {
 			await this.repository.revert('HEAD', resources.map(r => r.fsPath));
-			this.closeDiffEditors(resources.map(r => r.fsPath), []);
+			this.closeDiffEditors([...resources.length !== 0 ?
+				resources.map(r => r.fsPath) :
+				this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
 		});
 	}
 
@@ -1266,7 +1268,7 @@ export class Repository implements Disposable {
 
 	private closeDiffEditors(indexResources: string[], workingTreeResources: string[]): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		if (!config.get<boolean>('closeDiffOnCommitOrDiscard', false)) { return; }
+		if (!config.get<boolean>('closeDiffOnOperation', false)) { return; }
 
 		const diffEditorTabsToClose: Tab[] = [];
 
