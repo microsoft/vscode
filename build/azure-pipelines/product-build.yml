@@ -351,8 +351,7 @@ stages:
       - stage: Publish
         dependsOn:
           - Compile
-        pool:
-          vmImage: "Ubuntu-18.04"
+        pool: vscode-1es
         variables:
           - name: BUILDS_API_URL
             value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
@@ -367,8 +366,7 @@ stages:
           - stage: Release
             dependsOn:
               - Publish
-            pool:
-              vmImage: "Ubuntu-18.04"
+            pool: vscode-1es
             jobs:
               - job: ReleaseBuild
                 displayName: Release Build
