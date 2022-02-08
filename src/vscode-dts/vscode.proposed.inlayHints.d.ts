@@ -28,11 +28,18 @@ declare module 'vscode' {
 
 	/**
 	 * Inlay hint kinds.
-	 * TODO@API defines the colors
+	 *
+	 * The kind of an inline hint defines its appearance, e.g the corresponding foreground and background colors are being
+	 * used.
 	 */
 	export enum InlayHintKind {
-		Other = 0,
+		/**
+		 * An inlay hint that for a type annotation.
+		 */
 		Type = 1,
+		/**
+		 * An inlay hint that is for a parameter.
+		 */
 		Parameter = 2,
 	}
 
@@ -115,20 +122,22 @@ declare module 'vscode' {
 		command?: Command;
 
 		/**
-		 * The kind of this hint.
+		 * The kind of this hint. The inlay hint kind defines the appearance of this inlay hint.
 		 */
 		kind?: InlayHintKind;
 
 		/**
-		 * Render padding before the hint.
+		 * Render padding before the hint. Padding will use the editor's background color,
+		 * not the background color of the hint itself. That means padding can be used to visually
+		 * align/separate an inlay hint.
 		 */
-		// todo@API why use this
 		paddingLeft?: boolean;
 
 		/**
-		 * Render padding after the hint.
+		 * Render padding after the hint. Padding will use the editor's background color,
+		 * not the background color of the hint itself. That means padding can be used to visually
+		 * align/separate an inlay hint.
 		 */
-		// todo@API why use this
 		paddingRight?: boolean;
 
 		/**

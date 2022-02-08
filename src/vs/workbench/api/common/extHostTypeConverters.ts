@@ -1167,7 +1167,7 @@ export namespace InlayHint {
 		const res = new types.InlayHint(
 			Position.to(hint.position),
 			typeof hint.label === 'string' ? hint.label : hint.label.map(InlayHintLabelPart.to.bind(undefined, converter)),
-			InlayHintKind.to(hint.kind)
+			hint.kind && InlayHintKind.to(hint.kind)
 		);
 		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
 		res.command = hint.command && converter.fromInternal(hint.command);
