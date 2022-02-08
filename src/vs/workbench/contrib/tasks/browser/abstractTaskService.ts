@@ -1648,8 +1648,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (!identifier) {
 					return undefined;
 				}
-				if (resolverData === undefined) {
-					return quickResolve(this, identifier) ?? fullResolve(this, uri, identifier);
+				if ((resolverData === undefined) && (grouped === undefined)) {
+					return (await quickResolve(this, identifier)) ?? fullResolve(this, uri, identifier);
 				} else {
 					return fullResolve(this, uri, identifier);
 				}
