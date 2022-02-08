@@ -66,43 +66,50 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	registerPromptDecoration(command: ITerminalCommand): IDecoration | undefined {
-		if (!command.marker || !command.endMarker || !command.startMarker) {
+		if (!command.marker) {
 			throw new Error(`cannot add decoration, for command: ${command}, and terminal: ${this._terminal}`);
 		} else if (!this._terminal || command.command.trim().length === 0) {
 			return undefined;
 		}
 		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: DecorationProperties.Width });
 		const target = decoration?.element;
-		if (!!target) {
-			const hasOutput = command.endMarker.line - command.startMarker.line > 0;
-			this._register(dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
-				const actions = await this._getDecorationActions(command, hasOutput);
-				this._contextMenuService.showContextMenu({ getAnchor: () => target, getActions: () => actions });
-			}));
-			this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
-				let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${command.getTimeFromNow()} `;
-				if (command.exitCode) {
-					hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
-				}
-				const hoverOptions = { content: new MarkdownString(hoverContent), target };
-				this._hoverService.showHover(hoverOptions);
-			}));
-			this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
-				this._hoverService.hideHover();
-			}));
-			target.classList.add(DecorationSelector.PromptDecoration);
-			if (!hasOutput) {
-				target.classList.add(DecorationSelector.NoOutput);
-			} else if (command.exitCode) {
-				target.classList.add(DecorationSelector.Error);
-			}
-			return decoration;
-		} else {
+
+		if (!target) {
 			throw new Error('Cannot register decoration for a marker that has already been disposed of');
 		}
+		this._createContextMenu(target, command);
+		this._createHover(target, command);
+		target.classList.add(DecorationSelector.PromptDecoration);
+		if (!command.hasOutput) {
+			target.classList.add(DecorationSelector.NoOutput);
+		} else if (command.exitCode) {
+			target.classList.add(DecorationSelector.Error);
+		}
+		return decoration;
 	}
 
-	private async _getDecorationActions(command: ITerminalCommand, hasOutput?: boolean): Promise<IAction[]> {
+	private _createContextMenu(target: HTMLElement, command: ITerminalCommand) {
+		this._register(dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
+			const actions = await this._getDecorationActions(command);
+			this._contextMenuService.showContextMenu({ getAnchor: () => target, getActions: () => actions });
+		}));
+	}
+
+	private _createHover(target: HTMLElement, command: ITerminalCommand): void {
+		this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
+			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${command.getTimeFromNow()} `;
+			if (command.exitCode) {
+				hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
+			}
+			const hoverOptions = { content: new MarkdownString(hoverContent), target };
+			this._hoverService.showHover(hoverOptions);
+		}));
+		this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
+			this._hoverService.hideHover();
+		}));
+	}
+
+	private async _getDecorationActions(command: ITerminalCommand): Promise<IAction[]> {
 		const copyOutputAction = {
 			class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: 'Copy Output', enabled: true,
 			run: async () => {
@@ -115,7 +122,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._onRunCommandRequested.fire(command.command);
 			}
 		};
-		return hasOutput ? [copyOutputAction, rerunCommandAction] : [rerunCommandAction];
+		return command.hasOutput ? [copyOutputAction, rerunCommandAction] : [rerunCommandAction];
 	}
 }
 

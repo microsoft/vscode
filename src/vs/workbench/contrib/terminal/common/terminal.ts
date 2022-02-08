@@ -336,8 +336,7 @@ export interface ITerminalCommand {
 	cwd?: string;
 	exitCode?: number;
 	marker?: IXtermMarker;
-	startMarker?: IXtermMarker;
-	endMarker?: IXtermMarker;
+	hasOutput: boolean;
 	getOutput(): string | undefined;
 	getTimeFromNow(): string | undefined;
 }
