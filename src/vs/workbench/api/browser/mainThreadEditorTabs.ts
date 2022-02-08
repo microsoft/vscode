@@ -7,14 +7,13 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
-
 
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
 export class MainThreadEditorTabs {
@@ -85,6 +84,17 @@ export class MainThreadEditorTabs {
 	}
 
 	/**
+	 * Called whenever a group activates, updates the model by marking the group as active an notifies the extension host
+	 */
+	private _onDidGroupActivate() {
+		const activeGroupId = this._editorGroupsService.activeGroup.id;
+		for (const group of this._tabGroupModel) {
+			group.isActive = group.groupId === activeGroupId;
+		}
+		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
+	}
+
+	/**
 	 * Builds the model from scratch based on the current state of the editor service.
 	 */
 	private _createTabsModel(): void {
@@ -93,6 +103,7 @@ export class MainThreadEditorTabs {
 		let tabs: IEditorTabDto[] = [];
 		for (const group of this._editorGroupsService.groups) {
 			const currentTabGroupModel: IEditorTabGroupDto = {
+				groupId: group.id,
 				isActive: group.id === this._editorGroupsService.activeGroup.id,
 				viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 				activeTabIndex: undefined,
@@ -100,9 +111,6 @@ export class MainThreadEditorTabs {
 			};
 			for (let i = 0; i < group.editors.length; i++) {
 				const editor = group.editors[i];
-				if (editor.isDisposed()) {
-					continue;
-				}
 				const tab = this._buildTabObject(editor, group, i);
 				// Mark the tab active within the group
 				if (tab.isActive) {
@@ -146,6 +154,11 @@ export class MainThreadEditorTabs {
 	private _updateTabsModel(events: IEditorsChangeEvent[]): void {
 		console.log(`Total Events: ${events.length}`);
 		console.time('updateTabModel');
+		// We optimize for a select few trigger happy events for performance reasons
+		if (events[0]?.kind === GroupModelChangeKind.GROUP_ACTIVE) {
+			this._onDidGroupActivate();
+			return;
+		}
 		// Because events are aggregated rebuilding the tab model is much easier
 		// In the future we can optimize certain events rather than full rebuilds
 		this._createTabsModel();
@@ -180,6 +193,7 @@ export class MainThreadEditorTabs {
 		}
 		// Move the editor to the target group
 		sourceGroup.moveEditor(editorInput, targetGroup, { index, preserveFocus: true });
+		return;
 	}
 
 	async $closeTab(tab: IEditorTabDto): Promise<void> {

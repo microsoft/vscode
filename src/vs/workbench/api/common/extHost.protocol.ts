@@ -619,6 +619,7 @@ export interface IEditorTabGroupDto {
 	viewColumn: EditorGroupColumn;
 	activeTabIndex: number | undefined;
 	tabs: IEditorTabDto[];
+	groupId: number;
 }
 
 export interface IEditorTabDto {
