@@ -17,6 +17,8 @@ import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { localize } from 'vs/nls';
+import { Delayer } from 'vs/base/common/async';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -31,6 +33,7 @@ const enum DecorationProperties {
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: IDecoration[] = [];
 	protected _terminal: Terminal | undefined;
+	private _hoverDelayer: Delayer<void>;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<string>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -39,6 +42,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		capabilities: ITerminalCapabilityStore
 	) {
 		super();
@@ -59,6 +63,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				});
 			}
 		});
+		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 	}
 
 	override dispose(): void {
@@ -111,7 +116,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
 			}
 			const hoverOptions = { content: new MarkdownString(hoverContent), target };
-			this._hoverService.showHover(hoverOptions);
+			await this._hoverDelayer.trigger(() => {
+				this._hoverService.showHover(hoverOptions);
+			});
 		}));
 		this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
 			this._hoverService.hideHover();
