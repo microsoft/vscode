@@ -285,6 +285,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+		this._logService.debug(`CellExecution#ctor ${this.getCellLog()}`);
 		const startExecuteEdit: ICellEditOperation = {
 			editType: CellEditType.PartialInternalMetadata,
 			handle: this.cellHandle,
@@ -298,17 +299,17 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 		this._applyExecutionEdits([startExecuteEdit]);
 	}
 
-	private getCellLog(cellHandle: number): string {
-		return `${this._notebookModel.uri.toString()}, ${cellHandle}`;
+	private getCellLog(): string {
+		return `${this._notebookModel.uri.toString()}, ${this.cellHandle}`;
 	}
 
-	private logUpdates(cellHandle: number, updates: ICellExecuteUpdate[]): void {
+	private logUpdates(updates: ICellExecuteUpdate[]): void {
 		const updateTypes = updates.map(u => CellExecutionUpdateType[u.editType]).join(', ');
-		this._logService.debug(`NotebookExecution#updateExecution ${this.getCellLog(cellHandle)}, [${updateTypes}]`);
+		this._logService.debug(`CellExecution#updateExecution ${this.getCellLog()}, [${updateTypes}]`);
 	}
 
 	update(updates: ICellExecuteUpdate[]): void {
-		this.logUpdates(this.cellHandle, updates);
+		this.logUpdates(updates);
 		if (updates.some(u => u.editType === CellExecutionUpdateType.ExecutionState)) {
 			this._state = NotebookCellExecutionState.Executing;
 		}
