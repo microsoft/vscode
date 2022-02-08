@@ -35,6 +35,7 @@ import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/c
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { Emitter } from 'vs/base/common/event';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -66,6 +67,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
 	private _decorationAddon?: DecorationAddon;
+
+	private readonly _onRunCommandRequested = new Emitter<string>();
+	readonly onRunCommandRequested = this._onRunCommandRequested.event;
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
@@ -160,6 +164,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
 		this._decorationAddon = new DecorationAddon(this._clipboardService, contextMenuService, hoverService, capabilities);
+		this._decorationAddon.onRunCommandRequested(command => this._onRunCommandRequested.fire(command));
 		this.raw.loadAddon(this._decorationAddon);
 	}
 

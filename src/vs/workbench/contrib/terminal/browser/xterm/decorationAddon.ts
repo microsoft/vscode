@@ -14,11 +14,11 @@ import { TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR, TERMINAL_PROMPT_DECORATION
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAction } from 'vs/base/common/actions';
+import { Emitter } from 'vs/base/common/event';
 
 const enum DecorationSelector {
 	PromptDecoration = 'terminal-prompt-decoration',
 	Error = 'error',
-	Normal = 'normal',
 	NoOutput = 'no-output'
 }
 
@@ -30,6 +30,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: IDecoration[] = [];
 	protected _terminal: Terminal | undefined;
 
+	private readonly _onRunCommandRequested = this._register(new Emitter<string>());
+	readonly onRunCommandRequested = this._onRunCommandRequested.event;
+
 	constructor(
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -40,7 +43,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		capabilities.onDidAddCapability(c => {
 			if (c === TerminalCapability.CommandDetection) {
 				capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(c => {
-					const element = this.registerOutputDecoration(c);
+					const element = this.registerPromptDecoration(c);
 					if (element) {
 						this._decorations.push(element);
 					}
@@ -60,7 +63,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._terminal = terminal;
 	}
 
-	registerOutputDecoration(command: ITerminalCommand): IDecoration | undefined {
+	registerPromptDecoration(command: ITerminalCommand): IDecoration | undefined {
 		if (!command.marker || !command.endMarker || !command.startMarker) {
 			throw new Error(`cannot add decoration, for command: ${command}, and terminal: ${this._terminal}`);
 		} else if (!this._terminal || command.command.trim().length === 0) {
@@ -81,7 +84,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._hoverService.hideHover();
 			}));
 			target.classList.add(DecorationSelector.PromptDecoration);
-			target.classList.add(command.exitCode ? DecorationSelector.Error : !hasOutput ? DecorationSelector.NoOutput : '');
+			if (command.exitCode) {
+				target.classList.add(DecorationSelector.Error);
+			} else if (!hasOutput) {
+				target.classList.add(DecorationSelector.NoOutput);
+			}
 			return decoration;
 		} else {
 			throw new Error('Cannot register decoration for a marker that has already been disposed of');
@@ -98,7 +105,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		const rerunCommandAction = {
 			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: 'Re-run Command', enabled: true,
 			run: async () => {
-				await this._terminal!.writeln(command.command);
+				this._onRunCommandRequested.fire(command.command);
 			}
 		};
 		return hasOutput ? [copyOutputAction, rerunCommandAction] : [rerunCommandAction];
