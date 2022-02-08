@@ -413,13 +413,13 @@
 	top: 50%;
 }
 
-.terminal-prompt-decoration {
+.terminal-command-decoration {
     transition: opacity 0.5s;
 	transition: all .2s ease-in-out;
 	position: absolute;
 	margin-left: -1%;
 }
 
-.terminal-prompt-decoration:hover {
+.terminal-command-decoration:hover {
 	transform: scale(2, 1);
 }

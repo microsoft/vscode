@@ -10,7 +10,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR, TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR, TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_NO_OUTPUT } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAction } from 'vs/base/common/actions';
@@ -19,7 +19,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { localize } from 'vs/nls';
 
 const enum DecorationSelector {
-	PromptDecoration = 'terminal-prompt-decoration',
+	CommandDecoration = 'terminal-command-decoration',
 	Error = 'error',
 	NoOutput = 'no-output'
 }
@@ -89,10 +89,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._createContextMenu(target, command);
 		this._createHover(target, command);
 
-		target.classList.add(DecorationSelector.PromptDecoration);
-		if (!command.hasOutput) {
-			target.classList.add(DecorationSelector.NoOutput);
-		} else if (command.exitCode) {
+		target.classList.add(DecorationSelector.CommandDecoration);
+		if (command.exitCode) {
 			target.classList.add(DecorationSelector.Error);
 		}
 
@@ -101,7 +99,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _createContextMenu(target: HTMLElement, command: ITerminalCommand) {
 		this._register(dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
-			const actions = await this._getDecorationActions(command);
+			const actions = await this._getCommandActions(command);
 			this._contextMenuService.showContextMenu({ getAnchor: () => target, getActions: () => actions });
 		}));
 	}
@@ -120,28 +118,29 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}));
 	}
 
-	private async _getDecorationActions(command: ITerminalCommand): Promise<IAction[]> {
-		const copyOutputAction = {
-			class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: localize("terminal.copyOutput", 'Copy Output'), enabled: true,
-			run: async () => {
-				await this._clipboardService.writeText(command.getOutput()!);
-			}
-		};
-		const rerunCommandAction = {
+	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
+		const actions: IAction[] = [];
+		if (command.hasOutput) {
+			actions.push({
+				class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: localize("terminal.copyOutput", 'Copy Output'), enabled: true,
+				run: async () => {
+					await this._clipboardService.writeText(command.getOutput()!);
+				}
+			});
+		}
+		actions.push({
 			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Re-run Command'), enabled: true,
 			run: async () => {
 				this._onDidRequestRunCommand.fire(command.command);
 			}
-		};
-		return command.hasOutput ? [copyOutputAction, rerunCommandAction] : [rerunCommandAction];
+		});
+		return actions;
 	}
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const promptDecorationBackground = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR);
-	collector.addRule(`.terminal-prompt-decoration { background-color: ${promptDecorationBackground ? promptDecorationBackground.toString() : ''}; }`);
-	const promptDecorationBackgroundError = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR);
-	collector.addRule(`.terminal-prompt-decoration.${DecorationSelector.Error} { background-color: ${promptDecorationBackgroundError ? promptDecorationBackgroundError.toString() : ''}; }`);
-	const promptDecorationBackgroundNoOutput = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_NO_OUTPUT);
-	collector.addRule(`.terminal-prompt-decoration.${DecorationSelector.NoOutput} { background-color: ${promptDecorationBackgroundNoOutput ? promptDecorationBackgroundNoOutput.toString() : ''}; }`);
+	const commandDecorationSuccessColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
+	collector.addRule(`.${DecorationSelector.CommandDecoration} { background-color: ${commandDecorationSuccessColor ? commandDecorationSuccessColor.toString() : ''}; }`);
+	const commandDecorationErrorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
+	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.Error} { background-color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; }`);
 });
