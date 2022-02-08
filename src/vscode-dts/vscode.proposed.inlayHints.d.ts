@@ -59,7 +59,7 @@ declare module 'vscode' {
 		 *
 		 * The editor will use this location for the hover and for code navigation features: This
 		 * part will become a clickable link that resolves to the definition of the symbol at the
-		 * given location (not neccessarily the location itself), it shows the hover that shows at
+		 * given location (not necessarily the location itself), it shows the hover that shows at
 		 * the given location, and it shows a context menu with further code navigation commands.
 		 *
 		 * *Note* that this property can be set late during
@@ -99,7 +99,7 @@ declare module 'vscode' {
 		/**
 		 * The label of this hint. A human readable string or an array of {@link InlayHintLabelPart label parts}.
 		 *
-		 * *Note* that neiter the string nor the label part can be empty.
+		 * *Note* that neither the string nor the label part can be empty.
 		 */
 		label: string | InlayHintLabelPart[];
 
