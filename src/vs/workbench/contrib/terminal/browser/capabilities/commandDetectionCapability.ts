@@ -137,10 +137,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			return;
 		}
 		if (command && !command.startsWith('\\') && command !== '') {
-			if (command === 'clear') {
-				this._terminal.clear();
-				return;
-			}
 			const buffer = this._terminal.buffer.active;
 			const clonedPartialCommand = { ...this._currentCommand };
 			const timestamp = Date.now();

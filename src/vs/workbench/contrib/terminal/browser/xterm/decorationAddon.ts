@@ -45,6 +45,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		capabilities.onDidAddCapability(c => {
 			if (c === TerminalCapability.CommandDetection) {
 				capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(c => {
+					if (c.command === 'clear') {
+						this._terminal?.clear();
+						for (const decoration of this._decorations) {
+							decoration.dispose();
+						}
+						return;
+					}
 					const element = this.registerPromptDecoration(c);
 					if (element) {
 						this._decorations.push(element);
