@@ -245,13 +245,21 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					try {
 						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, this.os);
 						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
-						if (this.shellIntegrationAttempted) {
-							shellLaunchConfig.args = shellIntegration.args;
-							// resolve the injected arguments
-							await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
-								remoteAuthority: this.remoteAuthority,
-								os: this.os
-							});
+						if (this.shellIntegrationAttempted && shellIntegration.args) {
+							const remoteEnv = await this._remoteAgentService.getEnvironment();
+							if (!remoteEnv) {
+								this._logService.warn('Could not fetch remote environment');
+							} else {
+								// Resolve the arguments manually using the remote server install directory
+								const appRoot = remoteEnv.appRoot;
+								// TODO: Don't support string arg types when injecting
+								if (Array.isArray(shellIntegration.args)) {
+									for (let i = 0; i < shellIntegration.args.length; i++) {
+										shellIntegration.args[i] = shellIntegration.args[i].replace('${execInstallFolder}', appRoot.fsPath);
+									}
+								}
+								shellLaunchConfig.args = shellIntegration.args;
+							}
 						}
 						//TODO: fix
 						if (env?.['VSCODE_SHELL_LOGIN']) {
@@ -436,7 +444,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, OS);
 		if (shellIntegration.enableShellIntegration) {
 			shellLaunchConfig.args = shellIntegration.args;
-			// resolve the injected arguments
+			// Always resolve the injected arguments on local processes
 			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 				remoteAuthority: undefined,
 				os: OS
