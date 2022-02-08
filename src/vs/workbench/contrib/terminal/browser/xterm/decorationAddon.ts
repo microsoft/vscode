@@ -15,6 +15,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { localize } from 'vs/nls';
 
 const enum DecorationSelector {
 	PromptDecoration = 'terminal-prompt-decoration',
@@ -78,16 +80,21 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._contextMenuService.showContextMenu({ getAnchor: () => target, getActions: () => actions });
 			}));
 			this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
-				this._hoverService.showHover({ content: 'Show Actions', target });
+				let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${command.getTimeFromNow()} `;
+				if (command.exitCode) {
+					hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
+				}
+				const hoverOptions = { content: new MarkdownString(hoverContent), target };
+				this._hoverService.showHover(hoverOptions);
 			}));
 			this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
 				this._hoverService.hideHover();
 			}));
 			target.classList.add(DecorationSelector.PromptDecoration);
-			if (command.exitCode) {
-				target.classList.add(DecorationSelector.Error);
-			} else if (!hasOutput) {
+			if (!hasOutput) {
 				target.classList.add(DecorationSelector.NoOutput);
+			} else if (command.exitCode) {
+				target.classList.add(DecorationSelector.Error);
 			}
 			return decoration;
 		} else {

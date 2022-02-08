@@ -339,6 +339,7 @@ export interface ITerminalCommand {
 	startMarker?: IXtermMarker;
 	endMarker?: IXtermMarker;
 	getOutput(): string | undefined;
+	getTimeFromNow(): string | undefined;
 }
 
 /**

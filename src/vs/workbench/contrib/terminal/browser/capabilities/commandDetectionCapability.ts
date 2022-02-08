@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { fromNow } from 'vs/base/common/date';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
@@ -142,12 +143,14 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			}
 			const buffer = this._terminal.buffer.active;
 			const clonedPartialCommand = { ...this._currentCommand };
+			const timestamp = Date.now();
 			const newCommand = {
 				command,
-				timestamp: Date.now(),
+				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
 				getOutput: () => getOutputForCommand(clonedPartialCommand, buffer),
+				getTimeFromNow: () => fromNow(timestamp, true),
 				marker: this._currentCommand.commandStartMarker,
 				startMarker: this._currentCommand.commandExecutedMarker,
 				endMarker: this._currentCommand.commandFinishedMarker

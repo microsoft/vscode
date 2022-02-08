@@ -762,7 +762,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		type Item = IQuickPickItem & { command?: ITerminalCommand };
 		const items: Item[] = [];
 		if (type === 'command') {
-			for (const { command, timestamp, cwd, exitCode, getOutput } of commands) {
+			for (const { command, timestamp, cwd, exitCode, getOutput, getTimeFromNow } of commands) {
 				// trim off any whitespace and/or line endings
 				const label = command.trim();
 				if (label.length === 0) {
@@ -793,7 +793,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					description: fromNow(timestamp, true),
 					detail,
 					id: timestamp.toString(),
-					command: { command, timestamp, cwd, exitCode, getOutput },
+					command: { command, timestamp, cwd, exitCode, getOutput, getTimeFromNow },
 					buttons
 				});
 			}
