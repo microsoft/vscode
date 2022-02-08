@@ -126,7 +126,7 @@ export const PanelMaximizedContext = new RawContextKey<boolean>('panelMaximized'
 //#region < --- Views --- >
 
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
-export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
+export function getVisibleViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
 
 //#endregion
@@ -140,7 +140,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 	// UNDEFINED! IT IS IMPORTANT THAT DEFAULTS ARE INHERITED
 	// FROM THE PARENT CONTEXT AND ONLY UNDEFINED DOES THIS
 
-	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined, { type: 'string', description: localize('resourceScheme', "The scheme of the rsource") });
+	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined, { type: 'string', description: localize('resourceScheme', "The scheme of the resource") });
 	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined, { type: 'string', description: localize('resourceFilename', "The file name of the resource") });
 	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined, { type: 'string', description: localize('resourceDirname', "The folder name the resource is contained in") });
 	static readonly Path = new RawContextKey<string>('resourcePath', undefined, { type: 'string', description: localize('resourcePath', "The full path of the resource") });

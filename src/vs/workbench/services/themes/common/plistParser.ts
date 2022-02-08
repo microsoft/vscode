@@ -89,9 +89,9 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 	}
 
 	function advanceUntil(str: string): void {
-		let nextOccurence = content.indexOf(str, pos);
-		if (nextOccurence !== -1) {
-			advancePosTo(nextOccurence + str.length);
+		let nextOccurrence = content.indexOf(str, pos);
+		if (nextOccurrence !== -1) {
+			advancePosTo(nextOccurrence + str.length);
 		} else {
 			// EOF
 			advancePosTo(len);
@@ -99,10 +99,10 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 	}
 
 	function captureUntil(str: string): string {
-		let nextOccurence = content.indexOf(str, pos);
-		if (nextOccurence !== -1) {
-			let r = content.substring(pos, nextOccurence);
-			advancePosTo(nextOccurence + str.length);
+		let nextOccurrence = content.indexOf(str, pos);
+		if (nextOccurrence !== -1) {
+			let r = content.substring(pos, nextOccurrence);
+			advancePosTo(nextOccurrence + str.length);
 			return r;
 		} else {
 			// EOF

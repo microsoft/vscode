@@ -338,7 +338,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.setDirty(this.hasAssociatedFilePath || !!hasBackup || !!this.initialValue);
 
 			// If we have initial contents, make sure to emit this
-			// as the appropiate events to the outside.
+			// as the appropriate events to the outside.
 			if (hasBackup || this.initialValue) {
 				this._onDidChangeContent.fire();
 			}

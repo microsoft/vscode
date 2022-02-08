@@ -567,7 +567,7 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 
 							// If user chose the sync service then synchronise the store type option in insiders service, so that other clients using insiders service are also updated.
 							if (isSwitchingToInsiders && userDataSyncStoreType) {
-								promises.push(userDataSyncWorkbenchService.synchroniseUserDataSyncStoreType());
+								promises.push(userDataSyncWorkbenchService.synchronizeUserDataSyncStoreType());
 							}
 
 							await Promises.settled(promises);

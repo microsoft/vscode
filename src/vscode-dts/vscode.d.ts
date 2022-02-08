@@ -11159,7 +11159,7 @@ declare module 'vscode' {
 		 * vscode.workspace.createFileSystemWatcher('**​/*.js'));
 		 * ```
 		 *
-		 * *Note:* the array of workspace folders can be empy if no workspace is opened (empty window).
+		 * *Note:* the array of workspace folders can be empty if no workspace is opened (empty window).
 		 *
 		 * #### Out of workspace file watching
 		 *
@@ -11358,7 +11358,7 @@ declare module 'vscode' {
 		 * {@linkcode notebook.onDidCloseNotebookDocument onDidCloseNotebookDocument}-event can occur at any time after.
 		 *
 		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
-		 * can be showns in a notebook editor but it can also be used for other things.
+		 * can be shown in a notebook editor but it can also be used for other things.
 		 *
 		 * @param uri The resource to open.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}

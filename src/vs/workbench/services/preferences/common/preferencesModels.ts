@@ -1061,11 +1061,11 @@ class SettingsContentBuilder {
 		}
 	}
 
-	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
+	private pushValue(setting: ISetting, preValueContent: string, indent: string): void {
 		const valueString = JSON.stringify(setting.value, null, indent);
 		if (valueString && (typeof setting.value === 'object')) {
 			if (setting.overrides && setting.overrides.length) {
-				this._contentByLines.push(preValueConent + ' {');
+				this._contentByLines.push(preValueContent + ' {');
 				for (const subSetting of setting.overrides) {
 					this.pushSetting(subSetting, indent + indent);
 					this._contentByLines.pop();
@@ -1076,13 +1076,13 @@ class SettingsContentBuilder {
 				this._contentByLines.push(indent + '}');
 			} else {
 				const mulitLineValue = valueString.split('\n');
-				this._contentByLines.push(preValueConent + mulitLineValue[0]);
+				this._contentByLines.push(preValueContent + mulitLineValue[0]);
 				for (let i = 1; i < mulitLineValue.length; i++) {
 					this._contentByLines.push(indent + mulitLineValue[i]);
 				}
 			}
 		} else {
-			this._contentByLines.push(preValueConent + valueString);
+			this._contentByLines.push(preValueContent + valueString);
 		}
 	}
 

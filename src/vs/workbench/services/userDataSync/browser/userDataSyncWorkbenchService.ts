@@ -312,7 +312,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.userDataAutoSyncService.turnOn();
 
 		if (this.userDataSyncStoreManagementService.userDataSyncStore?.canSwitch) {
-			await this.synchroniseUserDataSyncStoreType();
+			await this.synchronizeUserDataSyncStoreType();
 		}
 
 		this.notificationService.info(localize('sync turned on', "{0} is turned on", title));
@@ -322,7 +322,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		return this.userDataAutoSyncService.turnOff(everywhere);
 	}
 
-	async synchroniseUserDataSyncStoreType(): Promise<void> {
+	async synchronizeUserDataSyncStoreType(): Promise<void> {
 		if (!this.userDataSyncAccountService.account) {
 			throw new Error('Cannot update because you are signed out from settings sync. Please sign in and try again.');
 		}
@@ -594,7 +594,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			quickPickItems.push({ type: 'separator', label: localize('others', "Others") });
 		}
 
-		// Account proviers
+		// Account providers
 		for (const authenticationProvider of this.authenticationProviders) {
 			const signedInForProvider = this.all.some(account => account.authenticationProviderId === authenticationProvider.id);
 			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {

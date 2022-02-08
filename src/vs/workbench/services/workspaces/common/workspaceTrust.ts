@@ -300,7 +300,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return this._remoteAuthority.options.isTrusted;
 		}
 
-		// Empty workspace - use memento, open ediors, or user setting
+		// Empty workspace - use memento, open editor, or user setting
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			// Use memento if present
 			if (this._storedTrustState.isEmptyWorkspaceTrusted !== undefined) {

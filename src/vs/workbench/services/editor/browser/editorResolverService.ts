@@ -523,7 +523,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	/**
-	 * Given a resource and an editorId, returns all editors open for that resouce and editorId.
+	 * Given a resource and an editorId, returns all editors open for that resource and editorId.
 	 * @param resource The resource specified
 	 * @param editorId The editorID
 	 * @returns A list of editors

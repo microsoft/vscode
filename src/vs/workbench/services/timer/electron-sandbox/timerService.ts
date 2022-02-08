@@ -98,7 +98,7 @@ export function didUseCachedData(productService: IProductService, storageService
 	// or subsequent
 	if (typeof _didUseCachedData !== 'boolean') {
 		if (!environmentService.window.isCodeCaching || !productService.commit) {
-			_didUseCachedData = false; // we only produce cached data whith commit and code cache path
+			_didUseCachedData = false; // we only produce cached data with commit and code cache path
 		} else if (storageService.get(lastRunningCommitStorageKey, StorageScope.GLOBAL) === productService.commit) {
 			_didUseCachedData = true; // subsequent start on same commit, assume cached data is there
 		} else {

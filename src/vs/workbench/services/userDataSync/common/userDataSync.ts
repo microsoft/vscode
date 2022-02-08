@@ -66,7 +66,7 @@ export interface IUserDataSyncWorkbenchService {
 	showSyncActivity(): Promise<void>;
 	syncNow(): Promise<void>;
 
-	synchroniseUserDataSyncStoreType(): Promise<void>;
+	synchronizeUserDataSyncStoreType(): Promise<void>;
 }
 
 export function getSyncAreaLabel(source: SyncResource): string {

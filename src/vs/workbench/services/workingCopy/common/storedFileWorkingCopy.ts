@@ -874,7 +874,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			}
 
 			// We have to protect against being disposed at this point. It could be that the save() operation
-			// was triggerd followed by a dispose() operation right after without waiting. Typically we cannot
+			// was triggered followed by a dispose() operation right after without waiting. Typically we cannot
 			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
 			// saving contents to disk that are stale (see https://github.com/microsoft/vscode/issues/50942).

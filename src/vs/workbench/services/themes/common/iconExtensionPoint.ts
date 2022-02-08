@@ -69,7 +69,7 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 							defaultSnippets: [{ body: { fontId: '${1:myIconFont}', fontCharacter: '${2:\\\\E001}' } }]
 						}
 					],
-					description: nls.localize('contributes.icon.default', 'The default of the icon. Either a reference to an extisting ThemeIcon or an icon in an icon font.'),
+					description: nls.localize('contributes.icon.default', 'The default of the icon. Either a reference to an existing ThemeIcon or an icon in an icon font.'),
 				}
 			}
 		}

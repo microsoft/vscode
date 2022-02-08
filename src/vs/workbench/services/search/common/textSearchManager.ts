@@ -96,7 +96,7 @@ export class TextSearchManager {
 				1;
 		}
 		else {
-			// #104400 context lines shoudn't count towards result count
+			// #104400 context lines shouldn't count towards result count
 			return 0;
 		}
 	}

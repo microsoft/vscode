@@ -851,7 +851,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// We want to merge the opened editors from the last
 		// session with the stored editors from the last
-		// session. Because not all editors can be serialised
+		// session. Because not all editors can be serialized
 		// we want to make sure to include all opened editors
 		// too.
 		// Opened editors should always be first in the history
@@ -1117,7 +1117,7 @@ export class EditorNavigationStack extends Disposable {
 		// Treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
 		// stack but we need to keep our currentEditorSelectionState up to date
-		// with the navigtion that occurs.
+		// with the navigation that occurs.
 		if (this.navigating) {
 			if (isSelectionAwareEditorPane && hasValidEditor) {
 				this.currentSelectionState = new EditorSelectionState({ groupId: editorPane.group.id, editor: editorPane.input }, editorPane.getSelection(), event?.reason);
@@ -1308,7 +1308,7 @@ export class EditorNavigationStack extends Disposable {
 		// to each other to prevent no-op navigations.
 		this.flatten();
 
-		// Reset indeces
+		// Reset indexes
 		this.index = this.stack.length - 1;
 		this.previousIndex = -1;
 

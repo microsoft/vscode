@@ -9,7 +9,7 @@ declare module 'vscode' {
 
 	export interface NotebookController {
 		/**
-		 * The human-readable label used to categorise controllers.
+		 * The human-readable label used to categorize controllers.
 		 */
 		kind?: string;
 	}

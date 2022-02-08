@@ -251,8 +251,8 @@ export class HoverWidget extends Widget {
 			targetRect.center.y = targetRect.top + (height / 2);
 		}
 
-		this.computeXCordinate(targetRect);
-		this.computeYCordinate(targetRect);
+		this.computeXCoordinate(targetRect);
+		this.computeYCoordinate(targetRect);
 
 		if (this._hoverPointer) {
 			// reset
@@ -267,7 +267,7 @@ export class HoverWidget extends Widget {
 		this._hover.onContentsChanged();
 	}
 
-	private computeXCordinate(target: TargetRect): void {
+	private computeXCoordinate(target: TargetRect): void {
 		const hoverWidth = this._hover.containerDomNode.clientWidth + Constants.HoverBorderWidth;
 
 		if (this._target.x !== undefined) {
@@ -303,7 +303,7 @@ export class HoverWidget extends Widget {
 
 	}
 
-	private computeYCordinate(target: TargetRect): void {
+	private computeYCoordinate(target: TargetRect): void {
 		if (this._target.y !== undefined) {
 			this._y = this._target.y;
 		}
@@ -331,7 +331,7 @@ export class HoverWidget extends Widget {
 	}
 
 	private adjustHorizontalHoverPosition(target: TargetRect): void {
-		// Do not adjust horizontal hover position if x cordiante is provided
+		// Do not adjust horizontal hover position if x coordinate is provided
 		if (this._target.x !== undefined) {
 			return;
 		}
@@ -365,7 +365,7 @@ export class HoverWidget extends Widget {
 	}
 
 	private adjustVerticalHoverPosition(target: TargetRect): void {
-		// Do not adjust vertical hover position if y cordiante is provided
+		// Do not adjust vertical hover position if y coordinate is provided
 		if (this._target.y !== undefined) {
 			return;
 		}

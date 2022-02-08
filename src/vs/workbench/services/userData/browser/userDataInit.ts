@@ -336,7 +336,7 @@ class InstalledExtensionsInitializer implements IUserDataInitializer {
 			return;
 		}
 
-		// 1. Initialise already installed extensions state
+		// 1. Initialize already installed extensions state
 		for (const installedExtension of preview.installedExtensions) {
 			const syncExtension = preview.remoteExtensions.find(({ identifier }) => areSameExtensions(identifier, installedExtension.identifier));
 			if (syncExtension?.state) {
@@ -346,7 +346,7 @@ class InstalledExtensionsInitializer implements IUserDataInitializer {
 			}
 		}
 
-		// 2. Initialise extensions enablement
+		// 2. Initialize extensions enablement
 		if (preview.disabledExtensions.length) {
 			for (const identifier of preview.disabledExtensions) {
 				this.logService.trace(`Disabling extension...`, identifier.id);

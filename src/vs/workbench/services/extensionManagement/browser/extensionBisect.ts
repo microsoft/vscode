@@ -305,7 +305,7 @@ registerAction2(class extends Action2 {
 				[localize('report', "Report Issue & Continue"), localize('done', "Continue")],
 				{
 					detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
-					checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true },
+					checkbox: { label: localize('done.disable', "Keep this extension disabled"), checked: true },
 					cancelId: 1
 				}
 			);

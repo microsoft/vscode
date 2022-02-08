@@ -24,7 +24,7 @@ export class IgnoreFile {
 	 */
 	isPathIncludedInTraversal(path: string, isDir: boolean): boolean {
 		if (path[0] !== '/' || path[path.length - 1] === '/') {
-			throw Error('Unexpected path format, expectred to begin with slash and end without. got:' + path);
+			throw Error('Unexpected path format, expected to begin with slash and end without. got:' + path);
 		}
 
 		const ignored = this.isPathIgnored(path, isDir);
@@ -34,11 +34,11 @@ export class IgnoreFile {
 
 	/**
 	 * Returns true if an arbitrary path has not been ignored.
-	 * This is an expensive operation and should only be used ouside of traversals.
+	 * This is an expensive operation and should only be used outside of traversals.
 	 */
 	isArbitraryPathIgnored(path: string, isDir: boolean): boolean {
 		if (path[0] !== '/' || path[path.length - 1] === '/') {
-			throw Error('Unexpected path format, expectred to begin with slash and end without. got:' + path);
+			throw Error('Unexpected path format, expected to begin with slash and end without. got:' + path);
 		}
 
 		const segments = path.split('/').filter(x => x);
@@ -85,7 +85,7 @@ export class IgnoreFile {
 		const fileIgnoreLines = fileLines.filter(line => !line.includes('!'));
 		const isFileIgnored = this.gitignoreLinesToExpression(fileIgnoreLines, dirPath, true);
 
-		// TODO: Slight hack... this naieve approach may reintroduce too many files in cases of weirdly complex .gitignores
+		// TODO: Slight hack... this naive approach may reintroduce too many files in cases of weirdly complex .gitignores
 		const fileIncludeLines = fileLines.filter(line => line.includes('!')).map(line => line.replace(/!/g, ''));
 		const isFileIncluded = this.gitignoreLinesToExpression(fileIncludeLines, dirPath, false);
 

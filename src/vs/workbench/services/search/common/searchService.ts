@@ -287,7 +287,7 @@ export class SearchService extends Disposable implements ISearchService {
 			if (fileSearchStats.fromCache) {
 				const cacheStats: ICachedSearchStats = fileSearchStats.detailStats as ICachedSearchStats;
 
-				type CachedSearchCompleteClassifcation = {
+				type CachedSearchCompleteClassification = {
 					reason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 					resultCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 					workspaceFolderCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
@@ -313,7 +313,7 @@ export class SearchService extends Disposable implements ISearchService {
 					cacheEntryCount: number;
 					scheme: string;
 				};
-				this.telemetryService.publicLog2<CachedSearchCompleteEvent, CachedSearchCompleteClassifcation>('cachedSearchComplete', {
+				this.telemetryService.publicLog2<CachedSearchCompleteEvent, CachedSearchCompleteClassification>('cachedSearchComplete', {
 					reason: query._reason,
 					resultCount: fileSearchStats.resultCount,
 					workspaceFolderCount: query.folderQueries.length,

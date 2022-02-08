@@ -107,10 +107,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private async readCustomBuiltinExtensions(): Promise<IExtension[]> {
 		const extensions: { id: string; preRelease: boolean }[] = [], extensionLocations: URI[] = [], result: IExtension[] = [];
 		const extensionsToMigrate: [string, string][] = [];
-		const cutomBuiltinExtensions: (GalleryExtensionInfo | UriComponents)[] = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
+		const customBuiltinExtensions: (GalleryExtensionInfo | UriComponents)[] = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
 			? this.environmentService.options.additionalBuiltinExtensions.map(additionalBuiltinExtension => isString(additionalBuiltinExtension) ? { id: additionalBuiltinExtension } : additionalBuiltinExtension)
 			: [];
-		for (const e of cutomBuiltinExtensions) {
+		for (const e of customBuiltinExtensions) {
 			if (isGalleryExtensionInfo(e)) {
 				extensions.push({ id: e.id, preRelease: !!e.preRelease });
 				if (e.migrateStorageFrom) {
