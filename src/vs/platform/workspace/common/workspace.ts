@@ -12,6 +12,7 @@ import { extname as resourceExtname, basenameOrAuthority, joinPath, extUriBiased
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -370,7 +371,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 
 	constructor(
 		data: IWorkspaceFolderData,
-		readonly raw?: { path: string; name?: string } | { uri: string; name?: string }
+		readonly stored?: IStoredWorkspaceFolder
 	) {
 		this.uri = data.uri;
 		this.index = data.index;
