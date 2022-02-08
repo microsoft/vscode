@@ -1407,6 +1407,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (!this.searchResultModel) {
 			if (this.countElement.style.display !== 'none') {
 				this.searchResultLabel = null;
+				this.updateInputAriaLabel();
 				this.countElement.style.display = 'none';
 				this.layout(this.dimension);
 			}

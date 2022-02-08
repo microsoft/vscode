@@ -247,6 +247,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Revalidate center layout when active editor changes: diff editor quits centered mode.
 		this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
 
+		// Configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
+
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(() => this.onFullscreenChanged()));
 
@@ -1323,7 +1326,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 						width: viewSize.width + sizeChangePxWidth,
 						height: viewSize.height
 					});
-
+				break;
 			case Parts.EDITOR_PART:
 				viewSize = this.workbenchGrid.getViewSize(this.editorPartView);
 

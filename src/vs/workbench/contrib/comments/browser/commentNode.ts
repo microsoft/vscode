@@ -142,11 +142,12 @@ export class CommentNode extends Disposable {
 		this.updateTimestamp(this.comment.timestamp);
 	}
 
-	private updateTimestamp(timestamp?: Date) {
+	private updateTimestamp(raw?: string) {
 		if (!this._timestamp) {
 			return;
 		}
 
+		const timestamp = raw !== undefined ? new Date(raw) : undefined;
 		if (!timestamp) {
 			this._timestampWidget?.dispose();
 		} else {

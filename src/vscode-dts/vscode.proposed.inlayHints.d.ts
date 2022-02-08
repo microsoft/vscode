@@ -121,11 +121,13 @@ declare module 'vscode' {
 		/**
 		 * Render padding before the hint.
 		 */
+		// todo@API why use this
 		paddingLeft?: boolean;
 
 		/**
 		 * Render padding after the hint.
 		 */
+		// todo@API why use this
 		paddingRight?: boolean;
 
 		/**

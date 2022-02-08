@@ -68,6 +68,7 @@ declare module 'vscode' {
 	/**
 	 * Provides support for drag and drop in `TreeView`.
 	 */
+	// todo@API formalize mime types, either `text/uri-list` and or `application/vnd.code.XYZ` (see NotebookOutputItem)
 	export interface TreeDragAndDropController<T> {
 
 		/**
@@ -116,6 +117,7 @@ declare module 'vscode' {
 		 * @param target The target tree element that the drop is occurring on.
 		 * @param token TODO @alexr00: When would this operation actually be cancelled?
 		 */
+		// TODO@API align order of TreeDataTransfer and T with handleDrag
 		handleDrop(source: TreeDataTransfer, target: T, token: CancellationToken): Thenable<void> | void;
 	}
 }

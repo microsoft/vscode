@@ -5,7 +5,7 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { editorWidgetBorder, focusBorder, inputBackground, inputBorder, inputForeground, listFocusBackground, registerColor, selectBackground, selectBorder, selectForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBorder, focusBorder, inputBackground, inputBorder, inputForeground, listHoverBackground, registerColor, selectBackground, selectBorder, selectForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 
 // General setting colors
@@ -39,14 +39,14 @@ export const settingsNumberInputForeground = registerColor('settings.numberInput
 export const settingsNumberInputBorder = registerColor('settings.numberInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('numberInputBoxBorder', "Settings editor number input box border."));
 
 export const focusedRowBackground = registerColor('settings.focusedRowBackground', {
-	dark: Color.fromHex('#808080').transparent(0.14),
-	light: transparent(listFocusBackground, .4),
+	dark: transparent(listHoverBackground, .6),
+	light: transparent(listHoverBackground, .6),
 	hc: null
 }, localize('focusedRowBackground', "The background color of a settings row when focused."));
 
 export const rowHoverBackground = registerColor('settings.rowHoverBackground', {
-	dark: transparent(focusedRowBackground, .5),
-	light: transparent(focusedRowBackground, .7),
+	dark: transparent(listHoverBackground, .3),
+	light: transparent(listHoverBackground, .3),
 	hc: null
 }, localize('settings.rowHoverBackground', "The background color of a settings row when hovered."));
 

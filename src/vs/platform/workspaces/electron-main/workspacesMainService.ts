@@ -7,7 +7,8 @@ import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceBackupInfo, IFolderBackupInfo, IWorkspaceFolderCreationData, IWorkspaceIdentifier, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceBackupInfo, IFolderBackupInfo, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
