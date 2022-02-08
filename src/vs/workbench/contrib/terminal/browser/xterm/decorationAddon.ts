@@ -22,6 +22,10 @@ const enum DecorationSelector {
 	NoOutput = 'no-output'
 }
 
+const enum DecorationProperties {
+	Width = .5
+}
+
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: IDecoration[] = [];
 	protected _terminal: Terminal | undefined;
@@ -56,13 +60,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._terminal = terminal;
 	}
 
-	registerOutputDecoration(command: ITerminalCommand): IDecoration {
-		if (!this._terminal || !command.marker || !command.endMarker || !command.startMarker) {
+	registerOutputDecoration(command: ITerminalCommand): IDecoration | undefined {
+		if (!command.marker || !command.endMarker || !command.startMarker) {
 			throw new Error(`cannot add decoration, for command: ${command}, and terminal: ${this._terminal}`);
+		} else if (!this._terminal || command.command.trim().length === 0) {
+			return undefined;
 		}
-		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: .5 });
+		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: DecorationProperties.Width });
 		const target = decoration?.element;
-		if (target && command.command.trim().length > 0) {
+		if (!!target) {
 			const hasOutput = command.endMarker.line - command.startMarker.line > 0;
 			this._register(dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
 				const actions = await this._getDecorationActions(command, hasOutput);
@@ -75,11 +81,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._hoverService.hideHover();
 			}));
 			target.classList.add(DecorationSelector.PromptDecoration);
-			if (hasOutput) {
-				target.classList.add(command.exitCode ? DecorationSelector.Error : DecorationSelector.Normal);
-			} else {
-				target.classList.add(DecorationSelector.NoOutput);
-			}
+			target.classList.add(command.exitCode ? DecorationSelector.Error : !hasOutput ? DecorationSelector.NoOutput : '');
 			return decoration;
 		} else {
 			throw new Error('Cannot register decoration for a marker that has already been disposed of');
@@ -105,7 +107,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const promptDecorationBackground = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR);
-	collector.addRule(`.terminal-prompt-decoration.${DecorationSelector.Normal} { background-color: ${promptDecorationBackground ? promptDecorationBackground.toString() : ''}; }`);
+	collector.addRule(`.terminal-prompt-decoration { background-color: ${promptDecorationBackground ? promptDecorationBackground.toString() : ''}; }`);
 	const promptDecorationBackgroundError = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR);
 	collector.addRule(`.terminal-prompt-decoration.${DecorationSelector.Error} { background-color: ${promptDecorationBackgroundError ? promptDecorationBackgroundError.toString() : ''}; }`);
 	const promptDecorationBackgroundNoOutput = theme.getColor(TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_NO_OUTPUT);
