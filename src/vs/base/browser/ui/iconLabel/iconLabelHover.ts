@@ -6,16 +6,20 @@
 import * as dom from 'vs/base/browser/dom';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isFunction, isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 
-export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIconLabelMarkdownString | undefined): void {
+export interface ITooltipMarkdownString {
+	markdown: IMarkdownString | string | undefined | ((token: CancellationToken) => Promise<IMarkdownString | string | undefined>);
+	markdownNotSupportedFallback: string | undefined;
+}
+
+export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | ITooltipMarkdownString | undefined): void {
 	if (isString(tooltip)) {
 		// Icons don't render in the native hover so we strip them out
 		htmlElement.title = stripIcons(tooltip);
@@ -25,6 +29,10 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IIc
 		htmlElement.removeAttribute('title');
 	}
 }
+
+export type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
+type IResolvedHoverContent = IMarkdownString | string | HTMLElement | undefined;
+
 
 export interface ICustomHover extends IDisposable {
 
@@ -41,11 +49,10 @@ export interface ICustomHover extends IDisposable {
 	/**
 	 * Updates the contents of the hover.
 	 */
-	update(tooltip: string | IIconLabelMarkdownString | HTMLElement): void;
+	update(tooltip: IHoverContent): void;
 }
 
-type MarkdownTooltipContent = string | IIconLabelMarkdownString | HTMLElement | undefined;
-type ResolvedMarkdownTooltipContent = IMarkdownString | string | HTMLElement | undefined;
+
 class UpdatableHoverWidget implements IDisposable {
 
 	private _hoverWidget: IHoverWidget | undefined;
@@ -54,7 +61,7 @@ class UpdatableHoverWidget implements IDisposable {
 	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget | HTMLElement, private fadeInAnimation: boolean) {
 	}
 
-	async update(markdownTooltip: MarkdownTooltipContent, focus?: boolean): Promise<void> {
+	async update(content: IHoverContent, focus?: boolean): Promise<void> {
 		if (this._cancellationTokenSource) {
 			// there's an computation ongoing, cancel it
 			this._cancellationTokenSource.dispose(true);
@@ -65,10 +72,10 @@ class UpdatableHoverWidget implements IDisposable {
 		}
 
 		let resolvedContent;
-		if (markdownTooltip === undefined || isString(markdownTooltip) || markdownTooltip instanceof HTMLElement) {
-			resolvedContent = markdownTooltip;
-		} else if (!isFunction(markdownTooltip.markdown)) {
-			resolvedContent = markdownTooltip.markdown ?? markdownTooltip.markdownNotSupportedFallback;
+		if (content === undefined || isString(content) || content instanceof HTMLElement) {
+			resolvedContent = content;
+		} else if (!isFunction(content.markdown)) {
+			resolvedContent = content.markdown ?? content.markdownNotSupportedFallback;
 		} else {
 			// compute the content, potentially long-running
 
@@ -80,9 +87,9 @@ class UpdatableHoverWidget implements IDisposable {
 			// compute the content
 			this._cancellationTokenSource = new CancellationTokenSource();
 			const token = this._cancellationTokenSource.token;
-			resolvedContent = await markdownTooltip.markdown(token);
+			resolvedContent = await content.markdown(token);
 			if (resolvedContent === undefined) {
-				resolvedContent = markdownTooltip.markdownNotSupportedFallback;
+				resolvedContent = content.markdownNotSupportedFallback;
 			}
 
 			if (this.isDisposed || token.isCancellationRequested) {
@@ -95,7 +102,7 @@ class UpdatableHoverWidget implements IDisposable {
 		this.show(resolvedContent, focus);
 	}
 
-	private show(content: ResolvedMarkdownTooltipContent, focus?: boolean): void {
+	private show(content: IResolvedHoverContent, focus?: boolean): void {
 		const oldHoverWidget = this._hoverWidget;
 
 		if (this.hasContent(content)) {
@@ -112,7 +119,7 @@ class UpdatableHoverWidget implements IDisposable {
 		oldHoverWidget?.dispose();
 	}
 
-	private hasContent(content: ResolvedMarkdownTooltipContent): content is NonNullable<ResolvedMarkdownTooltipContent> {
+	private hasContent(content: IResolvedHoverContent): content is NonNullable<IResolvedHoverContent> {
 		if (!content) {
 			return false;
 		}
@@ -135,7 +142,7 @@ class UpdatableHoverWidget implements IDisposable {
 	}
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, markdownTooltip: string | IIconLabelMarkdownString | HTMLElement): ICustomHover {
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContent): ICustomHover {
 	let hoverPreparation: IDisposable | undefined;
 
 	let hoverWidget: UpdatableHoverWidget | undefined;
@@ -156,7 +163,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		return new TimeoutTimer(async () => {
 			if (!hoverWidget || hoverWidget.isDisposed) {
 				hoverWidget = new UpdatableHoverWidget(hoverDelegate, target || htmlElement, delay > 0);
-				await hoverWidget.update(markdownTooltip, focus);
+				await hoverWidget.update(content, focus);
 			}
 		}, delay);
 	};
@@ -196,9 +203,9 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		hide: () => {
 			hideHover(true, true);
 		},
-		update: async newTooltip => {
-			markdownTooltip = newTooltip;
-			await hoverWidget?.update(markdownTooltip);
+		update: async newContent => {
+			content = newContent;
+			await hoverWidget?.update(content);
 		},
 		dispose: () => {
 			mouseOverDomEmitter.dispose();
