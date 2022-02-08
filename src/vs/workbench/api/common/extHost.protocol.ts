@@ -10,7 +10,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId, revive } from 'vs/base/common/marshalling';
+import { revive } from 'vs/base/common/marshalling';
 import * as performance from 'vs/base/common/performance';
 import Severity from 'vs/base/common/severity';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -111,9 +111,7 @@ export interface CommentChanges {
 	readonly commentReactions?: languages.CommentReaction[];
 	readonly label?: string;
 	readonly mode?: languages.CommentMode;
-	readonly timestamp?: {
-		$mid: MarshalledId.Date;
-	};
+	readonly timestamp?: string;
 }
 
 export type CommentThreadChanges = Partial<{
