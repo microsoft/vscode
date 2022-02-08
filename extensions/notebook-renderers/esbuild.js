@@ -22,7 +22,7 @@ esbuild.build({
 		path.join(__dirname, 'src', 'index.ts'),
 	],
 	bundle: true,
-	minify: true,
+	minify: false,
 	sourcemap: false,
 	format: 'esm',
 	outdir: outDir,

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem } from 'vscode-notebook-renderer';
+import { handleANSIOutput } from './ansi';
 
 interface IDisposable {
 	dispose(): void;
@@ -75,6 +76,39 @@ function renderJavascript(outputInfo: OutputItem, container: HTMLElement): void 
 	domEval(element);
 }
 
+function renderError(outputIfo: OutputItem, container: HTMLElement): void {
+	const element = document.createElement('div');
+	container.appendChild(element);
+	type ErrorLike = Partial<Error>;
+
+	let err: ErrorLike;
+	try {
+		err = <ErrorLike>JSON.parse(outputIfo.text());
+	} catch (e) {
+		console.log(e);
+		return;
+	}
+
+	console.log(err);
+
+	if (err.stack) {
+		const stack = document.createElement('pre');
+		stack.classList.add('traceback');
+		stack.style.margin = '8px 0';
+		stack.appendChild(handleANSIOutput(err.stack));
+		container.appendChild(stack);
+	} else {
+		const header = document.createElement('div');
+		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
+		if (headerMessage) {
+			header.innerText = headerMessage;
+			container.appendChild(header);
+		}
+	}
+
+	container.classList.add('error');
+}
+
 export const activate: ActivationFunction<void> = (ctx) => {
 	const disposables = new Map<string, IDisposable>();
 
@@ -108,6 +142,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 						disposables.set(outputInfo.id, disposable);
 					}
 					break;
+				case 'application/vnd.code.notebook.error':
+					{
+						renderError(outputInfo, element);
+					}
 				default:
 					break;
 			}

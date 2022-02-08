@@ -27,7 +27,8 @@
 					"image/jpeg",
 					"image/svg+xml",
 					"text/html",
-					"application/javascript"
+					"application/javascript",
+					"application/vnd.code.notebook.error"
 				]
 			}
 		]
