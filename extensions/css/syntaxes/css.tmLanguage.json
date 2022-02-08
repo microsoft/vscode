@@ -850,7 +850,7 @@
 					]
 				},
 				{
-					"begin": "(?i)(?<![\\w-])(rgba?|hsla?)(\\()",
+					"begin": "(?i)(?<![\\w-])(rgba?|hsla?|hwb)(\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.misc.css"
