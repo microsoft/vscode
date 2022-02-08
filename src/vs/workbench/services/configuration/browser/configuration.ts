@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose, toDisposable, MutableDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered, FileOperationError, FileOperationResult, FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, DefaultConfigurationModel, UserSettings } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from 'vs/workbench/services/configuration/common/configurationModels';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
@@ -215,7 +215,11 @@ class FileServiceBasedConfiguration extends Disposable {
 		this._standAloneConfigurations = [];
 		this._cache = new ConfigurationModel();
 
-		this._register(Event.debounce(Event.filter(this.fileService.onDidFilesChange, e => this.handleFileEvents(e)), () => undefined, 100)(() => this._onDidChange.fire()));
+		this._register(Event.debounce(
+			Event.any(
+				Event.filter(this.fileService.onDidFilesChange, e => this.handleFileChangesEvent(e)),
+				Event.filter(this.fileService.onDidRunOperation, e => this.handleFileOperationEvent(e))
+			), () => undefined, 100)(() => this._onDidChange.fire()));
 	}
 
 	async resolveContents(): Promise<[string | undefined, [string, string | undefined][]]> {
@@ -289,13 +293,26 @@ class FileServiceBasedConfiguration extends Disposable {
 		this._cache = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
 	}
 
-	private handleFileEvents(event: FileChangesEvent): boolean {
+	private handleFileChangesEvent(event: FileChangesEvent): boolean {
 		// One of the resources has changed
 		if (this.allResources.some(resource => event.contains(resource))) {
 			return true;
 		}
 		// One of the resource's parent got deleted
 		if (this.allResources.some(resource => event.contains(this.uriIdentityService.extUri.dirname(resource), FileChangeType.DELETED))) {
+			return true;
+		}
+		return false;
+	}
+
+	private handleFileOperationEvent(event: FileOperationEvent): boolean {
+		// One of the resources has changed
+		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
+			&& this.allResources.some(resource => this.uriIdentityService.extUri.isEqual(event.resource, resource))) {
+			return true;
+		}
+		// One of the resource's parent got deleted
+		if (event.isOperation(FileOperation.DELETE) && this.allResources.some(resource => this.uriIdentityService.extUri.isEqual(event.resource, this.uriIdentityService.extUri.dirname(resource)))) {
 			return true;
 		}
 		return false;
