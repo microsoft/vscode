@@ -399,6 +399,9 @@ export class MarkersView extends ViewPane implements IMarkersView {
 					if (element instanceof Marker) {
 						return element.resource.with({ fragment: `${element.range.startLineNumber},${element.range.startColumn}-${element.range.endLineNumber},${element.range.endColumn}` });
 					}
+					if (element instanceof RelatedInformation) {
+						return element.raw.resource.with({ fragment: `${element.raw.startLineNumber},${element.raw.startColumn}-${element.raw.endLineNumber},${element.raw.endColumn}` });
+					}
 					return null;
 				}),
 				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
