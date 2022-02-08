@@ -264,7 +264,7 @@ export class AzureActiveDirectoryService {
 
 		let codeToExchange;
 		try {
-			vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${server.port}/signin?nonce=${encodeURIComponent(server.nonce)}`));
+			vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${server.port}/signin?nonce=${encodeURIComponent(server.nonce)}`));
 			const { code } = await server.waitForOAuthResponse();
 			codeToExchange = code;
 		} finally {
