@@ -13,6 +13,7 @@ import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/
 import { TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR, TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_ERROR, TERMINAL_PROMPT_DECORATION_BACKGROUND_COLOR_NO_OUTPUT } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Codicon } from 'vs/base/common/codicons';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: IDecoration[] = [];
@@ -21,7 +22,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	constructor(
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		capabilities: ITerminalCapabilityStore) {
+		@IHoverService private readonly _hoverService: IHoverService,
+		capabilities: ITerminalCapabilityStore
+	) {
 		super();
 		capabilities.onDidAddCapability(c => {
 			if (c === TerminalCapability.CommandDetection) {
@@ -52,7 +55,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: .5 });
 		if (decoration?.element && command.command.trim().length > 0) {
-			const hasOutput = command.endMarker!.line - command.marker!.line > 0;
+			const hasOutput = command.endMarker!.line - command.startMarker!.line > 0;
+			console.log(hasOutput, command.getOutput());
 			dom.addDisposableListener(decoration.element, 'click', async () => {
 				const copyOutputAction = { class: 'copy-output', icon: Codicon.output, tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: 'Copy Output', enabled: true, run: async () => await this._clipboardService.writeText(command.getOutput()!) };
 				const rerunCommandAction = {
@@ -65,6 +69,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					getAnchor: () => decoration.element!,
 					getActions: () => hasOutput ? [copyOutputAction, rerunCommandAction] : [rerunCommandAction],
 				});
+			});
+			dom.addDisposableListener(decoration.element, 'mouseenter', async () => {
+				this._hoverService.showHover({ content: 'Show Actions', target: decoration.element! });
+			});
+			dom.addDisposableListener(decoration.element, 'mouseleave', async () => {
+				this._hoverService.hideHover();
 			});
 			decoration.element.classList.add('terminal-prompt-decoration');
 			if (hasOutput) {
