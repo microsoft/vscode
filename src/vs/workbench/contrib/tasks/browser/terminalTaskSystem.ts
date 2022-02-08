@@ -1353,7 +1353,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private buildShellCommandLine(platform: Platform.Platform, shellExecutable: string, shellOptions: ShellConfiguration | undefined, command: CommandString, originalCommand: CommandString | undefined, args: CommandString[]): string {
-		let shellQuoteOptions = this.getQuotingOptions(path.parse(shellExecutable).name.toLowerCase(), shellOptions, platform);
+		const basename = path.parse(shellExecutable).name.toLowerCase();
+		const shellQuoteOptions = this.getQuotingOptions(basename, shellOptions, platform);
 
 		function needsQuotes(value: string): boolean {
 			if (value.length >= 2) {
