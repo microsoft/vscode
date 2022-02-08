@@ -10,6 +10,8 @@ declare module 'vscode' {
 	export namespace languages {
 		/**
 		 * Registers an inline completion provider.
+		 *
+		 *  @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		// todo@API what are the rules when multiple providers apply
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
@@ -57,7 +59,6 @@ declare module 'vscode' {
 	/**
 	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
 	 */
-	// todo@API have different provide calls?
 	export enum InlineCompletionTriggerKind {
 		/**
 		 * Completion was triggered automatically while editing.
@@ -90,6 +91,7 @@ declare module 'vscode' {
 		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
 		*/
 		// todo@API is this like CompletionItem#label or insertText?
+		// todo@API insertText
 		text: string;
 
 		/**
@@ -114,6 +116,7 @@ declare module 'vscode' {
 		*/
 		// todo@API is this to compensate "bad" extensions, why isn't this done for normal completions or formatting?
 		// todo@API is this an instance property or a provider property?
+		// (1) leave proposed
 		completeBracketPairs?: boolean;
 
 		constructor(text: string, range?: Range, command?: Command);

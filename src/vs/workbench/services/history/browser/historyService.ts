@@ -250,7 +250,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private readonly canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false, localize('canNavigateBack', "Whether it is possible to navigate back in editor history"))).bindTo(this.contextKeyService);
 	private readonly canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false, localize('canNavigateForward', "Whether it is possible to navigate forward in editor history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last edit location"))).bindTo(this.contextKeyService);
+
+	private readonly canNavigateBackInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateBackInNavigationLocations', false, localize('canNavigateBackInNavigationLocations', "Whether it is possible to navigate back in editor navigation locations history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateForwardInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateForwardInNavigationLocations', false, localize('canNavigateForwardInNavigationLocations', "Whether it is possible to navigate forward in editor navigation locations history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateToLastNavigationLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastNavigationLocation', false, localize('canNavigateToLastNavigationLocation', "Whether it is possible to navigate to the last editor navigation location"))).bindTo(this.contextKeyService);
+
+	private readonly canNavigateBackInEditsContextKey = (new RawContextKey<boolean>('canNavigateBackInEditLocations', false, localize('canNavigateBackInEditLocations', "Whether it is possible to navigate back in editor edit locations history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateForwardInEditsContextKey = (new RawContextKey<boolean>('canNavigateForwardInEditLocations', false, localize('canNavigateForwardInEditLocations', "Whether it is possible to navigate forward in editor edit locations history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last editor edit location"))).bindTo(this.contextKeyService);
+
 	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
 
 	updateContextKeys(): void {
@@ -258,7 +266,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 			this.canNavigateBackContextKey.set(this.globalDefaultEditorNavigationStack.canGoBack());
 			this.canNavigateForwardContextKey.set(this.globalDefaultEditorNavigationStack.canGoForward());
 
-			this.canNavigateToLastEditLocationContextKey.set(this.globalModificationsEditorNavigationStack.canGoLast());
+			this.canNavigateBackInNavigationsContextKey.set(this.globalNavigationsEditorNavigationStack.canGoBack());
+			this.canNavigateForwardInNavigationsContextKey.set(this.globalNavigationsEditorNavigationStack.canGoForward());
+			this.canNavigateToLastNavigationLocationContextKey.set(this.globalNavigationsEditorNavigationStack.canGoLast());
+
+			this.canNavigateBackInEditsContextKey.set(this.globalEditsEditorNavigationStack.canGoBack());
+			this.canNavigateForwardInEditsContextKey.set(this.globalEditsEditorNavigationStack.canGoForward());
+			this.canNavigateToLastEditLocationContextKey.set(this.globalEditsEditorNavigationStack.canGoLast());
 
 			this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
 		});
@@ -269,18 +283,18 @@ export class HistoryService extends Disposable implements IHistoryService {
 	//#region Editor History Navigation (limit: 50)
 
 	private readonly globalDefaultEditorNavigationStack = this.createEditorNavigationStack();
-	private readonly globalModificationsEditorNavigationStack = this.createEditorNavigationStack();
+	private readonly globalEditsEditorNavigationStack = this.createEditorNavigationStack();
 	private readonly globalNavigationsEditorNavigationStack = this.createEditorNavigationStack();
 
 	private readonly editorNavigationStacks: EditorNavigationStack[] = [
 		this.globalDefaultEditorNavigationStack,
-		this.globalModificationsEditorNavigationStack,
+		this.globalEditsEditorNavigationStack,
 		this.globalNavigationsEditorNavigationStack
 	];
 
 	readonly onDidChangeEditorNavigationStack = Event.any(
 		this.globalDefaultEditorNavigationStack.onDidChange,
-		this.globalModificationsEditorNavigationStack.onDidChange,
+		this.globalEditsEditorNavigationStack.onDidChange,
 		this.globalNavigationsEditorNavigationStack.onDidChange
 	);
 
@@ -321,7 +335,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Send to specific navigation stack based on reason
 		switch (event.reason) {
 			case EditorPaneSelectionChangeReason.EDIT:
-				this.globalModificationsEditorNavigationStack.notifyNavigation(editorPane, event);
+				this.globalEditsEditorNavigationStack.notifyNavigation(editorPane, event);
 				break;
 			case EditorPaneSelectionChangeReason.NAVIGATION: {
 
@@ -342,7 +356,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private getStack(filter = GoFilter.NONE): EditorNavigationStack {
 		switch (filter) {
 			case GoFilter.NONE: return this.globalDefaultEditorNavigationStack;
-			case GoFilter.EDITS: return this.globalModificationsEditorNavigationStack;
+			case GoFilter.EDITS: return this.globalEditsEditorNavigationStack;
 			case GoFilter.NAVIGATION: return this.globalNavigationsEditorNavigationStack;
 		}
 	}

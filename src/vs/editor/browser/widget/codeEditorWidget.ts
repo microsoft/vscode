@@ -954,7 +954,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (codeEditorState && codeEditorState.cursorState && codeEditorState.viewState) {
 			const cursorState = <any>codeEditorState.cursorState;
 			if (Array.isArray(cursorState)) {
-				this._modelData.viewModel.restoreCursorState(<editorCommon.ICursorState[]>cursorState);
+				if (cursorState.length > 0) {
+					this._modelData.viewModel.restoreCursorState(<editorCommon.ICursorState[]>cursorState);
+				}
 			} else {
 				// Backwards compatibility
 				this._modelData.viewModel.restoreCursorState([<editorCommon.ICursorState>cursorState]);

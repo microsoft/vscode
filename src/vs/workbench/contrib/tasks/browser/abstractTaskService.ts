@@ -1585,37 +1585,73 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		let resolverData: Map<string, ResolverData> | undefined;
 
+		async function quickResolve(that: AbstractTaskService, identifier: string | TaskIdentifier) {
+			const foundTasks = await that._findWorkspaceTasks((task: Task | ConfiguringTask): boolean => {
+				if (Types.isString(identifier)) {
+					return ((task._label === identifier) || (task.configurationProperties.identifier === identifier));
+				} else {
+					const keyedIdentifier = task.getDefinition(true);
+					const searchIdentifier = TaskDefinition.createTaskIdentifier(identifier, console);
+					return (searchIdentifier && keyedIdentifier) ? (searchIdentifier._key === keyedIdentifier._key) : false;
+				}
+			});
+			if (foundTasks.length === 0) {
+				return undefined;
+			}
+			const task = foundTasks[0];
+			if (ConfiguringTask.is(task)) {
+				return that.tryResolveTask(task);
+			}
+			return task;
+		}
+
+		async function getResolverData(that: AbstractTaskService) {
+			if (resolverData === undefined) {
+				resolverData = new Map();
+				(grouped || await that.getGroupedTasks()).forEach((tasks, folder) => {
+					let data = resolverData!.get(folder);
+					if (!data) {
+						data = { label: new Map<string, Task>(), identifier: new Map<string, Task>(), taskIdentifier: new Map<string, Task>() };
+						resolverData!.set(folder, data);
+					}
+					for (let task of tasks) {
+						data.label.set(task._label, task);
+						if (task.configurationProperties.identifier) {
+							data.identifier.set(task.configurationProperties.identifier, task);
+						}
+						let keyedIdentifier = task.getDefinition(true);
+						if (keyedIdentifier !== undefined) {
+							data.taskIdentifier.set(keyedIdentifier._key, task);
+						}
+					}
+				});
+			}
+			return resolverData;
+		}
+
+		async function fullResolve(that: AbstractTaskService, uri: URI | string, identifier: string | TaskIdentifier) {
+			const allResolverData = await getResolverData(that);
+			let data = allResolverData.get(typeof uri === 'string' ? uri : uri.toString());
+			if (!data) {
+				return undefined;
+			}
+			if (Types.isString(identifier)) {
+				return data.label.get(identifier) || data.identifier.get(identifier);
+			} else {
+				let key = TaskDefinition.createTaskIdentifier(identifier, console);
+				return key !== undefined ? data.taskIdentifier.get(key._key) : undefined;
+			}
+		}
+
 		return {
 			resolve: async (uri: URI | string, identifier: string | TaskIdentifier | undefined) => {
-				if (resolverData === undefined) {
-					resolverData = new Map();
-					(grouped || await this.getGroupedTasks()).forEach((tasks, folder) => {
-						let data = resolverData!.get(folder);
-						if (!data) {
-							data = { label: new Map<string, Task>(), identifier: new Map<string, Task>(), taskIdentifier: new Map<string, Task>() };
-							resolverData!.set(folder, data);
-						}
-						for (let task of tasks) {
-							data.label.set(task._label, task);
-							if (task.configurationProperties.identifier) {
-								data.identifier.set(task.configurationProperties.identifier, task);
-							}
-							let keyedIdentifier = task.getDefinition(true);
-							if (keyedIdentifier !== undefined) {
-								data.taskIdentifier.set(keyedIdentifier._key, task);
-							}
-						}
-					});
-				}
-				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
-				if (!data || !identifier) {
+				if (!identifier) {
 					return undefined;
 				}
-				if (Types.isString(identifier)) {
-					return data.label.get(identifier) || data.identifier.get(identifier);
+				if ((resolverData === undefined) && (grouped === undefined)) {
+					return (await quickResolve(this, identifier)) ?? fullResolve(this, uri, identifier);
 				} else {
-					let key = TaskDefinition.createTaskIdentifier(identifier, console);
-					return key !== undefined ? data.taskIdentifier.get(key._key) : undefined;
+					return fullResolve(this, uri, identifier);
 				}
 			}
 		};
@@ -2742,7 +2778,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
 		};
 		let promise = (async () => {
-			const buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, true);
+			const buildTasks = await this._findWorkspaceTasksInGroup(TaskGroup.Build, false);
 
 			async function runSingleBuildTask(task: Task | undefined, problemMatcherOptions: ProblemMatcherRunOptions | undefined, that: AbstractTaskService) {
 				that.run(task, problemMatcherOptions, TaskRunSource.User).then(undefined, reason => {
@@ -2753,13 +2789,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (buildTasks.length === 1) {
 				const buildTask = buildTasks[0];
 				if (ConfiguringTask.is(buildTask)) {
-					this.tryResolveTask(buildTask).then(resolvedTask => {
+					return this.tryResolveTask(buildTask).then(resolvedTask => {
 						runSingleBuildTask(resolvedTask, undefined, this);
 					});
 				} else {
 					runSingleBuildTask(buildTask, undefined, this);
+					return;
 				}
-				return;
 			}
 
 			return this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
