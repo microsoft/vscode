@@ -13,6 +13,7 @@ import { ITerminalInstance, Direction, ITerminalGroup, ITerminalService, ITermin
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IShellLaunchConfig, ITerminalTabLayoutInfoById } from 'vs/platform/terminal/common/terminal';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { getPartByLocation } from 'vs/workbench/browser/parts/views/viewsService';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 
@@ -49,7 +50,7 @@ class SplitPaneContainer extends Disposable {
 		this._addChild(instance, index);
 	}
 
-	resizePane(index: number, direction: Direction, amount: number): void {
+	resizePane(index: number, direction: Direction, amount: number, part: Parts): void {
 		const isHorizontal = (direction === Direction.Left) || (direction === Direction.Right);
 
 		if ((isHorizontal && this.orientation !== Orientation.HORIZONTAL) ||
@@ -59,7 +60,8 @@ class SplitPaneContainer extends Disposable {
 				(this.orientation === Orientation.VERTICAL && direction === Direction.Right)) {
 				amount *= -1;
 			}
-			this._layoutService.resizePart(Parts.PANEL_PART, amount, amount);
+
+			this._layoutService.resizePart(part, amount, amount);
 			return;
 		}
 
@@ -559,7 +561,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		// TODO: Support letter spacing and line height
 		const amount = isHorizontal ? font.charWidth : font.charHeight;
 		if (amount) {
-			this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, amount);
+			this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, amount, getPartByLocation(this._terminalLocation));
 		}
 	}
 

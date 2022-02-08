@@ -353,26 +353,26 @@ steps:
     displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  # - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-  #   displayName: Generate SBOM (client)
-  #   inputs:
-  #     BuildDropPath: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)
-  #     PackageName: Visual Studio Code
-  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (client)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  # - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
-  #   displayName: Publish SBOM (client)
-  #   artifact: vscode_client_win32_$(VSCODE_ARCH)_sbom
-  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+  - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (client)
+    artifact: vscode_client_win32_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  # - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-  #   displayName: Generate SBOM (server)
-  #   inputs:
-  #     BuildDropPath: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)
-  #     PackageName: Visual Studio Code Server
-  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (server)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code Server
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
-  # - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
-  #   displayName: Publish SBOM (server)
-  #   artifact: vscode_server_win32_$(VSCODE_ARCH)_sbom
-  #   condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+  - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (server)
+    artifact: vscode_server_win32_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))

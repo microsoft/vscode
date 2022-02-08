@@ -406,22 +406,23 @@ function sortLanguages(languages: Language[]): Language[] {
 }
 
 function stripComments(content: string): string {
-	/**
-	* First capturing group matches double quoted string
-	* Second matches single quotes string
-	* Third matches block comments
-	* Fourth matches line comments
-	*/
-	const regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
-	let result = content.replace(regexp, (match, _m1, _m2, m3, m4) => {
+	// Copied from stripComments.js
+	//
+	// First group matches a double quoted string
+	// Second group matches a single quoted string
+	// Third group matches a multi line comment
+	// Forth group matches a single line comment
+	const regexp = /("[^"\\]*(?:\\.[^"\\]*)*")|('[^'\\]*(?:\\.[^'\\]*)*')|(\/\*[^\/\*]*(?:(?:\*|\/)[^\/\*]*)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
+	let result = content.replace(regexp, (match, _m1: string, _m2: string, m3: string, m4: string) => {
 		// Only one of m1, m2, m3, m4 matches
 		if (m3) {
 			// A block comment. Replace with nothing
 			return '';
 		} else if (m4) {
-			// A line comment. If it ends in \r?\n then keep it.
-			let length = m4.length;
-			if (length > 2 && m4[length - 1] === '\n') {
+			// Since m4 is a single line comment is is at least of length 2 (e.g. //)
+			// If it ends in \r?\n then keep it.
+			const length = m4.length;
+			if (m4[length - 1] === '\n') {
 				return m4[length - 2] === '\r' ? '\r\n' : '\n';
 			} else {
 				return '';

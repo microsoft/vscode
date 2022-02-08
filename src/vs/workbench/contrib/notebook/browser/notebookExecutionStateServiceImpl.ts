@@ -115,6 +115,7 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		if (!exe) {
 			exe = this._createNotebookCellExecution(notebook, cellHandle);
 			notebookExecutionMap.set(cellHandle, exe);
+			this._onDidChangeCellExecution.fire(new NotebookExecutionEvent(notebookUri, cellHandle, exe));
 		}
 
 		return exe;
@@ -128,7 +129,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 			exe.onDidComplete(() => this._onCellExecutionDidComplete(notebookUri, cellHandle, exe)));
 		this._cellListeners.set(CellUri.generate(notebookUri, cellHandle), disposable);
 
-		this._onDidChangeCellExecution.fire(new NotebookExecutionEvent(notebookUri, cellHandle, exe));
 		return exe;
 	}
 

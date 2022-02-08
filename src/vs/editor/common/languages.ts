@@ -1744,7 +1744,7 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
-	readonly timestamp?: Date;
+	readonly timestamp?: string;
 }
 
 /**

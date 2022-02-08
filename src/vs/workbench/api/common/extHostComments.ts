@@ -622,14 +622,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			checkProposedApiEnabled(thread.extensionDescription, 'commentTimestamp');
 		}
 
-		let timestamp: { $mid: MarshalledId.Date; source: any } | undefined;
-		if (vscodeComment.timestamp) {
-			timestamp = {
-				source: vscodeComment.timestamp,
-				$mid: MarshalledId.Date
-			};
-		}
-
 		return {
 			mode: vscodeComment.mode,
 			contextValue: vscodeComment.contextValue,
@@ -639,7 +631,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			userIconPath: iconPath,
 			label: vscodeComment.label,
 			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined,
-			timestamp
+			timestamp: vscodeComment.timestamp?.toJSON()
 		};
 	}
 
@@ -675,4 +667,3 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 	return new ExtHostCommentsImpl();
 }
-

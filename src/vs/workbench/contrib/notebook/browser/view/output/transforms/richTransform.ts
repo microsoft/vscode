@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ICellOutputViewModel, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookDelegateForOutput } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
@@ -20,33 +18,6 @@ import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/vi
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOutputItemDto, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-class JavaScriptRendererContrib extends Disposable implements IOutputTransformContribution {
-	getType() {
-		return RenderOutputType.Html;
-	}
-
-	getMimetypes() {
-		return ['application/javascript'];
-	}
-
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-
-		const str = getStringValue(item);
-		const scriptVal = `<script type="application/javascript">${str}</script>`;
-
-		return {
-			type: RenderOutputType.Html,
-			source: output,
-			htmlContent: scriptVal
-		};
-	}
-}
 
 class StreamRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
@@ -97,61 +68,6 @@ class StderrRendererContrib extends StreamRendererContrib {
 	}
 }
 
-class JSErrorRendererContrib implements IOutputTransformContribution {
-
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
-	) { }
-
-	dispose(): void {
-		// nothing
-	}
-
-	getType() {
-		return RenderOutputType.Mainframe;
-	}
-
-	getMimetypes() {
-		return ['application/vnd.code.notebook.error'];
-	}
-
-	render(_output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, _notebookUri: URI): IRenderOutput {
-		const linkDetector = this._instantiationService.createInstance(LinkDetector);
-
-		type ErrorLike = Partial<Error>;
-
-
-		let err: ErrorLike;
-		try {
-			err = <ErrorLike>JSON.parse(getStringValue(item));
-		} catch (e) {
-			this._logService.warn('INVALID output item (failed to parse)', e);
-			return { type: RenderOutputType.Mainframe };
-		}
-
-		if (err.stack) {
-			const stack = document.createElement('pre');
-			stack.classList.add('traceback');
-			stack.appendChild(handleANSIOutput(err.stack, linkDetector, this._themeService, undefined));
-			container.appendChild(stack);
-		} else {
-			const header = document.createElement('div');
-			const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
-			if (headerMessage) {
-				header.innerText = headerMessage;
-				container.appendChild(header);
-			}
-		}
-
-		container.classList.add('error');
-
-		return { type: RenderOutputType.Mainframe };
-	}
-}
-
 class PlainTextRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
 		return RenderOutputType.Mainframe;
@@ -185,69 +101,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputTransformCon
 	}
 }
 
-class HTMLRendererContrib extends Disposable implements IOutputTransformContribution {
-	getType() {
-		return RenderOutputType.Html;
-	}
-
-	getMimetypes() {
-		return ['text/html', 'image/svg+xml'];
-	}
-
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const str = getStringValue(item);
-		return {
-			type: RenderOutputType.Html,
-			source: output,
-			htmlContent: str
-		};
-	}
-}
-
-class ImgRendererContrib extends Disposable implements IOutputTransformContribution {
-	getType() {
-		return RenderOutputType.Mainframe;
-	}
-
-	getMimetypes() {
-		return ['image/png', 'image/jpeg', 'image/gif'];
-	}
-
-	constructor(
-		public notebookEditor: INotebookDelegateForOutput,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const disposable = new DisposableStore();
-
-		const blob = new Blob([item.data.buffer], { type: item.mime });
-		const src = URL.createObjectURL(blob);
-		disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
-
-		const image = document.createElement('img');
-		image.src = src;
-		const display = document.createElement('div');
-		display.classList.add('display');
-		display.appendChild(image);
-		container.appendChild(display);
-
-		return { type: RenderOutputType.Mainframe, disposable };
-	}
-}
-
-OutputRendererRegistry.registerOutputTransform(JavaScriptRendererContrib);
-OutputRendererRegistry.registerOutputTransform(HTMLRendererContrib);
-OutputRendererRegistry.registerOutputTransform(ImgRendererContrib);
 OutputRendererRegistry.registerOutputTransform(PlainTextRendererContrib);
-OutputRendererRegistry.registerOutputTransform(JSErrorRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
 
