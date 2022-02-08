@@ -20,7 +20,6 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ViewContainerLocationToString, ViewContainerLocation, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
@@ -130,10 +129,31 @@ export const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
 	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, 'View: Set Panel Alignment to Justify', localize('alignPanelJustify', 'Set Panel Alignment to Justify'), localize('alignPanelJustifyShort', "Justify"), 'justify'),
 ];
 
-const alignmentByActionId = new Map(AlignPanelActionConfigs.map(config => [config.id, config.value]));
+const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));
+export class SetPanelPositionAction extends Action {
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		const position = positionByActionId.get(this.id);
+		this.layoutService.setPanelPosition(position === undefined ? Position.BOTTOM : position);
+	}
+}
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	submenu: MenuId.MenubarPanelPositionMenu,
+	title: localize('positionPanel', "Panel Position"),
+	group: '3_workbench_layout_move',
+	order: 4
+});
 
 PositionPanelActionConfigs.forEach(positionPanelAction => {
-	const { id, label } = positionPanelAction;
+	const { id, label, shortLabel, value, when } = positionPanelAction;
 
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -145,16 +165,18 @@ PositionPanelActionConfigs.forEach(positionPanelAction => {
 			});
 		}
 		run(accessor: ServicesAccessor): void {
-			const notificationService = accessor.get(INotificationService);
-			const commandService = accessor.get(ICommandService);
-
-			notificationService.warn(localize('deprecatedPanelMoveMessage', "Moving the panel with this command has been deprecated in favor of the \"Move Views From Panel To Side Panel\" and \"Move Views From Side Panel To Panel\" commands."));
-			if (positionPanelAction.value === Position.BOTTOM) {
-				commandService.executeCommand('workbench.action.moveSidePanelToPanel');
-			} else {
-				commandService.executeCommand('workbench.action.movePanelToSidePanel');
-			}
+			const layoutService = accessor.get(IWorkbenchLayoutService);
+			layoutService.setPanelPosition(value === undefined ? Position.BOTTOM : value);
 		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarPanelPositionMenu, {
+		command: {
+			id,
+			title: shortLabel,
+			toggled: when.negate()
+		},
+		order: 5
 	});
 });
 
@@ -192,21 +214,6 @@ AlignPanelActionConfigs.forEach(alignPanelAction => {
 		order: 5
 	});
 });
-
-export class SetPanelAlignmentAction extends Action {
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		const alignment = alignmentByActionId.get(this.id);
-		this.layoutService.setPanelAlignment(alignment === undefined ? 'center' : alignment);
-	}
-}
 
 export class PanelActivityAction extends ActivityAction {
 
@@ -331,21 +338,21 @@ registerAction2(class extends Action2 {
 			f1: true,
 			icon: maximizeIcon,
 			// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-			precondition: PanelAlignmentContext.isEqualTo('center'),
+			precondition: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom')),
 			toggled: { condition: PanelMaximizedContext, icon: restoreIcon, tooltip: localize('minimizePanel', "Restore Panel Size") },
 			menu: [{
 				id: MenuId.PanelTitle,
 				group: 'navigation',
 				order: 1,
 				// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-				when: PanelAlignmentContext.isEqualTo('center')
+				when: ContextKeyExpr.or(PanelAlignmentContext.isEqualTo('center'), PanelPositionContext.notEqualsTo('bottom'))
 			}]
 		});
 	}
 	run(accessor: ServicesAccessor) {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const notificationService = accessor.get(INotificationService);
-		if (layoutService.getPanelAlignment() !== 'center') {
+		if (layoutService.getPanelAlignment() !== 'center' && layoutService.getPanelPosition() === Position.BOTTOM) {
 			notificationService.warn(localize('panelMaxNotSupported', "Maximizing the panel is only supported when it is center aligned."));
 			return;
 		}
