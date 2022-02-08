@@ -155,7 +155,8 @@ stages:
       - stage: Windows
         dependsOn:
           - Compile
-        pool: vscode-1es-windows
+        pool:
+          vmImage: windows-latest
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
               - job: Windows
