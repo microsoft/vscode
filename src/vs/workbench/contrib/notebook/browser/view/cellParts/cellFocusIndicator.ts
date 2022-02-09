@@ -27,8 +27,20 @@ export class CellFocusIndicator extends CellPart {
 	) {
 		super();
 
-		this.codeFocusIndicator = new FastDomNode(DOM.append(this.left.domNode, DOM.$('.codeOutput-focus-indicator.code-focus-indicator')));
-		this.outputFocusIndicator = new FastDomNode(DOM.append(this.left.domNode, DOM.$('.codeOutput-focus-indicator.output-focus-indicator')));
+		this.codeFocusIndicator = new FastDomNode(DOM.append(
+			this.left.domNode,
+			DOM.$(
+				'.codeOutput-focus-indicator-container',
+				undefined,
+				DOM.$('.codeOutput-focus-indicator.code-focus-indicator'))));
+
+		this.outputFocusIndicator = new FastDomNode(DOM.append(
+			this.left.domNode,
+			DOM.$(
+				'.codeOutput-focus-indicator-container',
+				undefined,
+				DOM.$('.codeOutput-focus-indicator.output-focus-indicator'))));
+
 		this._register(DOM.addDisposableListener(this.codeFocusIndicator.domNode, DOM.EventType.CLICK, () => {
 			if (this.currentElement) {
 				this.currentElement.isInputCollapsed = !this.currentElement.isInputCollapsed;
