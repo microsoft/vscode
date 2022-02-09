@@ -22,8 +22,6 @@ function Global:__VSCode-Get-LastExitCode {
 
 function Global:Prompt() {
 	$LastHistoryEntry = $(Get-History -Count 1)
-	Write-Host $Global:__LastHistoryId
-	Write-Host $LastHistoryEntry.Id
 	if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
 		# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
 		$Result  = "`e]633;A`a"
@@ -35,7 +33,6 @@ function Global:Prompt() {
 		# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
 		# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
 		# to only be composed of _printable_ characters as per the spec.
-		# TODO: There are probably better serializable strings to use
 		$CommandLine = $LastHistoryEntry.CommandLine ?? ""
 		$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
 		$Result += "`a"
