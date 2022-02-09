@@ -105,7 +105,7 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			const hoverContents = { markdown: entry.tooltip, markdownNotSupportedFallback: undefined };
+			const hoverContents = isMarkdownString(entry.tooltip) ? { markdown: entry.tooltip, markdownNotSupportedFallback: undefined } : entry.tooltip;
 			if (this.hover) {
 				this.hover.update(hoverContents);
 			} else {

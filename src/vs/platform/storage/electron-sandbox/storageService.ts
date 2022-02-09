@@ -11,7 +11,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { AbstractStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { StorageDatabaseChannelClient } from 'vs/platform/storage/common/storageIpc';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class NativeStorageService extends AbstractStorageService {
 
@@ -97,7 +97,7 @@ export class NativeStorageService extends AbstractStorageService {
 		]);
 	}
 
-	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
+	async migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
 
 		// Keep current workspace storage items around to restore
 		const oldWorkspaceStorage = this.workspaceStorage;

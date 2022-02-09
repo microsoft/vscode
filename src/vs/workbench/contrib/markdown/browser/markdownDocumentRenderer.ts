@@ -203,10 +203,16 @@ export async function renderMarkdownDocument(
 	allowUnknownProtocols: boolean = false,
 ): Promise<string> {
 
-	const highlight = (code: string, lang: string, callback: ((error: any, code: string) => void) | undefined): any => {
+	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
 		if (!callback) {
 			return code;
 		}
+
+		if (typeof lang !== 'string') {
+			callback(null, `<code>${code}</code>`);
+			return '';
+		}
+
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			const languageId = languageService.getLanguageIdByLanguageName(lang);
 			const html = await tokenizeToString(languageService, code, languageId);

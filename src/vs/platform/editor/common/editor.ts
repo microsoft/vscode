@@ -324,6 +324,22 @@ export const enum TextEditorSelectionRevealType {
 	NearTopIfOutsideViewport = 3,
 }
 
+export const enum TextEditorSelectionSource {
+
+	/**
+	 * Programmatic source indicates a selection change that
+	 * was not triggered by the user via keyboard or mouse.
+	 */
+	PROGRAMMATIC = 'api',
+
+	/**
+	 * Navigation source indicates a change that was caused
+	 * by navigating in the text editor from  commands such
+	 * as "Go to definition"
+	 */
+	NAVIGATION = 'code.navigation'
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**

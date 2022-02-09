@@ -1027,7 +1027,7 @@ function registerSplitEditorInGroupCommands(): void {
 		constructor() {
 			super({
 				id: SPLIT_EDITOR_IN_GROUP,
-				title: localize('splitEditorInGroup', "Split Editor in Group"),
+				title: { value: localize('splitEditorInGroup', "Split Editor in Group"), original: 'Split Editor in Group' },
 				category: CATEGORIES.View,
 				precondition: ActiveEditorCanSplitInGroupContext,
 				f1: true,
@@ -1073,7 +1073,7 @@ function registerSplitEditorInGroupCommands(): void {
 		constructor() {
 			super({
 				id: JOIN_EDITOR_IN_GROUP,
-				title: localize('joinEditorInGroup', "Join Editor in Group"),
+				title: { value: localize('joinEditorInGroup', "Join Editor in Group"), original: 'Join Editor in Group' },
 				category: CATEGORIES.View,
 				precondition: SideBySideEditorActiveContext,
 				f1: true,
@@ -1093,7 +1093,7 @@ function registerSplitEditorInGroupCommands(): void {
 		constructor() {
 			super({
 				id: TOGGLE_SPLIT_EDITOR_IN_GROUP,
-				title: localize('toggleJoinEditorInGroup', "Toggle Split Editor in Group"),
+				title: { value: localize('toggleJoinEditorInGroup', "Toggle Split Editor in Group"), original: 'Toggle Split Editor in Group' },
 				category: CATEGORIES.View,
 				precondition: ContextKeyExpr.or(ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext),
 				f1: true
@@ -1115,7 +1115,7 @@ function registerSplitEditorInGroupCommands(): void {
 		constructor() {
 			super({
 				id: TOGGLE_SPLIT_EDITOR_IN_GROUP_LAYOUT,
-				title: localize('toggleSplitEditorInGroupLayout', "Toggle Split Editor in Group Layout"),
+				title: { value: localize('toggleSplitEditorInGroupLayout', "Toggle Split Editor in Group Layout"), original: 'Toggle Split Editor in Group Layout' },
 				category: CATEGORIES.View,
 				precondition: SideBySideEditorActiveContext,
 				f1: true
@@ -1143,7 +1143,7 @@ function registerFocusSideEditorsCommands(): void {
 		constructor() {
 			super({
 				id: FOCUS_FIRST_SIDE_EDITOR,
-				title: localize('focusLeftSideEditor', "Focus First Side in Active Editor"),
+				title: { value: localize('focusLeftSideEditor', "Focus First Side in Active Editor"), original: 'Focus First Side in Active Editor' },
 				category: CATEGORIES.View,
 				precondition: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
 				f1: true
@@ -1166,7 +1166,7 @@ function registerFocusSideEditorsCommands(): void {
 		constructor() {
 			super({
 				id: FOCUS_SECOND_SIDE_EDITOR,
-				title: localize('focusRightSideEditor', "Focus Second Side in Active Editor"),
+				title: { value: localize('focusRightSideEditor', "Focus Second Side in Active Editor"), original: 'Focus Second Side in Active Editor' },
 				category: CATEGORIES.View,
 				precondition: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
 				f1: true
@@ -1189,7 +1189,7 @@ function registerFocusSideEditorsCommands(): void {
 		constructor() {
 			super({
 				id: FOCUS_OTHER_SIDE_EDITOR,
-				title: localize('focusOtherSideEditor', "Focus Other Side in Active Editor"),
+				title: { value: localize('focusOtherSideEditor', "Focus Other Side in Active Editor"), original: 'Focus Other Side in Active Editor' },
 				category: CATEGORIES.View,
 				precondition: ContextKeyExpr.or(SideBySideEditorActiveContext, TextCompareEditorActiveContext),
 				f1: true
@@ -1254,7 +1254,7 @@ function registerOtherEditorCommands(): void {
 		constructor() {
 			super({
 				id: TOGGLE_LOCK_GROUP_COMMAND_ID,
-				title: localize('toggleEditorGroupLock', "Toggle Editor Group Lock"),
+				title: { value: localize('toggleEditorGroupLock', "Toggle Editor Group Lock"), original: 'Toggle Editor Group Lock' },
 				category: CATEGORIES.View,
 				precondition: MultipleEditorGroupsContext,
 				f1: true
@@ -1269,7 +1269,7 @@ function registerOtherEditorCommands(): void {
 		constructor() {
 			super({
 				id: LOCK_GROUP_COMMAND_ID,
-				title: localize('lockEditorGroup', "Lock Editor Group"),
+				title: { value: localize('lockEditorGroup', "Lock Editor Group"), original: 'Lock Editor Group' },
 				category: CATEGORIES.View,
 				precondition: ContextKeyExpr.and(MultipleEditorGroupsContext, ActiveEditorGroupLockedContext.toNegated()),
 				f1: true
@@ -1284,7 +1284,7 @@ function registerOtherEditorCommands(): void {
 		constructor() {
 			super({
 				id: UNLOCK_GROUP_COMMAND_ID,
-				title: localize('unlockEditorGroup', "Unlock Editor Group"),
+				title: { value: localize('unlockEditorGroup', "Unlock Editor Group"), original: 'Unlock Editor Group' },
 				precondition: ContextKeyExpr.and(MultipleEditorGroupsContext, ActiveEditorGroupLockedContext),
 				category: CATEGORIES.View,
 				f1: true

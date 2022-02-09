@@ -215,12 +215,25 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 
 let onTerminate = (reason: string) => nativeClose();
 
+interface IInitMessage {
+	readonly type: 'vscode.init';
+	readonly data: ReadonlyMap<string, MessagePort>;
+}
+
+function isInitMessage(a: any): a is IInitMessage {
+	return !!a && typeof a === 'object' && a.type === 'vscode.init' && a.data instanceof Map;
+}
+
 export function create(): { onmessage: (message: any) => void } {
 	performance.mark(`code/extHost/willConnectToRenderer`);
 	const res = new ExtensionWorker();
 
 	return {
-		onmessage(messagePorts: ReadonlyMap<string, MessagePort>) {
+		onmessage(message: any) {
+			if (!isInitMessage(message)) {
+				return; // silently ignore foreign messages
+			}
+
 			connectToRenderer(res.protocol).then(data => {
 				performance.mark(`code/extHost/didWaitForInitData`);
 				const extHostMain = new ExtensionHostMain(
@@ -228,7 +241,7 @@ export function create(): { onmessage: (message: any) => void } {
 					data.initData,
 					hostUtil,
 					null,
-					messagePorts
+					message.data
 				);
 
 				onTerminate = (reason: string) => extHostMain.terminate(reason);

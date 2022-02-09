@@ -465,10 +465,11 @@ export class StatefulMarkdownCell extends Disposable {
 				return;
 			}
 
-			const primarySelection = editor.getSelection();
+			const selections = editor.getSelections();
 
-			if (primarySelection) {
-				this.notebookEditor.revealRangeInViewAsync(this.viewCell, primarySelection);
+			if (selections?.length) {
+				const lastSelection = selections[selections.length - 1];
+				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
 		}));
 

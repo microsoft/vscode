@@ -8,8 +8,8 @@ import { join } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IRawFileWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { IRawFileWorkspaceFolder, Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Workspace', () => {
 

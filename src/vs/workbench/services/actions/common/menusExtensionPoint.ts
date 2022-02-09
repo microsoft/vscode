@@ -745,7 +745,7 @@ menusExtensionPoint.setHandler(extensions => {
 			}
 
 			if (!menu) {
-				collector.warn(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
+				collector.info(localize('menuId.invalid', "`{0}` is not a valid menu identifier", entry.key));
 				return;
 			}
 

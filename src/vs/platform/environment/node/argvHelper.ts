@@ -8,7 +8,8 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ErrorReporter, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
-import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
+
+const MIN_MAX_MEMORY_SIZE_MB = 2048;
 
 function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
 	const errorReporter: ErrorReporter = {

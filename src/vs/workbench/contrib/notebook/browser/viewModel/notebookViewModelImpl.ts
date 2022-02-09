@@ -562,6 +562,24 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return index + 1;
 	}
 
+	getPreviousVisibleCellIndex(index: number) {
+		for (let i = this._hiddenRanges.length - 1; i >= 0; i--) {
+			const cellRange = this._hiddenRanges[i];
+			const foldStart = cellRange.start - 1;
+			const foldEnd = cellRange.end;
+
+			if (foldEnd < index) {
+				return index;
+			}
+
+			if (foldStart <= index) {
+				return foldStart;
+			}
+		}
+
+		return index;
+	}
+
 	hasCell(cell: ICellViewModel) {
 		return this._handleToViewCellMapping.has(cell.handle);
 	}

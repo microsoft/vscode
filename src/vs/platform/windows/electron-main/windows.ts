@@ -13,7 +13,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INativeWindowConfiguration, IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const enum LoadReason {
 

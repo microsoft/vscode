@@ -316,7 +316,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#widgetDisposableStore.clear();
 
-		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
+		this.#notebookWidget = <IBorrowValue<NotebookEditorWidget>>this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([

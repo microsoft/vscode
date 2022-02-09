@@ -1477,22 +1477,6 @@ export function multibyteAwareBtoa(str: string): string {
 	return btoa(toBinary(str));
 }
 
-/**
- * Typings for the https://wicg.github.io/file-system-access
- *
- * Use `supported(window)` to find out if the browser supports this kind of API.
- */
-export namespace WebFileSystemAccess {
-
-	export function supported(obj: any & Window): boolean {
-		if (typeof obj?.showDirectoryPicker === 'function') {
-			return true;
-		}
-
-		return false;
-	}
-}
-
 type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
 
 export interface IModifierKeyStatus {

@@ -30,7 +30,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { CoverageDetails, denamespaceTestTag, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestItem, ITestItemContext, ITestTag, namespaceTestTag, SerializedTestErrorMessage, SerializedTestResultItem, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CoverageDetails, denamespaceTestTag, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestErrorMessage, ITestItem, ITestItemContext, ITestTag, namespaceTestTag, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -1167,7 +1167,7 @@ export namespace InlayHint {
 		const res = new types.InlayHint(
 			Position.to(hint.position),
 			typeof hint.label === 'string' ? hint.label : hint.label.map(InlayHintLabelPart.to.bind(undefined, converter)),
-			InlayHintKind.to(hint.kind)
+			hint.kind && InlayHintKind.to(hint.kind)
 		);
 		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
 		res.command = hint.command && converter.fromInternal(hint.command);
@@ -1692,17 +1692,17 @@ export namespace NotebookRendererScript {
 }
 
 export namespace TestMessage {
-	export function from(message: vscode.TestMessage): SerializedTestErrorMessage {
+	export function from(message: vscode.TestMessage): ITestErrorMessage.Serialized {
 		return {
 			message: MarkdownString.fromStrict(message.message) || '',
 			type: TestMessageType.Error,
 			expected: message.expectedOutput,
 			actual: message.actualOutput,
-			location: message.location ? location.from(message.location) as any : undefined,
+			location: message.location && ({ range: Range.from(message.location.range), uri: message.location.uri }),
 		};
 	}
 
-	export function to(item: SerializedTestErrorMessage): vscode.TestMessage {
+	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage {
 		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
 		message.actualOutput = item.actual;
 		message.expectedOutput = item.expected;
@@ -1725,16 +1725,17 @@ export namespace TestItem {
 		return {
 			extId: TestId.fromExtHostTestItem(item, ctrlId).toString(),
 			label: item.label,
-			uri: item.uri,
+			uri: URI.revive(item.uri),
+			busy: false,
 			tags: item.tags.map(t => TestTag.namespace(ctrlId, t.id)),
-			range: Range.from(item.range) || null,
+			range: editorRange.Range.lift(Range.from(item.range)),
 			description: item.description || null,
 			sortText: item.sortText || null,
 			error: item.error ? (MarkdownString.fromStrict(item.error) || null) : null,
 		};
 	}
 
-	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
+	export function toPlain(item: ITestItem.Serialized): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
 		return {
 			parent: undefined,
 			error: undefined,
@@ -1756,7 +1757,7 @@ export namespace TestItem {
 
 	function to(item: ITestItem): TestItemImpl {
 		const testId = TestId.fromString(item.extId);
-		const testItem = new TestItemImpl(testId.controllerId, testId.localId, item.label, URI.revive(item.uri));
+		const testItem = new TestItemImpl(testId.controllerId, testId.localId, item.label, URI.revive(item.uri) || undefined);
 		testItem.range = Range.to(item.range || undefined);
 		testItem.description = item.description || undefined;
 		testItem.sortText = item.sortText || undefined;
@@ -1786,7 +1787,7 @@ export namespace TestTag {
 }
 
 export namespace TestResults {
-	const convertTestResultItem = (item: SerializedTestResultItem, byInternalId: Map<string, SerializedTestResultItem>): vscode.TestResultSnapshot => {
+	const convertTestResultItem = (item: TestResultItem.Serialized, byInternalId: Map<string, TestResultItem.Serialized>): vscode.TestResultSnapshot => {
 		const snapshot: vscode.TestResultSnapshot = ({
 			...TestItem.toPlain(item.item),
 			parent: undefined,
@@ -1794,7 +1795,7 @@ export namespace TestResults {
 				state: t.state as number as types.TestResultState,
 				duration: t.duration,
 				messages: t.messages
-					.filter((m): m is SerializedTestErrorMessage => m.type === TestMessageType.Error)
+					.filter((m): m is ITestErrorMessage.Serialized => m.type === TestMessageType.Error)
 					.map(TestMessage.to),
 			})),
 			children: item.children
@@ -1811,8 +1812,8 @@ export namespace TestResults {
 	};
 
 	export function to(serialized: ISerializedTestResults): vscode.TestRunResult {
-		const roots: SerializedTestResultItem[] = [];
-		const byInternalId = new Map<string, SerializedTestResultItem>();
+		const roots: TestResultItem.Serialized[] = [];
+		const byInternalId = new Map<string, TestResultItem.Serialized>();
 		for (const item of serialized.items) {
 			byInternalId.set(item.item.extId, item);
 			if (serialized.request.targets.some(t => t.controllerId === item.controllerId && t.testIds.includes(item.item.extId))) {

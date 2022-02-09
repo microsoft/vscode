@@ -7,6 +7,7 @@ import { promises as fs, exists, realpath } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
+import { fileURLToPath } from 'url';
 import * as which from 'which';
 import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
@@ -605,11 +606,25 @@ export class Git {
 			GIT_PAGER: 'cat'
 		});
 
-		if (options.cwd) {
-			options.cwd = sanitizePath(options.cwd);
+		const cwd = this.getCwd(options);
+		if (cwd) {
+			options.cwd = sanitizePath(cwd);
 		}
 
 		return cp.spawn(this.path, args, options);
+	}
+
+	private getCwd(options: SpawnOptions): string | undefined {
+		const cwd = options.cwd;
+		if (typeof cwd === 'undefined' || typeof cwd === 'string') {
+			return cwd;
+		}
+
+		if (cwd.protocol === 'file:') {
+			return fileURLToPath(cwd);
+		}
+
+		return undefined;
 	}
 
 	private log(output: string): void {

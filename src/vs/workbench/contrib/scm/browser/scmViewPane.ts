@@ -1507,7 +1507,7 @@ abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 	constructor(private sortKey: ViewModelSortKey, title: string) {
 		super({
 			id: `workbench.scm.action.setSortKey.${sortKey}`,
-			title: title,
+			title,
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: ContextKeys.ViewModelSortKey.isEqualTo(sortKey),
