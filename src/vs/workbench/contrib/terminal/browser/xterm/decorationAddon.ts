@@ -85,19 +85,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 
 		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: DecorationProperties.Width });
-		const target = decoration?.element;
 
-		if (!target) {
-			throw new Error('Cannot register decoration for a marker that has already been disposed of');
-		}
+		decoration?.onRender(target => {
+			this._createContextMenu(target, command);
+			this._createHover(target, command);
 
-		this._createContextMenu(target, command);
-		this._createHover(target, command);
-
-		target.classList.add(DecorationSelector.CommandDecoration);
-		if (command.exitCode) {
-			target.classList.add(DecorationSelector.Error);
-		}
+			target.classList.add(DecorationSelector.CommandDecoration);
+			if (command.exitCode) {
+				target.classList.add(DecorationSelector.Error);
+			}
+		});
 
 		return decoration;
 	}
