@@ -249,7 +249,7 @@ export interface IEditorPaneSelection {
 	/**
 	 * Only used for logging to print more info about the selection.
 	 */
-	toString?(): string;
+	log?(): string;
 }
 
 export const enum EditorPaneSelectionCompareResult {

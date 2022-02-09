@@ -57,8 +57,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ILogService private readonly logService: ILogService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -131,8 +130,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // return if the active editor is still the same
 		}
 
-		this.logService.trace('[history] onDidActiveEditorChange()');
-
 		// Remember as last active editor (can be undefined if none opened)
 		this.lastActiveEditor = activeEditorPane?.input && activeEditorPane.group ? { editor: activeEditorPane.input, groupId: activeEditorPane.group.id } : undefined;
 
@@ -146,7 +143,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// is having a selection concept.
 		if (isEditorPaneWithSelection(activeEditorPane)) {
 			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => {
-				this.logService.trace(`[history] onDidActiveEditorChange.onDidChangeSelection(): ${e}`);
 
 				// Handle in editor navigation stack
 				this.handleActiveEditorSelectionChangeEvent(activeEditorPane, e);
@@ -318,27 +314,31 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Always send to global navigation stack
 		this.globalDefaultEditorNavigationStack.notifyNavigation(editorPane, event);
 
-		// Send to specific navigation stack based on reason
-		switch (event.reason) {
-			case EditorPaneSelectionChangeReason.EDIT:
-				this.globalEditsEditorNavigationStack.notifyNavigation(editorPane, event);
-				break;
-			case EditorPaneSelectionChangeReason.NAVIGATION: {
+		// Check for edits
+		if (event.reason === EditorPaneSelectionChangeReason.EDIT) {
+			this.globalEditsEditorNavigationStack.notifyNavigation(editorPane, event);
+		}
 
-				// A navigation selection change always has a source and target
-				// As such, we add the previous entry of the global navigation
-				// stack so that our navigation stack receives both entries
-				// unless the user is currently navigating.
+		// Check for navigations
+		//
+		// Note: ignore if global navigation stack is navigating because
+		// in that case we do not want to receive repeated entries in
+		// the navigation stack.
+		else if (event.reason === EditorPaneSelectionChangeReason.NAVIGATION && !this.globalDefaultEditorNavigationStack.isNavigating()) {
 
-				if (!this.globalNavigationsEditorNavigationStack.isNavigating()) {
-					const previous = this.globalDefaultEditorNavigationStack.previous;
-					if (previous) {
-						this.globalNavigationsEditorNavigationStack.addOrReplace(previous.groupId, previous.editor, previous.selection);
-					}
+			// A navigation selection change always has a source and target
+			// As such, we add the previous entry of the global navigation
+			// stack so that our navigation stack receives both entries
+			// unless the user is currently navigating.
+
+			if (!this.globalNavigationsEditorNavigationStack.isNavigating()) {
+				const previous = this.globalDefaultEditorNavigationStack.previous;
+				if (previous) {
+					this.globalNavigationsEditorNavigationStack.addOrReplace(previous.groupId, previous.editor, previous.selection);
 				}
-				this.globalNavigationsEditorNavigationStack.notifyNavigation(editorPane, event);
-				break;
 			}
+
+			this.globalNavigationsEditorNavigationStack.notifyNavigation(editorPane, event);
 		}
 	}
 
@@ -1064,6 +1064,7 @@ export class EditorNavigationStack extends Disposable {
 	private registerListeners(): void {
 		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e.id)));
 		this._register(this.onDidChange(() => this.traceStack()));
+		this._register(this.logService.onDidChangeLogLevel(e => this.traceStack()));
 	}
 
 	private traceStack(): void {
@@ -1073,17 +1074,17 @@ export class EditorNavigationStack extends Disposable {
 
 		let entryLabels: string[] = [];
 		for (const entry of this.stack) {
-			if (typeof entry.selection?.toString === 'function') {
-				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: ${entry.selection.toString()}`);
+			if (typeof entry.selection?.log === 'function') {
+				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: ${entry.selection.log()}`);
 			} else {
 				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: <none>`);
 			}
 		}
 
 		if (entryLabels.length === 0) {
-			this.trace(`onDidChange(index: ${this.index}, navigating: ${this.isNavigating()}): <empty>`);
+			this.trace(`index: ${this.index}, navigating: ${this.isNavigating()}: <empty>`);
 		} else {
-			this.trace(`onDidChange(index: ${this.index}, navigating: ${this.isNavigating()}):
+			this.trace(`index: ${this.index}, navigating: ${this.isNavigating()}
 ${entryLabels.join('\n')}
 			`);
 		}
@@ -1105,9 +1106,9 @@ ${entryLabels.join('\n')}
 		}
 
 		if (editor !== null) {
-			this.logService.trace(`[history stack ${kindLabel}]: ${msg} (editor: ${editor?.resource?.toString(true)}, event: ${this.traceEvent(event)})`);
+			this.logService.trace(`[History stack ${kindLabel}]: ${msg} (editor: ${editor?.resource?.toString(true)}, event: ${this.traceEvent(event)})`);
 		} else {
-			this.logService.trace(`[history stack ${kindLabel}]: ${msg}`);
+			this.logService.trace(`[History stack ${kindLabel}]: ${msg}`);
 		}
 	}
 
@@ -1189,6 +1190,7 @@ ${entryLabels.join('\n')}
 
 		// Normal navigation not part of stack navigation
 		else {
+			this.trace(`notifyNavigation() not ignoring`, editorPane?.input, event);
 
 			// Navigation inside selection aware editor
 			if (isSelectionAwareEditorPane && hasValidEditor) {

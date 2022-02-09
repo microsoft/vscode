@@ -358,7 +358,7 @@ export class TextEditorPaneSelection implements IEditorPaneSelection {
 		return textEditorOptions;
 	}
 
-	toString(): string {
+	log(): string {
 		return `line: ${this.textSelection.startLineNumber}-${this.textSelection.endLineNumber}, col:  ${this.textSelection.startColumn}-${this.textSelection.endColumn}`;
 	}
 }

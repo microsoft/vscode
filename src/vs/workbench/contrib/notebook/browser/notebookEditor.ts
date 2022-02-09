@@ -430,4 +430,8 @@ class NotebookEditorSelection implements IEditorPaneSelection {
 
 		return notebookOptions;
 	}
+
+	log(): string {
+		return this.cellUri.fragment;
+	}
 }
