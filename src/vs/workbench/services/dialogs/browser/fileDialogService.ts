@@ -13,11 +13,12 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { localize } from 'vs/nls';
 import { getMediaOrTextMime } from 'vs/base/common/mime';
 import { basename } from 'vs/base/common/resources';
-import { triggerDownload, triggerUpload, WebFileSystemAccess } from 'vs/base/browser/dom';
+import { triggerDownload, triggerUpload } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { extractFilesDropData } from 'vs/workbench/browser/dnd';
 import { Iterable } from 'vs/base/common/iterator';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 

@@ -15,7 +15,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { WebFileSystemAccess } from 'vs/base/browser/dom';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
 export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
 

@@ -25,7 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
-import { WebFileSystemAccess } from 'vs/base/browser/dom';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
 export class RemoteSearchService extends SearchService {
 	constructor(
