@@ -7,8 +7,8 @@ import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, SafeDisposable } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableTracker } from 'vs/base/test/common/utils';
 
 namespace Samples {
 
@@ -41,30 +41,53 @@ namespace Samples {
 
 suite('Event utils dispose', function () {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	let tracker = new DisposableTracker();
+
+	function assertDisposablesCount(expected: number) {
+		assert.strictEqual(tracker.getTrackedDisposables().length, expected);
+	}
+
+	setup(() => {
+		tracker = new DisposableTracker();
+		setDisposableTracker(tracker);
+	});
+
+	teardown(function () {
+		setDisposableTracker(null);
+	});
 
 	test('no leak with snapshot-utils', function () {
 
 		const store = new DisposableStore();
 		const emitter = new Emitter<number>();
 		const evens = Event.filter(emitter.event, n => n % 2 === 0, store);
+		assertDisposablesCount(1); // snaphot only listen when `evens` is being listened on
+
 		let all = 0;
 		let leaked = evens(n => all += n);
 		assert.ok(isDisposable(leaked));
+		assertDisposablesCount(3);
+
 		emitter.dispose();
 		store.dispose();
+		assertDisposablesCount(1); // leaked is still there
 	});
 
 	test('no leak with debounce-util', function () {
 		const store = new DisposableStore();
 		const emitter = new Emitter<number>();
 		const debounced = Event.debounce(emitter.event, (l) => 0, undefined, undefined, undefined, store);
+		assertDisposablesCount(1); // debounce only listens when `debounce` is being listened on
 
 		let all = 0;
 		let leaked = debounced(n => all += n);
 		assert.ok(isDisposable(leaked));
+		assertDisposablesCount(3);
+
 		emitter.dispose();
 		store.dispose();
+
+		assertDisposablesCount(1); // leaked is still there
 	});
 });
 
