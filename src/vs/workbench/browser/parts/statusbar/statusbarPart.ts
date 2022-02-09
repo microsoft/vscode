@@ -528,6 +528,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 				/* Focus outline */
 				.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus-visible:not(.disabled) {
 					outline: 1px solid ${this.getColor(activeContrastBorder) ?? foregroundColor};
+					outline-offset: -1px;
 				}
 				/* Notification Beak */
 				.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
