@@ -51,6 +51,7 @@ import { URI } from 'vs/base/common/uri';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { CodeDataTransfers, containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
 import { getColorClass, getColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -2064,6 +2065,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 
 	constructor(
 		private readonly _container: HTMLElement,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
@@ -2174,8 +2176,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 	}
 
 	private _getViewOrientation(): Orientation {
+		const panelPosition = this._layoutService.getPanelPosition();
 		const terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
-		return terminalLocation === ViewContainerLocation.Panel
+		return terminalLocation === ViewContainerLocation.Panel && panelPosition === Position.BOTTOM
 			? Orientation.HORIZONTAL
 			: Orientation.VERTICAL;
 	}
