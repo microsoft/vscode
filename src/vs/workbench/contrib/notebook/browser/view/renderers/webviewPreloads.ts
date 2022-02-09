@@ -1556,7 +1556,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}();
 
-	class MarkupCell implements rendererApi.OutputItem {
+	class MarkupCell {
 
 		private static pendingCodeBlocksToHighlight = new Map<string, HTMLElement>();
 
@@ -1574,18 +1574,49 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public readonly ready: Promise<void>;
 
+		public readonly id: string;
 		public readonly element: HTMLElement;
+
+		private readonly outputItem: rendererApi.OutputItem;
 
 		/// Internal field that holds text content
 		private _content: { readonly value: string; readonly version: number };
 
 		constructor(id: string, mime: string, content: string, top: number) {
 			this.id = id;
-			this.mime = mime;
 			this._content = { value: content, version: 0 };
 
 			let resolveReady: () => void;
 			this.ready = new Promise<void>(r => resolveReady = r);
+
+			let cachedData: { readonly version: number; readonly value: Uint8Array } | undefined;
+			this.outputItem = Object.freeze(<rendererApi.OutputItem>{
+				id,
+				mime,
+				metadata: undefined,
+
+				text: (): string => {
+					return this._content.value;
+				},
+
+				json: () => {
+					return undefined;
+				},
+
+				data: (): Uint8Array => {
+					if (cachedData?.version === this._content.version) {
+						return cachedData.value;
+					}
+
+					const data = textEncoder.encode(this._content.value);
+					cachedData = { version: this._content.version, value: data };
+					return data;
+				},
+
+				blob(): Blob {
+					return new Blob([this.data()], { type: this.mime });
+				}
+			});
 
 			const root = document.getElementById('container')!;
 			const markupCell = document.createElement('div');
@@ -1609,31 +1640,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 				resolveReady();
 			});
 		}
-
-		//#region IOutputItem
-		public readonly id: string;
-		public readonly mime: string;
-		public readonly metadata = undefined;
-
-		text(): string { return this._content.value; }
-
-		json() { return undefined; }
-
-		bytes(): Uint8Array { return this.data(); }
-
-		#cachedData?: { readonly version: number; readonly value: Uint8Array };
-		data(): Uint8Array {
-			if (this.#cachedData?.version === this._content.version) {
-				return this.#cachedData.value;
-			}
-
-			const data = textEncoder.encode(this._content.value);
-			this.#cachedData = { version: this._content.version, value: data };
-			return data;
-		}
-
-		blob() { return new Blob([this.data()], { type: this.mime }); }
-		//#endregion
 
 		private addEventListeners() {
 			this.element.addEventListener('dblclick', () => {
@@ -1682,7 +1688,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public async updateContentAndRender(newContent: string): Promise<void> {
 			this._content = { value: newContent, version: this._content.version + 1 };
 
-			await renderers.render(this, this.element);
+			await renderers.render(this.outputItem, this.element);
 
 			const root = (this.element.shadowRoot ?? this.element);
 			const html = [];
