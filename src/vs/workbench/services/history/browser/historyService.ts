@@ -1436,6 +1436,11 @@ ${entryLabels.join('\n')}
 	}
 
 	async goForward(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
+
 		if (!this.canGoForward()) {
 			return;
 		}
@@ -1449,6 +1454,11 @@ ${entryLabels.join('\n')}
 	}
 
 	async goBack(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
+
 		if (!this.canGoBack()) {
 			return;
 		}
@@ -1457,7 +1467,11 @@ ${entryLabels.join('\n')}
 		return this.navigate();
 	}
 
-	goPrevious(): Promise<void> {
+	async goPrevious(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
 
 		// If we never navigated, just go back
 		if (this.previousIndex === -1) {
@@ -1480,6 +1494,54 @@ ${entryLabels.join('\n')}
 
 		this.setIndex(this.stack.length - 1);
 		return this.navigate();
+	}
+
+	private async maybeGoCurrent(): Promise<boolean> {
+
+		// When this navigation stack works with a specific
+		// filter where not every selection change is added
+		// to the stack, we want to first reveal the current
+		// selection before attempting to navigate in the
+		// stack.
+
+		if (this.kind === GoFilter.NONE) {
+			return false; // only applies when  we are a filterd stack
+		}
+
+		if (this.isCurrentSelectionActive()) {
+			return false; // we are at the current navigation stop
+		}
+
+		// Go to current selection
+		await this.navigate();
+
+		return true;
+	}
+
+	private isCurrentSelectionActive(): boolean {
+		if (!this.current?.selection) {
+			return false; // we need a current selection
+		}
+
+		const pane = this.editorService.activeEditorPane;
+		if (!isEditorPaneWithSelection(pane)) {
+			return false; // we need an active editor pane with selection support
+		}
+
+		if (pane.group?.id !== this.current.groupId) {
+			return false; // we need matching groups
+		}
+
+		if (!pane.input || !this.editorHelper.matchesEditor(pane.input, this.current.editor)) {
+			return false; // we need matching editors
+		}
+
+		const paneSelection = pane.getSelection();
+		if (!paneSelection) {
+			return false; // we need a selection to compare with
+		}
+
+		return paneSelection.compare(this.current.selection) === EditorPaneSelectionCompareResult.IDENTICAL;
 	}
 
 	private setIndex(newIndex: number, skipEvent?: boolean): void {
