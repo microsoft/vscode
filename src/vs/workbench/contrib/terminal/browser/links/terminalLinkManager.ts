@@ -73,7 +73,7 @@ export class TerminalLinkManager extends DisposableStore {
 		// Setup link detectors in their order of priority
 		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._resolvePath.bind(this)));
 		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
-			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, this._processManager.os || OS, this._resolvePath.bind(this)));
+			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager.os || OS, this._resolvePath.bind(this)));
 		}
 		this._setupLinkDetector(TerminalShellIntegrationLinkDetector.id, this._instantiationService.createInstance(TerminalShellIntegrationLinkDetector, this._xterm));
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
