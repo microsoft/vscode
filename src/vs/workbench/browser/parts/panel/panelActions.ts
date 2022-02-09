@@ -89,16 +89,14 @@ const AlignPanelActionId = {
 interface PanelActionConfig<T> {
 	id: string;
 	when: ContextKeyExpression;
-	alias: string;
 	title: ICommandActionTitle;
 	shortLabel: string;
 	value: T;
 }
 
-function createPanelActionConfig<T>(id: string, alias: string, title: ICommandActionTitle, shortLabel: string, value: T, when: ContextKeyExpression): PanelActionConfig<T> {
+function createPanelActionConfig<T>(id: string, title: ICommandActionTitle, shortLabel: string, value: T, when: ContextKeyExpression): PanelActionConfig<T> {
 	return {
 		id,
-		alias,
 		title,
 		shortLabel,
 		value,
@@ -106,27 +104,27 @@ function createPanelActionConfig<T>(id: string, alias: string, title: ICommandAc
 	};
 }
 
-function createPositionPanelActionConfig(id: string, alias: string, title: ICommandActionTitle, shortLabel: string, position: Position): PanelActionConfig<Position> {
-	return createPanelActionConfig<Position>(id, alias, title, shortLabel, position, PanelPositionContext.notEqualsTo(positionToString(position)));
+function createPositionPanelActionConfig(id: string, title: ICommandActionTitle, shortLabel: string, position: Position): PanelActionConfig<Position> {
+	return createPanelActionConfig<Position>(id, title, shortLabel, position, PanelPositionContext.notEqualsTo(positionToString(position)));
 }
 
-function createAlignmentPanelActionConfig(id: string, alias: string, title: ICommandActionTitle, shortLabel: string, alignment: PanelAlignment): PanelActionConfig<PanelAlignment> {
-	return createPanelActionConfig<PanelAlignment>(id, alias, title, shortLabel, alignment, PanelAlignmentContext.notEqualsTo(alignment));
+function createAlignmentPanelActionConfig(id: string, title: ICommandActionTitle, shortLabel: string, alignment: PanelAlignment): PanelActionConfig<PanelAlignment> {
+	return createPanelActionConfig<PanelAlignment>(id, title, shortLabel, alignment, PanelAlignmentContext.notEqualsTo(alignment));
 }
 
 
 export const PositionPanelActionConfigs: PanelActionConfig<Position>[] = [
-	createPositionPanelActionConfig(PositionPanelActionId.LEFT, 'View: Move Panel Left', { value: localize('positionPanelLeft', 'Move Panel Left'), original: 'Move Panel Left' }, localize('positionPanelLeftShort', "Left"), Position.LEFT),
-	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, 'View: Move Panel Right', { value: localize('positionPanelRight', 'Move Panel Right'), original: 'Move Panel Right' }, localize('positionPanelRightShort', "Right"), Position.RIGHT),
-	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, 'View: Move Panel To Bottom', { value: localize('positionPanelBottom', 'Move Panel To Bottom'), original: 'Move Panel To Bottom' }, localize('positionPanelBottomShort', "Bottom"), Position.BOTTOM),
+	createPositionPanelActionConfig(PositionPanelActionId.LEFT, { value: localize('positionPanelLeft', 'Move Panel Left'), original: 'Move Panel Left' }, localize('positionPanelLeftShort', "Left"), Position.LEFT),
+	createPositionPanelActionConfig(PositionPanelActionId.RIGHT, { value: localize('positionPanelRight', 'Move Panel Right'), original: 'Move Panel Right' }, localize('positionPanelRightShort', "Right"), Position.RIGHT),
+	createPositionPanelActionConfig(PositionPanelActionId.BOTTOM, { value: localize('positionPanelBottom', 'Move Panel To Bottom'), original: 'Move Panel To Bottom' }, localize('positionPanelBottomShort', "Bottom"), Position.BOTTOM),
 ];
 
 
-export const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
-	createAlignmentPanelActionConfig(AlignPanelActionId.LEFT, 'View: Set Panel Alignment to Left', { value: localize('alignPanelLeft', 'Set Panel Alignment to Left'), original: 'Set Panel Alignment to Left' }, localize('alignPanelLeftShort', "Left"), 'left'),
-	createAlignmentPanelActionConfig(AlignPanelActionId.RIGHT, 'View: Set Panel Alignment to Right', { value: localize('alignPanelRight', 'Set Panel Alignment to Right'), original: 'Set Panel Alignment to Right' }, localize('alignPanelRightShort', "Right"), 'right'),
-	createAlignmentPanelActionConfig(AlignPanelActionId.CENTER, 'View: Set Panel Alignment to Center', { value: localize('alignPanelCenter', 'Set Panel Alignment to Center'), original: 'Set Panel Alignment to Center' }, localize('alignPanelCenterShort', "Center"), 'center'),
-	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, 'View: Set Panel Alignment to Justify', { value: localize('alignPanelJustify', 'Set Panel Alignment to Justify'), original: 'Set Panel Alignment to Justify' }, localize('alignPanelJustifyShort', "Justify"), 'justify'),
+const AlignPanelActionConfigs: PanelActionConfig<PanelAlignment>[] = [
+	createAlignmentPanelActionConfig(AlignPanelActionId.LEFT, { value: localize('alignPanelLeft', 'Set Panel Alignment to Left'), original: 'Set Panel Alignment to Left' }, localize('alignPanelLeftShort', "Left"), 'left'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.RIGHT, { value: localize('alignPanelRight', 'Set Panel Alignment to Right'), original: 'Set Panel Alignment to Right' }, localize('alignPanelRightShort', "Right"), 'right'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.CENTER, { value: localize('alignPanelCenter', 'Set Panel Alignment to Center'), original: 'Set Panel Alignment to Center' }, localize('alignPanelCenterShort', "Center"), 'center'),
+	createAlignmentPanelActionConfig(AlignPanelActionId.JUSTIFY, { value: localize('alignPanelJustify', 'Set Panel Alignment to Justify'), original: 'Set Panel Alignment to Justify' }, localize('alignPanelJustifyShort', "Justify"), 'justify'),
 ];
 
 const positionByActionId = new Map(PositionPanelActionConfigs.map(config => [config.id, config.value]));
