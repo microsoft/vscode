@@ -59,6 +59,12 @@ export interface ITerminalSimpleLink {
 	 * An optional set of actions to show in the hover's status bar.
 	 */
 	actions?: IHoverAction[];
+
+	/**
+	 * An optional method to call when the link is activated. This should be used when there is are
+	 * no registered opener for this link type.
+	 */
+	activate?(text: string): void;
 }
 
 export type TerminalLinkType = TerminalBuiltinLinkType | ITerminalExternalLinkType;

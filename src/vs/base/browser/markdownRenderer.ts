@@ -30,8 +30,8 @@ export interface MarkedOptions extends marked.MarkedOptions {
 }
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
-	codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
-	asyncRenderCallback?: () => void;
+	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
+	readonly asyncRenderCallback?: () => void;
 }
 
 /**
@@ -138,9 +138,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		href = removeMarkdownEscapes(href);
 		if (
 			!href
-			|| href.match(/^data:|javascript:/i)
-			|| (href.match(/^command:/i) && !markdown.isTrusted)
-			|| href.match(/^command:(\/\/\/)?_workbench\.downloadResource/i)
+			|| /^data:|javascript:/i.test(href)
+			|| (/^command:/i.test(href) && !markdown.isTrusted)
+			|| /^command:(\/\/\/)?_workbench\.downloadResource/i.test(href)
 		) {
 			// drop the link
 			return text;
@@ -161,17 +161,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
-			if (typeof lang !== 'string') {
-				return '';
-			}
-
-			const value = options.codeBlockRenderer!(lang, code);
+			const value = options.codeBlockRenderer!(lang ?? '', code);
 			// when code-block rendering is async we return sync
 			// but update the node with the real result later.
 			const id = defaultGenerator.nextId();
 			raceCancellation(Promise.all([value, withInnerHTML]), cts.token).then(values => {
 				if (!isDisposed && values) {
-					const span = <HTMLDivElement>element.querySelector(`div[data-code="${id}"]`);
+					const span = element.querySelector<HTMLDivElement>(`div[data-code="${id}"]`);
 					if (span) {
 						DOM.reset(span, values[0]);
 					}

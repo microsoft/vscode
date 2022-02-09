@@ -51,6 +51,7 @@ import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/brows
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -222,6 +223,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		private viewDescriptorService: IViewDescriptorService,
 		private logService: ILogService,
 		private configurationService: IConfigurationService,
+		private notificationService: INotificationService,
 		taskService: ITaskService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
@@ -304,6 +306,21 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			return result;
 		} else {
 			return undefined;
+		}
+	}
+
+	private showTaskLoadErrors(task: Task) {
+		if (task.taskLoadMessages && task.taskLoadMessages.length > 0) {
+			task.taskLoadMessages.forEach(loadMessage => {
+				this.log(loadMessage + '\n');
+			});
+			const openOutput = 'Show Output';
+			this.notificationService.prompt(Severity.Warning,
+				nls.localize('TerminalTaskSystem.taskLoadReporting', "There are issues with task \"{0}\". See the output for more details.",
+					task._label), [{
+						label: openOutput,
+						run: () => this.showOutput()
+					}]);
 		}
 	}
 
@@ -480,6 +497,8 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this.showDependencyCycleMessage(task);
 			return {};
 		}
+
+		this.showTaskLoadErrors(task);
 
 		alreadyResolved = alreadyResolved ?? new Map<string, string>();
 		let promises: Promise<ITaskSummary>[] = [];

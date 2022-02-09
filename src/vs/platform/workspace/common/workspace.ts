@@ -13,16 +13,6 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-export interface IRawFileWorkspaceFolder {
-	path: string;
-	name?: string;
-}
-
-export interface IRawUriWorkspaceFolder {
-	uri: string;
-	name?: string;
-}
-
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
 export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
@@ -370,6 +360,16 @@ export class Workspace implements IWorkspace {
 	toJSON(): IWorkspace {
 		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration };
 	}
+}
+
+export interface IRawFileWorkspaceFolder {
+	path: string;
+	name?: string;
+}
+
+export interface IRawUriWorkspaceFolder {
+	uri: string;
+	name?: string;
 }
 
 export class WorkspaceFolder implements IWorkspaceFolder {

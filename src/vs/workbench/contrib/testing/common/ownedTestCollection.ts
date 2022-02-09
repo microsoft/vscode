@@ -14,6 +14,7 @@ import { diffTestItems, ExtHostTestItemEvent, ExtHostTestItemEventOp, getPrivate
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { applyTestItemUpdate, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import * as editorRange from 'vs/editor/common/core/range';
 
 type TestItemRaw = Convert.TestItem.Raw;
 
@@ -177,7 +178,10 @@ export class SingleUseTestCollection extends Disposable {
 						this.diffTagRefs(value, previous, extId);
 						break;
 					case 'range':
-						this.pushDiff({ op: TestDiffOpType.Update, item: { extId, item: { range: Convert.Range.from(value) }, } });
+						this.pushDiff({
+							op: TestDiffOpType.Update,
+							item: { extId, item: { range: editorRange.Range.lift(Convert.Range.from(value)) } },
+						});
 						break;
 					case 'error':
 						this.pushDiff({ op: TestDiffOpType.Update, item: { extId, item: { error: Convert.MarkdownString.fromStrict(value) || null }, } });
