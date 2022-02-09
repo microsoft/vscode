@@ -461,7 +461,7 @@ class TestRunTracker extends Disposable {
 		}
 
 		const chain: ITestItem.Serialized[] = [];
-		const root = this.dto.colllection.root;
+		const root = this.dto.collection.root;
 		while (true) {
 			const converted = Convert.TestItem.from(test as TestItemImpl);
 			chain.unshift(converted);
@@ -605,7 +605,7 @@ export class TestRunDto {
 		include: string[],
 		exclude: string[],
 		public readonly isPersisted: boolean,
-		public readonly colllection: SingleUseTestCollection,
+		public readonly collection: SingleUseTestCollection,
 	) {
 		this.includePrefix = include.map(id => id + TestIdPathParts.Delimiter);
 		this.excludePrefix = exclude.map(id => id + TestIdPathParts.Delimiter);

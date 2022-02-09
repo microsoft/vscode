@@ -188,8 +188,8 @@ export namespace CustomExecutionDTO {
 		};
 	}
 
-	export function to(taskId: string, providedCustomExeutions: Map<string, types.CustomExecution>): types.CustomExecution | undefined {
-		return providedCustomExeutions.get(taskId);
+	export function to(taskId: string, providedCustomExertions: Map<string, types.CustomExecution>): types.CustomExecution | undefined {
+		return providedCustomExertions.get(taskId);
 	}
 }
 
@@ -284,7 +284,7 @@ export namespace TaskDTO {
 		};
 		return result;
 	}
-	export async function to(value: tasks.TaskDTO | undefined, workspace: IExtHostWorkspaceProvider, providedCustomExeutions: Map<string, types.CustomExecution>): Promise<types.Task | undefined> {
+	export async function to(value: tasks.TaskDTO | undefined, workspace: IExtHostWorkspaceProvider, providedCustomExecutions: Map<string, types.CustomExecution>): Promise<types.Task | undefined> {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
@@ -294,7 +294,7 @@ export namespace TaskDTO {
 		} else if (ShellExecutionDTO.is(value.execution)) {
 			execution = ShellExecutionDTO.to(value.execution);
 		} else if (CustomExecutionDTO.is(value.execution)) {
-			execution = CustomExecutionDTO.to(value._id, providedCustomExeutions);
+			execution = CustomExecutionDTO.to(value._id, providedCustomExecutions);
 		}
 		const definition: vscode.TaskDefinition | undefined = TaskDefinitionDTO.to(value.definition);
 		let scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder | undefined;

@@ -20,7 +20,7 @@ import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/edito
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
 export class MainThreadEditorTabs {
 
-	private readonly _dispoables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map<number, IEditorTabDto[]>();
 	private _currentlyActiveTab: { groupId: number; tab: IEditorTabDto } | undefined = undefined;
@@ -34,12 +34,12 @@ export class MainThreadEditorTabs {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
 		// Queue all events that arrive on the same event loop and then send them as a batch
-		this._dispoables.add(editorService.onDidEditorsChange((events) => this._updateTabsModel(events)));
+		this._disposables.add(editorService.onDidEditorsChange((events) => this._updateTabsModel(events)));
 		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
 	}
 
 	dispose(): void {
-		this._dispoables.dispose();
+		this._disposables.dispose();
 	}
 
 	/**

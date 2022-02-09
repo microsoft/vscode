@@ -103,7 +103,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	private readonly _editors = new Map<INotebookEditor, IDisposable>();
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registraion: IDisposable]>();
+	private readonly _kernels = new Map<number, [kernel: MainThreadKernel, registration: IDisposable]>();
 	private readonly _proxy: ExtHostNotebookKernelsShape;
 
 	private readonly _executions = new Map<number, INotebookCellExecution>();

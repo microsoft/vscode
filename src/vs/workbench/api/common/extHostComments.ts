@@ -327,10 +327,10 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		private _localDisposables: types.Disposable[];
 
-		private _isDiposed: boolean;
+		private _isDisposed: boolean;
 
 		public get isDisposed(): boolean {
-			return this._isDiposed;
+			return this._isDisposed;
 		}
 
 		private _commentsMap: Map<vscode.Comment, number> = new Map<vscode.Comment, number>();
@@ -364,7 +364,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			);
 
 			this._localDisposables = [];
-			this._isDiposed = false;
+			this._isDisposed = false;
 
 			this._localDisposables.push(this.onDidUpdateCommentThread(() => {
 				this.eventuallyUpdateCommentThread();
@@ -406,7 +406,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		@debounce(100)
 		eventuallyUpdateCommentThread(): void {
-			if (this._isDiposed) {
+			if (this._isDisposed) {
 				return;
 			}
 
@@ -465,7 +465,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		dispose() {
-			this._isDiposed = true;
+			this._isDisposed = true;
 			this._acceptInputDisposables.dispose();
 			this._localDisposables.forEach(disposable => disposable.dispose());
 		}

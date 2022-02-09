@@ -27,7 +27,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 @extHostCustomer
 export class MainThreadFileSystemEventService {
 
-	static readonly MementoKeyAdditionalEdits = `file.particpants.additionalEdits`;
+	static readonly MementoKeyAdditionalEdits = `file.participants.additionalEdits`;
 
 	private readonly _listener = new DisposableStore();
 

@@ -111,8 +111,8 @@ class NodeModuleAliasingModuleFactory implements IAlternativeModuleProvider {
 			// decompose ${appRoot}/node_modules/foo/bin to ['${appRoot}/node_modules/', 'foo', '/bin'],
 			// and likewise the more complex form ${appRoot}/node_modules.asar.unpacked/@vcode/foo/bin
 			// to ['${appRoot}/node_modules.asar.unpacked/',' @vscode/foo', '/bin'].
-			const npmIdChrs = `[a-z0-9_.-]`;
-			const npmModuleName = `@${npmIdChrs}+\\/${npmIdChrs}+|${npmIdChrs}+`;
+			const npmIdChars = `[a-z0-9_.-]`;
+			const npmModuleName = `@${npmIdChars}+\\/${npmIdChars}+|${npmIdChars}+`;
 			const moduleFolders = 'node_modules|node_modules\\.asar(?:\\.unpacked)?';
 			this.re = new RegExp(`^(${root}/${moduleFolders}\\/)(${npmModuleName})(.*)$`, 'i');
 		}

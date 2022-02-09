@@ -295,7 +295,7 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 
 	readonly delegatingCommandId: string = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 	private readonly _cache = new Map<number, vscode.Command>();
-	private _cachIdPool = 0;
+	private _catchIdPool = 0;
 
 	// --- conversion between internal and api commands
 	constructor(
@@ -338,7 +338,7 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 			// we have a contributed command with arguments. that
 			// means we don't want to send the arguments around
 
-			const id = ++this._cachIdPool;
+			const id = ++this._catchIdPool;
 			this._cache.set(id, command);
 			disposables.add(toDisposable(() => {
 				this._cache.delete(id);

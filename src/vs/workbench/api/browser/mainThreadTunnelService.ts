@@ -22,7 +22,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
 	private readonly _proxy: ExtHostTunnelServiceShape;
-	private elevateionRetry: boolean = false;
+	private elevationRetry: boolean = false;
 	private portsAttributesProviders: Map<number, PortAttributesProviderSelector> = new Map();
 
 	constructor(
@@ -108,7 +108,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			elevateIfNeeded: false
 		});
 		if (tunnel) {
-			if (!this.elevateionRetry
+			if (!this.elevationRetry
 				&& (tunnelOptions.localAddressPort !== undefined)
 				&& (tunnel.tunnelLocalPort !== undefined)
 				&& isPortPrivileged(tunnelOptions.localAddressPort)
@@ -128,7 +128,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			[{
 				label: nls.localize('remote.tunnelsView.elevationButton', "Use Port {0} as Sudo...", tunnel.tunnelRemotePort),
 				run: async () => {
-					this.elevateionRetry = true;
+					this.elevationRetry = true;
 					await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
 					await this.remoteExplorerService.forward({
 						remote: tunnelOptions.remoteAddress,
@@ -140,7 +140,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 						},
 						elevateIfNeeded: true
 					});
-					this.elevateionRetry = false;
+					this.elevationRetry = false;
 				}
 			}]);
 	}

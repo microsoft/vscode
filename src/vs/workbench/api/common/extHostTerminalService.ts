@@ -260,11 +260,11 @@ export class ExtHostPseudoterminal implements ITerminalChildProcess {
 	constructor(private readonly _pty: vscode.Pseudoterminal) { }
 
 	refreshProperty<T extends ProcessPropertyType>(property: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		throw new Error(`refreshProperty is not suppported in extension owned terminals. property: ${property}`);
+		throw new Error(`refreshProperty is not supported in extension owned terminals. property: ${property}`);
 	}
 
 	updateProperty<T extends ProcessPropertyType>(property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
-		throw new Error(`updateProperty is not suppported in extension owned terminals. property: ${property}, value: ${value}`);
+		throw new Error(`updateProperty is not supported in extension owned terminals. property: ${property}, value: ${value}`);
 	}
 
 	async start(): Promise<undefined> {
@@ -759,9 +759,9 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		delete this._extensionTerminalAwaitingStart[id];
 
 		// Clean up process disposables
-		const processDiposable = this._terminalProcessDisposables[id];
-		if (processDiposable) {
-			processDiposable.dispose();
+		const processDisposable = this._terminalProcessDisposables[id];
+		if (processDisposable) {
+			processDisposable.dispose();
 			delete this._terminalProcessDisposables[id];
 		}
 		// Send exit event to main side
