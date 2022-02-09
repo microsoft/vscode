@@ -2705,6 +2705,11 @@ export enum CommentMode {
 	Preview = 1
 }
 
+export enum CommentThreadState {
+	Unresolved = 0,
+	Resolved = 1
+}
+
 //#endregion
 
 //#region Semantic Coloring
