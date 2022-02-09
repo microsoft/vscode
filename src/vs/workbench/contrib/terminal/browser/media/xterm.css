@@ -177,8 +177,3 @@
 .xterm-strikethrough {
 	text-decoration: line-through;
 }
-
-.xterm-screen .xterm-decoration {
-	z-index: 6;
-	position: absolute;
-}
