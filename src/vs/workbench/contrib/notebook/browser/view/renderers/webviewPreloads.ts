@@ -673,6 +673,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		outputNode.appendChild(errList);
 	}
 
+	/**
+	 * https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/vscode-notebook-renderer/index.d.ts
+	 */
 	interface IOutputItem {
 		readonly id: string;
 
@@ -700,10 +703,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			data(): Uint8Array {
 				return valueBytes;
-			},
-
-			bytes(): Uint8Array {
-				return this.data();
 			},
 
 			text(): string {
