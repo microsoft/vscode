@@ -167,7 +167,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			const id = defaultGenerator.nextId();
 			raceCancellation(Promise.all([value, withInnerHTML]), cts.token).then(values => {
 				if (!isDisposed && values) {
-					const span = <HTMLDivElement>element.querySelector(`div[data-code="${id}"]`);
+					const span = element.querySelector<HTMLDivElement>(`div[data-code="${id}"]`);
 					if (span) {
 						DOM.reset(span, values[0]);
 					}
