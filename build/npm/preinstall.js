@@ -5,10 +5,13 @@
 
 let err = false;
 
-const majorNodeVersion = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
+const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
+const majorNodeVersion = parseInt(nodeVersion[1]);
+const minorNodeVersion = parseInt(nodeVersion[2]);
+const patchNodeVersion = parseInt(nodeVersion[3]);
 
-if (majorNodeVersion < 14 || majorNodeVersion >= 17) {
-	console.error('\033[1;31m*** Please use node.js versions >=14 and <17.\033[0;0m');
+if (majorNodeVersion < 14 || (majorNodeVersion === 14 && minorNodeVersion < 17) || (majorNodeVersion === 14 && minorNodeVersion === 17 && patchNodeVersion < 4) || majorNodeVersion >= 17) {
+	console.error('\033[1;31m*** Please use node.js versions >=14.17.4 and <17.\033[0;0m');
 	err = true;
 }
 
