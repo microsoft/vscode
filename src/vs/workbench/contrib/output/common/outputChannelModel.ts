@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { Promises, ThrottledDelayer } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { Disposable, toDisposable, IDisposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -106,12 +106,10 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 
 	constructor(
 		private readonly modelUri: URI,
-		private readonly mimeType: 'text/x-code-log-output' | 'text/x-code-output',
+		private readonly language: ILanguageSelection,
 		private readonly file: URI,
-		private readonly languageId: string,
 		@IFileService private readonly fileService: IFileService,
 		@IModelService private readonly modelService: IModelService,
-		@ILanguageService private readonly languageService: ILanguageService,
 		@ILogService logService: ILogService,
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 	) {
@@ -164,7 +162,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		if (this.model) {
 			this.model.setValue(content);
 		} else {
-			this.model = this.modelService.createModel(content, this.languageId ? this.languageService.createById(this.languageId) : this.languageService.createByMimeType(this.mimeType), this.modelUri);
+			this.model = this.modelService.createModel(content, this.language, this.modelUri);
 			this.fileHandler.watch(this.etag);
 			const disposable = this.model.onWillDispose(() => {
 				this.cancelModelUpdate();
@@ -325,17 +323,15 @@ class OutputChannelBackedByFile extends FileOutputChannelModel implements IOutpu
 	constructor(
 		id: string,
 		modelUri: URI,
-		mimeType: 'text/x-code-log-output' | 'text/x-code-output',
+		language: ILanguageSelection,
 		file: URI,
-		languageId: string,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
-		@ILanguageService languageService: ILanguageService,
 		@ILoggerService loggerService: ILoggerService,
 		@ILogService logService: ILogService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
-		super(modelUri, mimeType, file, languageId, fileService, modelService, languageService, logService, editorWorkerService);
+		super(modelUri, language, file, fileService, modelService, logService, editorWorkerService);
 
 		// Donot rotate to check for the file reset
 		this.logger = loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
@@ -373,21 +369,20 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 	constructor(
 		id: string,
 		modelUri: URI,
-		mimeType: 'text/x-code-log-output' | 'text/x-code-output',
+		language: ILanguageSelection,
 		outputDir: Promise<URI>,
-		languageId: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
-		this.outputChannelModel = this.createOutputChannelModel(id, modelUri, mimeType, outputDir, languageId);
+		this.outputChannelModel = this.createOutputChannelModel(id, modelUri, language, outputDir);
 	}
 
-	private async createOutputChannelModel(id: string, modelUri: URI, mimeType: 'text/x-code-log-output' | 'text/x-code-output', outputDirPromise: Promise<URI>, languageId: string): Promise<IOutputChannelModel> {
+	private async createOutputChannelModel(id: string, modelUri: URI, language: ILanguageSelection, outputDirPromise: Promise<URI>): Promise<IOutputChannelModel> {
 		const outputDir = await outputDirPromise;
 		const file = resources.joinPath(outputDir, `${id.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		await this.fileService.createFile(file);
-		const outputChannelModel = this._register(this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file, languageId));
+		const outputChannelModel = this._register(this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, language, file));
 		this._register(outputChannelModel.onDispose(() => this._onDispose.fire()));
 		return outputChannelModel;
 	}

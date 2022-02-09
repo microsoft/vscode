@@ -15,8 +15,8 @@ export interface IOutputChannelDescriptor {
 	id: string;
 	label: string;
 	log: boolean;
-	file?: URI;
 	languageId?: string;
+	file?: URI;
 }
 
 export interface IFileOutputChannelDescriptor extends IOutputChannelDescriptor {

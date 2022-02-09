@@ -653,7 +653,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (languageId) {
 					checkProposedApiEnabled(extension, 'outputChannelLanguage');
 				}
-				return extHostOutputService.createOutputChannel(name, languageId || '', extension);
+				return extHostOutputService.createOutputChannel(name, languageId, extension);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn; preserveFocus?: boolean }, options?: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviewPanels.createWebviewPanel(extension, viewType, title, showOptions, options);
