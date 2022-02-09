@@ -46,7 +46,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { INotificationService, } from 'vs/platform/notification/common/notification';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, withSelectionFragment } from 'vs/platform/opener/common/opener';
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -730,8 +730,7 @@ export class SearchView extends ViewPane {
 						return element.resource;
 					}
 					if (element instanceof Match) {
-						const range = element.range();
-						return element.parent().resource.with({ fragment: `${range.startLineNumber},${range.startColumn}-${range.endLineNumber},${range.endColumn}` });
+						return withSelectionFragment(element.parent().resource, element.range());
 					}
 					return null;
 				}),
