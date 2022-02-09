@@ -7,6 +7,7 @@ import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
+import type * as rendererApi from 'vscode-notebook-renderer';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringified and injected into
@@ -204,7 +205,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	interface RendererModule {
-		activate(ctx: RendererContext): Promise<RendererApi | undefined | any> | RendererApi | undefined | any;
+		readonly activate: rendererApi.ActivationFunction;
 	}
 
 	interface KernelPreloadContext {
@@ -673,29 +674,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 		outputNode.appendChild(errList);
 	}
 
-	/**
-	 * https://github.com/DefinitelyTyped/DefinitelyTyped/blob/master/types/vscode-notebook-renderer/index.d.ts
-	 */
-	interface IOutputItem {
-		readonly id: string;
-
-		readonly mime: string;
-		readonly metadata: unknown;
-
-		text(): string;
-		json(): any;
-		data(): Uint8Array;
-		blob(): Blob;
-	}
-
 	function createOutputItem(
 		id: string,
 		element: HTMLElement,
 		mime: string,
 		metadata: unknown,
 		valueBytes: Uint8Array
-	): IOutputItem {
-		return Object.freeze(<IOutputItem>{
+	): rendererApi.OutputItem {
+		return Object.freeze(<rendererApi.OutputItem>{
 			id,
 			element,
 			mime,
@@ -1185,11 +1171,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	});
 
-	interface RendererApi {
-		renderOutputItem: (outputItem: IOutputItem, element: HTMLElement) => void;
-		disposeOutputItem?: (id?: string) => void;
-	}
-
 	class Renderer {
 		constructor(
 			public readonly data: RendererMetadata,
@@ -1197,12 +1178,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		) { }
 
 		private _onMessageEvent = createEmitter();
-		private _loadPromise?: Promise<RendererApi | undefined>;
-		private _api: RendererApi | undefined;
+		private _loadPromise?: Promise<rendererApi.RendererApi | undefined>;
+		private _api: rendererApi.RendererApi | undefined;
 
 		public get api() { return this._api; }
 
-		public load(): Promise<RendererApi | undefined> {
+		public load(): Promise<rendererApi.RendererApi | undefined> {
 			if (!this._loadPromise) {
 				this._loadPromise = this._load();
 			}
@@ -1239,7 +1220,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		/** Inner function cached in the _loadPromise(). */
-		private async _load(): Promise<RendererApi | undefined> {
+		private async _load(): Promise<rendererApi.RendererApi | undefined> {
 			const module: RendererModule = await __import(this.data.entrypoint);
 			if (!module) {
 				return;
@@ -1371,7 +1352,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
 		}
 
-		public async render(info: IOutputItem, element: HTMLElement) {
+		public async render(info: rendererApi.OutputItem, element: HTMLElement) {
 			const renderers = Array.from(this._renderers.values())
 				.filter(renderer => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
@@ -1575,7 +1556,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}();
 
-	class MarkupCell implements IOutputItem {
+	class MarkupCell implements rendererApi.OutputItem {
 
 		private static pendingCodeBlocksToHighlight = new Map<string, HTMLElement>();
 
@@ -1964,7 +1945,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
 				showPreloadErrors(this.element, ...errors);
 			} else {
-				const rendererApi = preloadsAndErrors[0] as RendererApi;
+				const rendererApi = preloadsAndErrors[0] as rendererApi.RendererApi;
 				try {
 					rendererApi.renderOutputItem(createOutputItem(this.outputId, this.element, content.mimeType, content.metadata, content.valueBytes), this.element);
 				} catch (e) {
