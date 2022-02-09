@@ -67,6 +67,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return; // `showOpenFilePicker` will throw an error when the user cancels
 		}
 
+		if (!WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+			return;
+		}
+
 		const uri = this.fileSystemProvider.registerFileHandle(fileHandle);
 
 		await this.openerService.open(uri, { fromUserGesture: true, editorOptions: { pinned: true } });
@@ -122,6 +126,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return; // `showSaveFilePicker` will throw an error when the user cancels
 		}
 
+		if (!WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+			return undefined;
+		}
+
 		return this.fileSystemProvider.registerFileHandle(fileHandle);
 	}
 
@@ -156,7 +164,11 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		try {
 			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined, ...{ startIn } });
 		} catch (error) {
-			return; // `showSaveFilePicker` will throw an error when the user cancels
+			return undefined; // `showSaveFilePicker` will throw an error when the user cancels
+		}
+
+		if (!WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+			return undefined;
 		}
 
 		return this.fileSystemProvider.registerFileHandle(fileHandle);
@@ -179,7 +191,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		try {
 			if (options.canSelectFiles) {
 				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
-				if (handle.length === 1) {
+				if (handle.length === 1 && WebFileSystemAccess.isFileSystemFileHandle(handle[0])) {
 					uri = this.fileSystemProvider.registerFileHandle(handle[0]);
 				}
 			} else {
