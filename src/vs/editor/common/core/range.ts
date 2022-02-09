@@ -466,6 +466,11 @@ export class Range {
 	}
 
 	public toJSON(): IRange {
-		return this;
+		return {
+			endColumn: this.endColumn,
+			endLineNumber: this.endLineNumber,
+			startColumn: this.startColumn,
+			startLineNumber: this.startLineNumber
+		};
 	}
 }
