@@ -149,7 +149,6 @@ export class CellOutputElement extends Disposable {
 			this.notebookEditor.removeInset(this.output);
 		}
 
-		// this.output.pickedMimeType = pick;
 		this.render(nextElement as HTMLElement);
 		this._relayoutCell();
 	}
