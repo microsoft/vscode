@@ -7,7 +7,6 @@
 
 export const allApiProposals = Object.freeze({
 	authSession: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSession.d.ts',
-	commentTimestamp: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.commentTimestamp.d.ts',
 	commentsResolvedState: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.commentsResolvedState.d.ts',
 	contribIconFonts: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribIconFonts.d.ts',
 	contribIcons: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribIcons.d.ts',

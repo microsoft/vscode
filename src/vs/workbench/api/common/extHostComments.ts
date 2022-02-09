@@ -16,7 +16,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
@@ -617,10 +616,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		}
 
 		const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() : undefined;
-
-		if (vscodeComment.timestamp) {
-			checkProposedApiEnabled(thread.extensionDescription, 'commentTimestamp');
-		}
 
 		return {
 			mode: vscodeComment.mode,

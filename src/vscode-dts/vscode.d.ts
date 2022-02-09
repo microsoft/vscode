@@ -14239,6 +14239,12 @@ declare module 'vscode' {
 		 * Label will be rendered next to authorName if exists.
 		 */
 		label?: string;
+
+		/**
+		 * Optional timestamp that will be displayed in comments.
+		 * The date will be formatted according to the user's locale and settings.
+		 */
+		timestamp?: Date;
 	}
 
 	/**
