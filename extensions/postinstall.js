@@ -20,7 +20,7 @@ function processRoot() {
 		if (!toKeep.has(name)) {
 			const filePath = path.join(root, name);
 			console.log(`Removed ${filePath}`);
-			fs.rmdirSync(filePath, { recursive: true });
+			fs.rmSync(filePath, { recursive: true });
 		}
 	}
 
