@@ -34,6 +34,7 @@ import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export class HistoryService extends Disposable implements IHistoryService {
 
@@ -141,30 +142,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Listen to selection changes if the editor pane
 		// is having a selection concept.
 		if (isEditorPaneWithSelection(activeEditorPane)) {
-
-			// Debounce the selection event with a timeout of 0ms so that
-			// multiple selection change events are folded into one.
-
-			this.activeEditorListeners.add(Event.debouncedListener<IEditorPaneSelectionChangeEvent>(activeEditorPane.onDidChangeSelection, mergedEvent => {
+			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => {
 
 				// Handle in editor navigation stack
-				this.handleActiveEditorSelectionChangeEvent(activeEditorPane, mergedEvent);
-
-			}, (last, current) => {
-
-				// Since we are aggregating over potentially multiple events
-				// with a debounce delay, try to preserve the most significant
-				// selection change reason that is not `USER` or `API`.
-
-				let reason: EditorPaneSelectionChangeReason;
-				if (last?.reason === EditorPaneSelectionChangeReason.EDIT || last?.reason === EditorPaneSelectionChangeReason.NAVIGATION) {
-					reason = last.reason;
-				} else {
-					reason = current.reason;
-				}
-
-				return { reason };
-			}, 0));
+				this.handleActiveEditorSelectionChangeEvent(activeEditorPane, e);
+			}));
 		}
 	}
 
@@ -282,9 +264,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#region Editor History Navigation (limit: 50)
 
-	private readonly globalDefaultEditorNavigationStack = this.createEditorNavigationStack();
-	private readonly globalEditsEditorNavigationStack = this.createEditorNavigationStack();
-	private readonly globalNavigationsEditorNavigationStack = this.createEditorNavigationStack();
+	private readonly globalDefaultEditorNavigationStack = this.createEditorNavigationStack(GoFilter.NONE);
+	private readonly globalEditsEditorNavigationStack = this.createEditorNavigationStack(GoFilter.EDITS);
+	private readonly globalNavigationsEditorNavigationStack = this.createEditorNavigationStack(GoFilter.NAVIGATION);
 
 	private readonly editorNavigationStacks: EditorNavigationStack[] = [
 		this.globalDefaultEditorNavigationStack,
@@ -298,8 +280,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.globalNavigationsEditorNavigationStack.onDidChange
 	);
 
-	private createEditorNavigationStack(): EditorNavigationStack {
-		const editorNavigationStack = this._register(this.instantiationService.createInstance(EditorNavigationStack));
+	private createEditorNavigationStack(kind: GoFilter): EditorNavigationStack {
+		const editorNavigationStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, kind));
 
 		// Update context keys on changes
 		this._register(editorNavigationStack.onDidChange(() => this.updateContextKeys()));
@@ -332,24 +314,31 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Always send to global navigation stack
 		this.globalDefaultEditorNavigationStack.notifyNavigation(editorPane, event);
 
-		// Send to specific navigation stack based on reason
-		switch (event.reason) {
-			case EditorPaneSelectionChangeReason.EDIT:
-				this.globalEditsEditorNavigationStack.notifyNavigation(editorPane, event);
-				break;
-			case EditorPaneSelectionChangeReason.NAVIGATION: {
+		// Check for edits
+		if (event.reason === EditorPaneSelectionChangeReason.EDIT) {
+			this.globalEditsEditorNavigationStack.notifyNavigation(editorPane, event);
+		}
 
-				// A navigation selection change always has a source and target
-				// As such, we add the previous entry of the global navigation
-				// stack so that our navigation stack receives both entries.
+		// Check for navigations
+		//
+		// Note: ignore if global navigation stack is navigating because
+		// in that case we do not want to receive repeated entries in
+		// the navigation stack.
+		else if (event.reason === EditorPaneSelectionChangeReason.NAVIGATION && !this.globalDefaultEditorNavigationStack.isNavigating()) {
 
+			// A navigation selection change always has a source and target
+			// As such, we add the previous entry of the global navigation
+			// stack so that our navigation stack receives both entries
+			// unless the user is currently navigating.
+
+			if (!this.globalNavigationsEditorNavigationStack.isNavigating()) {
 				const previous = this.globalDefaultEditorNavigationStack.previous;
 				if (previous) {
 					this.globalNavigationsEditorNavigationStack.addOrReplace(previous.groupId, previous.editor, previous.selection);
 				}
-				this.globalNavigationsEditorNavigationStack.notifyNavigation(editorPane, event);
-				break;
 			}
+
+			this.globalNavigationsEditorNavigationStack.notifyNavigation(editorPane, event);
 		}
 	}
 
@@ -1061,9 +1050,11 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	constructor(
+		private readonly kind: GoFilter,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -1072,6 +1063,66 @@ export class EditorNavigationStack extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e.id)));
+		this._register(this.onDidChange(() => this.traceStack()));
+		this._register(this.logService.onDidChangeLogLevel(e => this.traceStack()));
+	}
+
+	private traceStack(): void {
+		if (this.logService.getLevel() !== LogLevel.Trace) {
+			return;
+		}
+
+		let entryLabels: string[] = [];
+		for (const entry of this.stack) {
+			if (typeof entry.selection?.log === 'function') {
+				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: ${entry.selection.log()}`);
+			} else {
+				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: <none>`);
+			}
+		}
+
+		if (entryLabels.length === 0) {
+			this.trace(`index: ${this.index}, navigating: ${this.isNavigating()}: <empty>`);
+		} else {
+			this.trace(`index: ${this.index}, navigating: ${this.isNavigating()}
+${entryLabels.join('\n')}
+			`);
+		}
+	}
+
+	private trace(msg: string, editor: EditorInput | IResourceEditorInput | undefined | null = null, event?: IEditorPaneSelectionChangeEvent): void {
+		if (this.logService.getLevel() !== LogLevel.Trace) {
+			return;
+		}
+
+		let kindLabel: string;
+		switch (this.kind) {
+			case GoFilter.NONE: kindLabel = 'global';
+				break;
+			case GoFilter.EDITS: kindLabel = 'edits';
+				break;
+			case GoFilter.NAVIGATION: kindLabel = 'navigation';
+				break;
+		}
+
+		if (editor !== null) {
+			this.logService.trace(`[History stack ${kindLabel}]: ${msg} (editor: ${editor?.resource?.toString(true)}, event: ${this.traceEvent(event)})`);
+		} else {
+			this.logService.trace(`[History stack ${kindLabel}]: ${msg}`);
+		}
+	}
+
+	private traceEvent(event?: IEditorPaneSelectionChangeEvent): string {
+		if (!event) {
+			return '<none>';
+		}
+
+		switch (event.reason) {
+			case EditorPaneSelectionChangeReason.EDIT: return 'edit';
+			case EditorPaneSelectionChangeReason.NAVIGATION: return 'navigation';
+			case EditorPaneSelectionChangeReason.PROGRAMMATIC: return 'programmatic';
+			case EditorPaneSelectionChangeReason.USER: return 'user';
+		}
 	}
 
 	private registerGroupListeners(groupId: GroupIdentifier): void {
@@ -1084,6 +1135,7 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	private onDidRemoveGroup(groupId: GroupIdentifier): void {
+		this.trace(`onDidRemoveGroup(): ${groupId}`);
 
 		// Remove from stack
 		this.remove(groupId);
@@ -1094,6 +1146,8 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	private onWillMoveEditor(e: IEditorWillMoveEvent): void {
+		this.trace('onWillMoveEditor()', e.editor);
+
 		for (const entry of this.stack) {
 			if (entry.groupId !== e.groupId) {
 				continue; // not in the group that reported the event
@@ -1111,6 +1165,8 @@ export class EditorNavigationStack extends Disposable {
 	//#region Stack Mutation
 
 	notifyNavigation(editorPane: IEditorPane | undefined, event?: IEditorPaneSelectionChangeEvent): void {
+		this.trace('notifyNavigation()', editorPane?.input, event);
+
 		const isSelectionAwareEditorPane = isEditorPaneWithSelection(editorPane);
 		const hasValidEditor = editorPane?.group && editorPane.input && !editorPane.input.isDisposed();
 
@@ -1119,15 +1175,22 @@ export class EditorNavigationStack extends Disposable {
 		// stack but we need to keep our currentEditorSelectionState up to date
 		// with the navigtion that occurs.
 		if (this.navigating) {
+			this.trace(`notifyNavigation() ignoring (navigating)`, editorPane?.input, event);
+
 			if (isSelectionAwareEditorPane && hasValidEditor) {
+				this.trace('notifyNavigation() updating current selection state', editorPane?.input, event);
+
 				this.currentSelectionState = new EditorSelectionState({ groupId: editorPane.group.id, editor: editorPane.input }, editorPane.getSelection(), event?.reason);
 			} else {
+				this.trace('notifyNavigation() dropping current selection state', editorPane?.input, event);
+
 				this.currentSelectionState = undefined; // we navigated to a non-selection aware or disposed editor
 			}
 		}
 
 		// Normal navigation not part of stack navigation
 		else {
+			this.trace(`notifyNavigation() not ignoring`, editorPane?.input, event);
 
 			// Navigation inside selection aware editor
 			if (isSelectionAwareEditorPane && hasValidEditor) {
@@ -1150,6 +1213,8 @@ export class EditorNavigationStack extends Disposable {
 			return; // do not push same editor input again of same group if we have no valid selection
 		}
 
+		this.trace('onSelectionAwareEditorNavigation()', editor, event);
+
 		const stateCandidate = new EditorSelectionState({ groupId, editor }, selection, event?.reason);
 
 		// Add to stack if we dont have a current state or this new state justifies a push
@@ -1170,6 +1235,8 @@ export class EditorNavigationStack extends Disposable {
 		if (this.current?.groupId === groupId && this.editorHelper.matchesEditor(this.current.editor, editor)) {
 			return; // do not push same editor input again of same group
 		}
+
+		this.trace('onNonSelectionAwareEditorNavigation()', editor);
 
 		this.doAdd(groupId, editor);
 	}
@@ -1204,6 +1271,12 @@ export class EditorNavigationStack extends Disposable {
 		const editor = this.editorHelper.preferResourceEditorInput(editorCandidate);
 		if (!editor) {
 			return;
+		}
+
+		if (replace) {
+			this.trace('replace()', editor);
+		} else {
+			this.trace('add()', editor);
 		}
 
 		const newStackEntry: IEditorNavigationStackEntry = { groupId, editor, selection };
@@ -1363,6 +1436,11 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	async goForward(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
+
 		if (!this.canGoForward()) {
 			return;
 		}
@@ -1376,6 +1454,11 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	async goBack(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
+
 		if (!this.canGoBack()) {
 			return;
 		}
@@ -1384,7 +1467,11 @@ export class EditorNavigationStack extends Disposable {
 		return this.navigate();
 	}
 
-	goPrevious(): Promise<void> {
+	async goPrevious(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
 
 		// If we never navigated, just go back
 		if (this.previousIndex === -1) {
@@ -1407,6 +1494,54 @@ export class EditorNavigationStack extends Disposable {
 
 		this.setIndex(this.stack.length - 1);
 		return this.navigate();
+	}
+
+	private async maybeGoCurrent(): Promise<boolean> {
+
+		// When this navigation stack works with a specific
+		// filter where not every selection change is added
+		// to the stack, we want to first reveal the current
+		// selection before attempting to navigate in the
+		// stack.
+
+		if (this.kind === GoFilter.NONE) {
+			return false; // only applies when  we are a filterd stack
+		}
+
+		if (this.isCurrentSelectionActive()) {
+			return false; // we are at the current navigation stop
+		}
+
+		// Go to current selection
+		await this.navigate();
+
+		return true;
+	}
+
+	private isCurrentSelectionActive(): boolean {
+		if (!this.current?.selection) {
+			return false; // we need a current selection
+		}
+
+		const pane = this.editorService.activeEditorPane;
+		if (!isEditorPaneWithSelection(pane)) {
+			return false; // we need an active editor pane with selection support
+		}
+
+		if (pane.group?.id !== this.current.groupId) {
+			return false; // we need matching groups
+		}
+
+		if (!pane.input || !this.editorHelper.matchesEditor(pane.input, this.current.editor)) {
+			return false; // we need matching editors
+		}
+
+		const paneSelection = pane.getSelection();
+		if (!paneSelection) {
+			return false; // we need a selection to compare with
+		}
+
+		return paneSelection.compare(this.current.selection) === EditorPaneSelectionCompareResult.IDENTICAL;
 	}
 
 	private setIndex(newIndex: number, skipEvent?: boolean): void {
@@ -1450,6 +1585,10 @@ export class EditorNavigationStack extends Disposable {
 				...options
 			}
 		}, location.groupId);
+	}
+
+	isNavigating(): boolean {
+		return this.navigating;
 	}
 
 	//#endregion

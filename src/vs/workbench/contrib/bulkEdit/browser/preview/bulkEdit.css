@@ -46,10 +46,6 @@
 	padding: 4px 8px;
 }
 
-.monaco-workbench .bulk-edit-panel .content .buttons .monaco-button .codicon {
-	font-size: 12px;
-}
-
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents {
 	display: flex;
 }

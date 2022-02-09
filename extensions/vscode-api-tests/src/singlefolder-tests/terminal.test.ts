@@ -666,8 +666,8 @@ import { assertNoRpc, poll } from '../utils';
 			});
 		});
 
-		suite('environmentVariableCollection', () => {
-			test.skip('should have collection variables apply to terminals immediately after setting', async () => {
+		(process.platform === 'win32' ? suite.skip : suite)('environmentVariableCollection', () => {
+			test('should have collection variables apply to terminals immediately after setting', async () => {
 				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });
@@ -712,7 +712,7 @@ import { assertNoRpc, poll } from '../utils';
 				});
 			});
 
-			test.skip('should have collection variables apply to environment variables that don\'t exist', async () => {
+			test('should have collection variables apply to environment variables that don\'t exist', async () => {
 				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });
@@ -798,7 +798,7 @@ import { assertNoRpc, poll } from '../utils';
 				});
 			});
 
-			test.skip('should respect deleting entries', async () => {
+			test('should respect deleting entries', async () => {
 				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;
 				disposables.push({ dispose: () => collection.clear() });

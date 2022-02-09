@@ -10,6 +10,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { assertLinkHelper, resolveLinkForTest } from 'vs/workbench/contrib/terminal/test/browser/links/linkTestUtils';
 import { Terminal } from 'xterm';
 
@@ -99,7 +100,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('platform independent', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, OperatingSystem.Linux, resolveLinkForTest);
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), OperatingSystem.Linux, resolveLinkForTest);
 		});
 
 		test('should support multiple link results', async () => {
@@ -112,7 +113,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('macOS/Linux', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, OperatingSystem.Linux, resolveLinkForTest);
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), OperatingSystem.Linux, resolveLinkForTest);
 		});
 
 		for (const baseLink of unixLinks) {
@@ -142,7 +143,7 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 
 	suite('Windows', () => {
 		setup(() => {
-			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, OperatingSystem.Windows, resolveLinkForTest);
+			detector = instantiationService.createInstance(TerminalLocalLinkDetector, xterm, new TerminalCapabilityStore(), OperatingSystem.Windows, resolveLinkForTest);
 		});
 
 		for (const baseLink of windowsLinks) {

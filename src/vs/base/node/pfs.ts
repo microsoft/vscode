@@ -43,7 +43,7 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	// delete: via rmDir
+	// delete: via rm
 	if (mode === RimRafMode.UNLINK) {
 		return rimrafUnlink(path);
 	}
@@ -79,7 +79,7 @@ async function rimrafMove(path: string): Promise<void> {
 }
 
 async function rimrafUnlink(path: string): Promise<void> {
-	return Promises.rmdir(path, { recursive: true, maxRetries: 3 });
+	return promisify(fs.rm)(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 export function rimrafSync(path: string): void {
@@ -87,7 +87,7 @@ export function rimrafSync(path: string): void {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	fs.rmdirSync(path, { recursive: true });
+	fs.rmSync(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 //#endregion

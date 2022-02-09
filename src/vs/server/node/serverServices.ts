@@ -97,9 +97,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 	logService.trace('process arguments:', environmentService.args);
-	const serverGreeting = productService.serverGreeting.join('\n');
-	if (serverGreeting) {
-		spdLogService.info(`\n\n${serverGreeting}\n\n`);
+	if (Array.isArray(productService.serverGreeting)) {
+		spdLogService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
 	}
 
 	// ExtensionHost Debug broadcast service

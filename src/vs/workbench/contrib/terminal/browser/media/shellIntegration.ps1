@@ -10,6 +10,8 @@ param(
 
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
+$Global:__LastHistoryId = -1
+
 function Global:__VSCode-Get-LastExitCode {
 	if ($? -eq $True) {
 		return 0
@@ -19,21 +21,25 @@ function Global:__VSCode-Get-LastExitCode {
 }
 
 function Global:Prompt() {
-	# Command finished command line
-	# OSC 633 ; A ; <CommandLine> ST
-	$Result  = "`e]633;A;"
-	# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
-	# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
-	# to only be composed of _printable_ characters as per the spec.
-	# TODO: There are probably better serializable strings to use
-	# TODO: This doesn't work for empty commands of ^C
-	# TODO: Check ID against last to see if no command ran
-	$CommandLine = $(Get-History -Count 1).CommandLine ?? ""
-	$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
-	$Result += "`a"
-	# Command finished exit code
-	# OSC 133 ; D ; <ExitCode> ST
-	$Result += "`e]133;D;$(__VSCode-Get-LastExitCode)`a"
+	$LastHistoryEntry = $(Get-History -Count 1)
+	if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
+		# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
+		$Result  = "`e]633;A`a"
+		$Result += "`e]133;D`a"
+	} else {
+		# Command finished command line
+		# OSC 633 ; A ; <CommandLine?> ST
+		$Result  = "`e]633;A;"
+		# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
+		# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
+		# to only be composed of _printable_ characters as per the spec.
+		$CommandLine = $LastHistoryEntry.CommandLine ?? ""
+		$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
+		$Result += "`a"
+		# Command finished exit code
+		# OSC 133 ; D ; <ExitCode?> ST
+		$Result += "`e]133;D;$(__VSCode-Get-LastExitCode)`a"
+	}
 	# Prompt started
 	# OSC 133 ; A ST
 	$Result += "`e]133;A`a"
@@ -44,6 +50,7 @@ function Global:Prompt() {
 	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
 	# Write command started
 	$Result += "`e]133;B`a"
+	$Global:__LastHistoryId = $LastHistoryEntry.Id
 	return $Result
 }
 

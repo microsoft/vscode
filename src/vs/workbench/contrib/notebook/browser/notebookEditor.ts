@@ -187,7 +187,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 			this._widget.value.onWillHide();
 		}
 
-		this._widget = this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
+		this._widget = <IBorrowValue<NotebookEditorWidget>>this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
 		this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
 		this._widgetDisposableStore.add(this._widget.value!.onDidChangeActiveCell(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.USER })));
 
@@ -429,5 +429,9 @@ class NotebookEditorSelection implements IEditorPaneSelection {
 		Object.assign(notebookOptions, options);
 
 		return notebookOptions;
+	}
+
+	log(): string {
+		return this.cellUri.fragment;
 	}
 }

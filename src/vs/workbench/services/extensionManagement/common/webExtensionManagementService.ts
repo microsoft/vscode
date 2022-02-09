@@ -14,6 +14,7 @@ import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExte
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { isBoolean } from 'vs/base/common/types';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService {
 
@@ -152,7 +153,10 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.publisherId = this.extension.publisherId;
 			metadata.installedTimestamp = Date.now();
 			metadata.isPreReleaseVersion = this.extension.properties.isPreReleaseVersion;
-			metadata.preRelease = this.extension.hasPreReleaseVersion ? this.extension.properties.isPreReleaseVersion : (metadata.preRelease || this.options.installPreReleaseVersion);
+			metadata.preRelease = this.extension.properties.isPreReleaseVersion ||
+				(isBoolean(this.options.installPreReleaseVersion)
+					? this.options.installPreReleaseVersion /* Respect the passed flag */
+					: metadata?.preRelease /* Respect the existing pre-release flag if it was set */);
 		}
 
 		const scannedExtension = URI.isUri(this.extension) ? await this.webExtensionsScannerService.addExtension(this.extension, metadata)

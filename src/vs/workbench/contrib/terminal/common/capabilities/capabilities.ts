@@ -90,7 +90,7 @@ export interface ICommandDetectionCapability {
 	handlePromptStart(): void;
 	handleCommandStart(): void;
 	handleCommandExecuted(): void;
-	handleCommandFinished(exitCode: number): void;
+	handleCommandFinished(exitCode: number | undefined): void;
 	/**
 	 * Set the command line explicitly.
 	 */

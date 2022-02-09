@@ -204,6 +204,12 @@ export class AzureActiveDirectoryService {
 	}
 
 	public createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
+		if (!scopes.includes('openid')) {
+			scopes.push('openid');
+		}
+		if (!scopes.includes('email')) {
+			scopes.push('email');
+		}
 		const scopeData: IScopeData = {
 			scopes,
 			scopeStr: scopes.join(' '),
@@ -258,7 +264,7 @@ export class AzureActiveDirectoryService {
 
 		let codeToExchange;
 		try {
-			vscode.env.openExternal(vscode.Uri.parse(`http://localhost:${server.port}/signin?nonce=${encodeURIComponent(server.nonce)}`));
+			vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${server.port}/signin?nonce=${encodeURIComponent(server.nonce)}`));
 			const { code } = await server.waitForOAuthResponse();
 			codeToExchange = code;
 		} finally {
@@ -390,14 +396,14 @@ export class AzureActiveDirectoryService {
 		let claims = undefined;
 
 		try {
-			claims = JSON.parse(Buffer.from(json.access_token.split('.')[1], 'base64').toString());
-		} catch (e) {
 			if (json.id_token) {
 				Logger.info('Attempting to parse id_token instead since access_token was not parsable');
 				claims = JSON.parse(Buffer.from(json.id_token.split('.')[1], 'base64').toString());
 			} else {
-				throw e;
+				claims = JSON.parse(Buffer.from(json.access_token.split('.')[1], 'base64').toString());
 			}
+		} catch (e) {
+			throw e;
 		}
 
 		return {
@@ -409,7 +415,7 @@ export class AzureActiveDirectoryService {
 			scope: scopeData.scopeStr,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
 			account: {
-				label: claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
+				label: `${claims.name} - ${claims.email}` || claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
 				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
 			}
 		};

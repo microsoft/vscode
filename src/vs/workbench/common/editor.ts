@@ -200,7 +200,7 @@ export const enum EditorPaneSelectionChangeReason {
 	 * For a text editor pane, this for example can be a selection
 	 * being restored from previous view state automatically.
 	 */
-	API = 1,
+	PROGRAMMATIC = 1,
 
 	/**
 	 * The selection was changed by the user.
@@ -245,6 +245,11 @@ export interface IEditorPaneSelection {
 	 * line and column as text editor options.
 	 */
 	restore(options: IEditorOptions): IEditorOptions;
+
+	/**
+	 * Only used for logging to print more info about the selection.
+	 */
+	log?(): string;
 }
 
 export const enum EditorPaneSelectionCompareResult {

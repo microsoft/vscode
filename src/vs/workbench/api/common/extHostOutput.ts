@@ -17,6 +17,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { toLocalISOString } from 'vs/base/common/date';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { isString } from 'vs/base/common/types';
 
 export class ExtHostOutputChannel extends Disposable implements vscode.OutputChannel {
 
@@ -117,12 +118,15 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		}
 	}
 
-	createOutputChannel(name: string, extension: IExtensionDescription): vscode.OutputChannel {
+	createOutputChannel(name: string, languageId: string | undefined, extension: IExtensionDescription): vscode.OutputChannel {
 		name = name.trim();
 		if (!name) {
 			throw new Error('illegal argument `name`. must not be falsy');
 		}
-		const extHostOutputChannel = this.doCreateOutputChannel(name, extension);
+		if (isString(languageId) && !languageId.trim()) {
+			throw new Error('illegal argument `languageId`. must not be empty');
+		}
+		const extHostOutputChannel = this.doCreateOutputChannel(name, languageId, extension);
 		extHostOutputChannel.then(channel => {
 			this.channels.set(channel.id, channel);
 			channel.visible = channel.id === this.visibleChannelId;
@@ -130,11 +134,11 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 		return this.createExtHostOutputChannel(name, extHostOutputChannel);
 	}
 
-	private async doCreateOutputChannel(name: string, extension: IExtensionDescription): Promise<ExtHostOutputChannel> {
+	private async doCreateOutputChannel(name: string, languageId: string | undefined, extension: IExtensionDescription): Promise<ExtHostOutputChannel> {
 		const outputDir = await this.createOutputDirectory();
 		const file = this.extHostFileSystemInfo.extUri.joinPath(outputDir, `${this.namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
 		const logger = this.loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
-		const id = await this.proxy.$register(name, false, file, extension.identifier.value);
+		const id = await this.proxy.$register(name, false, file, languageId, extension.identifier.value);
 		return new ExtHostOutputChannel(id, name, logger, this.proxy);
 	}
 

@@ -18,7 +18,7 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -153,6 +153,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { TextEditorPaneSelection } from 'vs/workbench/browser/parts/editor/textEditor';
+import { Selection } from 'vs/editor/common/core/selection';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -188,16 +190,28 @@ export class TestTextFileEditor extends TextFileEditor {
 		this._onDidChangeSelection.fire({ reason });
 	}
 
-	private _testSelection: IEditorPaneSelection | undefined = undefined;
-
-	setSelection(selection: IEditorPaneSelection | undefined, reason: EditorPaneSelectionChangeReason): void {
-		this._testSelection = selection;
+	setSelection(selection: Selection | undefined, reason: EditorPaneSelectionChangeReason): void {
+		if (selection) {
+			this.setOptions({ selection });
+		} else {
+			this.setOptions(undefined);
+		}
 
 		this._onDidChangeSelection.fire({ reason });
 	}
 
 	override getSelection(): IEditorPaneSelection | undefined {
-		return this._testSelection ?? super.getSelection();
+		const options = this.options;
+		if (!options) {
+			return undefined;
+		}
+
+		const textSelection = (options as ITextEditorOptions).selection;
+		if (!textSelection) {
+			return undefined;
+		}
+
+		return new TextEditorPaneSelection(new Selection(textSelection.startLineNumber, textSelection.startColumn, textSelection.endLineNumber ?? textSelection.startLineNumber, textSelection.endColumn ?? textSelection.startColumn));
 	}
 }
 
@@ -555,6 +569,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;
 	onDidChangeFullscreen: Event<boolean> = Event.None;
 	onDidChangeWindowMaximized: Event<boolean> = Event.None;
+	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	onDidChangePartVisibility: Event<void> = Event.None;
 	onDidLayout = Event.None;
@@ -589,6 +604,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
+	getPanelPosition() { return 0; }
 	getPanelAlignment(): PanelAlignment { return 'center'; }
 	async setPanelPosition(_position: PartPosition): Promise<void> { }
 	async setPanelAlignment(_alignment: PanelAlignment): Promise<void> { }

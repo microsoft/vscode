@@ -527,13 +527,19 @@ export class SafeDisposable implements IDisposable {
 	private static _noop = () => { };
 
 	dispose: () => void = SafeDisposable._noop;
-
 	unset: () => void = SafeDisposable._noop;
+	isset: () => boolean = () => false;
 
 	set(disposable: IDisposable) {
 		let actual: IDisposable | undefined = disposable;
 		this.unset = () => actual = undefined;
-		this.dispose = () => actual?.dispose();
+		this.isset = () => actual !== undefined;
+		this.dispose = () => {
+			if (actual) {
+				actual.dispose();
+				actual = undefined;
+			}
+		};
 		return this;
 	}
 }
@@ -692,18 +698,28 @@ export class Emitter<T> {
 
 			// It is bad to have listeners at the time of disposing an emitter, it is worst to have listeners keep the emitter
 			// alive via the reference that's embedded their disposables. Therefore we loop over all remaining listeners and
-			// unset their subscriptions/disposables
-			if (this._listeners) {
-				for (const listener of this._listeners) {
-					// we dispose AND unset the subscription. In theory dispose isn't needed but
-					// than the disposable is reported as leaked...
-					listener.subscription.dispose();
-					listener.subscription.unset();
+			// unset their subscriptions/disposables. Looping and blaming remaining listeners is done on next tick because the
+			// the following programming pattern is very popular:
+			//
+			// const someModel = this._disposables.add(new ModelObject()); // (1) create and register model
+			// this._disposables.add(someModel.onDidChange(() => { ... }); // (2) subscribe and register model-event listener
+			// ...later...
+			// this._disposables.dispose(); disposes (1) then (2): don't warn after (1) but after the "overall dispose" is done
 
-					// enable this to blame listeners that are still here
-					// listener.stack?.print();
-				}
+			if (this._listeners) {
+				const listeners = Array.from(this._listeners);
 				this._listeners.clear();
+
+				queueMicrotask(() => {
+					for (const listener of listeners) {
+						if (listener.subscription.isset()) {
+							listener.subscription.unset();
+							// enable this to blame listeners that are still here
+							// listener.stack?.print();
+						}
+					}
+				});
+
 			}
 			this._deliveryQueue?.clear();
 			this._options?.onLastListenerRemove?.();
