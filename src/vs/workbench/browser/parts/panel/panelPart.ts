@@ -942,7 +942,7 @@ export class PanelPart extends BasePanelPart {
 			...PositionPanelActionConfigs
 				// show the contextual menu item if it is not in that position
 				.filter(({ when }) => this.contextKeyService.contextMatchesRules(when))
-				.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
+				.map(({ id, title }) => this.instantiationService.createInstance(SetPanelPositionAction, id, title.value)),
 			this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
 		]);
 	}
