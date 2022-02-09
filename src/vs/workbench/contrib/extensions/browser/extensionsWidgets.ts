@@ -158,7 +158,7 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
-export class PreReleaseIndicatorWidget extends ExtensionWidget {
+export class RunningPreReleaseVersionIndicatorWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -171,15 +171,9 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 	render(): void {
 		this.container.innerText = '';
 
-		if (!this.extension) {
-			return;
-		}
-
-		if (!this.extension.local?.isPreReleaseVersion && !this.extension.gallery?.properties.isPreReleaseVersion) {
-			return;
-		}
-
-		if (this.extension.state !== ExtensionState.Installed) {
+		if (!this.extension
+			|| this.extension.state !== ExtensionState.Installed
+			|| !this.extension.local?.isPreReleaseVersion) {
 			return;
 		}
 
