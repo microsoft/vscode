@@ -19,7 +19,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Codicon } from 'vs/base/common/codicons';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';

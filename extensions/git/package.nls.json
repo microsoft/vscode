@@ -175,6 +175,7 @@
 	"config.confirmForcePush": "Controls whether to ask for confirmation before force-pushing.",
 	"config.allowNoVerifyCommit": "Controls whether commits without running pre-commit and commit-msg hooks are allowed.",
 	"config.confirmNoVerifyCommit": "Controls whether to ask for confirmation before committing without verification.",
+	"config.closeDiffOnOperation": "Controls whether the diff editor should be automatically closed when changes are committed, discarded, staged, or unstaged.",
 	"config.openDiffOnClick": "Controls whether the diff editor should be opened when clicking a change. Otherwise the regular editor will be opened.",
 	"config.supportCancellation": "Controls whether a notification comes up when running the Sync action, which allows the user to cancel the operation.",
 	"config.branchSortOrder": "Controls the sort order for branches.",

@@ -10,7 +10,10 @@ declare module 'vscode' {
 	export namespace languages {
 		/**
 		 * Registers an inline completion provider.
+		 *
+		 *  @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
+		// todo@API what are the rules when multiple providers apply
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
 	}
 
@@ -45,6 +48,7 @@ declare module 'vscode' {
 		readonly selectedCompletionInfo: SelectedCompletionInfo | undefined;
 	}
 
+	// todo@API is this to express a possible future outcome of the text document?
 	export interface SelectedCompletionInfo {
 		range: Range;
 		text: string;
@@ -69,15 +73,22 @@ declare module 'vscode' {
 		Explicit = 1,
 	}
 
+	/**
+	 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
+	*/
 	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
 		items: T[];
 
+		/**
+		 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
+		*/
 		constructor(items: T[]);
 	}
 
 	export class InlineCompletionItem {
 		/**
-		 * The text to replace the range with.
+		 * The text to replace the range with. Must be set.
+		 * Is used both for the preview and the accept operation.
 		 *
 		 * The text the range refers to must be a subword of this value (`AB` and `BEF` are subwords of `ABCDEF`, but `Ab` is not).
 		 * Additionally, if possible, it should be a prefix of this value for a better user-experience.
@@ -85,7 +96,12 @@ declare module 'vscode' {
 		 * However, any indentation of the text to replace does not matter for the subword constraint.
 		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
 		*/
-		text: string;
+		insertText?: string;
+
+		/**
+		 * @deprecated Use `insertText` instead. Will be removed eventually.
+		*/
+		text?: string;
 
 		/**
 		 * The range to replace.
@@ -103,14 +119,18 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
+		constructor(insertText: string, range?: Range, command?: Command);
+	}
+
+	// TODO@API validate it is being used, iff so move to a different proposal
+
+	export interface InlineCompletionItem {
 		/**
 		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 		 * Defaults to `false`.
 		*/
 		completeBracketPairs?: boolean;
-		constructor(text: string, range?: Range, command?: Command);
 	}
-
 
 	/**
 	 * Be aware that this API will not ever be finalized.

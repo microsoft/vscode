@@ -69,7 +69,7 @@ class CustomVariableResolver extends AbstractVariableResolverService {
 			getLineNumber: (): string | undefined => {
 				return resolvedVariables['lineNumber'];
 			}
-		}, undefined, Promise.resolve(env));
+		}, undefined, Promise.resolve(os.homedir()), Promise.resolve(env));
 	}
 }
 

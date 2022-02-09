@@ -33,6 +33,8 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('LinkedEditingInputVisible', false);
 
@@ -52,13 +54,14 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		return editor.getContribution<LinkedEditingContribution>(LinkedEditingContribution.ID);
 	}
 
-	private _debounceDuration = 200;
+	private _debounceDuration: number | undefined;
 
 	private readonly _editor: ICodeEditor;
 	private readonly _providers: LanguageFeatureRegistry<LinkedEditingRangeProvider>;
 	private _enabled: boolean;
 
 	private readonly _visibleContextKey: IContextKey<boolean>;
+	private readonly _debounceInformation: IFeatureDebounceInformation;
 
 	private _rangeUpdateTriggerPromise: Promise<any> | null;
 	private _rangeSyncTriggerPromise: Promise<any> | null;
@@ -79,12 +82,14 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService
 	) {
 		super();
 		this._editor = editor;
 		this._providers = languageFeaturesService.linkedEditingRangeProvider;
 		this._enabled = false;
 		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
+		this._debounceInformation = languageFeatureDebounceService.for(this._providers, 'Linked Editing', { min: 200 });
 
 		this._currentDecorations = [];
 		this._languageWordPattern = null;
@@ -137,9 +142,9 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 			)
 		);
 
-		const rangeUpdateScheduler = new Delayer(this._debounceDuration);
+		const rangeUpdateScheduler = new Delayer(this._debounceInformation.get(model));
 		const triggerRangeUpdate = () => {
-			this._rangeUpdateTriggerPromise = rangeUpdateScheduler.trigger(() => this.updateRanges(), this._debounceDuration);
+			this._rangeUpdateTriggerPromise = rangeUpdateScheduler.trigger(() => this.updateRanges(), this._debounceDuration ?? this._debounceInformation.get(model));
 		};
 		const rangeSyncScheduler = new Delayer(0);
 		const triggerRangeSync = (decorations: string[]) => {
@@ -162,8 +167,8 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		}));
 		this._localToDispose.add({
 			dispose: () => {
-				rangeUpdateScheduler.cancel();
-				rangeSyncScheduler.cancel();
+				rangeUpdateScheduler.dispose();
+				rangeSyncScheduler.dispose();
 			}
 		});
 		this.updateRanges();
@@ -297,7 +302,9 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		this._currentRequestModelVersion = modelVersionId;
 		const request = createCancelablePromise(async token => {
 			try {
+				const sw = new StopWatch(false);
 				const response = await getLinkedEditingRanges(this._providers, model, position, token);
+				this._debounceInformation.update(model, sw.elapsed());
 				if (request !== this._currentRequest) {
 					return;
 				}

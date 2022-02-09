@@ -108,8 +108,7 @@ async function start() {
 			: { host, port: await parsePort(host, parsedArgs['port'], parsedArgs['pick-port']) }
 	);
 	server.listen(nodeListenOptions, async () => {
-		const serverGreeting = product.serverGreeting.join('\n');
-		let output = serverGreeting ? `\n\n${serverGreeting}\n\n` : ``;
+		let output = Array.isArray(product.serverGreeting) ? `\n\n${product.serverGreeting.join('\n')}\n\n` : ``;
 
 		if (typeof nodeListenOptions.port === 'number' && parsedArgs['print-ip-address']) {
 			const ifaces = os.networkInterfaces();

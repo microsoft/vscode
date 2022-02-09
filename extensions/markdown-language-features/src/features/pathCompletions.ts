@@ -237,7 +237,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 			yield {
 				kind: vscode.CompletionItemKind.Reference,
-				label: '#' + entry.slug.value,
+				label: '#' + decodeURI(entry.slug.value),
 				range: {
 					inserting: insertionRange,
 					replacing: replacementRange,

@@ -34,13 +34,13 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 
 class TestLinkManager extends TerminalLinkManager {
 	private _links: IDetectedLinks | undefined;
-	protected override async _getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
+	protected override async _getLinksForType(y: number, type: 'word' | 'url' | 'localFile'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
 				return this._links?.wordLinks?.[y] ? [this._links?.wordLinks?.[y]] : undefined;
-			case 'web':
+			case 'url':
 				return this._links?.webLinks?.[y] ? [this._links?.webLinks?.[y]] : undefined;
-			case 'file':
+			case 'localFile':
 				return this._links?.fileLinks?.[y] ? [this._links?.fileLinks?.[y]] : undefined;
 		}
 	}
@@ -91,9 +91,9 @@ suite('TerminalLinkManager', () => {
 			equals(links.webLinks, []);
 			equals(links.wordLinks, []);
 			equals(links.fileLinks, []);
-			const webLink = await linkManager.openRecentLink('web');
+			const webLink = await linkManager.openRecentLink('url');
 			strictEqual(webLink, undefined);
-			const fileLink = await linkManager.openRecentLink('file');
+			const fileLink = await linkManager.openRecentLink('localFile');
 			strictEqual(fileLink, undefined);
 		});
 		test('should return word links in order', async () => {
@@ -115,9 +115,9 @@ suite('TerminalLinkManager', () => {
 			const links = await linkManager.getLinks();
 			deepStrictEqual(links.wordLinks?.[0].text, link2.text);
 			deepStrictEqual(links.wordLinks?.[1].text, link1.text);
-			const webLink = await linkManager.openRecentLink('web');
+			const webLink = await linkManager.openRecentLink('url');
 			strictEqual(webLink, undefined);
-			const fileLink = await linkManager.openRecentLink('file');
+			const fileLink = await linkManager.openRecentLink('localFile');
 			strictEqual(fileLink, undefined);
 		});
 		test('should return web links in order', async () => {
@@ -135,9 +135,9 @@ suite('TerminalLinkManager', () => {
 			const links = await linkManager.getLinks();
 			deepStrictEqual(links.webLinks?.[0].text, link2.text);
 			deepStrictEqual(links.webLinks?.[1].text, link1.text);
-			const webLink = await linkManager.openRecentLink('web');
+			const webLink = await linkManager.openRecentLink('url');
 			strictEqual(webLink, link2);
-			const fileLink = await linkManager.openRecentLink('file');
+			const fileLink = await linkManager.openRecentLink('localFile');
 			strictEqual(fileLink, undefined);
 		});
 		test('should return file links in order', async () => {
@@ -155,10 +155,10 @@ suite('TerminalLinkManager', () => {
 			const links = await linkManager.getLinks();
 			deepStrictEqual(links.fileLinks?.[0].text, link2.text);
 			deepStrictEqual(links.fileLinks?.[1].text, link1.text);
-			const webLink = await linkManager.openRecentLink('web');
+			const webLink = await linkManager.openRecentLink('url');
 			strictEqual(webLink, undefined);
 			linkManager.setLinks({ fileLinks: [link2] });
-			const fileLink = await linkManager.openRecentLink('file');
+			const fileLink = await linkManager.openRecentLink('localFile');
 			strictEqual(fileLink, link2);
 		});
 	});

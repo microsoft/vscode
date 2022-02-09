@@ -385,14 +385,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let bytesRead: number | null = null;
 		try {
-			const { bytesRead } = await Promises.read(fd, data, offset, length, normalizedPos);
-
-			return bytesRead;
+			bytesRead = (await Promises.read(fd, data, offset, length, normalizedPos)).bytesRead;
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
 			this.updatePos(fd, normalizedPos, bytesRead);
 		}
+
+		return bytesRead;
 	}
 
 	private normalizePos(fd: number, pos: number): number | null {
@@ -465,14 +465,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let bytesWritten: number | null = null;
 		try {
-			const { bytesWritten } = await Promises.write(fd, data, offset, length, normalizedPos);
-
-			return bytesWritten;
+			bytesWritten = (await Promises.write(fd, data, offset, length, normalizedPos)).bytesWritten;
 		} catch (error) {
 			throw await this.toFileSystemProviderWriteError(this.writeHandles.get(fd), error);
 		} finally {
 			this.updatePos(fd, normalizedPos, bytesWritten);
 		}
+
+		return bytesWritten;
 	}
 
 	//#endregion

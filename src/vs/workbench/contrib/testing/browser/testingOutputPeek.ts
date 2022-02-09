@@ -485,7 +485,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}
 
 		alert(renderStringAsPlaintext(message.message));
-		this.peek.value!.setModel(dto);
+		this.peek.value.setModel(dto);
 		this.currentPeekUri = uri;
 	}
 
@@ -1265,12 +1265,15 @@ class OutputPeekTree extends Disposable {
 			}));
 		};
 
-		const getRootChildren = () => results.results.map(result => ({
-			element: cachedCreate(result, () => new TestResultElement(result)),
-			incompressible: true,
-			collapsed: true,
-			children: getResultChildren(result)
-		}));
+		const getRootChildren = () => results.results.map(result => {
+			const element = cachedCreate(result, () => new TestResultElement(result));
+			return {
+				element,
+				incompressible: true,
+				collapsed: this.tree.hasElement(element) ? this.tree.isCollapsed(element) : true,
+				children: getResultChildren(result)
+			};
+		});
 
 		this._register(results.onTestChanged(e => {
 			const itemNode = creationCache.get(e.item);

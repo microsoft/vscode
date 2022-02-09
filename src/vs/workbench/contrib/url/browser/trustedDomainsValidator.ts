@@ -19,7 +19,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IdleValue } from 'vs/base/common/async';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';

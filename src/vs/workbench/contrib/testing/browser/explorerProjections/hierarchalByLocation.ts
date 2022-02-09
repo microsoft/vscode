@@ -138,15 +138,15 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 	 */
 	private applyDiff(diff: TestsDiff) {
 		for (const op of diff) {
-			switch (op[0]) {
+			switch (op.op) {
 				case TestDiffOpType.Add: {
-					const item = this.createItem(op[1]);
+					const item = this.createItem(op.item);
 					this.storeItem(item);
 					break;
 				}
 
 				case TestDiffOpType.Update: {
-					const patch = op[1];
+					const patch = op.item;
 					const existing = this.items.get(patch.extId);
 					if (!existing) {
 						break;
@@ -165,7 +165,7 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 				}
 
 				case TestDiffOpType.Remove: {
-					const toRemove = this.items.get(op[1]);
+					const toRemove = this.items.get(op.itemId);
 					if (!toRemove) {
 						break;
 					}

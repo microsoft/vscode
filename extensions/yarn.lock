@@ -24,10 +24,10 @@ fast-plist@0.1.2:
   resolved "https://registry.yarnpkg.com/fast-plist/-/fast-plist-0.1.2.tgz#a45aff345196006d406ca6cdcd05f69051ef35b8"
   integrity sha1-pFr/NFGWAG1AbKbNzQX2kFHvNbg=
 
-typescript@4.5.5:
-  version "4.5.5"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.5.5.tgz#d8c953832d28924a9e3d37c73d729c846c5896f3"
-  integrity sha512-TCTIul70LyWe6IJWT8QSYeA54WQe8EjQFU4wY52Fasj5UKx88LNYKCgBEHcOMOrFF1rKGbD8v/xcNWVUq9SymA==
+typescript@^4.6.0-dev.20220208:
+  version "4.6.0-dev.20220208"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.6.0-dev.20220208.tgz#24a0371626f614f7805fb326bc6a4229eb81e630"
+  integrity sha512-2yfS4UYfkLnpVkjs2IEl7T++ojqdPiV5S/akYv1trTf50TZHmGnyhF5Umo2iLWZEuSDmBCe2K52x5qzBXDi+mQ==
 
 vscode-grammar-updater@^1.0.3:
   version "1.0.3"

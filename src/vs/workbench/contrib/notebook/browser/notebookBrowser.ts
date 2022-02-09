@@ -204,17 +204,23 @@ export interface MarkdownCellLayoutInfo {
 	readonly foldHintHeight: number;
 }
 
+export enum CellLayoutContext {
+	Fold
+}
+
 export interface MarkdownCellLayoutChangeEvent {
 	font?: FontInfo;
 	outerWidth?: number;
 	editorHeight?: number;
 	previewHeight?: number;
 	totalHeight?: number;
+	context?: CellLayoutContext;
 }
 
 export interface ICommonCellViewModelLayoutChangeInfo {
 	totalHeight?: boolean | number;
 	outerWidth?: number;
+	context?: CellLayoutContext;
 }
 export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
@@ -629,6 +635,7 @@ export interface INotebookEditor {
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
+	getPreviousVisibleCellIndex(index: number): number | undefined;
 	find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]>;
 	highlightFind(cell: ICellViewModel, matchIndex: number): Promise<number>;
 	unHighlightFind(matchIndex: number): Promise<void>;

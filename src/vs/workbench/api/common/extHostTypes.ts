@@ -1424,7 +1424,6 @@ export enum SignatureHelpTriggerKind {
 
 
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2,
 }
@@ -1432,13 +1431,13 @@ export enum InlayHintKind {
 @es5ClassCompat
 export class InlayHintLabelPart {
 
-	label: string;
+	value: string;
 	tooltip?: string | vscode.MarkdownString;
 	location?: Location;
 	command?: vscode.Command;
 
-	constructor(label: string) {
-		this.label = label;
+	constructor(value: string) {
+		this.value = value;
 	}
 }
 
@@ -1451,10 +1450,11 @@ export class InlayHint implements vscode.InlayHint {
 	kind?: vscode.InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;
+	command?: vscode.Command;
 
-	constructor(label: string | InlayHintLabelPart[], position: Position, kind?: vscode.InlayHintKind) {
-		this.label = label;
+	constructor(position: Position, label: string | InlayHintLabelPart[], kind?: vscode.InlayHintKind) {
 		this.position = position;
+		this.label = label;
 		this.kind = kind;
 	}
 }
@@ -1563,18 +1563,26 @@ export class CompletionList {
 
 @es5ClassCompat
 export class InlineSuggestion implements vscode.InlineCompletionItem {
+	insertText?: string;
 
-	text: string;
+	/**
+	 * @deprecated Use `insertText` instead. Will be removed eventually.
+	*/
+	text?: string;
+
 	range?: Range;
 	command?: vscode.Command;
 
-	constructor(text: string, range?: Range, command?: vscode.Command) {
-		this.text = text;
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+		this.insertText = insertText;
 		this.range = range;
 		this.command = command;
 	}
 }
 
+/**
+ * @deprecated Return an array of inline completion items directly. Will be removed eventually.
+*/
 @es5ClassCompat
 export class InlineSuggestions implements vscode.InlineCompletionList {
 	items: vscode.InlineCompletionItem[];

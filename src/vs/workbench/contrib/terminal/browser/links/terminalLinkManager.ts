@@ -73,7 +73,7 @@ export class TerminalLinkManager extends DisposableStore {
 		// Setup link detectors in their order of priority
 		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._resolvePath.bind(this)));
 		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
-			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, this._processManager.os || OS, this._resolvePath.bind(this)));
+			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager.os || OS, this._resolvePath.bind(this)));
 		}
 		this._setupLinkDetector(TerminalShellIntegrationLinkDetector.id, this._instantiationService.createInstance(TerminalShellIntegrationLinkDetector, this._xterm));
 		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
@@ -104,7 +104,12 @@ export class TerminalLinkManager extends DisposableStore {
 				return;
 			}
 			// Just call the handler if there is no before listener
-			this._openLink(e.link);
+			if (e.link.activate) {
+				// Custom activate call (external links only)
+				e.link.activate(e.link.text);
+			} else {
+				this._openLink(e.link);
+			}
 		});
 		detectorAdapter.onDidShowHover(e => this._tooltipCallback(e.link, e.viewportRange, e.modifierDownCallback, e.modifierUpCallback));
 		if (!isExternal) {
@@ -122,7 +127,7 @@ export class TerminalLinkManager extends DisposableStore {
 		await opener.open(link);
 	}
 
-	async openRecentLink(type: 'file' | 'web'): Promise<ILink | undefined> {
+	async openRecentLink(type: 'localFile' | 'url'): Promise<ILink | undefined> {
 		let links;
 		let i = this._xterm.buffer.active.length;
 		while ((!links || links.length === 0) && i >= this._xterm.buffer.active.viewportY) {
@@ -163,8 +168,8 @@ export class TerminalLinkManager extends DisposableStore {
 
 	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
 		let unfilteredWordLinks = await this._getLinksForType(y, 'word');
-		const webLinks = await this._getLinksForType(y, 'web');
-		const fileLinks = await this._getLinksForType(y, 'file');
+		const webLinks = await this._getLinksForType(y, 'url');
+		const fileLinks = await this._getLinksForType(y, 'localFile');
 		const words = new Set();
 		let wordLinks;
 		if (unfilteredWordLinks) {
@@ -179,14 +184,16 @@ export class TerminalLinkManager extends DisposableStore {
 		return { wordLinks, webLinks, fileLinks };
 	}
 
-	protected async _getLinksForType(y: number, type: 'word' | 'web' | 'file'): Promise<ILink[] | undefined> {
+	protected async _getLinksForType(y: number, type: 'word' | 'url' | 'localFile'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
 				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkDetector.id)?.provideLinks(y, r)));
-			case 'web':
+			case 'url':
 				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalUriLinkDetector.id)?.provideLinks(y, r)));
-			case 'file':
-				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalLocalLinkDetector.id)?.provideLinks(y, r)));
+			case 'localFile': {
+				const links = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalLocalLinkDetector.id)?.provideLinks(y, r)));
+				return links?.filter(link => (link as TerminalLink).type === TerminalBuiltinLinkType.LocalFile);
+			}
 		}
 	}
 

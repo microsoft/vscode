@@ -51,6 +51,7 @@ import { URI } from 'vs/base/common/uri';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { CodeDataTransfers, containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
 import { getColorClass, getColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -744,7 +745,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._linkManager.getLinks();
 	}
 
-	async openRecentLink(type: 'file' | 'web'): Promise<void> {
+	async openRecentLink(type: 'localFile' | 'url'): Promise<void> {
 		if (!this.areLinksReady || !this._linkManager) {
 			throw new Error('terminal links are not ready, cannot open a link');
 		}
@@ -788,6 +789,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					tooltip: nls.localize('viewCommandOutput', "View Command Output"),
 					alwaysVisible: true
 				}];
+				// Merge consecutive commands
+				if (items.length > 0 && items[items.length - 1].label === label) {
+					items[items.length - 1].id = timestamp.toString();
+					items[items.length - 1].detail = detail;
+					continue;
+				}
 				items.push({
 					label,
 					description: fromNow(timestamp, true),
@@ -2146,6 +2153,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 
 	constructor(
 		private readonly _container: HTMLElement,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
@@ -2256,8 +2264,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 	}
 
 	private _getViewOrientation(): Orientation {
+		const panelPosition = this._layoutService.getPanelPosition();
 		const terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
-		return terminalLocation === ViewContainerLocation.Panel
+		return terminalLocation === ViewContainerLocation.Panel && panelPosition === Position.BOTTOM
 			? Orientation.HORIZONTAL
 			: Orientation.VERTICAL;
 	}
@@ -2382,7 +2391,7 @@ export class TerminalLabelComputer extends Disposable {
 		const multiRootWorkspace = folders.length > 1;
 
 		// Only set cwdFolder if detection is on
-		if (templateProperties.cwd && detection) {
+		if (templateProperties.cwd && detection && (!this._instance.shellLaunchConfig.isFeatureTerminal || labelType === TerminalLabelType.Title)) {
 			const cwdUri = URI.from({ scheme: this._instance.workspaceFolder?.uri.scheme || Schemas.file, path: this._instance.cwd });
 			// Multi-root workspaces always show cwdFolder to disambiguate them, otherwise only show
 			// when it differs from the workspace folder in which it was launched from

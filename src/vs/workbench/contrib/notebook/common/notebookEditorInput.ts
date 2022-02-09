@@ -23,7 +23,6 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -54,7 +53,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService
 	) {
@@ -259,7 +257,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			], true, undefined, () => undefined, undefined, false);
 
 			if (this.options._workingCopy) {
-				await this.workingCopyBackupService.discardBackup(this.options._workingCopy);
 				this.options._backupId = undefined;
 				this.options._workingCopy = undefined;
 				this.options.startDirty = undefined;

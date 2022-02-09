@@ -16,7 +16,8 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinder';
-import { IWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 suite('WindowsFinder', () => {
 

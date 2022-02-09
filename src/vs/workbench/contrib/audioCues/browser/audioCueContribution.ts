@@ -7,8 +7,8 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Event } from 'vs/base/common/event';
-import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { Emitter, Event } from 'vs/base/common/event';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { raceTimeout } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
@@ -16,17 +16,18 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { FoldingModel } from 'vs/editor/contrib/folding/browser/foldingModel';
+import { URI } from 'vs/base/common/uri';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class AudioCueContribution extends DisposableStore implements IWorkbenchContribution {
 	private audioCuesEnabled = false;
 	private readonly store = this.add(new DisposableStore());
 
 	constructor(
-		@IDebugService readonly debugService: IDebugService,
-		@IEditorService readonly editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IMarkerService private readonly markerService: IMarkerService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -71,124 +72,105 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 			Event.runAndSubscribeWithStore(
 				this.editorService.onDidActiveEditorChange,
 				(_, store) => {
-					let lastLineNumber = -1;
-					let hadBreakpoint = false;
-					let hadMarker = false;
-					let hadFoldedArea = false;
-
 					const activeTextEditorControl =
 						this.editorService.activeTextEditorControl;
-					if (
-						isCodeEditor(activeTextEditorControl) ||
-						isDiffEditor(activeTextEditorControl)
-					) {
-						const editor = isDiffEditor(activeTextEditorControl)
-							? activeTextEditorControl.getOriginalEditor()
-							: activeTextEditorControl;
 
-						let foldingModel: FoldingModel | null = null;
-						editor
-							.getContribution<FoldingController>(FoldingController.ID)
-							?.getFoldingModel()
-							?.then((newFoldingModel) => {
-								foldingModel = newFoldingModel;
-								update();
-							});
+					const editor = isDiffEditor(activeTextEditorControl)
+						? activeTextEditorControl.getOriginalEditor()
+						: isCodeEditor(activeTextEditorControl)
+							? activeTextEditorControl
+							: undefined;
 
-						const update = () => {
-							const model = editor.getModel();
-							if (!model) {
-								return;
-							}
-							const position = editor.getPosition();
-							if (!position) {
-								return;
-							}
-							const lineNumber = position.lineNumber;
-
-							const uri = model.uri;
-
-							const breakpoints = this.debugService
-								.getModel()
-								.getBreakpoints({ uri, lineNumber });
-							const hasBreakpoints = breakpoints.length > 0;
-
-							if (hasBreakpoints && !hadBreakpoint) {
-								this.handleBreakpointOnLine();
-							}
-							hadBreakpoint = hasBreakpoints;
-
-							const hasMarker = this.markerService
-								.read({ resource: uri })
-								.some(
-									(m) =>
-										m.severity === MarkerSeverity.Error &&
-										m.startLineNumber <= lineNumber &&
-										lineNumber <= m.endLineNumber
-								);
-
-							if (hasMarker && !hadMarker) {
-								this.handleErrorOnLine();
-							}
-							hadMarker = hasMarker;
-
-							const regionAtLine = foldingModel?.getRegionAtLine(lineNumber);
-							const hasFolding = !regionAtLine ? false : regionAtLine.isCollapsed && regionAtLine.startLineNumber === lineNumber;
-							if (hasFolding && !hadFoldedArea) {
-								this.handleFoldedAreasOnLine();
-							}
-							hadFoldedArea = hasFolding;
-						};
-
-						store.add(
-							editor.onDidChangeCursorPosition(() => {
-								const model = editor.getModel();
-								if (!model) {
-									return;
-								}
-								const position = editor.getPosition();
-								if (!position) {
-									return;
-								}
-								const lineNumber = position.lineNumber;
-								if (lineNumber === lastLineNumber) {
-									return;
-								}
-								lastLineNumber = lineNumber;
-								hadMarker = false;
-								hadBreakpoint = false;
-								hadFoldedArea = false;
-								update();
-							})
-						);
-						store.add(
-							this.markerService.onMarkerChanged(() => {
-								update();
-							})
-						);
-						store.add(
-							this.debugService.getModel().onDidChangeBreakpoints(() => {
-								update();
-							})
-						);
-
-						update();
+					if (editor) {
+						this.handleCurrentEditor(editor, store);
 					}
 				}
 			)
 		);
 	}
 
-	private handleBreakpointOnLine(): void {
-		this.playSound('break');
-	}
+	private handleCurrentEditor(editor: ICodeEditor, store: DisposableStore): void {
+		const features: Feature[] = [
+			this.instantiationService.createInstance(ErrorFeature),
+			this.instantiationService.createInstance(FoldedAreaFeature),
+			this.instantiationService.createInstance(BreakpointFeature),
+		];
 
-	private handleErrorOnLine(): void {
-		this.playSound('error');
-	}
+		const featuresPerEditor = new Map(
+			features.map((feature) => [
+				feature,
+				feature.createForEditor(editor, editor.getModel()!.uri),
+			])
+		);
 
-	private handleFoldedAreasOnLine(): void {
-		this.playSound('foldedAreas');
+		interface State {
+			lineNumber: number;
+			featureStates: Map<Feature, boolean>;
+		}
+
+		const computeNewState = (): State | undefined => {
+			if (!editor.hasModel()) {
+				return undefined;
+			}
+			const position = editor.getPosition();
+
+			const lineNumber = position.lineNumber;
+			const featureStates = new Map(
+				features.map((feature) => [
+					feature,
+					featuresPerEditor.get(feature)!.isActive(lineNumber),
+				])
+			);
+			return {
+				lineNumber,
+				featureStates
+			};
+		};
+
+		let lastState: State | undefined;
+		const updateState = () => {
+			const newState = computeNewState();
+
+			for (const feature of features) {
+				if (
+					newState &&
+					newState.featureStates.get(feature) &&
+					(!lastState?.featureStates?.get(feature) ||
+						newState.lineNumber !== lastState.lineNumber)
+				) {
+					this.playSound(feature.audioCueFilename);
+				}
+			}
+
+			lastState = newState;
+		};
+
+		for (const feature of featuresPerEditor.values()) {
+			if (feature.onChange) {
+				store.add(feature.onChange(updateState));
+			}
+		}
+
+		{
+			let lastLineNumber = -1;
+			store.add(
+				editor.onDidChangeCursorPosition(() => {
+					const position = editor.getPosition();
+					if (!position) {
+						return;
+					}
+					const lineNumber = position.lineNumber;
+					if (lineNumber === lastLineNumber) {
+						return;
+					}
+					lastLineNumber = lineNumber;
+
+					updateState();
+				})
+			);
+		}
+
+		updateState();
 	}
 
 	private async playSound(fileName: string) {
@@ -210,5 +192,111 @@ export class AudioCueContribution extends DisposableStore implements IWorkbenchC
 		} finally {
 			audio.remove();
 		}
+	}
+}
+
+interface Feature {
+	audioCueFilename: string;
+	createForEditor(
+		editor: ICodeEditor,
+		uri: URI
+	): FeatureResult;
+}
+
+interface FeatureResult {
+	isActive(lineNumber: number): boolean;
+	onChange?: Event<void>;
+}
+
+class ErrorFeature implements Feature {
+	public readonly audioCueFilename = 'error';
+
+	constructor(@IMarkerService private readonly markerService: IMarkerService) { }
+
+	createForEditor(
+		editor: ICodeEditor,
+		uri: URI
+	): FeatureResult {
+		return {
+			isActive: (lineNumber) => {
+				const hasMarker = this.markerService
+					.read({ resource: uri })
+					.some(
+						(m) =>
+							m.severity === MarkerSeverity.Error &&
+							m.startLineNumber <= lineNumber &&
+							lineNumber <= m.endLineNumber
+					);
+				return hasMarker;
+			},
+			onChange: Event.map(
+				Event.filter(
+					this.markerService.onMarkerChanged,
+					(changedUris) => {
+						const curUri = editor.getModel()?.uri?.toString();
+						return (
+							!!curUri && changedUris.some((u) => u.toString() === curUri)
+						);
+					}
+				),
+				(x) => undefined
+			),
+		};
+	}
+}
+
+class FoldedAreaFeature implements Feature {
+	public readonly audioCueFilename = 'foldedAreas';
+
+	createForEditor(
+		editor: ICodeEditor,
+		uri: URI
+	): FeatureResult {
+		const emitter = new Emitter<void>();
+		let foldingModel: FoldingModel | null = null;
+		editor
+			.getContribution<FoldingController>(FoldingController.ID)
+			?.getFoldingModel()
+			?.then((newFoldingModel) => {
+				foldingModel = newFoldingModel;
+				emitter.fire();
+			});
+
+		return {
+			isActive: lineNumber => {
+				const regionAtLine = foldingModel?.getRegionAtLine(lineNumber);
+				const hasFolding = !regionAtLine
+					? false
+					: regionAtLine.isCollapsed &&
+					regionAtLine.startLineNumber === lineNumber;
+				return hasFolding;
+			},
+			onChange: emitter.event,
+		};
+	}
+}
+
+class BreakpointFeature implements Feature {
+	public readonly audioCueFilename = 'break';
+
+	constructor(@IDebugService private readonly debugService: IDebugService) { }
+
+	createForEditor(
+		editor: ICodeEditor,
+		uri: URI
+	): FeatureResult {
+		return {
+			isActive: (lineNumber) => {
+				const breakpoints = this.debugService
+					.getModel()
+					.getBreakpoints({ uri, lineNumber });
+				const hasBreakpoints = breakpoints.length > 0;
+				return hasBreakpoints;
+			},
+			onChange: Event.map(
+				this.debugService.getModel().onDidChangeBreakpoints,
+				() => undefined
+			),
+		};
 	}
 }

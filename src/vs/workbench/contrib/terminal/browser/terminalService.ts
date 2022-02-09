@@ -16,7 +16,7 @@ import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -640,7 +640,11 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title) {
 			return;
 		}
-		this._primaryBackend?.updateTitle(instance.persistentProcessId, instance.title, instance.titleSource);
+		if (instance.staticTitle) {
+			this._primaryBackend?.updateTitle(instance.persistentProcessId, instance.staticTitle, TitleEventSource.Api);
+		} else {
+			this._primaryBackend?.updateTitle(instance.persistentProcessId, instance.title, instance.titleSource);
+		}
 	}
 
 	@debounce(500)

@@ -752,7 +752,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	protected async streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
 		const vsBuffer = await streamToBuffer(stream);
-		return vsBuffer.buffer;
+		return vsBuffer.buffer.buffer;
 	}
 
 	private async localLocalhost(id: string, origin: string) {

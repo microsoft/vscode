@@ -6,14 +6,14 @@
 import * as nls from 'vs/nls';
 import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/windows/common/windows';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { isUntitledWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
 import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { WORKSPACE_EXTENSION, isUntitledWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';

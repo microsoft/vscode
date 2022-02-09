@@ -47,7 +47,7 @@ import { fromNow } from 'vs/base/common/date';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';

@@ -30,7 +30,7 @@ import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilte
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
+import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersTreeAccessibilityProvider, MarkersViewModel } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -46,7 +46,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, withSelectionFragment } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -56,6 +56,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -391,7 +392,18 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				filter: this.filter,
 				accessibilityProvider,
 				identityProvider,
-				dnd: new ResourceDragAndDrop(this.instantiationService),
+				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, (element) => {
+					if (element instanceof ResourceMarkers) {
+						return element.resource;
+					}
+					if (element instanceof Marker) {
+						return withSelectionFragment(element.resource, element.range);
+					}
+					if (element instanceof RelatedInformation) {
+						return withSelectionFragment(element.raw.resource, element.raw);
+					}
+					return null;
+				}),
 				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()

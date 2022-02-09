@@ -3,6 +3,11 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
+param(
+	[Parameter(HelpMessage="Hides the shell integration welcome message")]
+	[switch] $HideWelcome = $False
+)
+
 $Global:__VSCodeOriginalPrompt = $function:Prompt
 
 function Global:__VSCode-Get-LastExitCode {
@@ -43,12 +48,18 @@ function Global:Prompt() {
 }
 
 # TODO: Gracefully fallback when PSReadLine is not loaded
+$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 function Global:PSConsoleHostReadLine {
-	[Microsoft.PowerShell.PSConsoleReadLine]::ReadLine($host.Runspace, $ExecutionContext)
+	$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
 	# Write command executed sequence directly to Console to avoid the new line from Write-Host
 	[Console]::Write("`e]133;C`a")
+	$tmp
 }
 
 # Set IsWindows property
 [Console]::Write("`e]633;P;IsWindows=$($IsWindows)`a")
-Write-Host "`e[1mShell integration activated!" -ForegroundColor Green
+
+# Show the welcome message
+if ($HideWelcome -eq $False) {
+	Write-Host "`e[1mShell integration activated!`e[0m" -ForegroundColor Green
+}

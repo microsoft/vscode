@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { IPath, posix, win32 } from 'vs/base/common/path';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -15,6 +14,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { osPathModule } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ILineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { getLocalLinkRegex, lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, winLineAndColumnMatchIndex } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
@@ -241,8 +241,4 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 			allowContributedOpeners: true,
 		});
 	}
-}
-
-function osPathModule(os: OperatingSystem): IPath {
-	return os === OperatingSystem.Windows ? win32 : posix;
 }

@@ -11,7 +11,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';

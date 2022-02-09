@@ -49,4 +49,10 @@ preexec() {
 }
 precmd_functions+=($precmd_functions precmd)
 preexec_functions+=($preexec_functions preexec)
-echo "\033[1;32mShell integration activated!\033[0m"
+
+# Show the welcome message
+if [ -z "${VSCODE_SHELL_HIDE_WELCOME-}" ]; then
+	echo "\033[1;32mShell integration activated!\033[0m"
+else
+	VSCODE_SHELL_HIDE_WELCOME=""
+fi
