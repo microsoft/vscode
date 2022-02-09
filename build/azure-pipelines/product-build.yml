@@ -123,7 +123,7 @@ variables:
 resources:
   containers:
     - container: vscode-bionic-x64
-      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64
+      image: vscodehub.azurecr.io/vscode-linux-build-agent:bionic-x64-temp
       endpoint: VSCodeHub
       options: --user 0:0 --cap-add SYS_ADMIN
     - container: vscode-arm64
@@ -205,7 +205,7 @@ stages:
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - job: Linuxx64
-                container: vscode-bionic-x64
+                container: vscode-bionic-x64-temp
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
