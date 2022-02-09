@@ -161,11 +161,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
-			if (typeof lang !== 'string') {
-				return '';
-			}
-
-			const value = options.codeBlockRenderer!(lang, code);
+			const value = options.codeBlockRenderer!(lang ?? '', code);
 			// when code-block rendering is async we return sync
 			// but update the node with the real result later.
 			const id = defaultGenerator.nextId();
