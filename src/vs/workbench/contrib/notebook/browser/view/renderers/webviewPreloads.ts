@@ -677,7 +677,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		readonly id: string;
 
 		readonly mime: string;
-		metadata: unknown;
+		readonly metadata: unknown;
 
 		text(): string;
 		json(): any;
@@ -685,32 +685,39 @@ async function webviewPreloads(ctx: PreloadContext) {
 		blob(): Blob;
 	}
 
-	class OutputItem implements IOutputItem {
-		constructor(
-			public readonly id: string,
-			public readonly element: HTMLElement,
-			public readonly mime: string,
-			public readonly metadata: unknown,
-			public readonly valueBytes: Uint8Array
-		) { }
+	function createOutputItem(
+		id: string,
+		element: HTMLElement,
+		mime: string,
+		metadata: unknown,
+		valueBytes: Uint8Array
+	): IOutputItem {
+		return Object.freeze(<IOutputItem>{
+			id,
+			element,
+			mime,
+			metadata,
 
-		data(): Uint8Array {
-			return this.valueBytes;
-		}
+			data(): Uint8Array {
+				return valueBytes;
+			},
 
-		bytes(): Uint8Array { return this.data(); }
+			bytes(): Uint8Array {
+				return this.data();
+			},
 
-		text(): string {
-			return textDecoder.decode(this.valueBytes);
-		}
+			text(): string {
+				return textDecoder.decode(valueBytes);
+			},
 
-		json() {
-			return JSON.parse(this.text());
-		}
+			json() {
+				return JSON.parse(this.text());
+			},
 
-		blob(): Blob {
-			return new Blob([this.valueBytes], { type: this.mime });
-		}
+			blob(): Blob {
+				return new Blob([valueBytes], { type: this.mime });
+			}
+		});
 	}
 
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
@@ -1960,7 +1967,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			} else {
 				const rendererApi = preloadsAndErrors[0] as RendererApi;
 				try {
-					rendererApi.renderOutputItem(new OutputItem(this.outputId, this.element, content.mimeType, content.metadata, content.valueBytes), this.element);
+					rendererApi.renderOutputItem(createOutputItem(this.outputId, this.element, content.mimeType, content.metadata, content.valueBytes), this.element);
 				} catch (e) {
 					showPreloadErrors(this.element, e);
 				}
