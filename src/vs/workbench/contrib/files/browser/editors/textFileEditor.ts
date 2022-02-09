@@ -26,7 +26,7 @@ import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon'
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IErrorWithActions } from 'vs/base/common/errors';
+import { IErrorWithActions } from 'vs/base/common/errorMessage';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';

@@ -16,7 +16,6 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
-    "inlayHints",
     "inlineCompletions",
     "markdownStringBaseUri",
     "notebookCellExecutionState",

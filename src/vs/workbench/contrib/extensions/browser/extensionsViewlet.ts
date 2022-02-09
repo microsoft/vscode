@@ -6,7 +6,8 @@
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import { timeout, Delayer, Promises } from 'vs/base/common/async';
-import { createErrorWithActions, isCancellationError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';

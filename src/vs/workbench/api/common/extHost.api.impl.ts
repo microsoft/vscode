@@ -365,10 +365,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const tests: typeof vscode.tests = {
 			createTestController(provider, label, refreshHandler?: (token: vscode.CancellationToken) => Thenable<void> | void) {
-				if (refreshHandler) {
-					checkProposedApiEnabled(extension, 'testRefresh');
-				}
-
 				return extHostTesting.createTestController(provider, label, refreshHandler);
 			},
 			createTestObserver() {
@@ -525,7 +521,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguages.tokenAtPosition(doc, pos);
 			},
 			registerInlayHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'inlayHints');
 				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
 			},
 			createLanguageStatusItem(id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
@@ -653,8 +648,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
 				return extHostProgress.withProgress(extension, options, task);
 			},
-			createOutputChannel(name: string): vscode.OutputChannel {
-				return extHostOutputService.createOutputChannel(name, extension);
+			createOutputChannel(name: string, languageId?: string): vscode.OutputChannel {
+				if (languageId) {
+					checkProposedApiEnabled(extension, 'outputChannelLanguage');
+				}
+				return extHostOutputService.createOutputChannel(name, languageId, extension);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn; preserveFocus?: boolean }, options?: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviewPanels.createWebviewPanel(extension, viewType, title, showOptions, options);
@@ -1183,6 +1181,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ColorThemeKind: extHostTypes.ColorThemeKind,
 			CommentMode: extHostTypes.CommentMode,
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
+			CommentThreadState: extHostTypes.CommentThreadState,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionItemTag: extHostTypes.CompletionItemTag,

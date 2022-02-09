@@ -8,8 +8,9 @@
 }
 
 .settings-editor {
-	padding: 11px 0px 0px;
 	overflow: hidden;
+	max-width: 1500px;
+	margin: auto;
 }
 
 .settings-editor:focus {
@@ -21,10 +22,11 @@
 	box-sizing: border-box;
 	margin: auto;
 	overflow: hidden;
+	margin-top: 11px;
 	padding-top: 3px;
 	padding-left: 24px;
 	padding-right: 24px;
-	max-width: 1000px;
+	max-width: 1500px;
 }
 
 .settings-editor > .settings-header > .search-container {
@@ -123,12 +125,11 @@
 
 .settings-editor > .settings-body {
 	position: relative;
-	margin-top: 14px;
 }
 
 .settings-editor > .settings-body > .no-results-message {
 	display: none;
-	max-width: 1000px;
+	max-width: 1500px;
 	margin: auto;
 	margin-top: 20px;
 	padding-left: 24px;
@@ -205,16 +206,11 @@
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list {
-	width: 160px;
 	pointer-events: initial;
 }
 
 .settings-editor.no-toc-search > .settings-body .settings-toc-container,
 .settings-editor.narrow-width > .settings-body .settings-toc-container {
-	display: none;
-}
-
-.settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element > .shadow {
 	display: none;
 }
 
@@ -250,13 +246,21 @@
 	position: relative;
 }
 
+.settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element {
+	padding-top: 14px;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element {
+	padding-top: 14px;
+}
+
 .settings-editor > .settings-body .settings-toc-wrapper {
 	padding-left: 31px;
 }
 
 .settings-editor > .settings-body .settings-toc-wrapper {
 	height: 100%;
-	max-width: 1000px;
+	max-width: 1500px;
 	margin: auto;
 }
 
@@ -278,15 +282,15 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
-	max-width: 1000px;
+	max-width: 1500px;
 	margin: auto;
 	box-sizing: border-box;
-	padding-left: 221px;
+	padding-left: 24px;
 	padding-right: 24px;
 	overflow: visible;
 }
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents.group-title {
-	max-width: min(100%, 1000px); /* Cut off title if too long for window */
+	max-width: min(100%, 1500px); /* Cut off title if too long for window */
 }
 
 .settings-editor > .settings-body .settings-tree-container .settings-group-title-label,
@@ -414,7 +418,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-text .setting-item-validation-message {
-	width: 500px;
+	width: 420px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-number .setting-item-validation-message {
@@ -496,7 +500,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-text .setting-item-control {
-	width: 500px;
+	width: 420px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,

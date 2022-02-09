@@ -105,7 +105,7 @@ steps:
       export CXX=$PWD/.build/CR_Clang/bin/clang++
       export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
       export CFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
-      export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
+      export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -L$PWD/.build/libcxx-objects -lc++abi -Wl,--lto-O0"
       export VSCODE_REMOTE_CC=$(which gcc)
       export VSCODE_REMOTE_CXX=$(which g++)
 

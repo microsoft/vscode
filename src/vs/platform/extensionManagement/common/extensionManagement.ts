@@ -357,7 +357,7 @@ export interface IExtensionGalleryService {
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
 	isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<boolean>;
 	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtension | null>;
-	getAllCompatibleVersions(extension: IGalleryExtension, preRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
+	getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
 	getReadme(extension: IGalleryExtension, token: CancellationToken): Promise<string>;

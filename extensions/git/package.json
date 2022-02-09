@@ -15,6 +15,7 @@
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
+    "tabs",
     "timeline"
   ],
   "categories": [
@@ -2112,6 +2113,12 @@
           "type": "boolean",
           "default": true,
           "description": "%config.confirmNoVerifyCommit%"
+        },
+        "git.closeDiffOnOperation": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.closeDiffOnOperation%"
         },
         "git.openDiffOnClick": {
           "type": "boolean",

@@ -6,7 +6,8 @@
 import { localize } from 'vs/nls';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { isCancellationError, getErrorMessage, createErrorWithActions } from 'vs/base/common/errors';
+import { isCancellationError, getErrorMessage } from 'vs/base/common/errors';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
 import { SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';

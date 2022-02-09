@@ -1061,14 +1061,14 @@ class InlineCompletionAdapter {
 			return undefined;
 		}
 
-		const normalizedResult: vscode.InlineCompletionList = isArray(result) ? { items: result } : result;
+		const normalizedResult = isArray(result) ? result : result.items;
 
-		const pid = this._cache.add(normalizedResult.items);
+		const pid = this._cache.add(normalizedResult);
 		let disposableStore: DisposableStore | undefined = undefined;
 
 		return {
 			pid,
-			items: normalizedResult.items.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
+			items: normalizedResult.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
 				let command: languages.Command | undefined = undefined;
 				if (item.command) {
 					if (!disposableStore) {
@@ -1078,8 +1078,12 @@ class InlineCompletionAdapter {
 					command = this._commands.toInternal(item.command, disposableStore);
 				}
 
+				const insertText = item.insertText ?? item.text;
+				if (insertText === undefined) {
+					throw new Error('text or insertText must be defined');
+				}
 				return ({
-					text: item.text,
+					text: insertText,
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,
