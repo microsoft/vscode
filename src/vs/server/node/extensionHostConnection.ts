@@ -202,9 +202,7 @@ export class ExtensionHostConnection {
 			// Run Extension Host as fork of current process
 			const args = ['--type=extensionHost', `--uriTransformerPath=${uriTransformerPath}`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
-			if (useHostProxy) {
-				args.push(`--useHostProxy`);
-			}
+			args.push(`--useHostProxy=${useHostProxy ? 'true' : 'false'}`);
 			this._extensionHostProcess = cp.fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, args, opts);
 			const pid = this._extensionHostProcess.pid;
 			this._log(`<${pid}> Launched Extension Host Process.`);
