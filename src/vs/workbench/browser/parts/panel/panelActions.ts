@@ -159,7 +159,7 @@ PositionPanelActionConfigs.forEach(positionPanelAction => {
 		constructor() {
 			super({
 				id,
-				title: title,
+				title,
 				category: CATEGORIES.View,
 				f1: true
 			});
