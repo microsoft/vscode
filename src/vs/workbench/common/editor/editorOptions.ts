@@ -5,7 +5,7 @@
 
 import { IRange } from 'vs/editor/common/core/range';
 import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 
 export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEditor, scrollType: ScrollType): boolean {
 
@@ -25,8 +25,12 @@ export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEdi
 			endColumn: options.selection.endColumn ?? options.selection.startColumn
 		};
 
-		editor.setSelection(range, options.selectionSource);
+		// Apply selection and give it a `TextEditorSelectionSource`
+		// so that listeners can distinguish this selection change
+		// from others.
+		editor.setSelection(range, TextEditorSelectionSource.NAVIGATION);
 
+		// Reveal selection
 		if (options.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
 			editor.revealRangeNearTop(range, scrollType);
 		} else if (options.selectionRevealType === TextEditorSelectionRevealType.NearTopIfOutsideViewport) {

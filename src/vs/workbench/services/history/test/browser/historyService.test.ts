@@ -279,7 +279,7 @@ suite('HistoryService', function () {
 	test('back / forward: editor navigation stack - navigation', async function () {
 		const [, , editorService, , instantiationService] = await createServices();
 
-		const stack = instantiationService.createInstance(EditorNavigationStack);
+		const stack = instantiationService.createInstance(EditorNavigationStack, GoFilter.NONE);
 
 		const resource = toResource.call(this, '/path/index.txt');
 		const otherResource = toResource.call(this, '/path/index.html');
@@ -342,7 +342,7 @@ suite('HistoryService', function () {
 	test('back / forward: editor navigation stack - mutations', async function () {
 		const [, , editorService, , instantiationService] = await createServices();
 
-		const stack = instantiationService.createInstance(EditorNavigationStack);
+		const stack = instantiationService.createInstance(EditorNavigationStack, GoFilter.NONE);
 
 		const resource = toResource.call(this, '/path/index.txt');
 		const otherResource = toResource.call(this, '/path/index.html');
