@@ -149,9 +149,10 @@ export class IntellisenseStatus extends Disposable {
 				{
 					const statusItem = this.ensureStatusItem();
 					statusItem.severity = vscode.LanguageStatusSeverity.Information;
-					statusItem.text = '$(loading~spin)';
-					statusItem.detail = localize('pending.detail', 'Loading IntelliSense status');
+					statusItem.text = localize('pending.detail', 'Loading IntelliSense status');
+					statusItem.detail = undefined;
 					statusItem.command = undefined;
+					statusItem.busy = true;
 					break;
 				}
 
@@ -163,13 +164,15 @@ export class IntellisenseStatus extends Disposable {
 					}
 
 					const statusItem = this.ensureStatusItem();
+					statusItem.busy = false;
+					statusItem.detail = undefined;
+
 					statusItem.severity = vscode.LanguageStatusSeverity.Information;
 					if (isImplicitProjectConfigFile(this._state.configFile)) {
 						statusItem.text = this._state.projectType === ProjectType.TypeScript
 							? localize('resolved.detail.noTsConfig', "No tsconfig")
 							: localize('resolved.detail.noJsConfig', "No jsconfig");
 
-						statusItem.detail = undefined;
 						statusItem.command = {
 							command: this.createConfigCommandId,
 							title: this._state.projectType === ProjectType.TypeScript
@@ -179,7 +182,6 @@ export class IntellisenseStatus extends Disposable {
 						};
 					} else {
 						statusItem.text = vscode.workspace.asRelativePath(this._state.configFile);
-						statusItem.detail = undefined;
 						statusItem.command = {
 							command: this.openOpenConfigCommandId,
 							title: localize('resolved.command.title.open', "Open config file"),
@@ -195,6 +197,7 @@ export class IntellisenseStatus extends Disposable {
 					statusItem.severity = vscode.LanguageStatusSeverity.Warning;
 					statusItem.text = localize('syntaxOnly.text', 'Partial Mode');
 					statusItem.detail = localize('syntaxOnly.detail', 'Project Wide IntelliSense not available');
+					statusItem.busy = false;
 					statusItem.command = {
 						title: localize('syntaxOnly.command.title.learnMore', "Learn More"),
 						command: 'vscode.open',
