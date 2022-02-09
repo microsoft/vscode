@@ -72,7 +72,6 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 	['ms-toolsai.jupyter-renderers', new Set(['jupyter-notebook', 'interactive'])],
 ]);
 
-export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
 export type NotebookRendererEntrypoint = string | { extends: string; path: string };
@@ -587,29 +586,6 @@ export namespace CellUri {
 			})
 		};
 	}
-}
-
-type MimeTypeInfo = {
-	alwaysSecure?: boolean;
-	supportedByCore?: boolean;
-	mergeable?: boolean;
-};
-
-const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
-	['application/json', { alwaysSecure: true, supportedByCore: true }],
-	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
-]);
-
-export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
-	return _mimeTypeInfo.get(mimeType)?.alwaysSecure ?? false;
-}
-
-export function mimeTypeSupportedByCore(mimeType: string) {
-	return _mimeTypeInfo.get(mimeType)?.supportedByCore ?? false;
-}
-
-export function mimeTypeIsMergeable(mimeType: string): boolean {
-	return _mimeTypeInfo.get(mimeType)?.mergeable ?? false;
 }
 
 const normalizeSlashes = (str: string) => isWindows ? str.replace(/\//g, '\\') : str;

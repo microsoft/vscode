@@ -78,7 +78,6 @@ export interface IRenderOutputViaExtension {
 }
 
 export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
-export type IRenderOutput = IRenderMainframeOutput | IInsetRenderOutput;
 
 export interface IOutputTransformContribution {
 	getType(): RenderOutputType;
@@ -93,11 +92,11 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IInsetRenderOutput;
 }
 
 export interface IOutputRenderer {
-	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput;
+	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IInsetRenderOutput;
 	getContribution(preferredMimeType: string): IOutputTransformContribution | undefined;
 }
 
@@ -109,7 +108,6 @@ export interface ICellOutputViewModel extends IDisposable {
 	model: ICellOutput;
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: IOrderedMimeType | undefined;
-	supportAppend(): boolean;
 	hasMultiMimeType(): boolean;
 	toRawJSON(): any;
 }
@@ -466,11 +464,6 @@ export interface INotebookEditor {
 	getLayoutInfo(): NotebookLayoutInfo;
 
 	getVisibleRangesPlusViewportBelow(): ICellRange[];
-
-	/**
-	 * Fetch the output renderers for notebook outputs.
-	 */
-	getOutputRenderer(): IOutputRenderer;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).

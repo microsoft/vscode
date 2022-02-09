@@ -86,7 +86,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo'
 import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
-import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
 import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/execution';
