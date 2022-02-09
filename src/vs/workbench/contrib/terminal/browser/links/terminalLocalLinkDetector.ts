@@ -140,20 +140,24 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
-			if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-				const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, link, osPathModule(this._os).sep);
-				// Only add a single exact link candidate if the cwd is available, this may cause
-				// the link to not be resolved but that should only occur when the actual file does
-				// not exist. Doing otherwise could cause unexpected results where handling via the
-				// word link detector is preferable.
-				if (absolutePath) {
-					linkCandidates.push(absolutePath);
-				}
-			} else {
-				// Fallback to resolving against the initial cwd, removing any relative directory prefixes
+			if (osPathModule(this._os).isAbsolute(link)) {
 				linkCandidates.push(link);
-				if (link.match(/^(\.\.[\/\\])+/)) {
-					linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));
+			} else {
+				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
+					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, link, osPathModule(this._os).sep);
+					// Only add a single exact link candidate if the cwd is available, this may cause
+					// the link to not be resolved but that should only occur when the actual file does
+					// not exist. Doing otherwise could cause unexpected results where handling via the
+					// word link detector is preferable.
+					if (absolutePath) {
+						linkCandidates.push(absolutePath);
+					}
+				} else {
+					// Fallback to resolving against the initial cwd, removing any relative directory prefixes
+					linkCandidates.push(link);
+					if (link.match(/^(\.\.[\/\\])+/)) {
+						linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));
+					}
 				}
 			}
 			const linkStat = await this._validateLinkCandidates(linkCandidates);
