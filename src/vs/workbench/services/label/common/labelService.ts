@@ -11,10 +11,9 @@ import { Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService, IWorkspace, isWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
 import { basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { IWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
@@ -137,7 +136,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return bestResult ? bestResult.formatting : undefined;
 	}
 
-	getUriLabel(resource: URI, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean, separator?: '/' | '\\' } = {}): string {
+	getUriLabel(resource: URI, options: { relative?: boolean; noPrefix?: boolean; endWithSeparator?: boolean; separator?: '/' | '\\' } = {}): string {
 		let formatting = this.findFormatting(resource);
 		if (formatting && options.separator) {
 			// mixin separator if defined from the outside
@@ -155,7 +154,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return label;
 	}
 
-	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
+	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean; noPrefix?: boolean; endWithSeparator?: boolean } = {}): string {
 		if (!formatting) {
 			return getPathLabel(resource.path, { userHome: this.pathService.resolvedUserHome }, options.relative ? this.contextService : undefined);
 		}

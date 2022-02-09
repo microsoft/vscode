@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContents } from '../tableOfContentsProvider';
 import { isMarkdownFile } from './file';
 import { extname } from './path';
 
@@ -104,8 +104,8 @@ function getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
 }
 
 async function tryRevealLineUsingTocFragment(engine: MarkdownEngine, editor: vscode.TextEditor, fragment: string): Promise<boolean> {
-	const toc = new TableOfContentsProvider(engine, editor.document);
-	const entry = await toc.lookup(fragment);
+	const toc = await TableOfContents.create(engine, editor.document);
+	const entry = toc.lookup(fragment);
 	if (entry) {
 		const lineStart = new vscode.Range(entry.line, 0, entry.line, 0);
 		editor.selection = new vscode.Selection(lineStart.start, lineStart.end);

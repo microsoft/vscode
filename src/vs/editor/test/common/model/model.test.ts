@@ -8,15 +8,14 @@ import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
-import { IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
+import { EncodedTokenizationResult, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 // --------- utils
 

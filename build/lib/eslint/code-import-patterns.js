@@ -7,6 +7,9 @@ const path = require("path");
 const minimatch = require("minimatch");
 const utils_1 = require("./utils");
 const REPO_ROOT = path.normalize(path.join(__dirname, '../../../'));
+function isLayerAllowRule(option) {
+    return !!(option.when && option.allow);
+}
 /**
  * Returns the filename relative to the project root and using `/` as separators
  */
@@ -25,9 +28,11 @@ module.exports = new class {
                 url: 'https://github.com/microsoft/vscode/wiki/Source-Code-Organization'
             }
         };
+        this._optionsCache = new WeakMap();
     }
     create(context) {
-        const configs = this._processOptions(context.options);
+        const options = context.options;
+        const configs = this._processOptions(options);
         const relativeFilename = getRelativeFilename(context);
         for (const config of configs) {
             if (minimatch(relativeFilename, config.target)) {
@@ -35,25 +40,138 @@ module.exports = new class {
             }
         }
         context.report({
-            loc: { line: 1, column: 1 },
+            loc: { line: 1, column: 0 },
             messageId: 'badFilename'
         });
         return {};
     }
     _processOptions(options) {
-        const result = [];
-        for (const option of options) {
-            const target = option.target;
-            const restrictions = (typeof option.restrictions === 'string' ? [option.restrictions] : option.restrictions);
-            result.push({ target, restrictions });
+        if (this._optionsCache.has(options)) {
+            return this._optionsCache.get(options);
         }
-        return result;
+        function orSegment(variants) {
+            return (variants.length === 1 ? variants[0] : `{${variants.join(',')}}`);
+        }
+        const layerRules = [
+            { layer: 'common', deps: orSegment(['common']) },
+            { layer: 'worker', deps: orSegment(['common', 'worker']) },
+            { layer: 'browser', deps: orSegment(['common', 'browser']), isBrowser: true },
+            { layer: 'electron-sandbox', deps: orSegment(['common', 'browser', 'electron-sandbox']), isBrowser: true },
+            { layer: 'node', deps: orSegment(['common', 'node']), isNode: true },
+            { layer: 'electron-browser', deps: orSegment(['common', 'browser', 'node', 'electron-sandbox', 'electron-browser']), isBrowser: true, isNode: true },
+            { layer: 'electron-main', deps: orSegment(['common', 'node', 'electron-main']), isNode: true },
+        ];
+        let browserAllow = [];
+        let nodeAllow = [];
+        let testAllow = [];
+        for (const option of options) {
+            if (isLayerAllowRule(option)) {
+                if (option.when === 'hasBrowser') {
+                    browserAllow = option.allow.slice(0);
+                }
+                else if (option.when === 'hasNode') {
+                    nodeAllow = option.allow.slice(0);
+                }
+                else if (option.when === 'test') {
+                    testAllow = option.allow.slice(0);
+                }
+            }
+        }
+        function findLayer(layer) {
+            for (const layerRule of layerRules) {
+                if (layerRule.layer === layer) {
+                    return layerRule;
+                }
+            }
+            return null;
+        }
+        function generateConfig(layerRule, target, rawRestrictions) {
+            const restrictions = [];
+            const testRestrictions = [...testAllow];
+            if (layerRule.isBrowser) {
+                restrictions.push(...browserAllow);
+            }
+            if (layerRule.isNode) {
+                restrictions.push(...nodeAllow);
+            }
+            for (const rawRestriction of rawRestrictions) {
+                let importPattern;
+                let when = undefined;
+                if (typeof rawRestriction === 'string') {
+                    importPattern = rawRestriction;
+                }
+                else {
+                    importPattern = rawRestriction.pattern;
+                    when = rawRestriction.when;
+                }
+                if (typeof when === 'undefined'
+                    || (when === 'hasBrowser' && layerRule.isBrowser)
+                    || (when === 'hasNode' && layerRule.isNode)) {
+                    restrictions.push(importPattern.replace(/\/\~$/, `/${layerRule.deps}/**`));
+                    testRestrictions.push(importPattern.replace(/\/\~$/, `/test/${layerRule.deps}/**`));
+                }
+                else if (when === 'test') {
+                    testRestrictions.push(importPattern.replace(/\/\~$/, `/${layerRule.deps}/**`));
+                    testRestrictions.push(importPattern.replace(/\/\~$/, `/test/${layerRule.deps}/**`));
+                }
+            }
+            testRestrictions.push(...restrictions);
+            return [
+                {
+                    target: target.replace(/\/\~$/, `/${layerRule.layer}/**`),
+                    restrictions: restrictions
+                },
+                {
+                    target: target.replace(/\/\~$/, `/test/${layerRule.layer}/**`),
+                    restrictions: testRestrictions
+                }
+            ];
+        }
+        const configs = [];
+        for (const option of options) {
+            if (isLayerAllowRule(option)) {
+                continue;
+            }
+            const target = option.target;
+            const targetIsVS = /^src\/vs\//.test(target);
+            const restrictions = (typeof option.restrictions === 'string' ? [option.restrictions] : option.restrictions).slice(0);
+            if (targetIsVS) {
+                // Always add "vs/nls"
+                restrictions.push('vs/nls');
+            }
+            if (targetIsVS && option.layer) {
+                // single layer => simple substitution for /~
+                const layerRule = findLayer(option.layer);
+                if (layerRule) {
+                    const [config, testConfig] = generateConfig(layerRule, target, restrictions);
+                    if (option.test) {
+                        configs.push(testConfig);
+                    }
+                    else {
+                        configs.push(config);
+                    }
+                }
+            }
+            else if (targetIsVS && /\/\~$/.test(target)) {
+                // generate all layers
+                for (const layerRule of layerRules) {
+                    const [config, testConfig] = generateConfig(layerRule, target, restrictions);
+                    configs.push(config);
+                    configs.push(testConfig);
+                }
+            }
+            else {
+                configs.push({ target, restrictions: restrictions.filter(r => typeof r === 'string') });
+            }
+        }
+        this._optionsCache.set(options, configs);
+        return configs;
     }
     _checkImport(context, config, node, importPath) {
         // resolve relative paths
         if (importPath[0] === '.') {
             const relativeFilename = getRelativeFilename(context);
-            importPath = path.join(path.dirname(relativeFilename), importPath);
+            importPath = path.posix.join(path.posix.dirname(relativeFilename), importPath);
             if (/^src\/vs\//.test(importPath)) {
                 // resolve using AMD base url
                 importPath = importPath.substring('src/'.length);

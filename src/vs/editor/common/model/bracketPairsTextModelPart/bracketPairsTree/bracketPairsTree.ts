@@ -7,9 +7,9 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { BracketInfo, BracketPairWithMinIndentationInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { BracketInfo, BracketPairWithMinIndentationInfo } from 'vs/editor/common/textModelBracketPairs';
 import { BackgroundTokenizationState, TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { AstNode, AstNodeKind } from './ast';
 import { TextEditInfo } from './beforeEditPositionMapper';
@@ -143,13 +143,7 @@ export class BracketPairsTree extends Disposable {
 }
 
 function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: Length, startOffset: Length, endOffset: Length, result: BracketInfo[], level: number = 0): void {
-	if (node.kind === AstNodeKind.Bracket) {
-		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
-		result.push(new BracketInfo(range, level - 1, false));
-	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
-		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
-		result.push(new BracketInfo(range, level - 1, true));
-	} else if (node.kind === AstNodeKind.List) {
+	if (node.kind === AstNodeKind.List) {
 		for (const child of node.children) {
 			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
 			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
@@ -165,7 +159,8 @@ function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: 
 			const child = node.openingBracket;
 			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
 			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
-				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+				const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
+				result.push(new BracketInfo(range, level - 1, !node.closingBracket));
 			}
 			nodeOffsetStart = nodeOffsetEnd;
 		}
@@ -182,10 +177,17 @@ function collectBrackets(node: AstNode, nodeOffsetStart: Length, nodeOffsetEnd: 
 			const child = node.closingBracket;
 			nodeOffsetEnd = lengthAdd(nodeOffsetStart, child.length);
 			if (lengthLessThanEqual(nodeOffsetStart, endOffset) && lengthGreaterThanEqual(nodeOffsetEnd, startOffset)) {
-				collectBrackets(child, nodeOffsetStart, nodeOffsetEnd, startOffset, endOffset, result, level);
+				const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
+				result.push(new BracketInfo(range, level - 1, false));
 			}
 			nodeOffsetStart = nodeOffsetEnd;
 		}
+	} else if (node.kind === AstNodeKind.UnexpectedClosingBracket) {
+		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
+		result.push(new BracketInfo(range, level - 1, true));
+	} else if (node.kind === AstNodeKind.Bracket) {
+		const range = lengthsToRange(nodeOffsetStart, nodeOffsetEnd);
+		result.push(new BracketInfo(range, level - 1, false));
 	}
 }
 

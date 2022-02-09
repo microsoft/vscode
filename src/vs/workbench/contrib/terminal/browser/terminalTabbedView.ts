@@ -28,9 +28,15 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 
 const $ = dom.$;
 
-const FIND_FOCUS_CLASS = 'find-focused';
-const STATUS_ICON_WIDTH = 30;
-const SPLIT_ANNOTATION_WIDTH = 30;
+const enum CssClass {
+	ViewIsVertical = 'terminal-side-view',
+	FindFocus = 'find-focused'
+}
+
+const enum WidthConstants {
+	StatusIcon = 30,
+	SplitAnnotation = 30
+}
 
 export class TerminalTabbedView extends Disposable {
 
@@ -129,13 +135,18 @@ export class TerminalTabbedView extends Disposable {
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._updateTheme();
 
-		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(FIND_FOCUS_CLASS));
-		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(FIND_FOCUS_CLASS));
+		this._findWidget.focusTracker.onDidFocus(() => this._terminalContainer.classList.add(CssClass.FindFocus));
+		this._findWidget.focusTracker.onDidBlur(() => this._terminalContainer.classList.remove(CssClass.FindFocus));
 
 		this._attachEventListeners(parentElement, this._terminalContainer);
 
 		this._terminalGroupService.onDidChangePanelOrientation((orientation) => {
 			this._panelOrientation = orientation;
+			if (this._panelOrientation === Orientation.VERTICAL) {
+				this._terminalContainer.classList.add(CssClass.ViewIsVertical);
+			} else {
+				this._terminalContainer.classList.remove(CssClass.ViewIsVertical);
+			}
 		});
 
 		this._splitView = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL, proportionalLayout: false });
@@ -171,7 +182,7 @@ export class TerminalTabbedView extends Disposable {
 				this._addTabTree();
 				this._addSashListener();
 				this._splitView.resizeView(this._tabTreeIndex, this._getLastListWidth());
-				this._rerenderTabs();
+				this.rerenderTabs();
 			}
 		} else {
 			if (this._splitView.length === 2 && !this._terminalTabsMouseContextKey.get()) {
@@ -223,8 +234,8 @@ export class TerminalTabbedView extends Disposable {
 	private _getAdditionalWidth(instance: ITerminalInstance): number {
 		// Size to include padding, icon, status icon (if any), split annotation (if any), + a little more
 		const additionalWidth = 40;
-		const statusIconWidth = instance.statusList.statuses.length > 0 ? STATUS_ICON_WIDTH : 0;
-		const splitAnnotationWidth = (this._terminalGroupService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? SPLIT_ANNOTATION_WIDTH : 0;
+		const statusIconWidth = instance.statusList.statuses.length > 0 ? WidthConstants.StatusIcon : 0;
+		const splitAnnotationWidth = (this._terminalGroupService.getGroupForInstance(instance)?.terminalInstances.length || 0) > 1 ? WidthConstants.SplitAnnotation : 0;
 		return additionalWidth + splitAnnotationWidth + statusIconWidth;
 	}
 
@@ -244,7 +255,7 @@ export class TerminalTabbedView extends Disposable {
 			width = TerminalTabsListSizes.WideViewMinimumWidth;
 			this._splitView.resizeView(this._tabTreeIndex, width);
 		}
-		this._rerenderTabs();
+		this.rerenderTabs();
 		const widthKey = this._panelOrientation === Orientation.VERTICAL ? TerminalStorageKeys.TabsListWidthVertical : TerminalStorageKeys.TabsListWidthHorizontal;
 		this._storageService.store(widthKey, width, StorageScope.GLOBAL, StorageTarget.USER);
 	}
@@ -279,10 +290,10 @@ export class TerminalTabbedView extends Disposable {
 			onDidChange: () => Disposable.None,
 			priority: LayoutPriority.Low
 		}, Sizing.Distribute, this._tabTreeIndex);
-		this._rerenderTabs();
+		this.rerenderTabs();
 	}
 
-	private _rerenderTabs() {
+	rerenderTabs() {
 		this._updateHasText();
 		this._tabList.refresh();
 	}
@@ -292,7 +303,7 @@ export class TerminalTabbedView extends Disposable {
 		this._sashDisposables = [
 			this._splitView.sashes[0].onDidStart(e => {
 				interval = window.setInterval(() => {
-					this._rerenderTabs();
+					this.rerenderTabs();
 				}, 100);
 			}),
 			this._splitView.sashes[0].onDidEnd(e => {

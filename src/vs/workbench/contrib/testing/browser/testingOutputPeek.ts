@@ -26,7 +26,7 @@ import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable
 import { clamp } from 'vs/base/common/numbers';
 import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { ICodeEditor, IDiffEditorConstructionOptions, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -37,7 +37,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getOuterEditor, IPeekViewService, peekViewResultsBackground, peekViewResultsMatchForeground, peekViewResultsSelectionBackground, peekViewResultsSelectionForeground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
+import { getOuterEditor, IPeekViewService, peekViewResultsBackground, peekViewResultsMatchForeground, peekViewResultsSelectionBackground, peekViewResultsSelectionForeground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/browser/peekView';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -485,7 +485,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		}
 
 		alert(renderStringAsPlaintext(message.message));
-		this.peek.value!.setModel(dto);
+		this.peek.value.setModel(dto);
 		this.currentPeekUri = uri;
 	}
 
@@ -552,7 +552,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			return;
 		}
 
-		let previous: { messageIndex: number, taskIndex: number, result: ITestResult, test: TestResultItem } | undefined;
+		let previous: { messageIndex: number; taskIndex: number; result: ITestResult; test: TestResultItem } | undefined;
 		for (const m of allMessages(this.testResults.results)) {
 			if (dto.test.extId === m.test.item.extId && dto.messageIndex === m.messageIndex && dto.taskIndex === m.taskIndex && dto.resultId === m.result.id) {
 				if (!previous) {
@@ -587,7 +587,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	 * else, then clear the peek.
 	 */
 	private closePeekOnTestChange(evt: TestResultItemChange) {
-		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previous === evt.item.ownComputedState) {
+		if (evt.reason !== TestResultItemChangeReason.OwnStateChange || evt.previousState === evt.item.ownComputedState) {
 			return;
 		}
 
@@ -767,8 +767,8 @@ class TestingOutputPeek extends PeekViewWidget {
 	}
 
 	protected override _relayout(newHeightInLines: number): void {
-			super._relayout(newHeightInLines);
-			TestingOutputPeek.lastHeightInLines = newHeightInLines;
+		super._relayout(newHeightInLines);
+		TestingOutputPeek.lastHeightInLines = newHeightInLines;
 	}
 
 	/** @override */
@@ -1265,12 +1265,15 @@ class OutputPeekTree extends Disposable {
 			}));
 		};
 
-		const getRootChildren = () => results.results.map(result => ({
-			element: cachedCreate(result, () => new TestResultElement(result)),
-			incompressible: true,
-			collapsed: true,
-			children: getResultChildren(result)
-		}));
+		const getRootChildren = () => results.results.map(result => {
+			const element = cachedCreate(result, () => new TestResultElement(result));
+			return {
+				element,
+				incompressible: true,
+				collapsed: this.tree.hasElement(element) ? this.tree.isCollapsed(element) : true,
+				children: getResultChildren(result)
+			};
+		});
 
 		this._register(results.onTestChanged(e => {
 			const itemNode = creationCache.get(e.item);

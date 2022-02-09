@@ -38,7 +38,7 @@ function main(): Promise<void> {
 		const vs = src('out-vscode-min'); // client source-maps only
 		sources.push(vs);
 
-		const productionDependencies: { name: string, path: string, version: string }[] = deps.getProductionDependencies(root);
+		const productionDependencies: { name: string; path: string; version: string }[] = deps.getProductionDependencies(root);
 		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => `./${d}/**/*.map`);
 		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
 			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')));

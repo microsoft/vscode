@@ -355,7 +355,7 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 
 	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, _strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean, fileService?: IFileService) {
 		super(problemMatchers, markerService, modelService, fileService);
-		let ownerSet: { [key: string]: boolean; } = Object.create(null);
+		let ownerSet: { [key: string]: boolean } = Object.create(null);
 		problemMatchers.forEach(description => ownerSet[description.owner] = true);
 		this.owners = Object.keys(ownerSet);
 		this.owners.forEach((owner) => {

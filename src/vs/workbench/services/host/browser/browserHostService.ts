@@ -17,7 +17,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
@@ -70,7 +70,7 @@ export interface IWorkspaceProvider {
 	 *
 	 * @returns true if successfully opened, false otherwise.
 	 */
-	open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean>;
+	open(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<boolean>;
 }
 
 enum HostShutdownReason {
@@ -104,7 +104,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@ILogService private readonly logService: ILogService,
@@ -381,7 +381,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.doOpen(undefined, { reuse: options?.forceReuseWindow });
 	}
 
-	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<void> {
+	private async doOpen(workspace: IWorkspace, options?: { reuse?: boolean; payload?: object }): Promise<void> {
 
 		// We know that `workspaceProvider.open` will trigger a shutdown
 		// with `options.reuse` so we handle this expected shutdown

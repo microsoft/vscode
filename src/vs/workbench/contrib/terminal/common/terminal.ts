@@ -58,8 +58,14 @@ export interface ITerminalProfileResolverService {
 	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
 }
 
+/*
+ * When there were shell integration args injected
+ * and createProcess returns an error, this exit code will be used.
+ */
+export const ShellIntegrationExitCode = 633;
+
 export interface IRegisterContributedProfileArgs {
-	extensionIdentifier: string, id: string, title: string, options: ICreateContributedTerminalProfileOptions;
+	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions;
 }
 
 export const ITerminalProfileService = createDecorator<ITerminalProfileService>('terminalProfileService');
@@ -107,7 +113,7 @@ export interface ITerminalBackend {
 	 */
 	onPtyHostRestart: Event<void>;
 
-	onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
+	onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
@@ -263,7 +269,6 @@ export interface ITerminalConfiguration {
 	wordSeparators: string;
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
-	experimentalLinkProvider: boolean;
 	localEchoLatencyThreshold: number;
 	localEchoExcludePrograms: ReadonlyArray<string>;
 	localEchoEnabled: 'auto' | 'on' | 'off';
@@ -278,7 +283,7 @@ export interface ITerminalConfiguration {
 		title: string;
 		description: string;
 		separator: string;
-	},
+	};
 	bellDuration: number;
 	defaultLocation: TerminalLocationString;
 	customGlyphs: boolean;
@@ -316,16 +321,35 @@ export interface IRemoteTerminalAttachTarget {
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
-	icon: URI | { light: URI; dark: URI } | { id: string, color?: { id: string } } | undefined;
+	icon: URI | { light: URI; dark: URI } | { id: string; color?: { id: string } } | undefined;
 	color: string | undefined;
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 }
 
-// TODO: Replace IShellIntegration with ITerminalCapabilityStore
 export interface IShellIntegration {
 	capabilities: ITerminalCapabilityStore;
-	// TODO: Fire more fine-grained and stronger typed events
-	readonly onIntegratedShellChange: Event<{ type: string, value: string }>;
+}
+
+export interface ITerminalCommand {
+	command: string;
+	timestamp: number;
+	cwd?: string;
+	exitCode?: number;
+	marker?: IXtermMarker;
+	getOutput(): string | undefined;
+}
+
+/**
+ * A clone of the IMarker from xterm which cannot be imported from common
+ */
+export interface IXtermMarker {
+	readonly id: number;
+	readonly isDisposed: boolean;
+	readonly line: number;
+	dispose(): void;
+	onDispose: {
+		(listener: () => any): { dispose(): void };
+	};
 }
 
 export interface INavigationMode {
@@ -389,6 +413,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	getLatency(): Promise<number>;
 	refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]>;
 	updateProperty<T extends ProcessPropertyType>(property: T, value: IProcessPropertyMap[T]): void;
+	getBackendOS(): Promise<OperatingSystem>;
 }
 
 export const enum ProcessState {
@@ -421,7 +446,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 
 	onInput: Event<string>;
 	onBinary: Event<string>;
-	onResize: Event<{ cols: number, rows: number }>;
+	onResize: Event<{ cols: number; rows: number }>;
 	onAcknowledgeDataEvent: Event<number>;
 	onShutdown: Event<boolean>;
 	onRequestInitialCwd: Event<void>;
@@ -453,9 +478,10 @@ export const enum TerminalCommandId {
 	KillAll = 'workbench.action.terminal.killAll',
 	QuickKill = 'workbench.action.terminal.quickKill',
 	ConfigureTerminalSettings = 'workbench.action.terminal.openSettings',
-	ShowWordLinkQuickpick = 'workbench.action.terminal.showWordLinkQuickpick',
-	ShowValidatedLinkQuickpick = 'workbench.action.terminal.showValidatedLinkQuickpick',
-	ShowProtocolLinkQuickpick = 'workbench.action.terminal.showProtocolLinkQuickpick',
+	OpenDetectedLink = 'workbench.action.terminal.openDetectedLink',
+	OpenWordLink = 'workbench.action.terminal.openWordLink',
+	OpenFileLink = 'workbench.action.terminal.openFileLink',
+	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopySelection = 'workbench.action.terminal.copySelection',

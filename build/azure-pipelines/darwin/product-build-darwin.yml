@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -71,6 +71,7 @@ steps:
       set -e
       npx https://aka.ms/enablesecurefeed standAlone
     timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Switch to Terrapin packages
 
@@ -174,21 +175,21 @@ steps:
       set -e
       ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 15
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
       yarn test-node --build
     displayName: Run unit tests (node.js)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 15
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
-      DEBUG=*browser* yarn test-browser --sequential --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
-    displayName: Run unit tests (Browser, Chromium & Firefox & Webkit)
-    timeoutInMinutes: 20
+      DEBUG=*browser* yarn test-browser-no-install --sequential --build --browser chromium --browser webkit --tfs "Browser Unit Tests"
+    displayName: Run unit tests (Browser, Chromium & Webkit)
+    timeoutInMinutes: 30
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -202,15 +203,15 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-      ./resources/server/test/test-web-integration.sh --browser webkit
+      ./scripts/test-web-integration.sh --browser webkit
     displayName: Run integration tests (Browser, Webkit)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -219,9 +220,9 @@ steps:
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
-      ./resources/server/test/test-remote-integration.sh
+      ./scripts/test-remote-integration.sh
     displayName: Run integration tests (Remote)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -237,7 +238,8 @@ steps:
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME"
-    timeoutInMinutes: 10
+    # Increased timeout because this test downloads stable code
+    timeoutInMinutes: 20
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -256,6 +258,16 @@ steps:
       artifactName: crash-dump-macos-$(VSCODE_ARCH)
       targetPath: .build/crashes
     displayName: "Publish Crash Reports"
+    continueOnError: true
+    condition: failed()
+
+  # In order to properly symbolify above crash reports
+  # (if any), we need the compiled native modules too
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: node-modules-macos-$(VSCODE_ARCH)
+      targetPath: node_modules
+    displayName: "Publish Node Modules"
     continueOnError: true
     condition: failed()
 
@@ -328,3 +340,27 @@ steps:
     displayName: Upload configuration (for Bing settings search)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
     continueOnError: true
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (client)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+
+  - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (client)
+    artifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (server)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-server-darwin
+      PackageName: Visual Studio Code Server
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(agent.builddirectory)/vscode-server-darwin/_manifest
+    displayName: Publish SBOM (server)
+    artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))

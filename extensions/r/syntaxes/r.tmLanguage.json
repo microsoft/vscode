@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/f99fdd79533b62b0b6eb6142190963349aa621d7",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/d968decca543045fb3488d62a27ff2ecfa3c40c4",
 	"name": "R",
 	"scopeName": "source.r",
 	"patterns": [
@@ -141,6 +141,17 @@
 					"match": "([[:alpha:].][[:alnum:]._]*)\\s*(=)(?=[^=])"
 				},
 				{
+					"captures": {
+						"1": {
+							"name": "variable.parameter.r"
+						},
+						"2": {
+							"name": "keyword.operator.assignment.r"
+						}
+					},
+					"match": "(`[^`]+`)\\s*(=)(?=[^=])"
+				},
+				{
 					"match": "\\b([\\d_][[:alnum:]._]+)\\b",
 					"name": "invalid.illegal.variable.other.r"
 				},
@@ -150,6 +161,10 @@
 				},
 				{
 					"match": "\\b([[:alnum:]._]+)\\b",
+					"name": "variable.other.r"
+				},
+				{
+					"match": "(`[^`]+`)",
 					"name": "variable.other.r"
 				}
 			]
@@ -205,6 +220,96 @@
 		"strings": {
 			"patterns": [
 				{
+					"begin": "[rR]\"(-*)\\[",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\]\\1\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.double.raw.r"
+				},
+				{
+					"begin": "[rR]'(-*)\\[",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\]\\1'",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.single.raw.r"
+				},
+				{
+					"begin": "[rR]\"(-*)\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\}\\1\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.double.raw.r"
+				},
+				{
+					"begin": "[rR]'(-*)\\{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\}\\1'",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.single.raw.r"
+				},
+				{
+					"begin": "[rR]\"(-*)\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\)\\1\"",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.double.raw.r"
+				},
+				{
+					"begin": "[rR]'(-*)\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.begin.r"
+						}
+					},
+					"end": "\\)\\1'",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.string.raw.end.r"
+						}
+					},
+					"name": "string.quoted.single.raw.r"
+				},
+				{
 					"begin": "\"",
 					"beginCaptures": {
 						"0": {
@@ -243,27 +348,6 @@
 						{
 							"match": "\\\\.",
 							"name": "constant.character.escape.r"
-						}
-					]
-				},
-				{
-					"begin": "`",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.begin.r"
-						}
-					},
-					"end": "`",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.r"
-						}
-					},
-					"name": "variable.parameter.r",
-					"patterns": [
-						{
-							"match": "\\\\.",
-							"name": "variable.parameter.r"
 						}
 					]
 				}
@@ -400,7 +484,7 @@
 						},
 						{
 							"match": "(?:[a-zA-Z._][\\w.]*|`[^`]+`)",
-							"name": "variable.parameter.r"
+							"name": "variable.other.r"
 						},
 						{
 							"begin": "(?==)",
@@ -451,7 +535,7 @@
 				},
 				{
 					"match": "(?:[a-zA-Z._][\\w.]*|`[^`]+`)(?=\\s[^=])",
-					"name": "variable.parameter.r"
+					"name": "variable.other.r"
 				},
 				{
 					"begin": "(?==)",
@@ -465,12 +549,6 @@
 				{
 					"match": ",",
 					"name": "punctuation.separator.parameters.r"
-				},
-				{
-					"end": "\\)",
-					"endCaptures": {
-						"0": "punctuation.section.parens.end.r"
-					}
 				},
 				{
 					"include": "source.r"

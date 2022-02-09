@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/db888fc191f6b5610cd6866cc49017fc3dfb00b5",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/5f26a6daf70352a6f3f40b3b4437a605f5d954ee",
 	"name": "Markdown",
 	"scopeName": "text.tex.markdown_latex_combined",
 	"patterns": [
@@ -1784,6 +1784,72 @@
 				}
 			]
 		},
+		"fenced_code_block_latex": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(latex|tex)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.latex",
+					"patterns": [
+						{
+							"include": "text.tex.latex"
+						}
+					]
+				}
+			]
+		},
+		"fenced_code_block_bibtex": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(bibtex)((\\s+|:|,|\\{|\\?)[^`~]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.bibtex",
+					"patterns": [
+						{
+							"include": "text.bibtex"
+						}
+					]
+				}
+			]
+		},
 		"fenced_code_block": {
 			"patterns": [
 				{
@@ -1941,6 +2007,12 @@
 				},
 				{
 					"include": "#fenced_code_block_elixir"
+				},
+				{
+					"include": "#fenced_code_block_latex"
+				},
+				{
+					"include": "#fenced_code_block_bibtex"
 				},
 				{
 					"include": "#fenced_code_block_unknown"
@@ -2480,13 +2552,13 @@
 		"image-inline": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.description.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.description.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.description.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.metadata.markdown"
@@ -2537,13 +2609,13 @@
 		"image-ref": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.description.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.description.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.description.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.constant.markdown"
@@ -2652,13 +2724,13 @@
 		"link-inline": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.title.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.title.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.metadata.markdown"
@@ -2709,13 +2781,13 @@
 		"link-ref": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.title.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.title.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.constant.begin.markdown"
@@ -2733,13 +2805,13 @@
 		"link-ref-literal": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.title.markdown"
 				},
 				"4": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.title.end.markdown"
 				},
 				"5": {
 					"name": "punctuation.definition.constant.begin.markdown"
@@ -2754,13 +2826,13 @@
 		"link-ref-shortcut": {
 			"captures": {
 				"1": {
-					"name": "punctuation.definition.string.begin.markdown"
+					"name": "punctuation.definition.link.title.begin.markdown"
 				},
 				"2": {
 					"name": "string.other.link.title.markdown"
 				},
 				"3": {
-					"name": "punctuation.definition.string.end.markdown"
+					"name": "punctuation.definition.link.title.end.markdown"
 				}
 			},
 			"match": "(\\[)(\\S+?)(\\])",

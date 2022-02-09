@@ -21,7 +21,7 @@ interface AccessibilityMetrics {
 	enabled: boolean;
 }
 type AccessibilityMetricsClassification = {
-	enabled: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
@@ -37,7 +37,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(contextKeyService, configurationService);
-		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
+		this.setAccessibilitySupport(environmentService.window.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
 	override async alwaysUnderlineAccessKeys(): Promise<boolean> {

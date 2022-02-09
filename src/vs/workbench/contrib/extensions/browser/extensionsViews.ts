@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $ } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer, IExtensionsViewState, EXTENSION_LIST_ELEMENT_HEIGHT } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService, IWorkspaceRecommendedExtensionsView } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
@@ -49,17 +49,18 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
+import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { ILogService } from 'vs/platform/log/common/log';
+import { isOfflineError } from 'vs/base/parts/request/common/request';
 
 // Extensions that are automatically classified as Programming Language extensions, but should be Feature extensions
 const FORCE_FEATURE_EXTENSIONS = ['vscode.git', 'vscode.git-base', 'vscode.search-result'];
 
 type WorkspaceRecommendationsClassification = {
-	count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', 'isMeasurement': true; };
+	count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'isMeasurement': true };
 };
 
 class ExtensionsViewState extends Disposable implements IExtensionsViewState {
@@ -81,7 +82,7 @@ class ExtensionsViewState extends Disposable implements IExtensionsViewState {
 
 export interface ExtensionsListViewOptions {
 	server?: IExtensionManagementServer;
-	fixedHeight?: boolean;
+	flexibleHeight?: boolean;
 	onDidChangeTitle?: Event<string>;
 	hideBadge?: boolean;
 }
@@ -102,7 +103,7 @@ export class ExtensionsListView extends ViewPane {
 	} | undefined;
 	private badge: CountBadge | undefined;
 	private list: WorkbenchPagedList<IExtension> | null = null;
-	private queryRequest: { query: string, request: CancelablePromise<IPagedModel<IExtension>>; } | null = null;
+	private queryRequest: { query: string; request: CancelablePromise<IPagedModel<IExtension>> } | null = null;
 	private queryResult: IQueryResult | undefined;
 
 	private readonly contextMenuActionRunner = this._register(new ActionRunner());
@@ -140,7 +141,7 @@ export class ExtensionsListView extends ViewPane {
 		super({
 			...(viewletViewOptions as IViewPaneOptions),
 			showActionsAlways: true,
-			maximumBodySize: options.fixedHeight ? storageService.getNumber(viewletViewOptions.id, StorageScope.GLOBAL, 0) : undefined
+			maximumBodySize: options.flexibleHeight ? (storageService.getNumber(`${viewletViewOptions.id}.size`, StorageScope.GLOBAL, 0) ? undefined : 0) : undefined
 		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		if (this.options.onDidChangeTitle) {
 			this._register(this.options.onDidChangeTitle(title => this.updateTitle(title)));
@@ -340,8 +341,8 @@ export class ExtensionsListView extends ViewPane {
 			return this.getPagedModel(this.sortExtensions(result, options));
 		}
 
-		return this.extensionsWorkbenchService.queryGallery({ names: ids, source: 'queryById' }, token)
-			.then(pager => this.getPagedModel(pager));
+		return this.extensionsWorkbenchService.getExtensions(ids.map(id => ({ id })), { source: 'queryById' }, token)
+			.then(extension => this.getPagedModel(extension));
 	}
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
@@ -378,7 +379,7 @@ export class ExtensionsListView extends ViewPane {
 		};
 	}
 
-	private filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): { extensions: IExtension[], canIncludeInstalledExtensions: boolean; } {
+	private filterLocal(local: IExtension[], runningExtensions: IExtensionDescription[], query: Query, options: IQueryOptions): { extensions: IExtension[]; canIncludeInstalledExtensions: boolean } {
 		let value = query.value;
 		let extensions: IExtension[] = [];
 		let canIncludeInstalledExtensions = true;
@@ -461,7 +462,7 @@ export class ExtensionsListView extends ViewPane {
 		return this.sortExtensions(result, options);
 	}
 
-	private parseCategories(value: string): { value: string, categories: string[]; } {
+	private parseCategories(value: string): { value: string; categories: string[] } {
 		const categories: string[] = [];
 		value = value.replace(/\bcategory:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedCategory, category) => {
 			const entry = (category || quotedCategory || '').toLowerCase();
@@ -738,14 +739,14 @@ export class ExtensionsListView extends ViewPane {
 
 	private async getCuratedModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/curated:/g, '').trim();
-		const names = await this.experimentService.getCuratedExtensionsList(value);
-		if (Array.isArray(names) && names.length) {
-			options.source = `curated:${value}`;
-			options.names = names;
-			options.pageSize = names.length;
-			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-			this.sortFirstPage(pager, names);
-			return this.getPagedModel(pager || []);
+		let ids = await this.experimentService.getCuratedExtensionsList(value);
+		if (Array.isArray(ids) && ids.length) {
+			ids = ids.map(id => id.toLowerCase());
+			const extensions = await this.extensionsWorkbenchService.getExtensions(ids.map(id => ({ id })), { source: `curated:${value}` }, token);
+			// Sorts the firstPage of the pager in the same order as given array of extension ids
+			extensions.sort((a, b) =>
+				ids.indexOf(a.identifier.id.toLowerCase()) < ids.indexOf(b.identifier.id.toLowerCase()) ? -1 : 1);
+			return this.getPagedModel(extensions);
 		}
 		return new PagedModel([]);
 	}
@@ -801,16 +802,16 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	protected async getInstallableRecommendations(recommendations: string[], options: IQueryOptions, token: CancellationToken): Promise<IExtension[]> {
-		const extensions: IExtension[] = [];
+		const result: IExtension[] = [];
 		if (recommendations.length) {
-			const pager = await this.extensionsWorkbenchService.queryGallery({ ...options, names: recommendations, pageSize: recommendations.length }, token);
-			for (const extension of pager.firstPage) {
+			const extensions = await this.extensionsWorkbenchService.getExtensions(recommendations.map(id => ({ id })), { source: options.source }, token);
+			for (const extension of extensions) {
 				if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
-					extensions.push(extension);
+					result.push(extension);
 				}
 			}
 		}
-		return extensions;
+		return result;
 	}
 
 	protected async getWorkspaceRecommendations(): Promise<string[]> {
@@ -827,7 +828,7 @@ export class ExtensionsListView extends ViewPane {
 	private async getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const recommendations = await this.getWorkspaceRecommendations();
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-workspace' }, token));
-		this.telemetryService.publicLog2<{ count: number; }, WorkspaceRecommendationsClassification>('extensionWorkspaceRecommendations:open', { count: installableRecommendations.length });
+		this.telemetryService.publicLog2<{ count: number }, WorkspaceRecommendationsClassification>('extensionWorkspaceRecommendations:open', { count: installableRecommendations.length });
 		const result: IExtension[] = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
 		return new PagedModel(result);
 	}
@@ -906,14 +907,6 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel(this.sortExtensions(result, options));
 	}
 
-	// Sorts the firstPage of the pager in the same order as given array of extension ids
-	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
-		ids = ids.map(x => x.toLowerCase());
-		pager.firstPage.sort((a, b) => {
-			return ids.indexOf(a.identifier.id.toLowerCase()) < ids.indexOf(b.identifier.id.toLowerCase()) ? -1 : 1;
-		});
-	}
-
 	private setModel(model: IPagedModel<IExtension>, error?: any) {
 		if (this.list) {
 			this.list.model = new DelayedPagedModel(model);
@@ -932,8 +925,13 @@ export class ExtensionsListView extends ViewPane {
 
 			if (count === 0 && this.isBodyVisible()) {
 				if (error) {
-					this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
-					this.bodyTemplate.messageBox.textContent = localize('error', "Error while fetching extensions. {0}", getErrorMessage(error));
+					if (isOfflineError(error)) {
+						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Warning);
+						this.bodyTemplate.messageBox.textContent = localize('offline error', "Unable to search the Marketplace when offline, please check your network connection.");
+					} else {
+						this.bodyTemplate.messageSeverityIcon.className = SeverityIcon.className(Severity.Error);
+						this.bodyTemplate.messageBox.textContent = localize('error', "Error while fetching extensions. {0}", getErrorMessage(error));
+					}
 				} else {
 					this.bodyTemplate.messageSeverityIcon.className = '';
 					this.bodyTemplate.messageBox.textContent = localize('no extensions found', "No extensions found.");
@@ -944,12 +942,10 @@ export class ExtensionsListView extends ViewPane {
 		this.updateSize();
 	}
 
-	protected updateSize() {
-		if (this.options.fixedHeight) {
-			const length = this.list?.model.length || 0;
-			this.minimumBodySize = Math.min(length, 3) * EXTENSION_LIST_ELEMENT_HEIGHT;
-			this.maximumBodySize = length * EXTENSION_LIST_ELEMENT_HEIGHT;
-			this.storageService.store(this.id, this.maximumBodySize, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	private updateSize() {
+		if (this.options.flexibleHeight) {
+			this.maximumBodySize = this.list?.model.length ? Number.POSITIVE_INFINITY : 0;
+			this.storageService.store(`${this.id}.size`, this.list?.model.length || 0, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
 	}
 
@@ -960,7 +956,7 @@ export class ExtensionsListView extends ViewPane {
 		}
 	}
 
-	private openExtension(extension: IExtension, options: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean; }): void {
+	private openExtension(extension: IExtension, options: { sideByside?: boolean; preserveFocus?: boolean; pinned?: boolean }): void {
 		extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0] || extension;
 		this.extensionsWorkbenchService.open(extension, options).then(undefined, err => this.onError(err));
 	}

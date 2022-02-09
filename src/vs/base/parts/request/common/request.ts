@@ -5,6 +5,25 @@
 
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
 
+const offlineName = 'Offline';
+
+/**
+ * Checks if the given error is offline error
+ */
+export function isOfflineError(error: any): boolean {
+	if (error instanceof OfflineError) {
+		return true;
+	}
+	return error instanceof Error && error.name === offlineName && error.message === offlineName;
+}
+
+export class OfflineError extends Error {
+	constructor() {
+		super(offlineName);
+		this.name = this.message;
+	}
+}
+
 export interface IHeaders {
 	[header: string]: string;
 }

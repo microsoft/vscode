@@ -22,7 +22,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { CodeCellLayoutChangeEvent, IActiveNotebookEditorDelegate, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellLayoutChangeEvent, IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { cellEditorBackground, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -30,11 +30,10 @@ import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/se
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
-import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { NotebookCellExecutionState, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -47,13 +46,12 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/tabCompletion';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
-import { MarkerController } from 'vs/editor/contrib/gotoError/gotoError';
-import { INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
@@ -99,7 +97,6 @@ export class InteractiveEditor extends EditorPane {
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
 	#keybindingService: IKeybindingService;
-	#historyService: IInteractiveHistoryService;
 	#menuService: IMenuService;
 	#contextMenuService: IContextMenuService;
 	#editorGroupService: IEditorGroupsService;
@@ -124,7 +121,6 @@ export class InteractiveEditor extends EditorPane {
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@ILanguageService languageService: ILanguageService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -144,7 +140,6 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookKernelService = notebookKernelService;
 		this.#languageService = languageService;
 		this.#keybindingService = keybindingService;
-		this.#historyService = historyService;
 		this.#menuService = menuService;
 		this.#contextMenuService = contextMenuService;
 		this.#editorGroupService = editorGroupService;
@@ -321,7 +316,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#widgetDisposableStore.clear();
 
-		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
+		this.#notebookWidget = <IBorrowValue<NotebookEditorWidget>>this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
@@ -460,7 +455,11 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this.#contextKeyService);
-		cursorAtBoundaryContext.set('none');
+		if (input.resource && input.historyService.has(input.resource)) {
+			cursorAtBoundaryContext.set('top');
+		} else {
+			cursorAtBoundaryContext.set('none');
+		}
 
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.#codeEditorWidget._getViewModel()!;
@@ -488,7 +487,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			const value = editorModel!.getValue();
 			if (this.input?.resource && value !== '') {
-				this.#historyService.replaceLast(this.input.resource, value);
+				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
 			}
 		}));
 
@@ -575,7 +574,7 @@ export class InteractiveEditor extends EditorPane {
 			}
 
 			if (this.#lastCell) {
-				const runState = this.#notebookExecutionStateService.getCellExecutionState(this.#lastCell.uri)?.state;
+				const runState = this.#notebookExecutionStateService.getCellExecution(this.#lastCell.uri)?.state;
 				if (runState === NotebookCellExecutionState.Executing) {
 					return;
 				}
@@ -718,7 +717,7 @@ export class InteractiveEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	override getControl(): { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } {
+	override getControl(): { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } {
 		return {
 			notebookEditor: this.#notebookWidget.value,
 			codeEditor: this.#codeEditorWidget

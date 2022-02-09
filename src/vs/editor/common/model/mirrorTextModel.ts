@@ -7,8 +7,8 @@ import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
-import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { IModelContentChange } from 'vs/editor/common/textModelEvents';
+import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 
 export interface IModelChangedEvent {
 	/**

@@ -28,8 +28,8 @@ import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 
 
 type ParsedQuery = {
-	type: 'include' | 'exclude',
-	query: string,
+	type: 'include' | 'exclude';
+	query: string;
 };
 
 export class ReplFilter implements ITreeFilter<IReplElement> {
@@ -81,7 +81,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 }
 
 export interface IFilterStatsProvider {
-	getFilterStats(): { total: number, filtered: number };
+	getFilterStats(): { total: number; filtered: number };
 }
 
 export class ReplFilterState {
@@ -105,7 +105,7 @@ export class ReplFilterState {
 		return this._filterText;
 	}
 
-	get filterStats(): { total: number, filtered: number } {
+	get filterStats(): { total: number; filtered: number } {
 		return this._stats;
 	}
 

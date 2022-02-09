@@ -193,8 +193,8 @@ export interface ICustomDialogOptions {
 }
 
 export interface ICustomDialogMarkdown {
-	markdown: IMarkdownString,
-	classes?: string[]
+	markdown: IMarkdownString;
+	classes?: string[];
 }
 
 export interface IDialogOptions {
@@ -206,7 +206,7 @@ export interface IDialogOptions {
 
 export interface IInput {
 	placeholder?: string;
-	type?: 'text' | 'password'
+	type?: 'text' | 'password';
 	value?: string;
 }
 

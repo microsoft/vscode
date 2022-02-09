@@ -20,7 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';

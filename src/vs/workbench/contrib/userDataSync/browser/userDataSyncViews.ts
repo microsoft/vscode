@@ -22,7 +22,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CONTEXT_ACCOUNT_STATE, AccountStatus, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IUserDataSyncMachinesService, IUserDataSyncMachine, isWebPlatform } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { flatten } from 'vs/base/common/arrays';
@@ -79,6 +79,7 @@ export class UserDataSyncDataViews extends Disposable {
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		const dataProvider = this.instantiationService.createInstance(UserDataSyncMachinesViewDataProvider, treeView);
 		treeView.showRefreshAction = true;
+		treeView.canSelectMany = true;
 		const disposable = treeView.onDidChangeVisibility(visible => {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
@@ -131,8 +132,8 @@ export class UserDataSyncDataViews extends Disposable {
 					},
 				});
 			}
-			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				if (await dataProvider.disable(handle.$treeItemHandle)) {
+			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg, selected?: TreeViewItemHandleArg[]): Promise<void> {
+				if (await dataProvider.disable((selected || [handle]).map(handle => handle.$treeItemHandle))) {
 					await treeView.refresh();
 				}
 			}
@@ -206,7 +207,7 @@ export class UserDataSyncDataViews extends Disposable {
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const commandService = accessor.get(ICommandService);
-				const { resource, comparableResource } = <{ resource: string, comparableResource: string }>JSON.parse(handle.$treeItemHandle);
+				const { resource, comparableResource } = <{ resource: string; comparableResource: string }>JSON.parse(handle.$treeItemHandle);
 				const remoteResource = URI.parse(resource);
 				const localResource = URI.parse(comparableResource);
 				return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID,
@@ -234,7 +235,7 @@ export class UserDataSyncDataViews extends Disposable {
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
 				const dialogService = accessor.get(IDialogService);
 				const userDataSyncService = accessor.get(IUserDataSyncService);
-				const { resource, syncResource } = <{ resource: string, syncResource: SyncResource }>JSON.parse(handle.$treeItemHandle);
+				const { resource, syncResource } = <{ resource: string; syncResource: SyncResource }>JSON.parse(handle.$treeItemHandle);
 				const result = await dialogService.confirm({
 					message: localize({ key: 'confirm replace', comment: ['A confirmation message to replace current user data (settings, extensions, keybindings, snippets) with selected version'] }, "Would you like to replace your current {0} with selected?", getSyncAreaLabel(syncResource)),
 					type: 'info',
@@ -466,12 +467,12 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 			let machines = await this.getMachines();
 			machines = machines.filter(m => !m.disabled).sort((m1, m2) => m1.isCurrent ? -1 : 1);
 			this.treeView.message = machines.length ? undefined : localize('no machines', "No Machines");
-			return machines.map(({ id, name, isCurrent }) => ({
+			return machines.map(({ id, name, isCurrent, platform }) => ({
 				handle: id,
 				collapsibleState: TreeItemCollapsibleState.None,
 				label: { label: name },
 				description: isCurrent ? localize({ key: 'current', comment: ['Current machine'] }, "Current") : undefined,
-				themeIcon: Codicon.vm,
+				themeIcon: platform && isWebPlatform(platform) ? Codicon.globe : Codicon.vm,
 				contextValue: 'sync-machine'
 			}));
 		} catch (error) {
@@ -487,16 +488,17 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 		return this.machinesPromise;
 	}
 
-	async disable(machineId: string): Promise<boolean> {
+	async disable(machineIds: string[]): Promise<boolean> {
 		const machines = await this.getMachines();
-		const machine = machines.find(({ id }) => id === machineId);
-		if (!machine) {
-			throw new Error(localize('not found', "machine not found with id: {0}", machineId));
+		const machinesToDisable = machines.filter(({ id }) => machineIds.includes(id));
+		if (!machinesToDisable.length) {
+			throw new Error(localize('not found', "machine not found with id: {0}", machineIds.join(',')));
 		}
 
 		const result = await this.dialogService.confirm({
 			type: 'info',
-			message: localize('turn off sync on machine', "Are you sure you want to turn off sync on {0}?", machine.name),
+			message: machinesToDisable.length > 1 ? localize('turn off sync on multiple machines', "Are you sure you want to turn off sync on selected machines?")
+				: localize('turn off sync on machine', "Are you sure you want to turn off sync on {0}?", machinesToDisable[0].name),
 			primaryButton: localize({ key: 'turn off', comment: ['&& denotes a mnemonic'] }, "&&Turn off"),
 		});
 
@@ -504,10 +506,14 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 			return false;
 		}
 
-		if (machine.isCurrent) {
+		if (machinesToDisable.some(machine => machine.isCurrent)) {
 			await this.userDataSyncWorkbenchService.turnoff(false);
-		} else {
-			await this.userDataSyncMachinesService.setEnablement(machineId, false);
+		}
+
+		const otherMachinesToDisable: [string, boolean][] = machinesToDisable.filter(machine => !machine.isCurrent)
+			.map(machine => ([machine.id, false]));
+		if (otherMachinesToDisable.length) {
+			await this.userDataSyncMachinesService.setEnablements(otherMachinesToDisable);
 		}
 
 		return true;

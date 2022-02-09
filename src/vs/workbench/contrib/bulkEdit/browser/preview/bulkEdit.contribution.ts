@@ -8,7 +8,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext, IViewsService } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { localize } from 'vs/nls';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -171,9 +172,6 @@ registerAction2(class ApplyAction extends Action2 {
 			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				group: 'navigation'
-			}, {
 				id: MenuId.BulkEditContext,
 				order: 1
 			}],
@@ -205,9 +203,6 @@ registerAction2(class DiscardAction extends Action2 {
 			icon: Codicon.clearAll,
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			menu: [{
-				id: MenuId.BulkEditTitle,
-				group: 'navigation'
-			}, {
 				id: MenuId.BulkEditContext,
 				order: 2
 			}]

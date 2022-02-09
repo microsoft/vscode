@@ -32,7 +32,7 @@ import schemaVersion2, { updateProblemMatchers, updateTaskDefinitions } from '..
 import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

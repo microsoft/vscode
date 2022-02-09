@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/view/overviewZoneManager';
+import { ColorZone, OverviewRulerZone, OverviewZoneManager } from 'vs/editor/common/viewModel/overviewZoneManager';
 
 suite('Editor View - OverviewZoneManager', () => {
 

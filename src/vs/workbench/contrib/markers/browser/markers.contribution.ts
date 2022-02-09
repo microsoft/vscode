@@ -23,7 +23,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';

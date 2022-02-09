@@ -178,7 +178,7 @@ export class CellSequence implements ISequence {
 export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
-	private _models: { [uri: string]: MirrorNotebookDocument; };
+	private _models: { [uri: string]: MirrorNotebookDocument };
 
 	constructor() {
 		this._models = Object.create(null);
@@ -218,7 +218,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const diff = new LcsDiff(new CellSequence(original), new CellSequence(modified));
 		const diffResult = diff.ComputeDiff(false);
 
-		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[] = [];
+		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[] }[] = [];
 
 		diffResult.changes.forEach(change => {
 			if (change.modifiedLength === 0) {

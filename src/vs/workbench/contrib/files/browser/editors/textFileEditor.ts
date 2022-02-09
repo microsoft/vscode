@@ -139,10 +139,21 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 			const textEditor = assertIsDefined(this.getControl());
 			textEditor.setModel(textFileModel.textEditorModel);
 
-			// View state
-			const editorViewState = this.loadEditorViewState(input, context);
-			if (editorViewState) {
-				textEditor.restoreViewState(editorViewState);
+			// Restore view state (unless provided by options)
+			if (!options?.viewState) {
+				const editorViewState = this.loadEditorViewState(input, context);
+				if (editorViewState) {
+					if (options?.selection) {
+						// If we have a selection, make sure to not
+						// restore any selection from the view state
+						// to ensure the right selection change event
+						// is fired and we avoid changing selections
+						// twice.
+						editorViewState.cursorState = [];
+					}
+
+					textEditor.restoreViewState(editorViewState);
+				}
 			}
 
 			// Apply options to editor if any

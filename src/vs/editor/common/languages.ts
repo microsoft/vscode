@@ -12,14 +12,13 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { TokenizationResult, EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import * as model from 'vs/editor/common/model';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languages/languageFeatureRegistry';
-import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/languages/tokenizationRegistry';
+import { TokenizationRegistry as TokenizationRegistryImpl } from 'vs/editor/common/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * Open ended enum at runtime
@@ -218,6 +217,60 @@ export interface ILanguageIdCodec {
 	decodeLanguageId(languageId: LanguageId): string;
 }
 
+export class Token {
+	_tokenBrand: void = undefined;
+
+	public readonly offset: number;
+	public readonly type: string;
+	public readonly language: string;
+
+	constructor(offset: number, type: string, language: string) {
+		this.offset = offset;
+		this.type = type;
+		this.language = language;
+	}
+
+	public toString(): string {
+		return '(' + this.offset + ', ' + this.type + ')';
+	}
+}
+
+/**
+ * @internal
+ */
+export class TokenizationResult {
+	_tokenizationResultBrand: void = undefined;
+
+	public readonly tokens: Token[];
+	public readonly endState: IState;
+
+	constructor(tokens: Token[], endState: IState) {
+		this.tokens = tokens;
+		this.endState = endState;
+	}
+}
+
+/**
+ * @internal
+ */
+export class EncodedTokenizationResult {
+	_encodedTokenizationResultBrand: void = undefined;
+
+	/**
+	 * The tokens in binary format. Each token occupies two array indices. For token i:
+	 *  - at offset 2*i => startIndex
+	 *  - at offset 2*i + 1 => metadata
+	 *
+	 */
+	public readonly tokens: Uint32Array;
+	public readonly endState: IState;
+
+	constructor(tokens: Uint32Array, endState: IState) {
+		this.tokens = tokens;
+		this.endState = endState;
+	}
+}
+
 /**
  * @internal
  */
@@ -311,7 +364,7 @@ export interface EvaluatableExpressionProvider {
 }
 
 /**
-	 * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
+ * A value-object that contains contextual information when requesting inline values from a InlineValuesProvider.
  * @internal
  */
 export interface InlineValueContext {
@@ -615,7 +668,7 @@ export interface CompletionItem {
 	 * selecting this completion. Edits must not overlap with the main edit
 	 * nor with themselves.
 	 */
-	additionalTextEdits?: model.ISingleEditOperation[];
+	additionalTextEdits?: ISingleEditOperation[];
 	/**
 	 * A command that should be run upon acceptance of this item.
 	 */
@@ -743,6 +796,12 @@ export interface InlineCompletion {
 	readonly range?: IRange;
 
 	readonly command?: Command;
+
+	/**
+	 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
+	 * Defaults to `false`.
+	*/
+	readonly completeBracketPairs?: boolean;
 }
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -800,7 +859,7 @@ export interface CodeActionList extends IDisposable {
  */
 export interface CodeActionProvider {
 
-	displayName?: string
+	displayName?: string;
 
 	/**
 	 * Provide commands for the given document and range.
@@ -817,7 +876,7 @@ export interface CodeActionProvider {
 	 */
 	readonly providedCodeActionKinds?: ReadonlyArray<string>;
 
-	readonly documentation?: ReadonlyArray<{ readonly kind: string, readonly command: Command }>;
+	readonly documentation?: ReadonlyArray<{ readonly kind: string; readonly command: Command }>;
 
 	/**
 	 * @internal
@@ -1216,7 +1275,7 @@ export interface DocumentSymbolProvider {
 	provideDocumentSymbols(model: model.ITextModel, token: CancellationToken): ProviderResult<DocumentSymbol[]>;
 }
 
-export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence; };
+export type TextEdit = { range: IRange; text: string; eol?: model.EndOfLineSequence };
 
 /**
  * Interface used to format a model
@@ -1482,7 +1541,7 @@ export interface WorkspaceEditMetadata {
 	/**
 	 * @internal
 	 */
-	iconPath?: ThemeIcon | URI | { light: URI, dark: URI };
+	iconPath?: ThemeIcon | URI | { light: URI; dark: URI };
 }
 
 export interface WorkspaceFileEditOptions {
@@ -1525,37 +1584,6 @@ export interface RenameLocation {
 export interface RenameProvider {
 	provideRenameEdits(model: model.ITextModel, position: Position, newName: string, token: CancellationToken): ProviderResult<WorkspaceEdit & Rejection>;
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationSession {
-	id: string;
-	accessToken: string;
-	account: {
-		label: string;
-		id: string;
-	}
-	scopes: ReadonlyArray<string>;
-	idToken?: string;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationSessionsChangeEvent {
-	added: ReadonlyArray<AuthenticationSession>;
-	removed: ReadonlyArray<AuthenticationSession>;
-	changed: ReadonlyArray<AuthenticationSession>;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationProviderInformation {
-	id: string;
-	label: string;
 }
 
 export interface Command {
@@ -1709,14 +1737,14 @@ export enum CommentMode {
  */
 export interface Comment {
 	readonly uniqueIdInThread: number;
-	readonly body: IMarkdownString;
+	readonly body: string | IMarkdownString;
 	readonly userName: string;
 	readonly userIconPath?: string;
 	readonly contextValue?: string;
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
-	readonly detail?: Date | string;
+	readonly timestamp?: string;
 }
 
 /**
@@ -1758,24 +1786,26 @@ export interface CodeLensProvider {
 
 
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2,
 }
 
 export interface InlayHintLabelPart {
 	label: string;
-	collapsible?: boolean;
-	action?: Command | Location
+	tooltip?: string | IMarkdownString;
+	// collapsible?: boolean;
+	command?: Command;
+	location?: Location;
 }
 
 export interface InlayHint {
 	label: string | InlayHintLabelPart[];
-	tooltip?: string | IMarkdownString
+	tooltip?: string | IMarkdownString;
+	command?: Command;
 	position: IPosition;
-	kind: InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	kind?: InlayHintKind;
+	paddingLeft?: boolean;
+	paddingRight?: boolean;
 }
 
 export interface InlayHintList {
@@ -1784,6 +1814,7 @@ export interface InlayHintList {
 }
 
 export interface InlayHintsProvider {
+	displayName?: string;
 	onDidChangeInlayHints?: Event<void>;
 	provideInlayHints(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
 	resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;
@@ -1821,143 +1852,6 @@ export interface DocumentRangeSemanticTokensProvider {
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
-
-// --- feature registries ------
-
-/**
- * @internal
- */
-export const ReferenceProviderRegistry = new LanguageFeatureRegistry<ReferenceProvider>();
-
-/**
- * @internal
- */
-export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider>();
-
-/**
- * @internal
- */
-export const CompletionProviderRegistry = new LanguageFeatureRegistry<CompletionItemProvider>();
-
-/**
- * @internal
- */
-export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
-
-/**
- * @internal
- */
-export const SignatureHelpProviderRegistry = new LanguageFeatureRegistry<SignatureHelpProvider>();
-
-/**
- * @internal
- */
-export const HoverProviderRegistry = new LanguageFeatureRegistry<HoverProvider>();
-
-/**
- * @internal
- */
-export const EvaluatableExpressionProviderRegistry = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
-
-/**
- * @internal
- */
-export const InlineValuesProviderRegistry = new LanguageFeatureRegistry<InlineValuesProvider>();
-
-/**
- * @internal
- */
-export const DocumentSymbolProviderRegistry = new LanguageFeatureRegistry<DocumentSymbolProvider>();
-
-/**
- * @internal
- */
-export const DocumentHighlightProviderRegistry = new LanguageFeatureRegistry<DocumentHighlightProvider>();
-
-/**
- * @internal
- */
-export const LinkedEditingRangeProviderRegistry = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
-
-/**
- * @internal
- */
-export const DefinitionProviderRegistry = new LanguageFeatureRegistry<DefinitionProvider>();
-
-/**
- * @internal
- */
-export const DeclarationProviderRegistry = new LanguageFeatureRegistry<DeclarationProvider>();
-
-/**
- * @internal
- */
-export const ImplementationProviderRegistry = new LanguageFeatureRegistry<ImplementationProvider>();
-
-/**
- * @internal
- */
-export const TypeDefinitionProviderRegistry = new LanguageFeatureRegistry<TypeDefinitionProvider>();
-
-/**
- * @internal
- */
-export const CodeLensProviderRegistry = new LanguageFeatureRegistry<CodeLensProvider>();
-
-/**
- * @internal
- */
-export const InlayHintsProviderRegistry = new LanguageFeatureRegistry<InlayHintsProvider>();
-
-/**
- * @internal
- */
-export const CodeActionProviderRegistry = new LanguageFeatureRegistry<CodeActionProvider>();
-
-/**
- * @internal
- */
-export const DocumentFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const DocumentRangeFormattingEditProviderRegistry = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const OnTypeFormattingEditProviderRegistry = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
-
-/**
- * @internal
- */
-export const LinkProviderRegistry = new LanguageFeatureRegistry<LinkProvider>();
-
-/**
- * @internal
- */
-export const ColorProviderRegistry = new LanguageFeatureRegistry<DocumentColorProvider>();
-
-/**
- * @internal
- */
-export const SelectionRangeRegistry = new LanguageFeatureRegistry<SelectionRangeProvider>();
-
-/**
- * @internal
- */
-export const FoldingRangeProviderRegistry = new LanguageFeatureRegistry<FoldingRangeProvider>();
-
-/**
- * @internal
- */
-export const DocumentSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
-
-/**
- * @internal
- */
-export const DocumentRangeSemanticTokensProviderRegistry = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>();
 
 /**
  * @internal

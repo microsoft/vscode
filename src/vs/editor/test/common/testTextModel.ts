@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { BracketPairColorizationOptions, DefaultEndOfLine, ITextBufferFactory, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
@@ -31,6 +31,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 class TestTextModel extends TextModel {
 	public registerDisposable(disposable: IDisposable): void {
@@ -102,6 +103,7 @@ export function createModelServices(disposables: DisposableStore, services: Serv
 	define(ITextResourcePropertiesService, TestTextResourcePropertiesService);
 	define(IThemeService, TestThemeService);
 	define(ILogService, NullLogService);
+	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
 	define(IModelService, ModelService);
 
 	const instantiationService = new TestInstantiationService(services);

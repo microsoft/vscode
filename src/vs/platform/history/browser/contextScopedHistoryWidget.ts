@@ -11,8 +11,9 @@ import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputb
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IContextKeyServiceTarget, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-// eslint-disable-next-line code-import-patterns
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { localize } from 'vs/nls';
+
+export const historyNavigationVisible = new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible"));
 
 export const HistoryNavigationWidgetContext = 'historyNavigationWidget';
 const HistoryNavigationForwardsEnablementContext = 'historyNavigationForwardsEnabled';
@@ -39,9 +40,9 @@ export interface IContextScopedHistoryNavigationWidget extends IContextScopedWid
 }
 
 export interface IHistoryNavigationContext {
-	scopedContextKeyService: IContextKeyService,
-	historyNavigationForwardsEnablement: IContextKey<boolean>,
-	historyNavigationBackwardsEnablement: IContextKey<boolean>,
+	scopedContextKeyService: IContextKeyService;
+	historyNavigationForwardsEnablement: IContextKey<boolean>;
+	historyNavigationBackwardsEnablement: IContextKey<boolean>;
 }
 
 export function createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedHistoryNavigationWidget): IHistoryNavigationContext {
@@ -94,7 +95,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has(HistoryNavigationWidgetContext),
 		ContextKeyExpr.equals(HistoryNavigationBackwardsEnablementContext, true),
-		SuggestContext.Visible.isEqualTo(false),
+		historyNavigationVisible.isEqualTo(false),
 	),
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
@@ -113,7 +114,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has(HistoryNavigationWidgetContext),
 		ContextKeyExpr.equals(HistoryNavigationForwardsEnablementContext, true),
-		SuggestContext.Visible.isEqualTo(false),
+		historyNavigationVisible.isEqualTo(false),
 	),
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],

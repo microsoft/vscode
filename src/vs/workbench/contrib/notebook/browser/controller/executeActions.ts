@@ -6,7 +6,7 @@
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -15,7 +15,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { cellExecutionArgs, CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, executeNotebookCondition, getContextFromActiveEditor, getContextFromUri, INotebookActionContext, INotebookCellActionContext, INotebookCellToolbarActionContext, INotebookCommandContext, NotebookAction, NotebookCellAction, NotebookMultiCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, parseMultiCellExecutionArgs } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_CELL_EXECUTING, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_HAS_RUNNING_CELL, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_MISSING_KERNEL_EXTENSION } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';

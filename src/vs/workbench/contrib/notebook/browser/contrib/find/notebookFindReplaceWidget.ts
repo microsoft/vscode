@@ -12,8 +12,8 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./notebookFindReplaceWidget';
-import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
-import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/findWidget';
+import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
+import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/browser/findWidget';
 import * as nls from 'vs/nls';
 import { ContextScopedReplaceInput, createAndBindHistoryNavigationWidgetScopedContextKeyService, IContextScopedHistoryNavigationWidget } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,7 +22,7 @@ import { editorWidgetBackground, editorWidgetForeground, inputActiveOptionBackgr
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/replacePattern';
+import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/browser/replacePattern';
 import { Codicon } from 'vs/base/common/codicons';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Action, ActionRunner, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -52,7 +52,7 @@ const NOTEBOOK_FIND_FILTERS = nls.localize('notebook.find.filter.filterAction', 
 const NOTEBOOK_FIND_IN_MARKUP_INPUT = nls.localize('notebook.find.filter.findInMarkupInput', "Markdown Source");
 const NOTEBOOK_FIND_IN_MARKUP_PREVIEW = nls.localize('notebook.find.filter.findInMarkupPreview', "Rendered Markdown");
 const NOTEBOOK_FIND_IN_CODE_INPUT = nls.localize('notebook.find.filter.findInCodeInput', "Code Cell Source");
-const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Code Cell Outputs");
+const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Cell Output");
 
 class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	constructor(readonly filters: NotebookFindFilters, action: IAction, actionRunner: IActionRunner, @IContextMenuService contextMenuService: IContextMenuService) {
@@ -62,8 +62,7 @@ class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 			{
 				actionRunner,
 				classNames: action.class,
-				anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
-				menuAsChild: true
+				anchorAlignmentProvider: () => AnchorAlignment.RIGHT
 			}
 		);
 	}
@@ -160,6 +159,12 @@ class NotebookFindInput extends FindInput {
 				this._filtersAction.checked = false;
 			}
 		}));
+
+		this.inputBox.paddingRight = this.caseSensitive.width() + this.wholeWords.width() + this.regex.width() + this.getFilterWidth();
+	}
+
+	private getFilterWidth() {
+		return 2 /*margin left*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
 	private createFilters(container: HTMLElement): void {
@@ -205,7 +210,7 @@ class NotebookFindInput extends FindInput {
 		this._filterButtonContainer.style.backgroundColor = this._filterChecked && this.inputActiveOptionBackground ? this.inputActiveOptionBackground.toString() : '';
 	}
 
-	getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
+	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
@@ -450,7 +455,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._innerReplaceDomNode.appendChild(this._replaceAllBtn.domNode);
 	}
 
-	getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
+	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
@@ -545,6 +550,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
+		this.foundMatch = this._state.matchesCount > 0;
+		this.updateButtons(this.foundMatch);
 	}
 
 	protected _updateMatchesCount(): void {

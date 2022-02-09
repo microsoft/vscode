@@ -4,30 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellEditState, CellFocusMode, ICellViewModel, IActiveNotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { ILanguageService } from 'vs/editor/common/services/language';
-import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
+import { IReadonlyTextBuffer } from 'vs/editor/common/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { CellEditState, CellFocusMode, CellFoldingState, IActiveNotebookEditorDelegate, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { collapsedIcon, expandedIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-
+import { MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 
 export class StatefulMarkdownCell extends Disposable {
 
@@ -75,7 +73,7 @@ export class StatefulMarkdownCell extends Disposable {
 		this.updateForHover();
 		this.updateForFocusModeChange();
 		this.foldingState = viewCell.foldingState;
-		this.setFoldingIndicator();
+		this.layoutFoldingIndicator();
 		this.updateFoldingIconShowClass();
 
 		// the markdown preview's height might already be updated after the renderer calls `element.getHeight()`
@@ -138,7 +136,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 				if (foldingState !== this.foldingState) {
 					this.foldingState = foldingState;
-					this.setFoldingIndicator();
+					this.layoutFoldingIndicator();
 				}
 			}
 
@@ -363,7 +361,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.editorPart);
 		DOM.hide(this.templateData.cellInputCollapsedContainer);
 		this.markdownAccessibilityContainer.ariaHidden = 'false';
-		this.templateData.container.classList.toggle('collapsed', false);
+		this.templateData.container.classList.toggle('input-collapsed', false);
 		this.templateData.container.classList.toggle('markdown-cell-edit-mode', false);
 
 		this.renderedEditors.delete(this.viewCell);
@@ -415,6 +413,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	relayoutCell(): void {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
+		this.layoutFoldingIndicator();
 	}
 
 	updateEditorOptions(newValue: IEditorOptions): void {
@@ -424,7 +423,7 @@ export class StatefulMarkdownCell extends Disposable {
 		}
 	}
 
-	setFoldingIndicator() {
+	private layoutFoldingIndicator() {
 		switch (this.foldingState) {
 			case CellFoldingState.None:
 				this.templateData.foldingIndicator.innerText = '';
@@ -466,10 +465,11 @@ export class StatefulMarkdownCell extends Disposable {
 				return;
 			}
 
-			const primarySelection = editor.getSelection();
+			const selections = editor.getSelections();
 
-			if (primarySelection) {
-				this.notebookEditor.revealRangeInViewAsync(this.viewCell, primarySelection);
+			if (selections?.length) {
+				const lastSelection = selections[selections.length - 1];
+				this.notebookEditor.revealRangeInViewAsync(this.viewCell, lastSelection);
 			}
 		}));
 

@@ -15,7 +15,7 @@ import { Action } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
+import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/browser/findModel';
 import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -118,8 +118,8 @@ export class SearchWidget extends Widget {
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
 
-	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean, delay: number }>());
-	readonly onSearchSubmit: Event<{ triggeredOnType: boolean, delay: number }> = this._onSearchSubmit.event;
+	private _onSearchSubmit = this._register(new Emitter<{ triggeredOnType: boolean; delay: number }>());
+	readonly onSearchSubmit: Event<{ triggeredOnType: boolean; delay: number }> = this._onSearchSubmit.event;
 
 	private _onSearchCancel = this._register(new Emitter<{ focus: boolean }>());
 	readonly onSearchCancel: Event<{ focus: boolean }> = this._onSearchCancel.event;

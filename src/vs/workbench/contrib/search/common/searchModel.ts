@@ -80,7 +80,7 @@ export class Match {
 	}
 
 	@memoize
-	preview(): { before: string; inside: string; after: string; } {
+	preview(): { before: string; inside: string; after: string } {
 		let before = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
 			inside = this.getMatchString(),
 			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
@@ -195,8 +195,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return (selected ? FileMatch._CURRENT_FIND_MATCH : FileMatch._FIND_MATCH);
 	}
 
-	private _onChange = this._register(new Emitter<{ didRemove?: boolean; forceUpdateModel?: boolean; }>());
-	readonly onChange: Event<{ didRemove?: boolean; forceUpdateModel?: boolean; }> = this._onChange.event;
+	private _onChange = this._register(new Emitter<{ didRemove?: boolean; forceUpdateModel?: boolean }>());
+	readonly onChange: Event<{ didRemove?: boolean; forceUpdateModel?: boolean }> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
@@ -714,7 +714,6 @@ export class SearchResult extends Disposable {
 	constructor(
 		private _searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -850,17 +849,7 @@ export class SearchResult extends Disposable {
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any> {
 		this.replacingAll = true;
 
-		const start = Date.now();
 		const promise = this.replaceService.replace(this.matches(), progress);
-
-		promise.finally(() => {
-			/* __GDPR__
-				"replaceAll.started" : {
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('replaceAll.started', { duration: Date.now() - start });
-		});
 
 		return promise.then(() => {
 			this.replacingAll = false;
@@ -944,7 +933,7 @@ export class SearchResult extends Disposable {
 		});
 	}
 
-	private groupFilesByFolder(fileMatches: IFileMatch[]): { byFolder: ResourceMap<IFileMatch[]>, other: IFileMatch[]; } {
+	private groupFilesByFolder(fileMatches: IFileMatch[]): { byFolder: ResourceMap<IFileMatch[]>; other: IFileMatch[] } {
 		const rawPerFolder = new ResourceMap<IFileMatch[]>();
 		const otherFileMatches: IFileMatch[] = [];
 		this._folderMatches.forEach(fm => rawPerFolder.set(fm.resource, []));

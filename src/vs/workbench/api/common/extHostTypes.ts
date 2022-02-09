@@ -31,8 +31,8 @@ function es5ClassCompat(target: Function): any {
 @es5ClassCompat
 export class Disposable {
 
-	static from(...inDisposables: { dispose(): any; }[]): Disposable {
-		let disposables: ReadonlyArray<{ dispose(): any; }> | undefined = inDisposables;
+	static from(...inDisposables: { dispose(): any }[]): Disposable {
+		let disposables: ReadonlyArray<{ dispose(): any }> | undefined = inDisposables;
 		return new Disposable(function () {
 			if (disposables) {
 				for (const disposable of disposables) {
@@ -176,9 +176,9 @@ export class Position {
 		}
 	}
 
-	translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
+	translate(change: { lineDelta?: number; characterDelta?: number }): Position;
 	translate(lineDelta?: number, characterDelta?: number): Position;
-	translate(lineDeltaOrChange: number | undefined | { lineDelta?: number; characterDelta?: number; }, characterDelta: number = 0): Position {
+	translate(lineDeltaOrChange: number | undefined | { lineDelta?: number; characterDelta?: number }, characterDelta: number = 0): Position {
 
 		if (lineDeltaOrChange === null || characterDelta === null) {
 			throw illegalArgument();
@@ -200,9 +200,9 @@ export class Position {
 		return new Position(this.line + lineDelta, this.character + characterDelta);
 	}
 
-	with(change: { line?: number; character?: number; }): Position;
+	with(change: { line?: number; character?: number }): Position;
 	with(line?: number, character?: number): Position;
-	with(lineOrChange: number | undefined | { line?: number; character?: number; }, character: number = this.character): Position {
+	with(lineOrChange: number | undefined | { line?: number; character?: number }, character: number = this.character): Position {
 
 		if (lineOrChange === null || character === null) {
 			throw illegalArgument();
@@ -335,9 +335,9 @@ export class Range {
 		return this._start.line === this._end.line;
 	}
 
-	with(change: { start?: Position, end?: Position; }): Range;
+	with(change: { start?: Position; end?: Position }): Range;
 	with(start?: Position, end?: Position): Range;
-	with(startOrChange: Position | undefined | { start?: Position, end?: Position; }, end: Position = this.end): Range {
+	with(startOrChange: Position | undefined | { start?: Position; end?: Position }, end: Position = this.end): Range {
 
 		if (startOrChange === null || end === null) {
 			throw illegalArgument();
@@ -639,15 +639,15 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- file
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
-	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean; ignoreIfNotExists?: boolean }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
@@ -1353,6 +1353,14 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.supportHtml = value;
 	}
 
+	get baseUri(): vscode.Uri | undefined {
+		return this.#delegate.baseUri;
+	}
+
+	set baseUri(value: vscode.Uri | undefined) {
+		this.#delegate.baseUri = value;
+	}
+
 	appendText(value: string): vscode.MarkdownString {
 		this.#delegate.appendText(value);
 		return this;
@@ -1416,36 +1424,37 @@ export enum SignatureHelpTriggerKind {
 
 
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2,
 }
 
 @es5ClassCompat
 export class InlayHintLabelPart {
-	label: string;
-	collapsible?: boolean;
-	action?: vscode.Command | Location; // invokes provider
-	constructor(label: string) {
-		this.label = label;
-	}
-	toString(): string {
-		return this.label;
+
+	value: string;
+	tooltip?: string | vscode.MarkdownString;
+	location?: Location;
+	command?: vscode.Command;
+
+	constructor(value: string) {
+		this.value = value;
 	}
 }
 
 @es5ClassCompat
 export class InlayHint implements vscode.InlayHint {
+
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | vscode.MarkdownString;
 	position: Position;
 	kind?: vscode.InlayHintKind;
-	whitespaceBefore?: boolean;
-	whitespaceAfter?: boolean;
+	paddingLeft?: boolean;
+	paddingRight?: boolean;
+	command?: vscode.Command;
 
-	constructor(label: string | InlayHintLabelPart[], position: Position, kind?: vscode.InlayHintKind) {
-		this.label = label;
+	constructor(position: Position, label: string | InlayHintLabelPart[], kind?: vscode.InlayHintKind) {
 		this.position = position;
+		this.label = label;
 		this.kind = kind;
 	}
 }
@@ -1514,7 +1523,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	preselect?: boolean;
 	insertText?: string | SnippetString;
 	keepWhitespace?: boolean;
-	range?: Range | { inserting: Range; replacing: Range; };
+	range?: Range | { inserting: Range; replacing: Range };
 	commitCharacters?: string[];
 	textEdit?: TextEdit;
 	additionalTextEdits?: TextEdit[];
@@ -1693,7 +1702,7 @@ export class Color {
 	}
 }
 
-export type IColorFormat = string | { opaque: string, transparent: string; };
+export type IColorFormat = string | { opaque: string; transparent: string };
 
 @es5ClassCompat
 export class ColorInformation {
@@ -2009,19 +2018,19 @@ export enum TaskScope {
 }
 
 export class CustomExecution implements vscode.CustomExecution {
-	private _callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
-	constructor(callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	private _callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
+	constructor(callback: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public set callback(value: (resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): ((resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public get callback(): ((resolvedDefinition: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }
@@ -2288,7 +2297,7 @@ export class TreeItem {
 
 	label?: string | vscode.TreeItemLabel;
 	resourceUri?: URI;
-	iconPath?: string | URI | { light: string | URI; dark: string | URI; };
+	iconPath?: string | URI | { light: string | URI; dark: string | URI };
 	command?: vscode.Command;
 	contextValue?: string;
 	tooltip?: string | vscode.MarkdownString;
@@ -2314,10 +2323,10 @@ export enum TreeItemCollapsibleState {
 @es5ClassCompat
 export class TreeDataTransferItem {
 	async asString(): Promise<string> {
-		return JSON.stringify(this._value);
+		return JSON.stringify(this.value);
 	}
 
-	constructor(private readonly _value: any) { }
+	constructor(public readonly value: any) { }
 }
 
 @es5ClassCompat
@@ -2938,17 +2947,6 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
-export enum DebugConfigurationProviderTriggerKind {
-	/**
-	 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
-	 */
-	Initial = 1,
-	/**
-	 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
-	 */
-	Dynamic = 2
-}
-
 //#endregion
 
 @es5ClassCompat
@@ -2961,7 +2959,7 @@ export class QuickInputButtons {
 
 export enum QuickPickItemKind {
 	Separator = -1,
-	Default = 1,
+	Default = 0,
 }
 
 export enum ExtensionKind {
@@ -3060,7 +3058,7 @@ export class NotebookRange {
 		}
 	}
 
-	with(change: { start?: number, end?: number }): NotebookRange {
+	with(change: { start?: number; end?: number }): NotebookRange {
 		let start = this._start;
 		let end = this._end;
 
@@ -3145,7 +3143,7 @@ export class NotebookCellOutputItem {
 			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
 	}
 
-	static error(err: Error | { name: string, message?: string, stack?: string }): NotebookCellOutputItem {
+	static error(err: Error | { name: string; message?: string; stack?: string }): NotebookCellOutputItem {
 		const obj = {
 			name: err.name,
 			message: err.message,

@@ -34,16 +34,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private static readonly CACHED_VIEW_CONTAINER_LOCATIONS = 'views.cachedViewContainerLocations';
 	private static readonly COMMON_CONTAINER_ID_PREFIX = 'workbench.views.service';
 
-	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>());
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }> = this._onDidChangeContainer.event;
+	private readonly _onDidChangeContainer: Emitter<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>());
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }> = this._onDidChangeContainer.event;
 
-	private readonly _onDidChangeLocation: Emitter<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }> = this._register(new Emitter<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>());
-	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }> = this._onDidChangeLocation.event;
+	private readonly _onDidChangeLocation: Emitter<{ views: IViewDescriptor[]; from: ViewContainerLocation; to: ViewContainerLocation }> = this._register(new Emitter<{ views: IViewDescriptor[]; from: ViewContainerLocation; to: ViewContainerLocation }>());
+	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[]; from: ViewContainerLocation; to: ViewContainerLocation }> = this._onDidChangeLocation.event;
 
-	private readonly _onDidChangeContainerLocation: Emitter<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }> = this._register(new Emitter<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>());
-	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }> = this._onDidChangeContainerLocation.event;
+	private readonly _onDidChangeContainerLocation: Emitter<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }> = this._register(new Emitter<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>());
+	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }> = this._onDidChangeContainerLocation.event;
 
-	private readonly viewContainerModels: Map<ViewContainer, { viewContainerModel: ViewContainerModel, disposable: IDisposable; }>;
+	private readonly viewContainerModels: Map<ViewContainer, { viewContainerModel: ViewContainerModel; disposable: IDisposable }>;
 	private readonly viewsVisibilityActionDisposables: Map<ViewContainer, DisposableStore>;
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly movableViewContextKeys: Map<string, IContextKey<boolean>>;
@@ -88,7 +88,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
-	private readonly _onDidChangeViewContainers = this._register(new Emitter<{ added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }> }>());
+	private readonly _onDidChangeViewContainers = this._register(new Emitter<{ added: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>; removed: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }> }>());
 	readonly onDidChangeViewContainers = this._onDidChangeViewContainers.event;
 	get viewContainers(): ReadonlyArray<ViewContainer> { return this.viewContainersRegistry.all; }
 
@@ -101,7 +101,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	) {
 		super();
 
-		this.viewContainerModels = new Map<ViewContainer, { viewContainerModel: ViewContainerModel, disposable: IDisposable; }>();
+		this.viewContainerModels = new Map<ViewContainer, { viewContainerModel: ViewContainerModel; disposable: IDisposable }>();
 		this.viewsVisibilityActionDisposables = new Map<ViewContainer, DisposableStore>();
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
@@ -144,7 +144,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this._register(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
 	}
 
-	private registerGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>): void {
+	private registerGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo; views: IViewDescriptor[] }>): void {
 		// Register views that have already been registered to their correct view containers
 		for (const containerId of groupedViews.keys()) {
 			const viewContainer = this.viewContainersRegistry.get(containerId);
@@ -170,7 +170,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
-	private deregisterGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>): void {
+	private deregisterGroupedViews(groupedViews: Map<string, { cachedContainerInfo?: ICachedViewContainerInfo; views: IViewDescriptor[] }>): void {
 		// Register views that have already been registered to their correct view containers
 		for (const viewContainerId of groupedViews.keys()) {
 			const viewContainer = this.viewContainersRegistry.get(viewContainerId);
@@ -212,7 +212,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
-	private onDidRegisterViews(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void {
+	private onDidRegisterViews(views: { views: IViewDescriptor[]; viewContainer: ViewContainer }[]): void {
 		this.contextKeyService.bufferChangeEvents(() => {
 			views.forEach(({ views, viewContainer }) => {
 				// When views are registered, we need to regroup them based on the cache
@@ -241,8 +241,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		});
 	}
 
-	private regroupViews(containerId: string, views: IViewDescriptor[]): Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }> {
-		const ret = new Map<string, { cachedContainerInfo?: ICachedViewContainerInfo, views: IViewDescriptor[] }>();
+	private regroupViews(containerId: string, views: IViewDescriptor[]): Map<string, { cachedContainerInfo?: ICachedViewContainerInfo; views: IViewDescriptor[] }> {
+		const ret = new Map<string, { cachedContainerInfo?: ICachedViewContainerInfo; views: IViewDescriptor[] }>();
 
 		views.forEach(viewDescriptor => {
 			const containerInfo = this.cachedViewInfo.get(viewDescriptor.id);
@@ -419,11 +419,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 
 		type ViewDescriptorServiceMoveViewsClassification = {
-			viewCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			fromContainer: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			toContainer: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			fromLocation: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			toLocation: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			viewCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			fromContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			toContainer: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			fromLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			toLocation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 
 		this.telemetryService.publicLog2<ViewDescriptorServiceMoveViewsEvent, ViewDescriptorServiceMoveViewsClassification>('viewDescriptorService.moveViews', { viewCount, fromContainer, toContainer, fromLocation, toLocation });
@@ -731,14 +731,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
-	private onDidChangeActiveViews({ added, removed }: { added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor>; }): void {
+	private onDidChangeActiveViews({ added, removed }: { added: ReadonlyArray<IViewDescriptor>; removed: ReadonlyArray<IViewDescriptor> }): void {
 		this.contextKeyService.bufferChangeEvents(() => {
 			added.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(true));
 			removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
 		});
 	}
 
-	private onDidChangeVisibleViews({ added, removed }: { added: IViewDescriptor[], removed: IViewDescriptor[]; }): void {
+	private onDidChangeVisibleViews({ added, removed }: { added: IViewDescriptor[]; removed: IViewDescriptor[] }): void {
 		this.contextKeyService.bufferChangeEvents(() => {
 			added.forEach(viewDescriptor => this.getOrCreateVisibleViewContextKey(viewDescriptor).set(true));
 			removed.forEach(viewDescriptor => this.getOrCreateVisibleViewContextKey(viewDescriptor).set(false));

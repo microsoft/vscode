@@ -75,12 +75,12 @@ export interface TelemetryReporter {
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
 export interface Runtime {
-	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
+	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string } };
 	fileFs?: FileSystemProvider;
 	telemetry?: TelemetryReporter;
 	readonly timer: {
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
-	}
+	};
 }
 
 export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {

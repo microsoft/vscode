@@ -15,6 +15,7 @@ import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Command } from 'vs/editor/common/languages';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
@@ -27,6 +28,10 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopy';
+
+export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
+export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
+
 
 export enum CellKind {
 	Markup = 1,
@@ -70,7 +75,7 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string; };
+export type NotebookRendererEntrypoint = string | { extends: string; path: string };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -240,7 +245,7 @@ export type NotebookCellOutputsSplice = {
 
 export interface IMainCellDto {
 	handle: number;
-	uri: UriComponents,
+	uri: UriComponents;
 	source: string[];
 	eol: string;
 	language: string;
@@ -342,7 +347,7 @@ export type NotebookCellsChangedEventDto = {
 	readonly versionId: number;
 };
 
-export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMimeEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean; };
+export type NotebookRawContentEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookOutputItemChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMimeEvent | NotebookCellsChangeMetadataEvent | NotebookCellsChangeInternalMetadataEvent | NotebookDocumentUnknownChangeEvent) & { transient: boolean };
 
 export enum SelectionStateType {
 	Handle = 0,
@@ -491,7 +496,7 @@ export interface NotebookData {
 
 
 export interface INotebookContributionData {
-	extension?: ExtensionIdentifier,
+	extension?: ExtensionIdentifier;
 	providerDisplayName: string;
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
@@ -512,7 +517,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parse(cell: URI): { notebook: URI, handle: number; } | undefined {
+	export function parse(cell: URI): { notebook: URI; handle: number } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
@@ -537,7 +542,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI, handle: number; outputId?: string } | undefined {
+	export function parseCellOutputUri(uri: URI): { notebook: URI; handle: number; outputId?: string } | undefined {
 		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
 			return;
 		}
@@ -592,17 +597,10 @@ type MimeTypeInfo = {
 };
 
 const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
-	['application/javascript', { supportedByCore: true }],
-	['image/png', { alwaysSecure: true, supportedByCore: true }],
-	['image/jpeg', { alwaysSecure: true, supportedByCore: true }],
 	['image/git', { alwaysSecure: true, supportedByCore: true }],
-	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
-	[Mimes.latex, { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
-	['text/html', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
-	['application/vnd.code.notebook.error', { alwaysSecure: true, supportedByCore: true }],
 	['application/vnd.code.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/vnd.code.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 ]);
@@ -844,7 +842,7 @@ export interface INotebookDocumentFilter {
 
 //TODO@rebornix test
 
-export function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
+export function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern } {
 	const arg = filenamePattern as INotebookExclusiveDocumentFilter;
 
 	if ((typeof arg.include === 'string' || glob.isRelativePattern(arg.include))
@@ -903,8 +901,8 @@ export class CellSequence implements ISequence {
 }
 
 export interface INotebookDiffResult {
-	cellsDiff: IDiffResult,
-	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[]; }[];
+	cellsDiff: IDiffResult;
+	linesDiff?: { originalCellhandle: number; modifiedCellhandle: number; lineChanges: ILineChange[] }[];
 }
 
 export interface INotebookCellStatusBarItem {
@@ -976,4 +974,9 @@ export class NotebookWorkingCopyTypeIdentifier {
 		}
 		return undefined;
 	}
+}
+
+export interface NotebookExtensionDescription {
+	readonly id: ExtensionIdentifier;
+	readonly location: UriComponents | undefined;
 }

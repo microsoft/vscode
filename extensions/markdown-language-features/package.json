@@ -46,7 +46,8 @@
         "displayName": "Markdown it renderer",
         "entrypoint": "./notebook-out/index.js",
         "mimeTypes": [
-          "text/markdown"
+          "text/markdown",
+          "text/latex"
         ]
       }
     ],
@@ -362,7 +363,7 @@
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",
-    "vscode-extension-telemetry": "0.4.4",
+    "@vscode/extension-telemetry": "0.4.6",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {

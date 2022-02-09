@@ -11,8 +11,8 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
 import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -36,38 +36,6 @@ export const DEFAULT_EDITOR_ASSOCIATION = {
 	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
 	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
 };
-
-// Editor State Context Keys
-export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false, localize('activeEditorIsDirty', "Whether the active editor has unsaved changes"));
-export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false, localize('activeEditorIsNotPreview', "Whether the active editor is not in preview mode"));
-export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false, localize('activeEditorIsPinned', "Whether the active editor is pinned"));
-export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false, localize('activeEditorIsReadonly', "Whether the active editor is readonly"));
-export const ActiveEditorCanRevertContext = new RawContextKey<boolean>('activeEditorCanRevert', false, localize('activeEditorCanRevert', "Whether the active editor can revert"));
-export const ActiveEditorCanSplitInGroupContext = new RawContextKey<boolean>('activeEditorCanSplitInGroup', true);
-
-// Editor Kind Context Keys
-export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null, { type: 'string', description: localize('activeEditor', "The identifier of the active editor") });
-export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '', localize('activeEditorAvailableEditorIds', "The available editor identifiers that are usable for the active editor"));
-export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false, localize('textCompareEditorVisible', "Whether a text compare editor is visible"));
-export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false, localize('textCompareEditorActive', "Whether a text compare editor is active"));
-export const SideBySideEditorActiveContext = new RawContextKey<boolean>('sideBySideEditorActive', false, localize('sideBySideEditorActive', "Whether a side by side editor is active"));
-
-// Editor Group Context Keys
-export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0, localize('groupEditorsCount', "The number of opened editor groups"));
-export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false, localize('activeEditorGroupEmpty', "Whether the active editor group is empty"));
-export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0, localize('activeEditorGroupIndex', "The index of the active editor group"));
-export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false, localize('activeEditorGroupLast', "Whether the active editor group is the last group"));
-export const ActiveEditorGroupLockedContext = new RawContextKey<boolean>('activeEditorGroupLocked', false, localize('activeEditorGroupLocked', "Whether the active editor group is locked"));
-export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false, localize('multipleEditorGroups', "Whether there are multiple editor groups opened"));
-export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
-
-// Editor Layout Context Keys
-export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false, localize('editorIsOpen', "Whether an editor is open"));
-export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false, localize('inZenMode', "Whether Zen mode is enabled"));
-export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false, localize('isCenteredLayout', "Whether centered layout is enabled"));
-export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
-export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true, localize('editorAreaVisible', "Whether the editor area is visible"));
-export const EditorTabsVisibleContext = new RawContextKey<boolean>('editorTabsVisible', true, localize('editorTabsVisible', "Whether editor tabs are visible"));
 
 /**
  * Side by side editor id.
@@ -125,6 +93,15 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeControl: Event<void>;
 
 	/**
+	 * An optional event to notify when the selection inside the editor
+	 * pane changed in case the editor has a selection concept.
+	 *
+	 * For example, in a text editor pane, the selection changes whenever
+	 * the cursor is set to a new location.
+	 */
+	readonly onDidChangeSelection?: Event<IEditorPaneSelectionChangeEvent>;
+
+	/**
 	 * The assigned input of this editor.
 	 */
 	readonly input: EditorInput | undefined;
@@ -162,7 +139,7 @@ export interface IEditorPane extends IComposite {
 	/**
 	 * An event to notify whenever minimum/maximum width/height changes.
 	 */
-	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number; } | undefined>;
+	readonly onDidChangeSizeConstraints: Event<{ width: number; height: number } | undefined>;
 
 	/**
 	 * The context key service for this editor. Should be overridden by
@@ -190,9 +167,128 @@ export interface IEditorPane extends IComposite {
 	getViewState(): object | undefined;
 
 	/**
+	 * An optional method to return the current selection in
+	 * the editor pane in case the editor pane has a selection
+	 * concept.
+	 *
+	 * Clients of this method will typically react to the
+	 * `onDidChangeSelection` event to receive the current
+	 * selection as needed.
+	 */
+	getSelection?(): IEditorPaneSelection | undefined;
+
+	/**
 	 * Finds out if this editor is visible or not.
 	 */
 	isVisible(): boolean;
+}
+
+export interface IEditorPaneSelectionChangeEvent {
+
+	/**
+	 * More details for how the selection was made.
+	 */
+	reason: EditorPaneSelectionChangeReason;
+}
+
+export const enum EditorPaneSelectionChangeReason {
+
+	/**
+	 * The selection was changed as a result of a programmatic
+	 * method invocation.
+	 *
+	 * For a text editor pane, this for example can be a selection
+	 * being restored from previous view state automatically.
+	 */
+	PROGRAMMATIC = 1,
+
+	/**
+	 * The selection was changed by the user.
+	 *
+	 * This typically means the user changed the selection
+	 * with mouse or keyboard.
+	 */
+	USER,
+
+	/**
+	 * The selection was changed as a result of editing in
+	 * the editor pane.
+	 *
+	 * For a text editor pane, this for example can be typing
+	 * in the text of the editor pane.
+	 */
+	EDIT,
+
+	/**
+	 * The selection was changed as a result of a navigation
+	 * action.
+	 *
+	 * For a text editor pane, this for example can be invoking
+	 * "Go to definition" on a symbol.
+	 */
+	NAVIGATION
+}
+
+export interface IEditorPaneSelection {
+
+	/**
+	 * Asks to compare this selection to another selection.
+	 */
+	compare(otherSelection: IEditorPaneSelection): EditorPaneSelectionCompareResult;
+
+	/**
+	 * Asks to massage the provided `options` in a way
+	 * that the selection can be restored when the editor
+	 * is opened again.
+	 *
+	 * For a text editor this means to apply the selected
+	 * line and column as text editor options.
+	 */
+	restore(options: IEditorOptions): IEditorOptions;
+
+	/**
+	 * Only used for logging to print more info about the selection.
+	 */
+	toString?(): string;
+}
+
+export const enum EditorPaneSelectionCompareResult {
+
+	/**
+	 * The selections are identical.
+	 */
+	IDENTICAL = 1,
+
+	/**
+	 * The selections are similar.
+	 *
+	 * For a text editor this can mean that the one
+	 * selection is in close proximity to the other
+	 * selection.
+	 *
+	 * Upstream clients may decide in this case to
+	 * not treat the selection different from the
+	 * previous one because it is not distinct enough.
+	 */
+	SIMILAR = 2,
+
+	/**
+	 * The selections are entirely different.
+	 */
+	DIFFERENT = 3
+}
+
+export interface IEditorPaneWithSelection extends IEditorPane {
+
+	readonly onDidChangeSelection: Event<IEditorPaneSelectionChangeEvent>;
+
+	getSelection(): IEditorPaneSelection | undefined;
+}
+
+export function isEditorPaneWithSelection(editorPane: IEditorPane | undefined): editorPane is IEditorPaneWithSelection {
+	const candidate = editorPane as IEditorPaneWithSelection | undefined;
+
+	return !!candidate && typeof candidate.getSelection === 'function' && !!candidate.onDidChangeSelection;
 }
 
 /**
@@ -854,7 +950,7 @@ export const enum GroupModelChangeKind {
 
 export interface IWorkbenchEditorConfiguration {
 	workbench?: {
-		editor?: IEditorPartConfiguration,
+		editor?: IEditorPartConfiguration;
 		iconTheme?: string;
 	};
 }
@@ -893,7 +989,7 @@ interface IEditorPartConfiguration {
 	decorations?: {
 		badges?: boolean;
 		colors?: boolean;
-	}
+	};
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
@@ -975,8 +1071,8 @@ class EditorResourceAccessorImpl {
 	 */
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
 	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
-	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI; secondary?: URI } | undefined;
+	getOriginalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
 		}
@@ -1011,7 +1107,7 @@ class EditorResourceAccessorImpl {
 		return this.filterUri(originalResource, options.filterByScheme);
 	}
 
-	private getSideEditors(editor: EditorInput | IUntypedEditorInput): { primary: EditorInput | IUntypedEditorInput | undefined, secondary: EditorInput | IUntypedEditorInput | undefined } {
+	private getSideEditors(editor: EditorInput | IUntypedEditorInput): { primary: EditorInput | IUntypedEditorInput | undefined; secondary: EditorInput | IUntypedEditorInput | undefined } {
 		if (isSideBySideEditorInput(editor) || isResourceSideBySideEditorInput(editor)) {
 			return { primary: editor.primary, secondary: editor.secondary };
 		}
@@ -1038,8 +1134,8 @@ class EditorResourceAccessorImpl {
 	 */
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
 	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY | SideBySideEditor.ANY }): URI | undefined;
-	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI; secondary?: URI } | undefined;
+	getCanonicalUri(editor: EditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI; secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
 		}
@@ -1122,7 +1218,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 
 	private fileEditorFactory: IFileEditorFactory | undefined;
 
-	private readonly editorSerializerConstructors = new Map<string /* Type ID */, IConstructorSignature0<IEditorSerializer>>();
+	private readonly editorSerializerConstructors = new Map<string /* Type ID */, IConstructorSignature<IEditorSerializer>>();
 	private readonly editorSerializerInstances = new Map<string /* Type ID */, IEditorSerializer>();
 
 	start(accessor: ServicesAccessor): void {
@@ -1135,7 +1231,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 		this.editorSerializerConstructors.clear();
 	}
 
-	private createEditorSerializer(editorTypeId: string, ctor: IConstructorSignature0<IEditorSerializer>, instantiationService: IInstantiationService): void {
+	private createEditorSerializer(editorTypeId: string, ctor: IConstructorSignature<IEditorSerializer>, instantiationService: IInstantiationService): void {
 		const instance = instantiationService.createInstance(ctor);
 		this.editorSerializerInstances.set(editorTypeId, instance);
 	}
@@ -1152,7 +1248,7 @@ class EditorFactoryRegistry implements IEditorFactoryRegistry {
 		return assertIsDefined(this.fileEditorFactory);
 	}
 
-	registerEditorSerializer(editorTypeId: string, ctor: IConstructorSignature0<IEditorSerializer>): IDisposable {
+	registerEditorSerializer(editorTypeId: string, ctor: IConstructorSignature<IEditorSerializer>): IDisposable {
 		if (this.editorSerializerConstructors.has(editorTypeId) || this.editorSerializerInstances.has(editorTypeId)) {
 			throw new Error(`A editor serializer with type ID '${editorTypeId}' was already registered.`);
 		}

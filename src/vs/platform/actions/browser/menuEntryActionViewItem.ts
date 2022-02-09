@@ -24,7 +24,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
-export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string): IDisposable {
+export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
@@ -32,7 +32,7 @@ export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuAct
 	return asDisposable(groups);
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): IDisposable {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): IDisposable {
 	const groups = menu.getActions(options);
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
@@ -53,7 +53,7 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 
 
 function fillInActions(
-	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; },
+	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[] },
 	useAlternativeActions: boolean,
 	isPrimaryAction: (actionGroup: string) => boolean = actionGroup => actionGroup === 'navigation',
 	primaryMaxCount: number = Number.MAX_SAFE_INTEGER,
@@ -71,7 +71,7 @@ function fillInActions(
 		secondaryBucket = target.secondary;
 	}
 
-	const submenuInfo = new Set<{ group: string, action: SubmenuAction, index: number }>();
+	const submenuInfo = new Set<{ group: string; action: SubmenuAction; index: number }>();
 
 	for (const [group, actions] of groups) {
 

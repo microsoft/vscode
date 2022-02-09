@@ -785,4 +785,106 @@ suite('ExtensionsMerge', () => {
 		assert.deepStrictEqual(actual.remote?.all, [{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: true, preRelease: false }]);
 	});
 
+	test('merge: local extension not an installed extension - remote preRelease property is taken precedence when there are no updates', () => {
+		const localExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: false, preRelease: false },
+		];
+		const remoteExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: true, preRelease: true },
+		];
+
+		const actual = merge(localExtensions, remoteExtensions, remoteExtensions, [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, []);
+		assert.deepStrictEqual(actual.remote, null);
+	});
+
+	test('merge: local extension not an installed extension - remote preRelease property is taken precedence when there are updates locally', () => {
+		const localExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: false, preRelease: false, disabled: true },
+		];
+		const remoteExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: true, preRelease: true },
+		];
+
+		const actual = merge(localExtensions, remoteExtensions, remoteExtensions, [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, []);
+		assert.deepStrictEqual(actual.remote?.all, [{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: true, preRelease: true, disabled: true }]);
+	});
+
+	test('merge: local extension not an installed extension - remote preRelease property is taken precedence when there are updates remotely', () => {
+		const localExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: false, preRelease: false },
+		];
+		const baseExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: true, preRelease: true },
+		];
+		const remoteExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: true, preRelease: true, disabled: true },
+		];
+
+		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, [{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: true, preRelease: true, disabled: true }]);
+		assert.deepStrictEqual(actual.remote, null);
+	});
+
+	test('merge: local extension not an installed extension - remote version is taken precedence when there are no updates', () => {
+		const localExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: false, preRelease: false },
+		];
+		const remoteExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.1.0', installed: true, preRelease: false },
+		];
+
+		const actual = merge(localExtensions, remoteExtensions, remoteExtensions, [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, []);
+		assert.deepStrictEqual(actual.remote, null);
+	});
+
+	test('merge: local extension not an installed extension - remote version is taken precedence when there are updates locally', () => {
+		const localExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: false, preRelease: false, disabled: true },
+		];
+		const remoteExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.1.0', installed: true, preRelease: false },
+		];
+
+		const actual = merge(localExtensions, remoteExtensions, remoteExtensions, [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, []);
+		assert.deepStrictEqual(actual.remote?.all, [{ identifier: { id: 'a', uuid: 'a' }, version: '1.1.0', installed: true, preRelease: false, disabled: true }]);
+	});
+
+	test('merge: local extension not an installed extension - remote version property is taken precedence when there are updates remotely', () => {
+		const localExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.0.0', installed: false, preRelease: false },
+		];
+		const baseExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.1.0', installed: true, preRelease: false },
+		];
+		const remoteExtensions: ISyncExtensionWithVersion[] = [
+			{ identifier: { id: 'a', uuid: 'a' }, version: '1.1.0', installed: true, preRelease: false, disabled: true },
+		];
+
+		const actual = merge(localExtensions, remoteExtensions, baseExtensions, [], []);
+
+		assert.deepStrictEqual(actual.local.added, []);
+		assert.deepStrictEqual(actual.local.removed, []);
+		assert.deepStrictEqual(actual.local.updated, [{ identifier: { id: 'a', uuid: 'a' }, version: '1.1.0', installed: true, preRelease: false, disabled: true }]);
+		assert.deepStrictEqual(actual.remote, null);
+	});
+
 });

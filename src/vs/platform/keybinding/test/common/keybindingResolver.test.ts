@@ -45,8 +45,8 @@ suite('KeybindingResolver', () => {
 		const contextRules = ContextKeyExpr.equals('bar', 'baz');
 		const keybindingItem = kbItem(keybinding, 'yes', null, contextRules, true);
 
-		assert.strictEqual(KeybindingResolver.contextMatchesRules(createContext({ bar: 'baz' }), contextRules), true);
-		assert.strictEqual(KeybindingResolver.contextMatchesRules(createContext({ bar: 'bz' }), contextRules), false);
+		assert.strictEqual(contextRules.evaluate(createContext({ bar: 'baz' })), true);
+		assert.strictEqual(contextRules.evaluate(createContext({ bar: 'bz' })), false);
 
 		const resolver = new KeybindingResolver([keybindingItem], [], () => { });
 		assert.strictEqual(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandId, 'yes');
@@ -158,7 +158,7 @@ suite('KeybindingResolver', () => {
 			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		const overrides = [
-			kbItem(KeyCode.KeyA, '-yes1', null, null!, false)
+			kbItem(KeyCode.KeyA, '-yes1', null, undefined, false)
 		];
 		const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
 		assert.deepStrictEqual(actual, [
@@ -172,7 +172,7 @@ suite('KeybindingResolver', () => {
 			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		const overrides = [
-			kbItem(0, '-yes1', null, null!, false)
+			kbItem(0, '-yes1', null, undefined, false)
 		];
 		const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
 		assert.deepStrictEqual(actual, [
@@ -199,11 +199,39 @@ suite('KeybindingResolver', () => {
 			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
 		];
 		const overrides = [
-			kbItem(KeyCode.KeyA, '-yes1', null, null!, false)
+			kbItem(KeyCode.KeyA, '-yes1', null, undefined, false)
 		];
 		const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
 		assert.deepStrictEqual(actual, [
 			kbItem(KeyCode.KeyB, 'yes2', null, ContextKeyExpr.equals('2', 'b'), true)
+		]);
+	});
+
+	test('issue #140884 Unable to reassign F1 as keybinding for Show All Commands', () => {
+		const defaults = [
+			kbItem(KeyCode.KeyA, 'command1', null, undefined, true),
+		];
+		const overrides = [
+			kbItem(KeyCode.KeyA, '-command1', null, undefined, false),
+			kbItem(KeyCode.KeyA, 'command1', null, undefined, false),
+		];
+		const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyA, 'command1', null, undefined, false)
+		]);
+	});
+
+	test('issue #141638: Keyboard Shortcuts: Change When Expression might actually remove keybinding in Insiders', () => {
+		const defaults = [
+			kbItem(KeyCode.KeyA, 'command1', null, undefined, true),
+		];
+		const overrides = [
+			kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.equals('a', '1'), false),
+			kbItem(KeyCode.KeyA, '-command1', null, undefined, false),
+		];
+		const actual = KeybindingResolver.handleRemovals([...defaults, ...overrides]);
+		assert.deepStrictEqual(actual, [
+			kbItem(KeyCode.KeyA, 'command1', null, ContextKeyExpr.equals('a', '1'), false)
 		]);
 	});
 
@@ -277,7 +305,7 @@ suite('KeybindingResolver', () => {
 			_kbItem(
 				KeyCode.KeyZ,
 				'second',
-				null!
+				undefined
 			),
 			// This one sometimes overwrites first
 			_kbItem(
@@ -295,43 +323,43 @@ suite('KeybindingResolver', () => {
 			_kbItem(
 				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyY, KeyCode.KeyZ),
 				'fifth',
-				null!
+				undefined
 			),
 			// This one has no keybinding
 			_kbItem(
 				0,
 				'sixth',
-				null!
+				undefined
 			),
 			_kbItem(
 				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU),
 				'seventh',
-				null!
+				undefined
 			),
 			_kbItem(
 				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyK),
 				'seventh',
-				null!
+				undefined
 			),
 			_kbItem(
 				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyU),
 				'uncomment lines',
-				null!
+				undefined
 			),
 			_kbItem(
 				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC),
 				'comment lines',
-				null!
+				undefined
 			),
 			_kbItem(
 				KeyChord(KeyMod.CtrlCmd | KeyCode.KeyG, KeyMod.CtrlCmd | KeyCode.KeyC),
 				'unreachablechord',
-				null!
+				undefined
 			),
 			_kbItem(
 				KeyMod.CtrlCmd | KeyCode.KeyG,
 				'eleven',
-				null!
+				undefined
 			)
 		];
 

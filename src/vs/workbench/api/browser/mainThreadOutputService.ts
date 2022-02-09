@@ -6,8 +6,8 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputService, IOutputChannel, OUTPUT_VIEW_ID, OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
-import { MainThreadOutputServiceShape, MainContext, IExtHostContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { MainThreadOutputServiceShape, MainContext, ExtHostOutputServiceShape, ExtHostContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';

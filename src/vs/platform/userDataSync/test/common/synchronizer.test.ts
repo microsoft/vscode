@@ -24,7 +24,7 @@ interface ITestResourcePreview extends IResourcePreview {
 class TestSynchroniser extends AbstractSynchroniser {
 
 	syncBarrier: Barrier = new Barrier();
-	syncResult: { hasConflicts: boolean, hasError: boolean } = { hasConflicts: false, hasError: false };
+	syncResult: { hasConflicts: boolean; hasError: boolean } = { hasConflicts: false, hasError: false };
 	onDoSyncCall: Emitter<void> = this._register(new Emitter<void>());
 	failWhenGettingLatestRemoteUserData: boolean = false;
 
@@ -166,7 +166,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 	}
 
 	hasLocalData(): Promise<boolean> { throw new Error('not implemented'); }
-	getAssociatedResources(): Promise<{ resource: URI, comparableResource: URI }[]> { throw new Error('not implemented'); }
+	getAssociatedResources(): Promise<{ resource: URI; comparableResource: URI }[]> { throw new Error('not implemented'); }
 }
 
 suite('TestSynchronizer - Auto Sync', () => {

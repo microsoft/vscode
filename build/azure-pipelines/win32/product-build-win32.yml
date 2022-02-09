@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: UsePythonVersion@0
     inputs:
@@ -67,6 +67,7 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { npx https://aka.ms/enablesecurefeed standAlone }
     timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
     displayName: Switch to Terrapin packages
 
@@ -153,7 +154,7 @@ steps:
       exec { yarn electron $(VSCODE_ARCH) }
       exec { .\scripts\test.bat --build --tfs "Unit Tests" }
     displayName: Run unit tests (Electron)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 15
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
@@ -161,13 +162,13 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { yarn test-node --build }
     displayName: Run unit tests (node.js)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 15
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { yarn test-browser --sequential --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
+      exec { yarn test-browser-no-install --sequential --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
     displayName: Run unit tests (Browser, Chromium & Firefox)
     timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
@@ -183,15 +184,15 @@ steps:
       $AppNameShort = $AppProductJson.nameShort
       exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-integration.bat --build --tfs "Integration Tests" }
     displayName: Run integration tests (Electron)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-web-integration.bat --browser firefox }
+      exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\scripts\test-web-integration.bat --browser firefox }
     displayName: Run integration tests (Browser, Firefox)
-    timeoutInMinutes: 10
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
@@ -200,9 +201,9 @@ steps:
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
       $AppNameShort = $AppProductJson.nameShort
-      exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-remote-integration.bat }
+      exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\scripts\test-remote-integration.bat }
     displayName: Run integration tests (Remote)
-    timeoutInMinutes: 7
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
@@ -220,7 +221,8 @@ steps:
       $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
       exec { yarn smoketest-no-compile --build "$AppRoot" }
     displayName: Run smoke tests (Electron)
-    timeoutInMinutes: 10
+    # Increased timeout because this test downloads stable code
+    timeoutInMinutes: 20
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
@@ -245,6 +247,16 @@ steps:
       artifactName: crash-dump-windows-$(VSCODE_ARCH)
       targetPath: .build\crashes
     displayName: "Publish Crash Reports"
+    continueOnError: true
+    condition: failed()
+
+  # In order to properly symbolify above crash reports
+  # (if any), we need the compiled native modules too
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: node-modules-windows-$(VSCODE_ARCH)
+      targetPath: node_modules
+    displayName: "Publish Node Modules"
     continueOnError: true
     condition: failed()
 
@@ -339,4 +351,28 @@ steps:
   - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH)-web.zip
     artifact: vscode_web_win32_$(VSCODE_ARCH)_archive
     displayName: Publish web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (client)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (client)
+    artifact: vscode_client_win32_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (server)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code Server
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
+
+  - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (server)
+    artifact: vscode_server_win32_$(VSCODE_ARCH)_sbom
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))

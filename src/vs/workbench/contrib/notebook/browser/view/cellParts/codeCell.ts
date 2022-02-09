@@ -10,10 +10,10 @@ import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { tokenizeToStringSync } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -67,7 +67,7 @@ export class CodeCell extends Disposable {
 		this.registerMouseListener();
 
 		this._register(notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (e.affectsCell(this.viewCell.model)) {
+			if (e.affectsCell(this.viewCell.uri)) {
 				this.cellParts.forEach(cellPart => {
 					cellPart.updateForExecutionState(this.viewCell, e);
 				});
@@ -257,10 +257,11 @@ export class CodeCell extends Disposable {
 				return;
 			}
 
-			const primarySelection = this.templateData.editor.getSelection();
+			const selections = this.templateData.editor.getSelections();
 
-			if (primarySelection) {
-				this.notebookEditor.revealLineInViewAsync(this.viewCell, primarySelection.positionLineNumber);
+			if (selections?.length) {
+				const lastSelection = selections[selections.length - 1];
+				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
 			}
 		}));
 

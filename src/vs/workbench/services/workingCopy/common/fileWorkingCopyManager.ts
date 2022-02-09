@@ -417,7 +417,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		return targetStoredFileWorkingCopy;
 	}
 
-	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean, targetStoredFileWorkingCopy: IStoredFileWorkingCopy<S> }> {
+	private async doResolveSaveTarget(source: URI, target: URI): Promise<{ targetFileExists: boolean; targetStoredFileWorkingCopy: IStoredFileWorkingCopy<S> }> {
 
 		// Prefer an existing stored file working copy if it is already resolved
 		// for the given target resource

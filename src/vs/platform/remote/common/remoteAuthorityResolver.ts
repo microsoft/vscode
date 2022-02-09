@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TunnelPrivacy } from 'vs/platform/remote/common/tunnel';
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
@@ -20,14 +19,19 @@ export interface ResolvedAuthority {
 export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
 	readonly isTrusted?: boolean;
-	readonly authenticationSession?: { id: string, providerId: string };
+	readonly authenticationSession?: { id: string; providerId: string };
 }
 
 export interface TunnelDescription {
-	remoteAddress: { port: number, host: string };
-	localAddress: { port: number, host: string } | string;
+	remoteAddress: { port: number; host: string };
+	localAddress: { port: number; host: string } | string;
 	privacy?: string;
 	protocol?: string;
+}
+export interface TunnelPrivacy {
+	themeIcon: string;
+	id: string;
+	label: string;
 }
 export interface TunnelInformation {
 	environmentTunnels?: TunnelDescription[];
@@ -35,7 +39,7 @@ export interface TunnelInformation {
 		elevation: boolean;
 		public?: boolean;
 		privacyOptions: TunnelPrivacy[];
-	}
+	};
 }
 
 export interface ResolverResult {

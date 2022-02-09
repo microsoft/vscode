@@ -13,13 +13,12 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import { Token } from 'vs/editor/common/core/token';
 import { EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState, nullTokenize } from 'vs/editor/common/languages/nullMode';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { NullState, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
@@ -113,7 +112,7 @@ export function setModelMarkers(model: ITextModel, owner: string, markers: IMark
  *
  * @returns list of markers
  */
-export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
+export function getModelMarkers(filter: { owner?: string; resource?: URI; take?: number }): IMarker[] {
 	const markerService = StandaloneServices.get(IMarkerService);
 	return markerService.read(filter);
 }
@@ -165,7 +164,7 @@ export function onWillDisposeModel(listener: (model: ITextModel) => void): IDisp
  * Emitted when a different language is set to a model.
  * @event
  */
-export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string; }) => void): IDisposable {
+export function onDidChangeModelLanguage(listener: (e: { readonly model: ITextModel; readonly oldLanguage: string }) => void): IDisposable {
 	const modelService = StandaloneServices.get(IModelService);
 	return modelService.onModelLanguageChanged((e) => {
 		listener({
@@ -215,27 +214,27 @@ export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize
 /**
  * @internal
  */
-function getSafeTokenizationSupport(language: string): Omit<modes.ITokenizationSupport, 'tokenizeEncoded'> {
-	const tokenizationSupport = modes.TokenizationRegistry.get(language);
+function getSafeTokenizationSupport(language: string): Omit<languages.ITokenizationSupport, 'tokenizeEncoded'> {
+	const tokenizationSupport = languages.TokenizationRegistry.get(language);
 	if (tokenizationSupport) {
 		return tokenizationSupport;
 	}
 	return {
 		getInitialState: () => NullState,
-		tokenize: (line: string, hasEOL: boolean, state: modes.IState) => nullTokenize(language, state)
+		tokenize: (line: string, hasEOL: boolean, state: languages.IState) => nullTokenize(language, state)
 	};
 }
 
 /**
  * Tokenize `text` using language `languageId`
  */
-export function tokenize(text: string, languageId: string): Token[][] {
+export function tokenize(text: string, languageId: string): languages.Token[][] {
 	// Needed in order to get the mode registered for subsequent look-ups
-	modes.TokenizationRegistry.getOrCreate(languageId);
+	languages.TokenizationRegistry.getOrCreate(languageId);
 
 	const tokenizationSupport = getSafeTokenizationSupport(languageId);
 	const lines = splitLines(text);
-	const result: Token[][] = [];
+	const result: languages.Token[][] = [];
 	let state = tokenizationSupport.getInitialState();
 	for (let i = 0, len = lines.length; i < len; i++) {
 		const line = lines[i];
@@ -332,6 +331,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
 		WrappingIndent: standaloneEnums.WrappingIndent,
 		InjectedTextCursorStops: standaloneEnums.InjectedTextCursorStops,
+		PositionAffinity: standaloneEnums.PositionAffinity,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,

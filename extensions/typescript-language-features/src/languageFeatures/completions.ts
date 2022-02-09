@@ -12,8 +12,9 @@ import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../t
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
-import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../utils/dependentRegistration';
+import { conditionalRegistration, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
+import { LanguageDescription } from '../utils/languageDescription';
 import { parseKindModifier } from '../utils/modifiers';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
@@ -37,12 +38,12 @@ interface CompletionContext {
 	readonly dotAccessorContext?: DotAccessorContext;
 
 	readonly enableCallCompletions: boolean;
-	readonly useCodeSnippetsOnMethodSuggest: boolean,
+	readonly useCodeSnippetsOnMethodSuggest: boolean;
 
 	readonly wordRange: vscode.Range | undefined;
 	readonly line: string;
 
-	readonly useFuzzyWordRangeLogic: boolean,
+	readonly useFuzzyWordRangeLogic: boolean;
 }
 
 type ResolvedCompletionItem = {
@@ -205,10 +206,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 			const detail = response.body[0];
 
-			if (!this.detail && detail.displayParts.length) {
-				this.detail = Previewer.plainWithLinks(detail.displayParts, client);
-			}
-			this.documentation = this.getDocumentation(client, detail, this);
+			this.detail = this.getDetails(client, detail);
+			this.documentation = this.getDocumentation(client, detail, this.document.uri);
 
 			const codeAction = this.getCodeActions(detail, filepath);
 			const commands: vscode.Command[] = [{
@@ -248,19 +247,28 @@ class MyCompletionItem extends vscode.CompletionItem {
 		return this._resolvedPromise.promise;
 	}
 
+	private getDetails(
+		client: ITypeScriptServiceClient,
+		detail: Proto.CompletionEntryDetails,
+	): string | undefined {
+		const parts: string[] = [];
+
+		for (const action of detail.codeActions ?? []) {
+			parts.push(action.description);
+		}
+
+		parts.push(Previewer.plainWithLinks(detail.displayParts, client));
+		return parts.join('\n\n');
+	}
+
 	private getDocumentation(
 		client: ITypeScriptServiceClient,
 		detail: Proto.CompletionEntryDetails,
-		item: MyCompletionItem
+		baseUri: vscode.Uri,
 	): vscode.MarkdownString | undefined {
 		const documentation = new vscode.MarkdownString();
-		if (detail.source) {
-			const importPath = `'${Previewer.plainWithLinks(detail.source, client)}'`;
-			const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
-			item.detail = `${autoImportLabel}\n${item.detail}`;
-		}
 		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags, client);
-
+		documentation.baseUri = baseUri;
 		return documentation.value.length ? documentation : undefined;
 	}
 
@@ -298,7 +306,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 	private getCodeActions(
 		detail: Proto.CompletionEntryDetails,
 		filepath: string
-	): { command?: vscode.Command, additionalTextEdits?: vscode.TextEdit[] } {
+	): { command?: vscode.Command; additionalTextEdits?: vscode.TextEdit[] } {
 		if (!detail.codeActions || !detail.codeActions.length) {
 			return {};
 		}
@@ -643,7 +651,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly modeId: string,
+		private readonly language: LanguageDescription,
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager,
@@ -661,6 +669,10 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
 	): Promise<vscode.CompletionList<MyCompletionItem> | undefined> {
+		if (!vscode.workspace.getConfiguration(this.language.id, document).get('suggest.enabled')) {
+			return undefined;
+		}
+
 		if (this.typingsStatus.isAcquiringTypings) {
 			return Promise.reject<vscode.CompletionList<MyCompletionItem>>({
 				label: localize(
@@ -678,7 +690,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		}
 
 		const line = document.lineAt(position.line);
-		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.modeId, document.uri);
+		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.language.id, document.uri);
 
 		if (!this.shouldTrigger(context, line, position, completionConfiguration)) {
 			return undefined;
@@ -919,7 +931,7 @@ function shouldExcludeCompletionEntry(
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	typingsStatus: TypingsStatus,
 	fileConfigurationManager: FileConfigurationManager,
@@ -928,11 +940,10 @@ export function register(
 	onCompletionAccepted: (item: vscode.CompletionItem) => void
 ) {
 	return conditionalRegistration([
-		requireConfiguration(modeId, 'suggest.enabled'),
 		requireSomeCapability(client, ClientCapability.EnhancedSyntax, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCompletionItemProvider(selector.syntax,
-			new TypeScriptCompletionItemProvider(client, modeId, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
+			new TypeScriptCompletionItemProvider(client, language, typingsStatus, fileConfigurationManager, commandManager, telemetryReporter, onCompletionAccepted),
 			...TypeScriptCompletionItemProvider.triggerCharacters);
 	});
 }

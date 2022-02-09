@@ -338,7 +338,7 @@ declare module 'vscode' {
 		 * @return A position that reflects the given delta. Will return `this` position if the change
 		 * is not changing anything.
 		 */
-		translate(change: { lineDelta?: number; characterDelta?: number; }): Position;
+		translate(change: { lineDelta?: number; characterDelta?: number }): Position;
 
 		/**
 		 * Create a new position derived from this position.
@@ -356,7 +356,7 @@ declare module 'vscode' {
 		 * @return A position that reflects the given change. Will return `this` position if the change
 		 * is not changing anything.
 		 */
-		with(change: { line?: number; character?: number; }): Position;
+		with(change: { line?: number; character?: number }): Position;
 	}
 
 	/**
@@ -462,7 +462,7 @@ declare module 'vscode' {
 		 * @return A range that reflects the given change. Will return `this` range if the change
 		 * is not changing anything.
 		 */
-		with(change: { start?: Position, end?: Position }): Range;
+		with(change: { start?: Position; end?: Position }): Range;
 	}
 
 	/**
@@ -1137,7 +1137,7 @@ declare module 'vscode' {
 		 * @param options The undo/redo behavior around this edit. By default, undo stops will be created before and after this edit.
 		 * @return A promise that resolves with a value indicating if the edits could be applied.
 		 */
-		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		edit(callback: (editBuilder: TextEditorEdit) => void, options?: { readonly undoStopBefore: boolean; readonly undoStopAfter: boolean }): Thenable<boolean>;
 
 		/**
 		 * Insert a {@link SnippetString snippet} and put the editor into snippet mode. "Snippet mode"
@@ -1150,7 +1150,7 @@ declare module 'vscode' {
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
 		 */
-		insertSnippet(snippet: SnippetString, location?: Position | Range | readonly Position[] | readonly Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		insertSnippet(snippet: SnippetString, location?: Position | Range | readonly Position[] | readonly Range[], options?: { readonly undoStopBefore: boolean; readonly undoStopAfter: boolean }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -1321,7 +1321,7 @@ declare module 'vscode' {
 		 * @param components The component parts of an Uri.
 		 * @return A new Uri instance.
 		 */
-		static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): Uri;
+		static from(components: { readonly scheme: string; readonly authority?: string; readonly path?: string; readonly query?: string; readonly fragment?: string }): Uri;
 
 		/**
 		 * Use the `file` and `parse` factory functions to create new `Uri` objects.
@@ -1484,22 +1484,25 @@ declare module 'vscode' {
 	export class Disposable {
 
 		/**
-		 * Combine many disposable-likes into one. Use this method
-		 * when having objects with a dispose function which are not
-		 * instances of Disposable.
+		 * Combine many disposable-likes into one. You can use this method when having objects with
+		 * a dispose function which aren't instances of `Disposable`.
 		 *
-		 * @param disposableLikes Objects that have at least a `dispose`-function member.
+		 * @param disposableLikes Objects that have at least a `dispose`-function member. Note that asynchronous
+		 * dispose-functions aren't awaited.
 		 * @return Returns a new disposable which, upon dispose, will
 		 * dispose all provided disposables.
 		 */
 		static from(...disposableLikes: { dispose: () => any }[]): Disposable;
 
 		/**
-		 * Creates a new Disposable calling the provided function
+		 * Creates a new disposable that calls the provided function
 		 * on dispose.
+		 *
+		 * *Note* that an asynchronous function is not awaited.
+		 *
 		 * @param callOnDispose Function that disposes something.
 		 */
-		constructor(callOnDispose: Function);
+		constructor(callOnDispose: () => any);
 
 		/**
 		 * Dispose this object.
@@ -1543,6 +1546,7 @@ declare module 'vscode' {
 		/**
 		 * The event listeners can subscribe to.
 		 */
+		// eslint-disable-next-line vscode-dts-event-naming
 		event: Event<T>;
 
 		/**
@@ -1636,6 +1640,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The kind of {@link QuickPickItem quick pick item}.
+	 */
+	export enum QuickPickItemKind {
+		/**
+		 * When a {@link QuickPickItem} has a kind of {@link Separator}, the item is just a visual separator and does not represent a real item.
+		 * The only property that applies is {@link QuickPickItem.label label }. All other properties on {@link QuickPickItem} will be ignored and have no effect.
+		 */
+		Separator = -1,
+		/**
+		 * The default {@link QuickPickItem.kind} is an item that can be selected in the quick pick.
+		 */
+		Default = 0,
+	}
+
+	/**
 	 * Represents an item that can be selected from
 	 * a list of items.
 	 */
@@ -1648,14 +1667,24 @@ declare module 'vscode' {
 		label: string;
 
 		/**
+		 * The kind of QuickPickItem that will determine how this item is rendered in the quick pick. When not specified,
+		 * the default is {@link QuickPickItemKind.Default}.
+		 */
+		kind?: QuickPickItemKind;
+
+		/**
 		 * A human-readable string which is rendered less prominent in the same line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 *
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		description?: string;
 
 		/**
 		 * A human-readable string which is rendered less prominent in a separate line. Supports rendering of
 		 * {@link ThemeIcon theme icons} via the `$(<name>)`-syntax.
+		 *
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		detail?: string;
 
@@ -1666,11 +1695,15 @@ declare module 'vscode' {
 		 * (*Note:* This is only honored when the picker allows multiple selections.)
 		 *
 		 * @see {@link QuickPickOptions.canPickMany}
+		 *
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		picked?: boolean;
 
 		/**
 		 * Always show this item.
+		 *
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		alwaysShow?: boolean;
 
@@ -1679,6 +1712,8 @@ declare module 'vscode' {
 		 * an {@link QuickPickItemButtonEvent} when clicked. Buttons are only rendered when using a quickpick
 		 * created by the {@link window.createQuickPick()} API. Buttons are not rendered when using
 		 * the {@link window.showQuickPick()} API.
+		 *
+		 * Note: this property is ignored when {@link QuickPickItem.kind kind} is set to {@link QuickPickItemKind.Separator}
 		 */
 		buttons?: readonly QuickInputButton[];
 	}
@@ -1989,7 +2024,7 @@ declare module 'vscode' {
 		 * Otherwise, a uri or string should only be used if the pattern is for a file path outside the workspace.
 		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on paths relative to the base.
 		 */
-		constructor(base: WorkspaceFolder | Uri | string, pattern: string)
+		constructor(base: WorkspaceFolder | Uri | string, pattern: string);
 	}
 
 	/**
@@ -3374,7 +3409,7 @@ declare module 'vscode' {
 		 * be applied successfully.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		createFile(uri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Delete a file or folder.
@@ -3382,7 +3417,7 @@ declare module 'vscode' {
 		 * @param uri The uri of the file that is to be deleted.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		deleteFile(uri: Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		deleteFile(uri: Uri, options?: { recursive?: boolean; ignoreIfNotExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Rename a file or folder.
@@ -3393,7 +3428,7 @@ declare module 'vscode' {
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
 		 * @param metadata Optional metadata for the entry.
 		 */
-		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean; ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
 
 		/**
 		 * Get all text edits grouped by resource.
@@ -3410,8 +3445,8 @@ declare module 'vscode' {
 	 * A snippet can define tab stops and placeholders with `$1`, `$2`
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
 	 * the end of the snippet. Variables are defined with `$name` and
-	 * `${name:default value}`. The full snippet syntax is documented
-	 * [here](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
+	 * `${name:default value}`. Also see
+	 * [the full snippet syntax](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
 	 */
 	export class SnippetString {
 
@@ -3508,7 +3543,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return The range or range and placeholder text of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
 		 */
-		prepareRename?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range | { range: Range, placeholder: string }>;
+		prepareRename?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range | { range: Range; placeholder: string }>;
 	}
 
 	/**
@@ -4174,7 +4209,7 @@ declare module 'vscode' {
 		 * {@link Range.contains contain} the position at which completion has been {@link CompletionItemProvider.provideCompletionItems requested}.
 		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
 		 */
-		range?: Range | { inserting: Range; replacing: Range; };
+		range?: Range | { inserting: Range; replacing: Range };
 
 		/**
 		 * An optional set of characters that when pressed while this completion is active will accept it first and
@@ -4529,7 +4564,7 @@ declare module 'vscode' {
 		 * @return An array of color presentations or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideColorPresentations(color: Color, context: { document: TextDocument, range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
+		provideColorPresentations(color: Color, context: { readonly document: TextDocument; readonly range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
 	}
 
 	/**
@@ -5252,8 +5287,8 @@ declare module 'vscode' {
 
 			defaultValue?: T;
 			globalValue?: T;
-			workspaceValue?: T,
-			workspaceFolderValue?: T,
+			workspaceValue?: T;
+			workspaceFolderValue?: T;
 
 			defaultLanguageValue?: T;
 			globalLanguageValue?: T;
@@ -5594,6 +5629,82 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the severity of a language status item.
+	 */
+	export enum LanguageStatusSeverity {
+		Information = 0,
+		Warning = 1,
+		Error = 2
+	}
+
+	/**
+	 * A language status item is the preferred way to present language status reports for the active text editors,
+	 * such as selected linter or notifying about a configuration problem.
+	 */
+	export interface LanguageStatusItem {
+
+		/**
+		 * The identifier of this item.
+		 */
+		readonly id: string;
+
+		/**
+		 * The short name of this item, like 'Java Language Status', etc.
+		 */
+		name: string | undefined;
+
+		/**
+		 * A {@link DocumentSelector selector} that defines for what editors
+		 * this item shows.
+		 */
+		selector: DocumentSelector;
+
+		/**
+		 * The severity of this item.
+		 *
+		 * Defaults to {@link LanguageStatusSeverity.Information information}. You can use this property to
+		 * signal to users that there is a problem that needs attention, like a missing executable or an
+		 * invalid configuration.
+		 */
+		severity: LanguageStatusSeverity;
+
+		/**
+		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
+		 *
+		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
+		 *
+		 * Where the icon-name is taken from the ThemeIcon [icon set](https://code.visualstudio.com/api/references/icons-in-labels#icon-listing), e.g.
+		 * `light-bulb`, `thumbsup`, `zap` etc.
+		 */
+		text: string;
+
+		/**
+		 * Optional, human-readable details for this item.
+		 */
+		detail?: string;
+
+		/**
+		 * Controls whether the item is shown as "busy". Defaults to `false`.
+		 */
+		busy: boolean;
+
+		/**
+		 * A {@linkcode Command command} for this item.
+		 */
+		command: Command | undefined;
+
+		/**
+		 * Accessibility information used when a screen reader interacts with this item
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+
+		/**
+		 * Dispose and free associated resources.
+		 */
+		dispose(): void;
+	}
+
+	/**
 	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
 	 * and each column represents one editor location in that grid by counting the editors
 	 * in order of their appearance.
@@ -5724,7 +5835,7 @@ declare module 'vscode' {
 		/**
 		 * Label to be read out by a screen reader once the item has focus.
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * Role of the widget which defines how a screen reader interacts with it.
@@ -5732,7 +5843,7 @@ declare module 'vscode' {
 		 * If role is not specified the editor will pick the appropriate role automatically.
 		 * More about aria roles can be found here https://w3c.github.io/aria/#widget_roles
 		 */
-		role?: string;
+		readonly role?: string;
 	}
 
 	/**
@@ -5949,7 +6060,7 @@ declare module 'vscode' {
 
 	/**
 	 * Assumes a {@link TerminalLocation} of editor and allows specifying a {@link ViewColumn} and
-	 * {@link preserveFocus} property
+	 * {@link TerminalEditorLocationOptions.preserveFocus preserveFocus } property
 	 */
 	export interface TerminalEditorLocationOptions {
 		/**
@@ -6274,6 +6385,8 @@ declare module 'vscode' {
 		/**
 		 * An array to which disposables can be added. When this
 		 * extension is deactivated the disposables will be disposed.
+		 *
+		 * *Note* that asynchronous dispose-functions aren't awaited.
 		 */
 		readonly subscriptions: { dispose(): any }[];
 
@@ -7434,7 +7547,7 @@ declare module 'vscode' {
 		 * @param options Configures the watch.
 		 * @returns A disposable that tells the provider to stop watching the `uri`.
 		 */
-		watch(uri: Uri, options: { recursive: boolean; excludes: string[] }): Disposable;
+		watch(uri: Uri, options: { readonly recursive: boolean; readonly excludes: readonly string[] }): Disposable;
 
 		/**
 		 * Retrieve metadata about a file.
@@ -7488,7 +7601,7 @@ declare module 'vscode' {
 		 * @throws {@linkcode FileSystemError.FileExists FileExists} when `uri` already exists, `create` is set but `overwrite` is not set.
 		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void | Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, options: { readonly create: boolean; readonly overwrite: boolean }): void | Thenable<void>;
 
 		/**
 		 * Delete a file.
@@ -7498,7 +7611,7 @@ declare module 'vscode' {
 		 * @throws {@linkcode FileSystemError.FileNotFound FileNotFound} when `uri` doesn't exist.
 		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
 		 */
-		delete(uri: Uri, options: { recursive: boolean }): void | Thenable<void>;
+		delete(uri: Uri, options: { readonly recursive: boolean }): void | Thenable<void>;
 
 		/**
 		 * Rename a file or folder.
@@ -7511,7 +7624,7 @@ declare module 'vscode' {
 		 * @throws {@linkcode FileSystemError.FileExists FileExists} when `newUri` exists and when the `overwrite` option is not `true`.
 		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
 		 */
-		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): void | Thenable<void>;
+		rename(oldUri: Uri, newUri: Uri, options: { readonly overwrite: boolean }): void | Thenable<void>;
 
 		/**
 		 * Copy files or folders. Implementing this function is optional but it will speedup
@@ -7525,7 +7638,7 @@ declare module 'vscode' {
 		 * @throws {@linkcode FileSystemError.FileExists FileExists} when `destination` exists and when the `overwrite` option is not `true`.
 		 * @throws {@linkcode FileSystemError.NoPermissions NoPermissions} when permissions aren't sufficient.
 		 */
-		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }): void | Thenable<void>;
+		copy?(source: Uri, destination: Uri, options: { readonly overwrite: boolean }): void | Thenable<void>;
 	}
 
 	/**
@@ -7586,7 +7699,7 @@ declare module 'vscode' {
 		 * @param uri The resource that is to be deleted.
 		 * @param options Defines if trash can should be used and if deletion of folders is recursive
 		 */
-		delete(uri: Uri, options?: { recursive?: boolean, useTrash?: boolean }): Thenable<void>;
+		delete(uri: Uri, options?: { recursive?: boolean; useTrash?: boolean }): Thenable<void>;
 
 		/**
 		 * Rename a file or folder.
@@ -7651,7 +7764,7 @@ declare module 'vscode' {
 		/**
 		 * Controls whether forms are enabled in the webview content or not.
 		 *
-		 * Defaults to true if {@link enableScripts scripts are enabled}. Otherwise defaults to false.
+		 * Defaults to true if {@link WebViewOptions.enableScripts scripts are enabled}. Otherwise defaults to false.
 		 * Explicitly setting this property to either true or false overrides the default.
 		 */
 		readonly enableForms?: boolean;
@@ -8831,7 +8944,7 @@ declare module 'vscode' {
 		/**
 		 * A short-hand for `openTextDocument(uri).then(document => showTextDocument(document, options))`.
 		 *
-		 * @see {@link openTextDocument}
+		 * @see {@link workspace.openTextDocument}
 		 *
 		 * @param uri A resource identifier.
 		 * @param options {@link TextDocumentShowOptions Editor options} to configure the behavior of showing the {@link TextEditor editor}.
@@ -8991,7 +9104,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
+		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Thenable<string[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -9011,7 +9124,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
+		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Thenable<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -9103,7 +9216,7 @@ declare module 'vscode' {
 		 *
 		 * @return New webview panel.
 		 */
-		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn, preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn; preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful
@@ -9267,7 +9380,7 @@ declare module 'vscode' {
 		 * Registers a webview panel serializer.
 		 *
 		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation event and
-		 * make sure that {@link registerWebviewPanelSerializer} is called during activation.
+		 * make sure that `registerWebviewPanelSerializer` is called during activation.
 		 *
 		 * Only a single serializer may be registered at a time for a given `viewType`.
 		 *
@@ -9504,7 +9617,7 @@ declare module 'vscode' {
 		 *
 		 * **NOTE:** The {@link TreeDataProvider} that the `TreeView` {@link window.createTreeView is registered with} with must implement {@link TreeDataProvider.getParent getParent} method to access this API.
 		 */
-		reveal(element: T, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
+		reveal(element: T, options?: { select?: boolean; focus?: boolean; expand?: boolean | number }): Thenable<void>;
 	}
 
 	/**
@@ -9768,6 +9881,12 @@ declare module 'vscode' {
 		* The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
 		*/
 		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
+
+		/**
+		 * Opt-out of the default terminal persistence on restart and reload.
+		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
+		 */
+		isTransient?: boolean;
 	}
 
 	/**
@@ -9801,6 +9920,12 @@ declare module 'vscode' {
 		 * The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
 		 */
 		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
+
+		/**
+		 * Opt-out of the default terminal persistence on restart and reload.
+		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
+		 */
+		isTransient?: boolean;
 	}
 
 	/**
@@ -10703,7 +10828,7 @@ declare module 'vscode' {
 		/**
 		 * The files that are going to be renamed.
 		 */
-		readonly files: ReadonlyArray<{ readonly oldUri: Uri, readonly newUri: Uri }>;
+		readonly files: ReadonlyArray<{ readonly oldUri: Uri; readonly newUri: Uri }>;
 
 		/**
 		 * Allows to pause the event and to apply a {@link WorkspaceEdit workspace edit}.
@@ -10743,7 +10868,7 @@ declare module 'vscode' {
 		/**
 		 * The files that got renamed.
 		 */
-		readonly files: ReadonlyArray<{ readonly oldUri: Uri, readonly newUri: Uri }>;
+		readonly files: ReadonlyArray<{ readonly oldUri: Uri; readonly newUri: Uri }>;
 	}
 
 	/**
@@ -10951,7 +11076,7 @@ declare module 'vscode' {
 		 * @return true if the operation was successfully started and false otherwise if arguments were used that would result
 		 * in invalid workspace folder state (e.g. 2 folders with the same URI).
 		 */
-		export function updateWorkspaceFolders(start: number, deleteCount: number | undefined | null, ...workspaceFoldersToAdd: { uri: Uri, name?: string }[]): boolean;
+		export function updateWorkspaceFolders(start: number, deleteCount: number | undefined | null, ...workspaceFoldersToAdd: { readonly uri: Uri; readonly name?: string }[]): boolean;
 
 		/**
 		 * Creates a file system watcher that is notified on file events (create, change, delete)
@@ -10967,9 +11092,8 @@ declare module 'vscode' {
 		 * will be reported).
 		 *
 		 * Providing a `string` as `globPattern` acts as convenience method for watching file events in
-		 * all opened workspace folders. This method should be used if you only care about file events
-		 * from the workspace and not from any other folder. It cannot be used to add more folders for
-		 * file watching.
+		 * all opened workspace folders. It cannot be used to add more folders for file watching, nor will
+		 * it report any file events from folders that are not part of the opened workspace folders.
 		 *
 		 * Optionally, flags to ignore certain kinds of events can be provided.
 		 *
@@ -10986,8 +11110,26 @@ declare module 'vscode' {
 		 * *Note* that file changes for the path to be watched may not be delivered when the path itself
 		 * changes. For example, when watching a path `/Users/somename/Desktop` and the path itself is
 		 * being deleted, the watcher may not report an event and may not work anymore from that moment on.
+		 * The underlying behaviour depends on the path that is provided for watching:
+		 * * if the path is within any of the workspace folders, deletions are tracked and reported unless
+		 *   excluded via `files.watcherExclude` setting
+		 * * if the path is equal to any of the workspace folders, deletions are not tracked
+		 * * if the path is outside of any of the workspace folders, deletions are not tracked
+		 *
 		 * If you are interested in being notified when the watched path itself is being deleted, you have
-		 * to watch it's parent folder.
+		 * to watch it's parent folder. Make sure to use a simple `pattern` (such as putting the name of the
+		 * folder) to not accidentally watch all sibling folders recursively.
+		 *
+		 * *Note* that the file paths that are reported for having changed may have a different path casing
+		 * compared to the actual casing on disk on case-insensitive platforms (typically macOS and Windows
+		 * but not Linux). We allow a user to open a workspace folder with any desired path casing and try
+		 * to preserve that. This means:
+		 * * if the path is within any of the workspace folders, the path will match the casing of the
+		 *   workspace folder up to that portion of the path and match the casing on disk for children
+		 * * if the path is outside of any of the workspace folders, the casing will match the case of the
+		 *   path that was provided for watching
+		 * In the same way, symbolic links are preserved, i.e. the file event will report the path of the
+		 * symbolic link as it was provided for watching and not the target.
 		 *
 		 * ### Examples
 		 *
@@ -11123,7 +11265,7 @@ declare module 'vscode' {
 		/**
 		 * A short-hand for `openTextDocument(Uri.file(fileName))`.
 		 *
-		 * @see {@link openTextDocument}
+		 * @see {@link workspace.openTextDocument}
 		 * @param fileName A name of a file on disk.
 		 * @return A promise that resolves to a {@link TextDocument document}.
 		 */
@@ -11137,7 +11279,7 @@ declare module 'vscode' {
 		 * @param options Options to control how the document will be created.
 		 * @return A promise that resolves to a {@link TextDocument document}.
 		 */
-		export function openTextDocument(options?: { language?: string; content?: string; }): Thenable<TextDocument>;
+		export function openTextDocument(options?: { language?: string; content?: string }): Thenable<TextDocument>;
 
 		/**
 		 * Register a text document content provider.
@@ -11227,7 +11369,7 @@ declare module 'vscode' {
 		 * Open an untitled notebook. The editor will prompt the user for a file
 		 * path when the document is to be saved.
 		 *
-		 * @see {@link openNotebookDocument}
+		 * @see {@link workspace.openNotebookDocument}
 		 * @param notebookType The notebook type that should be used.
 		 * @param content The initial contents of the notebook.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
@@ -11374,7 +11516,7 @@ declare module 'vscode' {
 		 * @param options Immutable metadata about the provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean, readonly isReadonly?: boolean }): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { readonly isCaseSensitive?: boolean; readonly isReadonly?: boolean }): Disposable;
 
 		/**
 		 * When true, the user has explicitly trusted the contents of the workspace.
@@ -11393,7 +11535,7 @@ declare module 'vscode' {
 	 * a '{@link TextDocument}' or
 	 * a '{@link WorkspaceFolder}'
 	 */
-	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri, languageId: string };
+	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri; languageId: string };
 
 	/**
 	 * An event describing the change in Configuration
@@ -11527,6 +11669,14 @@ declare module 'vscode' {
 		 * @return A new diagnostic collection.
 		 */
 		export function createDiagnosticCollection(name?: string): DiagnosticCollection;
+
+		/**
+		 * Creates a new {@link LanguageStatusItem language status item}.
+		 *
+		 * @param id The identifier of the item.
+		 * @param selector The document selector that defines for what editors the item shows.
+		 */
+		export function createLanguageStatusItem(id: string, selector: DocumentSelector): LanguageStatusItem;
 
 		/**
 		 * Register a completion provider.
@@ -12117,7 +12267,7 @@ declare module 'vscode' {
 		/**
 		 * The times at which execution started and ended, as unix timestamps
 		 */
-		readonly timing?: { startTime: number, endTime: number };
+		readonly timing?: { readonly startTime: number; readonly endTime: number };
 	}
 
 	/**
@@ -12157,7 +12307,7 @@ declare module 'vscode' {
 		 * @return A range that reflects the given change. Will return `this` range if the change
 		 * is not changing anything.
 		 */
-		with(change: { start?: number, end?: number }): NotebookRange;
+		with(change: { start?: number; end?: number }): NotebookRange;
 	}
 
 	/**
@@ -12387,21 +12537,26 @@ declare module 'vscode' {
 	 */
 	export interface NotebookDocumentContentOptions {
 		/**
-		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
+		 * Controls if output change events will trigger notebook document content change events and
+		 * if it will be used in the diff editor, defaults to false. If the content provider doesn't
+		 * persist the outputs in the file document, this should be set to true.
 		 */
 		transientOutputs?: boolean;
 
 		/**
-		 * Controls if a cell metadata property change will trigger notebook document content change and if it will be used in the diff editor
-		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
+		 * Controls if a cell metadata property change event will trigger notebook document content
+		 * change events and if it will be used in the diff editor, defaults to false. If the
+		 * content provider doesn't persist a metadata property in the file document, it should be
+		 * set to true.
 		 */
 		transientCellMetadata?: { [key: string]: boolean | undefined };
 
 		/**
-		* Controls if a document metadata property change will trigger notebook document content change and if it will be used in the diff editor
-		* Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
-		*/
+		 * Controls if a document metadata property change event will trigger notebook document
+		 * content change event and if it will be used in the diff editor, defaults to false. If the
+		 * content provider doesn't persist a metadata property in the file document, it should be
+		 * set to true.
+		 */
 		transientDocumentMetadata?: { [key: string]: boolean | undefined };
 	}
 
@@ -12532,7 +12687,7 @@ declare module 'vscode' {
 		 * _Note_ that controller selection is persisted (by the controllers {@link NotebookController.id id}) and restored as soon as a
 		 * controller is re-created or as a notebook is {@link workspace.onDidOpenNotebookDocument opened}.
 		 */
-		readonly onDidChangeSelectedNotebooks: Event<{ notebook: NotebookDocument, selected: boolean }>;
+		readonly onDidChangeSelectedNotebooks: Event<{ notebook: NotebookDocument; selected: boolean }>;
 
 		/**
 		 * A controller can set affinities for specific notebook documents. This allows a controller
@@ -13027,21 +13182,21 @@ declare module 'vscode' {
 	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
 	 */
 	export interface DebugProtocolMessage {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
+		// Properties: see [ProtocolMessage details](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
 	}
 
 	/**
 	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
 	 */
 	export interface DebugProtocolSource {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+		// Properties: see [Source details](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
 	}
 
 	/**
 	 * A DebugProtocolBreakpoint is an opaque stand-in type for the [Breakpoint](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint) type defined in the Debug Adapter Protocol.
 	 */
 	export interface DebugProtocolBreakpoint {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
+		// Properties: see [Breakpoint details](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
 	}
 
 	/**
@@ -14086,7 +14241,7 @@ declare module 'vscode' {
 		 *
 		 * Defaults to false.
 		 *
-		 * Note: you cannot use this option with {@link silent}.
+		 * Note: you cannot use this option with {@link AuthenticationGetSessionOptions.silent silent}.
 		 */
 		createIfNone?: boolean;
 
@@ -14108,7 +14263,7 @@ declare module 'vscode' {
 		 *
 		 * Defaults to false.
 		 *
-		 * Note: you cannot use this option with any other options that prompt the user like {@link createIfNone}.
+		 * Note: you cannot use this option with any other options that prompt the user like {@link AuthenticationGetSessionOptions.createIfNone createIfNone}.
 		 */
 		silent?: boolean;
 	}
@@ -14456,9 +14611,22 @@ declare module 'vscode' {
 		 * the function returns or the returned thenable resolves.
 		 *
 		 * @param item An unresolved test item for which children are being
-		 * requested, or `undefined` to resolve the controller's initial {@link items}.
+		 * requested, or `undefined` to resolve the controller's initial {@link TestController.items items}.
 		 */
 		resolveHandler?: (item: TestItem | undefined) => Thenable<void> | void;
+
+		/**
+		 * If this method is present, a refresh button will be present in the
+		 * UI, and this method will be invoked when it's clicked. When called,
+		 * the extension should scan the workspace for any new, changed, or
+		 * removed tests.
+		 *
+		 * It's recommended that extensions try to update tests in realtime, using
+		 * a {@link FileWatcher} for example, and use this method as a fallback.
+		 *
+		 * @returns A thenable that resolves when tests have been refreshed.
+		 */
+		refreshHandler: ((token: CancellationToken) => Thenable<void> | void) | undefined;
 
 		/**
 		 * Creates a {@link TestRun}. This should be called by the
@@ -14506,7 +14674,7 @@ declare module 'vscode' {
 	 * A TestRunRequest is a precursor to a {@link TestRun}, which in turn is
 	 * created by passing a request to {@link tests.runTests}. The TestRunRequest
 	 * contains information about which tests should be run, which should not be
-	 * run, and how they are run (via the {@link profile}).
+	 * run, and how they are run (via the {@link TestRunRequest.profile profile}).
 	 *
 	 * In general, TestRunRequests are created by the editor and pass to
 	 * {@link TestRunProfile.runHandler}, however you can also create test
@@ -14708,7 +14876,7 @@ declare module 'vscode' {
 		/**
 		 * The parent of this item. It's set automatically, and is undefined
 		 * top-level items in the {@link TestController.items} and for items that
-		 * aren't yet included in another item's {@link children}.
+		 * aren't yet included in another item's {@link TestItem.children children}.
 		 */
 		readonly parent: TestItem | undefined;
 
@@ -14748,7 +14916,14 @@ declare module 'vscode' {
 		description?: string;
 
 		/**
-		 * Location of the test item in its {@link uri}.
+		 * A string that should be used when comparing this item
+		 * with other items. When `falsy` the {@link TestItem.label label}
+		 * is used.
+		 */
+		sortText?: string | undefined;
+
+		/**
+		 * Location of the test item in its {@link TestItem.uri uri}.
 		 *
 		 * This is only meaningful if the `uri` points to a file.
 		 */
@@ -14774,12 +14949,12 @@ declare module 'vscode' {
 		message: string | MarkdownString;
 
 		/**
-		 * Expected test output. If given with {@link actualOutput}, a diff view will be shown.
+		 * Expected test output. If given with {@link TestMessage.actualOutput actualOutput }, a diff view will be shown.
 		 */
 		expectedOutput?: string;
 
 		/**
-		 * Actual test output. If given with {@link expectedOutput}, a diff view will be shown.
+		 * Actual test output. If given with {@link TestMessage.expectedOutput expectedOutput }, a diff view will be shown.
 		 */
 		actualOutput?: string;
 

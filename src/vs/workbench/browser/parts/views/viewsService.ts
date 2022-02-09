@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey, getEnabledViewContainerContextKey, FocusedViewContext } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer } from 'vs/workbench/common/views';
+import { FocusedViewContext, getVisbileViewContextKey, getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -38,10 +39,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
 	private readonly viewPaneContainers: Map<string, ViewPaneContainer>;
 
-	private readonly _onDidChangeViewVisibility: Emitter<{ id: string, visible: boolean }> = this._register(new Emitter<{ id: string, visible: boolean }>());
-	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }> = this._onDidChangeViewVisibility.event;
+	private readonly _onDidChangeViewVisibility: Emitter<{ id: string; visible: boolean }> = this._register(new Emitter<{ id: string; visible: boolean }>());
+	readonly onDidChangeViewVisibility: Event<{ id: string; visible: boolean }> = this._onDidChangeViewVisibility.event;
 
-	private readonly _onDidChangeViewContainerVisibility = this._register(new Emitter<{ id: string, visible: boolean, location: ViewContainerLocation }>());
+	private readonly _onDidChangeViewContainerVisibility = this._register(new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>());
 	readonly onDidChangeViewContainerVisibility = this._onDidChangeViewContainerVisibility.event;
 
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
@@ -102,7 +103,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return contextKey;
 	}
 
-	private onDidChangeContainers(added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>): void {
+	private onDidChangeContainers(added: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>): void {
 		for (const { container, location } of removed) {
 			this.deregisterPaneComposite(container, location);
 		}
@@ -157,7 +158,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		return this.paneCompositeService.openPaneComposite(compositeId, location, focus);
 	}
 
-	private getComposite(compositeId: string, location: ViewContainerLocation): { id: string, name: string } | undefined {
+	private getComposite(compositeId: string, location: ViewContainerLocation): { id: string; name: string } | undefined {
 		return this.paneCompositeService.getPaneComposite(compositeId, location);
 	}
 
@@ -268,7 +269,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 						if (location === ViewContainerLocation.Sidebar) {
 							this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
-						} else if (location === ViewContainerLocation.Panel) {
+						} else if (location === ViewContainerLocation.Panel || location === ViewContainerLocation.AuxiliaryBar) {
 							this.paneCompositeService.hideActivePaneComposite(location);
 						}
 
@@ -431,10 +432,14 @@ export class ViewsService extends Disposable implements IViewsService {
 
 					const focusedViewId = FocusedViewContext.getValue(contextKeyService);
 					if (focusedViewId === viewDescriptor.id) {
+
+						const viewLocation = viewDescriptorService.getViewLocationById(viewDescriptor.id);
 						if (viewDescriptorService.getViewLocationById(viewDescriptor.id) === ViewContainerLocation.Sidebar) {
+							// focus the editor if the view is focused and in the side bar
 							editorGroupService.activeGroup.focus();
-						} else {
-							layoutService.setPartHidden(true, Parts.PANEL_PART);
+						} else if (viewLocation !== null) {
+							// otherwise hide the part where the view lives if focused
+							layoutService.setPartHidden(true, getPartByLocation(viewLocation));
 						}
 					} else {
 						viewsService.openView(viewDescriptor.id, true);
@@ -626,7 +631,7 @@ function getPaneCompositeExtension(viewContainerLocation: ViewContainerLocation)
 	}
 }
 
-function getPartByLocation(viewContainerLocation: ViewContainerLocation): Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.PANEL_PART {
+export function getPartByLocation(viewContainerLocation: ViewContainerLocation): Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.PANEL_PART {
 	switch (viewContainerLocation) {
 		case ViewContainerLocation.AuxiliaryBar:
 			return Parts.AUXILIARYBAR_PART;

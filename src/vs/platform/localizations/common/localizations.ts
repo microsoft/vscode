@@ -3,20 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ILocalizationContribution } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export interface ILocalization {
-	languageId: string;
-	languageName?: string;
-	localizedLanguageName?: string;
-	translations: ITranslation[];
-	minimalTranslations?: { [key: string]: string };
-}
-
-export interface ITranslation {
-	id: string;
-	path: string;
-}
 
 export const ILocalizationsService = createDecorator<ILocalizationsService>('localizationsService');
 export interface ILocalizationsService {
@@ -24,7 +12,7 @@ export interface ILocalizationsService {
 	getLanguageIds(): Promise<string[]>;
 }
 
-export function isValidLocalization(localization: ILocalization): boolean {
+export function isValidLocalization(localization: ILocalizationContribution): boolean {
 	if (typeof localization.languageId !== 'string') {
 		return false;
 	}

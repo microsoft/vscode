@@ -423,6 +423,7 @@ declare namespace monaco {
 		readonly isTrusted?: boolean;
 		readonly supportThemeIcons?: boolean;
 		readonly supportHtml?: boolean;
+		readonly baseUri?: UriComponents;
 		uris?: {
 			[href: string]: UriComponents;
 		};
@@ -705,6 +706,7 @@ declare namespace monaco {
 		 */
 		static lift(range: undefined | null): null;
 		static lift(range: IRange): Range;
+		static lift(range: IRange | undefined | null): Range | null;
 		/**
 		 * Test if `obj` is an `IRange`.
 		 */
@@ -731,6 +733,7 @@ declare namespace monaco {
 		 * Test if the range spans multiple lines.
 		 */
 		static spansMultipleLines(range: IRange): boolean;
+		toJSON(): IRange;
 	}
 
 	/**
@@ -1352,6 +1355,44 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * A single edit operation, that acts as a simple replace.
+	 * i.e. Replace text at `range` with `text` in model.
+	 */
+	export interface ISingleEditOperation {
+		/**
+		 * The range to replace. This can be empty to emulate a simple insert.
+		 */
+		range: IRange;
+		/**
+		 * The text to replace with. This can be null to emulate a simple delete.
+		 */
+		text: string | null;
+		/**
+		 * This indicates that this operation has "insert" semantics.
+		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
+		 */
+		forceMoveMarkers?: boolean;
+	}
+
+	/**
+	 * Word inside a model.
+	 */
+	export interface IWordAtPosition {
+		/**
+		 * The word.
+		 */
+		readonly word: string;
+		/**
+		 * The column where the word starts.
+		 */
+		readonly startColumn: number;
+		/**
+		 * The column where the word ends.
+		 */
+		readonly endColumn: number;
+	}
+
+	/**
 	 * Vertical Lane in the overview ruler of the editor.
 	 */
 	export enum OverviewRulerLane {
@@ -1557,24 +1598,6 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * Word inside a model.
-	 */
-	export interface IWordAtPosition {
-		/**
-		 * The word.
-		 */
-		readonly word: string;
-		/**
-		 * The column where the word starts.
-		 */
-		readonly startColumn: number;
-		/**
-		 * The column where the word ends.
-		 */
-		readonly endColumn: number;
-	}
-
-	/**
 	 * End of line character preference.
 	 */
 	export enum EndOfLinePreference {
@@ -1621,42 +1644,9 @@ declare namespace monaco.editor {
 	}
 
 	/**
-	 * A single edit operation, that acts as a simple replace.
-	 * i.e. Replace text at `range` with `text` in model.
-	 */
-	export interface ISingleEditOperation {
-		/**
-		 * The range to replace. This can be empty to emulate a simple insert.
-		 */
-		range: IRange;
-		/**
-		 * The text to replace with. This can be null to emulate a simple delete.
-		 */
-		text: string | null;
-		/**
-		 * This indicates that this operation has "insert" semantics.
-		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-		 */
-		forceMoveMarkers?: boolean;
-	}
-
-	/**
 	 * A single edit operation, that has an identifier.
 	 */
-	export interface IIdentifiedSingleEditOperation {
-		/**
-		 * The range to replace. This can be empty to emulate a simple insert.
-		 */
-		range: IRange;
-		/**
-		 * The text to replace with. This can be null to emulate a simple delete.
-		 */
-		text: string | null;
-		/**
-		 * This indicates that this operation has "insert" semantics.
-		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-		 */
-		forceMoveMarkers?: boolean;
+	export interface IIdentifiedSingleEditOperation extends ISingleEditOperation {
 	}
 
 	export interface IValidEditOperation {
@@ -2089,6 +2079,52 @@ declare namespace monaco.editor {
 		isAttachedToEditor(): boolean;
 	}
 
+	export enum PositionAffinity {
+		/**
+		 * Prefers the left most position.
+		*/
+		Left = 0,
+		/**
+		 * Prefers the right most position.
+		*/
+		Right = 1,
+		/**
+		 * No preference.
+		*/
+		None = 2
+	}
+
+	/**
+	 * A change
+	 */
+	export interface IChange {
+		readonly originalStartLineNumber: number;
+		readonly originalEndLineNumber: number;
+		readonly modifiedStartLineNumber: number;
+		readonly modifiedEndLineNumber: number;
+	}
+
+	/**
+	 * A character level change.
+	 */
+	export interface ICharChange extends IChange {
+		readonly originalStartColumn: number;
+		readonly originalEndColumn: number;
+		readonly modifiedStartColumn: number;
+		readonly modifiedEndColumn: number;
+	}
+
+	/**
+	 * A line change
+	 */
+	export interface ILineChange extends IChange {
+		readonly charChanges: ICharChange[] | undefined;
+	}
+	export interface IDimension {
+		width: number;
+		height: number;
+	}
+
 	/**
 	 * A builder and helper for edit operations for a command.
 	 */
@@ -2179,38 +2215,6 @@ declare namespace monaco.editor {
 		 * The `uri` of the new model or null.
 		 */
 		readonly newModelUrl: Uri | null;
-	}
-
-	export interface IDimension {
-		width: number;
-		height: number;
-	}
-
-	/**
-	 * A change
-	 */
-	export interface IChange {
-		readonly originalStartLineNumber: number;
-		readonly originalEndLineNumber: number;
-		readonly modifiedStartLineNumber: number;
-		readonly modifiedEndLineNumber: number;
-	}
-
-	/**
-	 * A character level change.
-	 */
-	export interface ICharChange extends IChange {
-		readonly originalStartColumn: number;
-		readonly originalEndColumn: number;
-		readonly modifiedStartColumn: number;
-		readonly modifiedEndColumn: number;
-	}
-
-	/**
-	 * A line change
-	 */
-	export interface ILineChange extends IChange {
-		readonly charChanges: ICharChange[] | undefined;
 	}
 
 	export interface IContentSizeChangedEvent {
@@ -2350,8 +2354,9 @@ declare namespace monaco.editor {
 		/**
 		 * Set the primary position of the cursor. This will remove any secondary cursors.
 		 * @param position New primary cursor's position
+		 * @param source Source of the call that caused the position
 		 */
-		setPosition(position: IPosition): void;
+		setPosition(position: IPosition, source?: string): void;
 		/**
 		 * Scroll vertically as necessary and reveal a line.
 		 */
@@ -2397,28 +2402,34 @@ declare namespace monaco.editor {
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: IRange): void;
+		setSelection(selection: IRange, source?: string): void;
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: Range): void;
+		setSelection(selection: Range, source?: string): void;
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: ISelection): void;
+		setSelection(selection: ISelection, source?: string): void;
 		/**
 		 * Set the primary selection of the editor. This will remove any secondary cursors.
 		 * @param selection The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelection(selection: Selection): void;
+		setSelection(selection: Selection, source?: string): void;
 		/**
 		 * Set the selections for all the cursors of the editor.
 		 * Cursors will be removed or added, as necessary.
+		 * @param selections The new selection
+		 * @param source Source of the call that caused the selection
 		 */
-		setSelections(selections: readonly ISelection[]): void;
+		setSelections(selections: readonly ISelection[], source?: string): void;
 		/**
 		 * Scroll vertically as necessary and reveal lines.
 		 */
@@ -3321,7 +3332,14 @@ declare namespace monaco.editor {
 		 * Controls the behavior of editor guides.
 		*/
 		guides?: IGuidesOptions;
+		/**
+		 * Controls the behavior of the unicode highlight feature
+		 * (by default, ambiguous and invisible characters are highlighted).
+		 */
 		unicodeHighlight?: IUnicodeHighlightOptions;
+		/**
+		 * Configures bracket pair colorization (disabled by default).
+		*/
 		bracketPairColorization?: IBracketPairColorizationOptions;
 	}
 
@@ -3902,15 +3920,33 @@ declare namespace monaco.editor {
 	 * Configuration options for unicode highlighting.
 	 */
 	export interface IUnicodeHighlightOptions {
+		/**
+		 * Controls whether all non-basic ASCII characters are highlighted. Only characters between U+0020 and U+007E, tab, line-feed and carriage-return are considered basic ASCII.
+		 */
 		nonBasicASCII?: boolean | InUntrustedWorkspace;
+		/**
+		 * Controls whether characters that just reserve space or have no width at all are highlighted.
+		 */
 		invisibleCharacters?: boolean;
+		/**
+		 * Controls whether characters are highlighted that can be confused with basic ASCII characters, except those that are common in the current user locale.
+		 */
 		ambiguousCharacters?: boolean;
+		/**
+		 * Controls whether characters in comments should also be subject to unicode highlighting.
+		 */
 		includeComments?: boolean | InUntrustedWorkspace;
+		/**
+		 * Controls whether characters in strings should also be subject to unicode highlighting.
+		 */
 		includeStrings?: boolean | InUntrustedWorkspace;
 		/**
-		 * A map of allowed characters (true: allowed).
-		*/
+		 * Defines allowed characters that are not being highlighted.
+		 */
 		allowedCharacters?: Record<string, true>;
+		/**
+		 * Unicode characters that are common in allowed locales are not being highlighted.
+		 */
 		allowedLocales?: Record<string | '_os' | '_vscode', true>;
 	}
 
@@ -4437,6 +4473,18 @@ declare namespace monaco.editor {
 
 	export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
 
+	export interface IEditorConstructionOptions extends IEditorOptions {
+		/**
+		 * The initial editor dimension (to avoid measuring the container).
+		 */
+		dimension?: IDimension;
+		/**
+		 * Place overflow widgets inside an external DOM node.
+		 * Defaults to an internal DOM node.
+		 */
+		overflowWidgetsDomNode?: HTMLElement;
+	}
+
 	/**
 	 * A view zone is a full horizontal rectangle that 'pushes' text down.
 	 * The editor reserves space for view zones when rendering.
@@ -4450,8 +4498,13 @@ declare namespace monaco.editor {
 		/**
 		 * The column after which this zone should appear.
 		 * If not set, the maxLineColumn of `afterLineNumber` will be used.
+		 * This is relevant for wrapped lines.
 		 */
 		afterColumn?: number;
+		/**
+		 * If the `afterColumn` has multiple view columns, the affinity specifies which one to use. Defaults to `none`.
+		*/
+		afterColumnAffinity?: PositionAffinity;
 		/**
 		 * Suppress mouse down events.
 		 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
@@ -4835,18 +4888,6 @@ declare namespace monaco.editor {
 	export interface IPasteEvent {
 		readonly range: Range;
 		readonly languageId: string | null;
-	}
-
-	export interface IEditorConstructionOptions extends IEditorOptions {
-		/**
-		 * The initial editor dimension (to avoid measuring the container).
-		 */
-		dimension?: IDimension;
-		/**
-		 * Place overflow widgets inside an external DOM node.
-		 * Defaults to an internal DOM node.
-		 */
-		overflowWidgetsDomNode?: HTMLElement;
 	}
 
 	export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
@@ -6192,6 +6233,11 @@ declare namespace monaco.languages {
 		*/
 		readonly range?: IRange;
 		readonly command?: Command;
+		/**
+		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
+		 * Defaults to `false`.
+		*/
+		readonly completeBracketPairs?: boolean;
 	}
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -6857,24 +6903,25 @@ declare namespace monaco.languages {
 	}
 
 	export enum InlayHintKind {
-		Other = 0,
 		Type = 1,
 		Parameter = 2
 	}
 
 	export interface InlayHintLabelPart {
 		label: string;
-		collapsible?: boolean;
-		action?: Command | Location;
+		tooltip?: string | IMarkdownString;
+		command?: Command;
+		location?: Location;
 	}
 
 	export interface InlayHint {
 		label: string | InlayHintLabelPart[];
 		tooltip?: string | IMarkdownString;
+		command?: Command;
 		position: IPosition;
-		kind: InlayHintKind;
-		whitespaceBefore?: boolean;
-		whitespaceAfter?: boolean;
+		kind?: InlayHintKind;
+		paddingLeft?: boolean;
+		paddingRight?: boolean;
 	}
 
 	export interface InlayHintList {
@@ -6883,6 +6930,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface InlayHintsProvider {
+		displayName?: string;
 		onDidChangeInlayHints?: IEvent<void>;
 		provideInlayHints(model: editor.ITextModel, range: Range, token: CancellationToken): ProviderResult<InlayHintList>;
 		resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>;

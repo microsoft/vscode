@@ -224,7 +224,7 @@ function raceWithTimeoutCancellation<T>(promise: Promise<T>, timeoutCancellation
 	return result.promise;
 }
 
-async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined, timeoutCancellationToken: CancellationToken): Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean; }> {
+async function connectToRemoteExtensionHostAgent(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined, timeoutCancellationToken: CancellationToken): Promise<{ protocol: PersistentProtocol; ownsProtocol: boolean }> {
 	const logPrefix = connectLogPrefix(options, connectionType);
 
 	options.logService.trace(`${logPrefix} 1/6. invoking socketFactory.connect().`);
@@ -315,11 +315,11 @@ interface IManagementConnectionResult {
 	protocol: PersistentProtocol;
 }
 
-async function connectToRemoteExtensionHostAgentAndReadOneMessage<T>(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined, timeoutCancellationToken: CancellationToken): Promise<{ protocol: PersistentProtocol; firstMessage: T; }> {
+async function connectToRemoteExtensionHostAgentAndReadOneMessage<T>(options: ISimpleConnectionOptions, connectionType: ConnectionType, args: any | undefined, timeoutCancellationToken: CancellationToken): Promise<{ protocol: PersistentProtocol; firstMessage: T }> {
 	const startTime = Date.now();
 	const logPrefix = connectLogPrefix(options, connectionType);
 	const { protocol, ownsProtocol } = await connectToRemoteExtensionHostAgent(options, connectionType, args, timeoutCancellationToken);
-	const result = new PromiseWithTimeout<{ protocol: PersistentProtocol; firstMessage: T; }>(timeoutCancellationToken);
+	const result = new PromiseWithTimeout<{ protocol: PersistentProtocol; firstMessage: T }>(timeoutCancellationToken);
 	result.registerDisposable(protocol.onControlMessage(raw => {
 		const msg: T = JSON.parse(raw.toString());
 		const error = getErrorFromMessage(msg);
@@ -351,7 +351,7 @@ export interface IRemoteExtensionHostStartParams {
 	debugId?: string;
 	break?: boolean;
 	port?: number | null;
-	env?: { [key: string]: string | null; };
+	env?: { [key: string]: string | null };
 }
 
 interface IExtensionHostConnectionResult {
@@ -360,7 +360,7 @@ interface IExtensionHostConnectionResult {
 }
 
 async function doConnectRemoteAgentExtensionHost(options: ISimpleConnectionOptions, startArguments: IRemoteExtensionHostStartParams, timeoutCancellationToken: CancellationToken): Promise<IExtensionHostConnectionResult> {
-	const { protocol, firstMessage } = await connectToRemoteExtensionHostAgentAndReadOneMessage<{ debugPort?: number; }>(options, ConnectionType.ExtensionHost, startArguments, timeoutCancellationToken);
+	const { protocol, firstMessage } = await connectToRemoteExtensionHostAgentAndReadOneMessage<{ debugPort?: number }>(options, ConnectionType.ExtensionHost, startArguments, timeoutCancellationToken);
 	const debugPort = firstMessage && firstMessage.debugPort;
 	return { protocol, debugPort };
 }

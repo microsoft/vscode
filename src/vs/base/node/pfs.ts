@@ -43,7 +43,7 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	// delete: via rmDir
+	// delete: via rm
 	if (mode === RimRafMode.UNLINK) {
 		return rimrafUnlink(path);
 	}
@@ -79,7 +79,7 @@ async function rimrafMove(path: string): Promise<void> {
 }
 
 async function rimrafUnlink(path: string): Promise<void> {
-	return Promises.rmdir(path, { recursive: true, maxRetries: 3 });
+	return promisify(fs.rm)(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 export function rimrafSync(path: string): void {
@@ -87,7 +87,7 @@ export function rimrafSync(path: string): void {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
 
-	fs.rmdirSync(path, { recursive: true });
+	fs.rmSync(path, { recursive: true, force: true, maxRetries: 3 });
 }
 
 //#endregion
@@ -532,7 +532,7 @@ async function move(source: string, target: string): Promise<void> {
 }
 
 interface ICopyPayload {
-	readonly root: { source: string, target: string };
+	readonly root: { source: string; target: string };
 	readonly options: { preserveSymlinks: boolean };
 	readonly handledSourcePaths: Set<string>;
 }
@@ -670,7 +670,7 @@ export const Promises = new class {
 		// just the bytes read, so we create our own wrapper.
 
 		return (fd: number, buffer: Uint8Array, offset: number, length: number, position: number | null) => {
-			return new Promise<{ bytesRead: number, buffer: Uint8Array }>((resolve, reject) => {
+			return new Promise<{ bytesRead: number; buffer: Uint8Array }>((resolve, reject) => {
 				fs.read(fd, buffer, offset, length, position, (err, bytesRead, buffer) => {
 					if (err) {
 						return reject(err);
@@ -690,7 +690,7 @@ export const Promises = new class {
 		// just the bytes written, so we create our own wrapper.
 
 		return (fd: number, buffer: Uint8Array, offset: number | undefined | null, length: number | undefined | null, position: number | undefined | null) => {
-			return new Promise<{ bytesWritten: number, buffer: Uint8Array }>((resolve, reject) => {
+			return new Promise<{ bytesWritten: number; buffer: Uint8Array }>((resolve, reject) => {
 				fs.write(fd, buffer, offset, length, position, (err, bytesWritten, buffer) => {
 					if (err) {
 						return reject(err);

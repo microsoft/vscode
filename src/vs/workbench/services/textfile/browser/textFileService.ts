@@ -31,11 +31,10 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService, IFileOperationUndoRedoInfo, ICreateFileOperation } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceContextService, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, toEncodeReadable, toDecodeStream, IDecodeStreamResult, DecodeStreamError, DecodeStreamErrorKind } from 'vs/workbench/services/textfile/common/encoding';
 import { consumeStream, ReadableStream } from 'vs/base/common/stream';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
@@ -246,7 +245,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 	}
 
-	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]> {
+	async create(operations: { resource: URI; value?: string | ITextSnapshot; options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]> {
 		const operationsWithContents: ICreateFileOperation[] = await Promise.all(operations.map(async operation => {
 			const contents = await this.getEncodedReadable(operation.resource, operation.value);
 			return {
@@ -706,7 +705,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 		return defaultEncodingOverrides;
 	}
 
-	async getWriteEncoding(resource: URI, options?: IWriteTextFileOptions): Promise<{ encoding: string, addBOM: boolean }> {
+	async getWriteEncoding(resource: URI, options?: IWriteTextFileOptions): Promise<{ encoding: string; addBOM: boolean }> {
 		const { encoding, hasBOM } = await this.getPreferredWriteEncoding(resource, options ? options.encoding : undefined);
 
 		return { encoding, addBOM: hasBOM };

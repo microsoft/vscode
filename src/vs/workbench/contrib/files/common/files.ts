@@ -13,7 +13,7 @@ import { ITextModelContentProvider } from 'vs/editor/common/services/resolverSer
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/language';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -88,7 +88,8 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
-		enableUndo: UndoEnablement;
+		enableUndo: boolean;
+		confirmUndo: UndoConfirmLevel;
 		expandSingleFolderWorkspaces: boolean;
 		sortOrder: SortOrder;
 		sortOrderLexicographicOptions: LexicographicOptions;
@@ -101,9 +102,9 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			fileNesting: {
 				enabled: boolean;
 				expand: boolean;
-				patterns: { [parent: string]: string }
-			}
-		}
+				patterns: { [parent: string]: string };
+			};
+		};
 	};
 	editor: IEditorOptions;
 }
@@ -118,13 +119,14 @@ export const enum SortOrder {
 	Mixed = 'mixed',
 	FilesFirst = 'filesFirst',
 	Type = 'type',
-	Modified = 'modified'
+	Modified = 'modified',
+	FoldersNestsFiles = 'foldersNestsFiles',
 }
 
-export const enum UndoEnablement {
-	Warn = 'warn',
-	Allow = 'allow',
-	Disable = 'disable',
+export const enum UndoConfirmLevel {
+	Verbose = 'verbose',
+	Default = 'default',
+	Light = 'light',
 }
 
 export const enum LexicographicOptions {

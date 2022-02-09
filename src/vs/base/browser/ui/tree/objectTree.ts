@@ -163,7 +163,7 @@ class CompressibleRenderer<T extends NonNullable<any>, TFilterData, TTemplateDat
 }
 
 export interface ICompressibleKeyboardNavigationLabelProvider<T> extends IKeyboardNavigationLabelProvider<T> {
-	getCompressedNodeKeyboardNavigationLabel(elements: T[]): { toString(): string | undefined; } | undefined;
+	getCompressedNodeKeyboardNavigationLabel(elements: T[]): { toString(): string | undefined } | undefined;
 }
 
 export interface ICompressibleObjectTreeOptions<T, TFilterData = void> extends IObjectTreeOptions<T, TFilterData> {

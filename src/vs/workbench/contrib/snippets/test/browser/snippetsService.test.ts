@@ -663,9 +663,8 @@ suite('SnippetsService', function () {
 			{ triggerKind: CompletionTriggerKind.Invoke }
 		)!;
 
-		assert.strictEqual(result.suggestions.length, 2);
-		assert.strictEqual((<SnippetCompletion>result.suggestions[0]).label.label, '^y');
-		assert.strictEqual((<SnippetCompletion>result.suggestions[1]).label.label, 'hell_or_tell');
+		assert.strictEqual(result.suggestions.length, 1);
+		assert.strictEqual((<SnippetCompletion>result.suggestions[0]).label.label, 'hell_or_tell');
 		model.dispose();
 	});
 
@@ -707,6 +706,24 @@ suite('SnippetsService', function () {
 
 		assert.strictEqual(result.suggestions.length, 1);
 		assert.strictEqual((<SnippetCompletion>result.suggestions[0]).label.label, 'foobarrrrrr');
+		model.dispose();
+	});
+
+	test('Strange and useless autosuggestion #region/#endregion PHP #140039', async function () {
+		snippetService = new SimpleSnippetService([
+			new Snippet(['fooLang'], 'reg', '#region', '', 'value', '', SnippetSource.User),
+		]);
+
+
+		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		let model = createTextModel('function abc(w)', 'fooLang');
+		let result = await provider.provideCompletionItems(
+			model,
+			new Position(1, 15),
+			{ triggerKind: CompletionTriggerKind.Invoke }
+		)!;
+
+		assert.strictEqual(result.suggestions.length, 0);
 		model.dispose();
 	});
 });

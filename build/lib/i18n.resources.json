@@ -243,7 +243,23 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/welcome",
+			"name": "vs/workbench/contrib/welcomeGettingStarted",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeOverlay",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomePage",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeViews",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/welcomeWalkthrough",
 			"project": "vscode-workbench"
 		},
 		{

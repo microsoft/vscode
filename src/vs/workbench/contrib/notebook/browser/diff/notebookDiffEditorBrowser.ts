@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CellLayoutState, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellLayoutState, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffElementViewModelBase } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { Event } from 'vs/base/common/event';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -16,6 +16,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
 export enum DiffSide {
 	Original = 0,
@@ -29,8 +30,8 @@ export interface IDiffCellInfo extends ICommonCellInfo {
 export interface INotebookTextDiffEditor {
 	notebookOptions: NotebookOptions;
 	readonly textModel?: NotebookTextModel;
-	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase; }>;
-	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel, output: ICellOutputViewModel }>;
+	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase }>;
+	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
 	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
 	layoutNotebookCell(cell: DiffElementViewModelBase, height: number): void;

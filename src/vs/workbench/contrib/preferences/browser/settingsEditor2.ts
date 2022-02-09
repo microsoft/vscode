@@ -18,7 +18,7 @@ import { getErrorMessage, isCancellationError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { isArray, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -42,9 +42,9 @@ import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/pref
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { settingsHeaderBorder, settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -161,7 +161,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
-	private pendingSettingUpdate: { key: string, value: any; } | null = null;
+	private pendingSettingUpdate: { key: string; value: any } | null = null;
 
 	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel | null = null;
@@ -550,6 +550,11 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
+		this._register(attachStylerCallback(this.themeService, { settingsHeaderBorder }, colors => {
+			const border = colors.settingsHeaderBorder ? colors.settingsHeaderBorder.toString() : '';
+			headerControlsContainer.style.borderColor = border;
+		}));
+
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
@@ -912,7 +917,7 @@ export class SettingsEditor2 extends EditorPane {
 		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
 			.then(() => {
 				const query = this.searchWidget.getValue();
-				if (query.includes('@modified')) {
+				if (query.includes(`@${MODIFIED_SETTING_TAG}`)) {
 					// The user might have reset a setting.
 					this.refreshTOCTree();
 				}
@@ -931,7 +936,7 @@ export class SettingsEditor2 extends EditorPane {
 			});
 	}
 
-	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[] | null, rawResults: ISearchResult[] | null, showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget; }): void {
+	private reportModifiedSetting(props: { key: string; query: string; searchResults: ISearchResult[] | null; rawResults: ISearchResult[] | null; showConfiguredOnly: boolean; isReset: boolean; settingsTarget: SettingsTarget }): void {
 		this.pendingSettingUpdate = null;
 
 		let groupId: string | undefined = undefined;
@@ -1001,7 +1006,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		if (!key) {
-			this.scheduledRefreshes.forEach(r => r.dispose());
+			dispose(this.scheduledRefreshes.values());
 			this.scheduledRefreshes.clear();
 		}
 
@@ -1291,7 +1296,7 @@ export class SettingsEditor2 extends EditorPane {
 		};
 
 		// Count unique results
-		const counts: { nlpResult?: number, filterResult?: number; } = {};
+		const counts: { nlpResult?: number; filterResult?: number } = {};
 		const filterResult = results[SearchResultIdx.Local];
 		if (filterResult) {
 			counts['filterResult'] = filterResult.filterMatches.length;
@@ -1402,6 +1407,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (!this.searchResultModel) {
 			if (this.countElement.style.display !== 'none') {
 				this.searchResultLabel = null;
+				this.updateInputAriaLabel();
 				this.countElement.style.display = 'none';
 				this.layout(this.dimension);
 			}

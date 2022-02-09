@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { editorOptionsRegistry, EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import * as nls from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -173,7 +174,7 @@ const editorConfiguration: IConfigurationNode = {
 	}
 };
 
-function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }): x is IConfigurationPropertySchema {
+function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
 	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
 }
 
@@ -194,10 +195,10 @@ for (const editorOption of editorOptionsRegistry) {
 	}
 }
 
-let cachedEditorConfigurationKeys: { [key: string]: boolean; } | null = null;
-function getEditorConfigurationKeys(): { [key: string]: boolean; } {
+let cachedEditorConfigurationKeys: { [key: string]: boolean } | null = null;
+function getEditorConfigurationKeys(): { [key: string]: boolean } {
 	if (cachedEditorConfigurationKeys === null) {
-		cachedEditorConfigurationKeys = <{ [key: string]: boolean; }>Object.create(null);
+		cachedEditorConfigurationKeys = <{ [key: string]: boolean }>Object.create(null);
 		Object.keys(editorConfiguration.properties!).forEach((prop) => {
 			cachedEditorConfigurationKeys![prop] = true;
 		});

@@ -50,12 +50,12 @@ const withReporter = (function () {
 						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${browserType}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 					}
 				});
-			}
+			};
 		}
 	} else {
 		return (_, runner) => applyReporter(runner, argv);
 	}
-})()
+})();
 
 const outdir = argv.build ? 'out-build' : 'out';
 const out = path.join(__dirname, `../../../${outdir}`);
@@ -82,7 +82,7 @@ const testModules = (async function () {
 	} else {
 		// glob patterns (--glob)
 		const defaultGlob = '**/*.test.js';
-		const pattern = argv.run || defaultGlob
+		const pattern = argv.run || defaultGlob;
 		isDefaultModules = pattern === defaultGlob;
 
 		promise = new Promise((resolve, reject) => {
@@ -90,7 +90,7 @@ const testModules = (async function () {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(files)
+					resolve(files);
 				}
 			});
 		});
@@ -107,7 +107,7 @@ const testModules = (async function () {
 			}
 		}
 		return modules;
-	})
+	});
 })();
 
 function consoleLogFn(msg) {
@@ -136,7 +136,7 @@ async function runTestsInBrowser(testModules, browserType) {
 
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
-		emitter.emit(type, data1, data2)
+		emitter.emit(type, data1, data2);
 	});
 
 	page.on('console', async msg => {

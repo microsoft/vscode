@@ -11,7 +11,7 @@ import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurat
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform
+	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
@@ -34,7 +34,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType, IExtension, ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -1519,7 +1520,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				local.publisherId = metadata.publisherId;
 				return local;
 			},
-			getTargetPlatform: async () => getTargetPlatform(platform, arch)
+			getTargetPlatform: async () => getTargetPlatform(platform, arch),
+			async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [] }; },
 		};
 	}
 });

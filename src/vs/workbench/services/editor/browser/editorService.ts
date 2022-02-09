@@ -358,7 +358,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private getAllNonDirtyEditors(options: { includeUntitled: boolean, supportSideBySide: boolean }): EditorInput[] {
+	private getAllNonDirtyEditors(options: { includeUntitled: boolean; supportSideBySide: boolean }): EditorInput[] {
 		const editors: EditorInput[] = [];
 
 		function conditionallyAddEditor(editor: EditorInput): void {
@@ -619,7 +619,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private extractEditorResources(editors: Array<EditorInputWithOptions | IUntypedEditorInput>): { resources: URI[], diffMode?: boolean } {
+	private extractEditorResources(editors: Array<EditorInputWithOptions | IUntypedEditorInput>): { resources: URI[]; diffMode?: boolean } {
 		const resources = new ResourceMap<boolean>();
 		let diffMode = false;
 

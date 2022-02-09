@@ -5,16 +5,15 @@
 
 import assert = require('assert');
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { EncodedTokenizationResult } from 'vs/editor/common/core/token';
 import { LanguageAgnosticBracketTokens } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/brackets';
 import { Length, lengthAdd, lengthsToRange, lengthZero } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { DenseKeyProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/smallImmutableSet';
 import { TextBufferTokenizer, Token, Tokenizer, TokenKind } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, LanguageId, MetadataConsts, StandardTokenType, TokenizationRegistry } from 'vs/editor/common/languages';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
@@ -23,7 +22,7 @@ suite('Bracket Pair Colorizer - Tokenizer', () => {
 		const mode1 = 'testMode1';
 		const disposableStore = new DisposableStore();
 		const instantiationService = createModelServices(disposableStore);
-		const languageService = instantiationService.invokeFunction((accessor) => accessor.get(ILanguageService));
+		const languageService = instantiationService.get(ILanguageService);
 		disposableStore.add(ModesRegistry.registerLanguage({ id: mode1 }));
 		const encodedMode1 = languageService.languageIdCodec.encodeLanguageId(mode1);
 

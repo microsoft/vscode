@@ -21,7 +21,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalCapability } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
+import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -62,6 +63,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	isDisconnected: boolean = false;
 	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	backend: ITerminalBackend | undefined;
+	shellIntegrationAttempted: boolean = false;
 	readonly capabilities = new TerminalCapabilityStore();
 
 	private _isDisposed: boolean = false;
@@ -224,9 +226,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this.os = remoteEnv.os;
 
 				// this is a copy of what the merged environment collection is on the remote side
-				await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
+				const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.disablePersistence;
+				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
@@ -241,13 +243,29 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
+						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, this.os);
+						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
+						if (this.shellIntegrationAttempted) {
+							shellLaunchConfig.args = shellIntegration.args;
+							// resolve the injected arguments
+							await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+								remoteAuthority: this.remoteAuthority,
+								os: this.os
+							});
+						}
+						//TODO: fix
+						if (env?.['VSCODE_SHELL_LOGIN']) {
+							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+							shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = '1';
+						}
+
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
 							cols,
 							rows,
 							this._configHelper.config.unicodeVersion,
-							{}, // TODO: Fix env
+							env, // TODO:
 							true, // TODO: Fix enable
 							shouldPersist
 						);
@@ -415,6 +433,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
+		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, OS);
+		if (shellIntegration.enableShellIntegration) {
+			shellLaunchConfig.args = shellIntegration.args;
+			// resolve the injected arguments
+			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
+				remoteAuthority: undefined,
+				os: OS
+			});
+		}
+		this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, useConpty, shouldPersist);
@@ -465,6 +493,18 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				}
 			}
 		}));
+	}
+
+	async getBackendOS(): Promise<OperatingSystem> {
+		let os = OS;
+		if (!!this.remoteAuthority) {
+			const remoteEnv = await this._remoteAgentService.getEnvironment();
+			if (!remoteEnv) {
+				throw new Error(`Failed to get remote environment for remote authority "${this.remoteAuthority}"`);
+			}
+			os = remoteEnv.os;
+		}
+		return os;
 	}
 
 	setDimensions(cols: number, rows: number): Promise<void>;

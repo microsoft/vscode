@@ -8,9 +8,9 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, ICommandDto } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ICommandDto, ICommandHandlerDescriptionDto } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { revive } from 'vs/base/common/marshalling';
@@ -87,7 +87,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 						if (Position.isIPosition(obj)) {
 							return extHostTypeConverter.Position.to(obj);
 						}
-						if (Range.isIRange((obj as modes.Location).range) && URI.isUri((obj as modes.Location).uri)) {
+						if (Range.isIRange((obj as languages.Location).range) && URI.isUri((obj as languages.Location).uri)) {
 							return extHostTypeConverter.location.to(obj);
 						}
 						if (obj instanceof VSBuffer) {
@@ -276,7 +276,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription }> {
+	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescriptionDto }> {
 		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
 		for (let [id, command] of this._commands) {
 			let { description } = command;
@@ -291,7 +291,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 export interface IExtHostCommands extends ExtHostCommands { }
 export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostCommands');
 
-export class CommandsConverter {
+export class CommandsConverter implements extHostTypeConverter.Command.ICommandsConverter {
 
 	readonly delegatingCommandId: string = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
 	private readonly _cache = new Map<number, vscode.Command>();
@@ -355,11 +355,10 @@ export class CommandsConverter {
 		return result;
 	}
 
-	fromInternal(command: modes.Command): vscode.Command | undefined {
+	fromInternal(command: ICommandDto): vscode.Command | undefined {
 
-		const id = ObjectIdentifier.of(command);
-		if (typeof id === 'number') {
-			return this._cache.get(id);
+		if (typeof command.$ident === 'number') {
+			return this._cache.get(command.$ident);
 
 		} else {
 			return {

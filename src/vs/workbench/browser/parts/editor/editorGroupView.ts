@@ -5,7 +5,8 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, IGroupModelChangeEvent, ISerializedEditorGroupModel, isGroupEditorCloseEvent, isGroupEditorOpenEvent, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, ActiveEditorGroupLockedContext, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, CloseDirection, IEditorCloseEvent, IEditorPane, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorResourceAccessor, EditorInputCapabilities, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, SideBySideEditor, EditorCloseContext, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, GroupModelChangeKind, IActiveEditorChangeEvent, IFindEditorOptions } from 'vs/workbench/common/editor';
+import { ActiveEditorGroupLockedContext, ActiveEditorDirtyContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorPinnedContext } from 'vs/workbench/common/contextkeys';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
@@ -338,7 +339,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Toolbar actions
 		const containerToolbarMenu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroup, this.scopedContextKeyService));
 		const updateContainerToolbar = () => {
-			const actions: { primary: IAction[], secondary: IAction[]; } = { primary: [], secondary: [] };
+			const actions: { primary: IAction[]; secondary: IAction[] } = { primary: [], secondary: [] };
 
 			this.containerToolBarMenuDisposable.value = combinedDisposable(
 
@@ -376,7 +377,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number, y: number; } = this.element;
+		let anchor: HTMLElement | { x: number; y: number } = this.element;
 		if (e instanceof MouseEvent) {
 			const event = new StandardMouseEvent(e);
 			anchor = { x: event.posx, y: event.posy };
@@ -860,7 +861,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.contains(candidate, options);
 	}
 
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean; }): EditorInput[] {
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[] {
 		return this.model.getEditors(order, options);
 	}
 
@@ -1058,7 +1059,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return showEditorResult;
 	}
 
-	private doShowEditor(editor: EditorInput, context: { active: boolean, isNew: boolean; }, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
+	private doShowEditor(editor: EditorInput, context: { active: boolean; isNew: boolean }, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined> {
 
 		// Show in editor control if the active editor changed
 		let openEditorPromise: Promise<IEditorPane | undefined>;
@@ -1185,7 +1186,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditors()
 
-	async openEditors(editors: { editor: EditorInput, options?: IEditorOptions; }[]): Promise<IEditorPane | undefined> {
+	async openEditors(editors: { editor: EditorInput; options?: IEditorOptions }[]): Promise<IEditorPane | undefined> {
 
 		// Guard against invalid editors. Disposed editors
 		// should never open because they emit no events
@@ -1237,7 +1238,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region moveEditor()
 
-	moveEditors(editors: { editor: EditorInput, options?: IEditorOptions; }[], target: EditorGroupView): void {
+	moveEditors(editors: { editor: EditorInput; options?: IEditorOptions }[], target: EditorGroupView): void {
 
 		// Optimization: knowing that we move many editors, we
 		// delay the title update to a later point for this group
@@ -1336,7 +1337,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region copyEditor()
 
-	copyEditors(editors: { editor: EditorInput, options?: IEditorOptions; }[], target: EditorGroupView): void {
+	copyEditors(editors: { editor: EditorInput; options?: IEditorOptions }[], target: EditorGroupView): void {
 
 		// Optimization: knowing that we move many editors, we
 		// delay the title update to a later point for this group
@@ -1548,7 +1549,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.handleDirtyClosing(editors);
 	}
 
-	private async doHandleDirtyClosing(editor: EditorInput, options?: { skipAutoSave: boolean; }): Promise<boolean /* veto */> {
+	private async doHandleDirtyClosing(editor: EditorInput, options?: { skipAutoSave: boolean }): Promise<boolean /* veto */> {
 		if (!editor.isDirty() || editor.isSaving()) {
 			return false; // editor must be dirty and not saving
 		}
@@ -1941,7 +1942,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	get maximumWidth(): number { return this.editorPane.maximumWidth; }
 	get maximumHeight(): number { return this.editorPane.maximumHeight; }
 
-	private _onDidChange = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	private _onDidChange = this._register(new Relay<{ width: number; height: number } | undefined>());
 	readonly onDidChange = this._onDidChange.event;
 
 	layout(width: number, height: number): void {

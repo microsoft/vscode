@@ -366,7 +366,6 @@ export enum InjectedTextCursorStops {
 }
 
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2
 }
@@ -690,6 +689,21 @@ export enum OverviewRulerLane {
 	Center = 2,
 	Right = 4,
 	Full = 7
+}
+
+export enum PositionAffinity {
+	/**
+	 * Prefers the left most position.
+	*/
+	Left = 0,
+	/**
+	 * Prefers the right most position.
+	*/
+	Right = 1,
+	/**
+	 * No preference.
+	*/
+	None = 2
 }
 
 export enum RenderLineNumbersType {

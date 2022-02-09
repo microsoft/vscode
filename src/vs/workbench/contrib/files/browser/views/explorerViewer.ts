@@ -19,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, 
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -378,7 +378,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			try {
 				this.updateWidth(stat);
 			} catch (e) {
-				// noop since the element might no longer be in the tree, no update of width necessery
+				// noop since the element might no longer be in the tree, no update of width necessary
 			}
 		});
 	}
@@ -724,6 +724,25 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 				if (statB.isDirectory && !statA.isDirectory) {
 					return -1;
+				}
+
+				break;
+
+			case 'foldersNestsFiles':
+				if (statA.isDirectory && !statB.isDirectory) {
+					return -1;
+				}
+
+				if (statB.isDirectory && !statA.isDirectory) {
+					return 1;
+				}
+
+				if (statA.hasNests && !statB.hasNests) {
+					return -1;
+				}
+
+				if (statB.hasNests && !statA.hasNests) {
+					return 1;
 				}
 
 				break;
@@ -1083,10 +1102,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async doHandleExplorerDropOnCopy(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {
 
 		// Reuse duplicate action when user copies
-		const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-		const resourceFileEdits = sources.map(({ resource, isDirectory }) => (new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, incrementalNaming), { copy: true })));
+		const explorerConfig = this.configurationService.getValue<IFilesConfiguration>().explorer;
+		const resourceFileEdits = sources.map(({ resource, isDirectory }) =>
+			(new ResourceFileEdit(resource, findValidPasteFileTarget(this.explorerService, target, { resource, isDirectory, allowOverwrite: false }, explorerConfig.incrementalNaming), { copy: true })));
 		const labelSufix = getFileOrFolderLabelSufix(sources);
 		await this.explorerService.applyBulkEdit(resourceFileEdits, {
+			confirmBeforeUndo: explorerConfig.confirmUndo === UndoConfirmLevel.Default || explorerConfig.confirmUndo === UndoConfirmLevel.Verbose,
 			undoLabel: localize('copy', "Copy {0}", labelSufix),
 			progressLabel: localize('copying', "Copying {0}", labelSufix),
 		});
@@ -1105,6 +1126,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
 		const labelSufix = getFileOrFolderLabelSufix(sources);
 		const options = {
+			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
 			undoLabel: localize('move', "Move {0}", labelSufix),
 			progressLabel: localize('moving', "Moving {0}", labelSufix)
 		};
@@ -1176,7 +1198,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 }
 
-function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement, count: number, index: number } | null {
+function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement; count: number; index: number } | null {
 	if (!(target instanceof HTMLElement)) {
 		return null;
 	}

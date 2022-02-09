@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { CellViewModelStateChangeEvent, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellExecutionStateChangedEvent, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -48,7 +49,7 @@ export class CellProgressBar extends CellPart {
 		}
 
 		if (e.inputCollapsedChanged) {
-			const exeState = this._notebookExecutionStateService.getCellExecutionState(element.uri);
+			const exeState = this._notebookExecutionStateService.getCellExecution(element.uri);
 			if (element.isInputCollapsed) {
 				this._progressBar.hide();
 				if (exeState?.state === NotebookCellExecutionState.Executing) {
@@ -64,9 +65,9 @@ export class CellProgressBar extends CellPart {
 	}
 
 	private _updateForExecutionState(element: ICellViewModel, e?: ICellExecutionStateChangedEvent): void {
-		const exeState = e?.changed ?? this._notebookExecutionStateService.getCellExecutionState(element.uri);
+		const exeState = e?.changed ?? this._notebookExecutionStateService.getCellExecution(element.uri);
 		const progressBar = element.isInputCollapsed ? this._collapsedProgressBar : this._progressBar;
-		if (exeState?.state === NotebookCellExecutionState.Executing && !exeState.didPause) {
+		if (exeState?.state === NotebookCellExecutionState.Executing && !exeState.isPaused) {
 			showProgressBar(progressBar);
 		} else {
 			progressBar.hide();

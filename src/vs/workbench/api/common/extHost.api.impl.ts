@@ -11,9 +11,10 @@ import { URI } from 'vs/base/common/uri';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
-import { score } from 'vs/editor/common/languages/languageSelector';
+import { score } from 'vs/editor/common/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, UIKind, CandidatePortSource, ExtHostLogLevelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, CandidatePortSource, ExtHostLogLevelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -92,6 +93,7 @@ import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNoteboo
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { combinedDisposable } from 'vs/base/common/lifecycle';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -303,16 +305,24 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTerminalService.getDefaultShell(false);
 			},
 			get isTelemetryEnabled() {
-				return extHostTelemetry.getTelemetryEnabled();
+				return extHostTelemetry.getTelemetryConfiguration();
 			},
 			get onDidChangeTelemetryEnabled(): Event<boolean> {
 				return extHostTelemetry.onDidChangeTelemetryEnabled;
+			},
+			get telemetryConfiguration(): vscode.TelemetryConfiguration {
+				checkProposedApiEnabled(extension, 'telemetry');
+				return extHostTelemetry.getTelemetryDetails();
+			},
+			get onDidChangeTelemetryConfiguration(): Event<vscode.TelemetryConfiguration> {
+				checkProposedApiEnabled(extension, 'telemetry');
+				return extHostTelemetry.onDidChangeTelemetryConfiguration;
 			},
 			get isNewAppInstall() {
 				const installAge = Date.now() - new Date(initData.telemetryInfo.firstSessionDate).getTime();
 				return isNaN(installAge) ? false : installAge < 1000 * 60 * 60 * 24; // install age is less than a day
 			},
-			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string; }) {
+			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
 				return extHostWindow.openUri(uri, {
 					allowTunneling: !!initData.remote.authority,
 					allowContributedOpeners: options?.allowContributedOpeners,
@@ -355,10 +365,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const tests: typeof vscode.tests = {
 			createTestController(provider, label, refreshHandler?: (token: vscode.CancellationToken) => Thenable<void> | void) {
-				if (refreshHandler) {
-					checkProposedApiEnabled(extension, 'testRefresh');
-				}
-
 				return extHostTesting.createTestController(provider, label, refreshHandler);
 			},
 			createTestObserver() {
@@ -519,7 +525,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
 			},
 			createLanguageStatusItem(id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
-				checkProposedApiEnabled(extension, 'languageStatus');
 				return extHostLanguages.createLanguageStatusItem(extension, id, selector);
 			}
 		};
@@ -602,10 +607,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return <Thenable<any>>extHostMessageService.showMessage(extension, Severity.Error, message, rest[0], <Array<string | vscode.MessageItem>>rest.slice(1));
 			},
 			showQuickPick(items: any, options?: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
-				// TODO: remove this once quickPickSeparators has been finalized.
-				if (Array.isArray(items) && items.some((item) => item.kind === extHostTypes.QuickPickItemKind.Separator)) {
-					checkProposedApiEnabled(extension, 'quickPickSeparators');
-				}
 				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
 			showWorkspaceFolderPick(options?: vscode.WorkspaceFolderPickOptions) {
@@ -654,7 +655,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostOutputService.createOutputChannel(name, languageId || '', extension);
 			},
-			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options?: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
+			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn; preserveFocus?: boolean }, options?: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviewPanels.createWebviewPanel(extension, viewType, title, showOptions, options);
 			},
 			createWebviewTextEditorInset(editor: vscode.TextEditor, line: number, height: number, options?: vscode.WebviewOptions): vscode.WebviewEditorInset {
@@ -685,7 +686,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializer);
 			},
-			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomTextEditorProvider | vscode.CustomReadonlyEditorProvider, options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean } = {}) => {
+			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomTextEditorProvider | vscode.CustomReadonlyEditorProvider, options: { webviewOptions?: vscode.WebviewPanelOptions; supportsMultipleEditorsPerDocument?: boolean } = {}) => {
 				return extHostCustomEditors.registerCustomEditorProvider(extension, viewType, provider, options);
 			},
 			registerFileDecorationProvider(provider: vscode.FileDecorationProvider) {
@@ -708,8 +709,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerWebviewViewProvider(viewId: string, provider: vscode.WebviewViewProvider, options?: {
 				webviewOptions?: {
-					retainContextWhenHidden?: boolean
-				}
+					retainContextWhenHidden?: boolean;
+				};
 			}) {
 				return extHostWebviewViews.registerWebviewViewProvider(extension, viewId, provider, options?.webviewOptions);
 			},
@@ -841,10 +842,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			set textDocuments(value) {
 				throw errors.readonly();
 			},
-			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string; }) {
+			openTextDocument(uriOrFileNameOrOptions?: vscode.Uri | string | { language?: string; content?: string }) {
 				let uriPromise: Thenable<URI>;
 
-				const options = uriOrFileNameOrOptions as { language?: string; content?: string; };
+				const options = uriOrFileNameOrOptions as { language?: string; content?: string };
 				if (typeof uriOrFileNameOrOptions === 'string') {
 					uriPromise = Promise.resolve(URI.file(uriOrFileNameOrOptions));
 				} else if (URI.isUri(uriOrFileNameOrOptions)) {
@@ -980,7 +981,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'resolvers');
 				return extHostTunnelService.onDidChangeTunnels(listener, thisArg, disposables);
 			},
-			registerPortAttributesProvider: (portSelector: { pid?: number, portRange?: [number, number], commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider) => {
+			registerPortAttributesProvider: (portSelector: { pid?: number; portRange?: [number, number]; commandMatcher?: RegExp }, provider: vscode.PortAttributesProvider) => {
 				checkProposedApiEnabled(extension, 'portsAttributes');
 				return extHostTunnelService.registerPortsAttributesProvider(portSelector, provider);
 			},
@@ -1047,7 +1048,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, triggerKind?: vscode.DebugConfigurationProviderTriggerKind) {
-				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider, triggerKind || extHostTypes.DebugConfigurationProviderTriggerKind.Initial);
+				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider, triggerKind || DebugConfigurationProviderTriggerKind.Initial);
 			},
 			registerDebugAdapterDescriptorFactory(debugType: string, factory: vscode.DebugAdapterDescriptorFactory) {
 				return extHostDebugService.registerDebugAdapterDescriptorFactory(extension, debugType, factory);
@@ -1192,7 +1193,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			DebugAdapterInlineImplementation: extHostTypes.DebugAdapterInlineImplementation,
 			DebugAdapterNamedPipeServer: extHostTypes.DebugAdapterNamedPipeServer,
 			DebugAdapterServer: extHostTypes.DebugAdapterServer,
-			DebugConfigurationProviderTriggerKind: extHostTypes.DebugConfigurationProviderTriggerKind,
+			DebugConfigurationProviderTriggerKind: DebugConfigurationProviderTriggerKind,
 			DebugConsoleMode: extHostTypes.DebugConsoleMode,
 			DecorationRangeBehavior: extHostTypes.DecorationRangeBehavior,
 			Diagnostic: extHostTypes.Diagnostic,

@@ -8,9 +8,8 @@ import { basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace, IWorkspaceFoldersWillChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, Workspace, IWorkspaceFoldersWillChangeEvent, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
@@ -192,7 +191,7 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	readonly hasSaveParticipants = false;
 	addSaveParticipant(participant: IStoredFileWorkingCopySaveParticipant): IDisposable { return Disposable.None; }
-	async runSaveParticipants(workingCopy: IWorkingCopy, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> { }
+	async runSaveParticipants(workingCopy: IWorkingCopy, context: { reason: SaveReason }, token: CancellationToken): Promise<void> { }
 
 	async delete(operations: IDeleteOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<void> { }
 

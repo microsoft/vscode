@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -26,6 +26,14 @@ steps:
       set -e
       git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
     displayName: Merge distro
+
+  - script: |
+      set -e
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
+    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
 
   - script: |
       set -e

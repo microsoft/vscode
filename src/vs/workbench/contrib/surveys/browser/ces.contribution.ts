@@ -57,6 +57,12 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async promptUser() {
+		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
+		if (!isCandidate) {
+			this.skipSurvey();
+			return;
+		}
+
 		const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain' | 'cancelled') => {
 			/* __GDPR__
 			"cesSurvey:popup" : {
@@ -113,12 +119,6 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async schedulePrompt(): Promise<void> {
-		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
-		if (!isCandidate) {
-			this.skipSurvey();
-			return;
-		}
-
 		let waitTimeToShowSurvey = 0;
 		const remindLaterDate = this.storageService.get(REMIND_LATER_DATE_KEY, StorageScope.GLOBAL, '');
 		if (remindLaterDate) {

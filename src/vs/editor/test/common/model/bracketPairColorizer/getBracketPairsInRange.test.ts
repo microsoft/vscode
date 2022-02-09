@@ -7,7 +7,7 @@ import assert = require('assert');
 import { Disposable, disposeOnReturn } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPairInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
 import { LanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
@@ -230,7 +230,7 @@ class AnnotatedDocument {
 }
 
 interface MockLanguageOptions {
-	configuration?: LanguageConfiguration
+	configuration?: LanguageConfiguration;
 }
 
 class MockLanguage extends Disposable {

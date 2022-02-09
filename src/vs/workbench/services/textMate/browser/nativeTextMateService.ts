@@ -6,7 +6,7 @@
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { AbstractTextMateService } from 'vs/workbench/services/textMate/browser/abstractTextMateService';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -19,9 +19,9 @@ import { TextMateWorker } from 'vs/workbench/services/textMate/browser/textMateW
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/model/tokens/contiguousMultilineTokensBuilder';
+import { ContiguousMultilineTokensBuilder } from 'vs/editor/common/tokens/contiguousMultilineTokensBuilder';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -147,7 +147,7 @@ export class TextMateService extends AbstractTextMateService {
 
 	private _worker: MonacoWebWorker<TextMateWorker> | null;
 	private _workerProxy: TextMateWorker | null;
-	private _tokenizers: { [uri: string]: ModelWorkerTextMateTokenizer; };
+	private _tokenizers: { [uri: string]: ModelWorkerTextMateTokenizer };
 
 	constructor(
 		@ILanguageService languageService: ILanguageService,
@@ -226,7 +226,7 @@ export class TextMateService extends AbstractTextMateService {
 		}
 	}
 
-	protected override _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, colorMap: string[]): void {
+	protected override _doUpdateTheme(grammarFactory: TMGrammarFactory | null, theme: IRawTheme, colorMap: string[]): void {
 		super._doUpdateTheme(grammarFactory, theme, colorMap);
 		if (this._currentTheme && this._currentTokenColorMap && this._workerProxy) {
 			this._workerProxy.acceptTheme(this._currentTheme, this._currentTokenColorMap);

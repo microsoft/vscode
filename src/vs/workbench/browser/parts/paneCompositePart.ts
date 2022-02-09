@@ -17,7 +17,7 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/common/views';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IDisposable } from 'vs/workbench/workbench.web.api';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IView } from 'vs/base/browser/ui/grid/grid';
 
 export interface IPaneCompositePart extends IView {
@@ -81,8 +81,8 @@ export interface IPaneCompositeSelectorPart {
 export class PaneCompositeParts implements IPaneCompositePartService {
 	declare readonly _serviceBrand: undefined;
 
-	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
-	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation; }>;
+	onDidPaneCompositeOpen: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+	onDidPaneCompositeClose: Event<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
 
 	private paneCompositeParts = new Map<ViewContainerLocation, IPaneCompositePart>();
 	private paneCompositeSelectorParts = new Map<ViewContainerLocation, IPaneCompositeSelectorPart>();

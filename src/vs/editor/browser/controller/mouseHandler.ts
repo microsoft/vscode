@@ -15,10 +15,10 @@ import { ViewController } from 'vs/editor/browser/view/viewController';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
-import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 /**
@@ -457,7 +457,7 @@ class MouseDownOperation extends Disposable {
 
 	private _getPositionOutsideEditor(e: EditorMouseEvent): IMouseTarget | null {
 		const editorContent = e.editorPos;
-		const model = this._context.model;
+		const model = this._context.viewModel;
 		const viewLayout = this._context.viewLayout;
 
 		const mouseColumn = this._getMouseColumn(e);

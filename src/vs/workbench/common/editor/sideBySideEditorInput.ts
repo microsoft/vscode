@@ -9,7 +9,6 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, ISideBySideEditorInput, IUntypedEditorInput, isResourceSideBySideEditorInput, isDiffEditorInput, isResourceDiffEditorInput, IResourceSideBySideEditorInput, findViewStateForEditor, IMoveResult, isEditorInput, isResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -290,7 +289,7 @@ interface ISerializedSideBySideEditorInput {
 export abstract class AbstractSideBySideEditorInputSerializer implements IEditorSerializer {
 
 	canSerialize(editorInput: EditorInput): boolean {
-		const input = editorInput as SideBySideEditorInput | DiffEditorInput;
+		const input = editorInput as SideBySideEditorInput;
 
 		if (input.primary && input.secondary) {
 			const [secondaryInputSerializer, primaryInputSerializer] = this.getSerializers(input.secondary.typeId, input.primary.typeId);
