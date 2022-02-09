@@ -7,6 +7,7 @@ import { CancelablePromise, createCancelablePromise, TimeoutTimer } from 'vs/bas
 import { RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DynamicCssRules } from 'vs/editor/browser/editorDom';
@@ -17,6 +18,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { getColors, IColorData } from 'vs/editor/contrib/colorPicker/browser/color';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,6 +36,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private readonly _localToDispose = this._register(new DisposableStore());
 	private _computePromise: CancelablePromise<IColorData[]> | null;
 	private _timeoutTimer: TimeoutTimer | null;
+	private _debounceInformation: IFeatureDebounceInformation;
 
 	private _decorationsIds: string[] = [];
 	private _colorDatas = new Map<string, IColorData>();
@@ -48,8 +51,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 	) {
 		super();
+		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 		this._register(_editor.onDidChangeModel(() => {
 			this._isEnabled = this.isEnabled();
 			this.onModelChanged();
@@ -120,19 +125,22 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 				this._timeoutTimer.cancelAndSet(() => {
 					this._timeoutTimer = null;
 					this.beginCompute();
-				}, ColorDetector.RECOMPUTE_TIME);
+				}, this._debounceInformation.get(model));
 			}
 		}));
 		this.beginCompute();
 	}
 
 	private beginCompute(): void {
-		this._computePromise = createCancelablePromise(token => {
+		this._computePromise = createCancelablePromise(async token => {
 			const model = this._editor.getModel();
 			if (!model) {
 				return Promise.resolve([]);
 			}
-			return getColors(this._languageFeaturesService.colorProvider, model, token);
+			const sw = new StopWatch(false);
+			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
+			this._debounceInformation.update(model, sw.elapsed());
+			return colors;
 		});
 		this._computePromise.then((colorInfos) => {
 			this.updateDecorations(colorInfos);

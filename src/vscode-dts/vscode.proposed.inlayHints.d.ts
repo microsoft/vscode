@@ -28,10 +28,18 @@ declare module 'vscode' {
 
 	/**
 	 * Inlay hint kinds.
+	 *
+	 * The kind of an inline hint defines its appearance, e.g the corresponding foreground and background colors are being
+	 * used.
 	 */
 	export enum InlayHintKind {
-		Other = 0,
+		/**
+		 * An inlay hint that for a type annotation.
+		 */
 		Type = 1,
+		/**
+		 * An inlay hint that is for a parameter.
+		 */
 		Parameter = 2,
 	}
 
@@ -59,7 +67,7 @@ declare module 'vscode' {
 		 *
 		 * The editor will use this location for the hover and for code navigation features: This
 		 * part will become a clickable link that resolves to the definition of the symbol at the
-		 * given location (not neccessarily the location itself), it shows the hover that shows at
+		 * given location (not necessarily the location itself), it shows the hover that shows at
 		 * the given location, and it shows a context menu with further code navigation commands.
 		 *
 		 * *Note* that this property can be set late during
@@ -99,7 +107,7 @@ declare module 'vscode' {
 		/**
 		 * The label of this hint. A human readable string or an array of {@link InlayHintLabelPart label parts}.
 		 *
-		 * *Note* that neiter the string nor the label part can be empty.
+		 * *Note* that neither the string nor the label part can be empty.
 		 */
 		label: string | InlayHintLabelPart[];
 
@@ -114,17 +122,21 @@ declare module 'vscode' {
 		command?: Command;
 
 		/**
-		 * The kind of this hint.
+		 * The kind of this hint. The inlay hint kind defines the appearance of this inlay hint.
 		 */
 		kind?: InlayHintKind;
 
 		/**
-		 * Render padding before the hint.
+		 * Render padding before the hint. Padding will use the editor's background color,
+		 * not the background color of the hint itself. That means padding can be used to visually
+		 * align/separate an inlay hint.
 		 */
 		paddingLeft?: boolean;
 
 		/**
-		 * Render padding after the hint.
+		 * Render padding after the hint. Padding will use the editor's background color,
+		 * not the background color of the hint itself. That means padding can be used to visually
+		 * align/separate an inlay hint.
 		 */
 		paddingRight?: boolean;
 

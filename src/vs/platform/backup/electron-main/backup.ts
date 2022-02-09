@@ -6,7 +6,8 @@
 import { URI } from 'vs/base/common/uri';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IFolderBackupInfo, IWorkspaceBackupInfo, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IBackupMainService = createDecorator<IBackupMainService>('backupMainService');
 

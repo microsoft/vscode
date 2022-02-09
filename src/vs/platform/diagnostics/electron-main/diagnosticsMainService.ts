@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IDiagnosticInfo, IDiagnosticInfoOptions, IRemoteDiagnosticError, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow, IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const ID = 'diagnosticsMainService';

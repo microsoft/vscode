@@ -60,6 +60,7 @@
 	font-family: var(--monaco-monospace-font);
 }
 
+.monaco-editor .parameter-hints-widget .docs  .monaco-tokenized-source,
 .monaco-editor .parameter-hints-widget .docs .code {
 	white-space: pre-wrap;
 }

@@ -10,7 +10,7 @@ import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, 
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -1260,7 +1260,7 @@ export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
 export class NavigateForwardAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateForward';
-	static readonly LABEL = localize('navigateNext', "Go Forward");
+	static readonly LABEL = localize('navigateForward', "Go Forward");
 
 	constructor(
 		id: string,
@@ -1271,14 +1271,14 @@ export class NavigateForwardAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.forward();
+		await this.historyService.goForward(GoFilter.NONE);
 	}
 }
 
 export class NavigateBackwardsAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateBack';
-	static readonly LABEL = localize('navigatePrevious', "Go Back");
+	static readonly LABEL = localize('navigateBack', "Go Back");
 
 	constructor(
 		id: string,
@@ -1289,14 +1289,14 @@ export class NavigateBackwardsAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.back();
+		await this.historyService.goBack(GoFilter.NONE);
 	}
 }
 
-export class NavigateLastAction extends Action {
+export class NavigatePreviousAction extends Action {
 
 	static readonly ID = 'workbench.action.navigateLast';
-	static readonly LABEL = localize('navigateLast', "Go Last");
+	static readonly LABEL = localize('navigatePrevious', "Go Previous");
 
 	constructor(
 		id: string,
@@ -1307,7 +1307,61 @@ export class NavigateLastAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.last();
+		await this.historyService.goPrevious(GoFilter.NONE);
+	}
+}
+
+export class NavigateForwardInEditsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateForwardInEditLocations';
+	static readonly LABEL = localize('navigateForwardInEdits', "Go Forward in Edit Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goForward(GoFilter.EDITS);
+	}
+}
+
+export class NavigateBackwardsInEditsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateBackInEditLocations';
+	static readonly LABEL = localize('navigateBackInEdits', "Go Back in Edit Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goBack(GoFilter.EDITS);
+	}
+}
+
+export class NavigatePreviousInEditsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigatePreviousInEditLocations';
+	static readonly LABEL = localize('navigatePreviousInEdits', "Go Previous in Edit Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goPrevious(GoFilter.EDITS);
 	}
 }
 
@@ -1325,7 +1379,79 @@ export class NavigateToLastEditLocationAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.openLastEditLocation();
+		await this.historyService.goLast(GoFilter.EDITS);
+	}
+}
+
+export class NavigateForwardInNavigationsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateForwardInNavigationLocations';
+	static readonly LABEL = localize('navigateForwardInNavigations', "Go Forward in Navigation Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goForward(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateBackwardsInNavigationsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateBackInNavigationLocations';
+	static readonly LABEL = localize('navigateBackInNavigations', "Go Back in Navigation Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goBack(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigatePreviousInNavigationsAction extends Action {
+
+	static readonly ID = 'workbench.action.navigatePreviousInNavigationLocations';
+	static readonly LABEL = localize('navigatePreviousInNavigationLocations', "Go Previous in Navigation Locations");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goPrevious(GoFilter.NAVIGATION);
+	}
+}
+
+export class NavigateToLastNavigationLocationAction extends Action {
+
+	static readonly ID = 'workbench.action.navigateToLastNavigationLocation';
+	static readonly LABEL = localize('navigateToLastNavigationLocation', "Go to Last Navigation Location");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHistoryService private readonly historyService: IHistoryService
+	) {
+		super(id, label);
+	}
+
+	override async run(): Promise<void> {
+		await this.historyService.goLast(GoFilter.NAVIGATION);
 	}
 }
 
@@ -1343,7 +1469,7 @@ export class ReopenClosedEditorAction extends Action {
 	}
 
 	override async run(): Promise<void> {
-		this.historyService.reopenLastClosedEditor();
+		await this.historyService.reopenLastClosedEditor();
 	}
 }
 

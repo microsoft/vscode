@@ -1491,6 +1491,14 @@ export namespace WebFileSystemAccess {
 
 		return false;
 	}
+
+	export function isFileSystemFileHandle(handle: FileSystemHandle): handle is FileSystemFileHandle {
+		return handle.kind === 'file';
+	}
+
+	export function isFileSystemDirectoryHandle(handle: FileSystemHandle): handle is FileSystemDirectoryHandle {
+		return handle.kind === 'directory';
+	}
 }
 
 type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';

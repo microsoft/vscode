@@ -554,12 +554,7 @@ export class LiveTestResult implements ITestResult {
 		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, messages: t.otherMessages })),
 		name: this.name,
 		request: this.request,
-		items: [...this.testById.values()].map(entry => ({
-			...entry,
-			retired: undefined,
-			src: undefined,
-			children: [...entry.children.map(c => c.item.extId)],
-		})),
+		items: [...this.testById.values()].map(e => TestResultItem.serialize(e, [...e.children.map(c => c.item.extId)])),
 	}));
 }
 

@@ -104,7 +104,12 @@ export class TerminalLinkManager extends DisposableStore {
 				return;
 			}
 			// Just call the handler if there is no before listener
-			this._openLink(e.link);
+			if (e.link.activate) {
+				// Custom activate call (external links only)
+				e.link.activate(e.link.text);
+			} else {
+				this._openLink(e.link);
+			}
 		});
 		detectorAdapter.onDidShowHover(e => this._tooltipCallback(e.link, e.viewportRange, e.modifierDownCallback, e.modifierUpCallback));
 		if (!isExternal) {

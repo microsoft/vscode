@@ -9,8 +9,8 @@ import * as fs from 'fs';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
-import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
 
 export interface OpenCommandPipeArgs {
 	type: 'open';

@@ -1744,7 +1744,7 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
-	readonly timestamp?: Date;
+	readonly timestamp?: string;
 }
 
 /**
@@ -1786,7 +1786,6 @@ export interface CodeLensProvider {
 
 
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2,
 }
@@ -1804,7 +1803,7 @@ export interface InlayHint {
 	tooltip?: string | IMarkdownString;
 	command?: Command;
 	position: IPosition;
-	kind: InlayHintKind;
+	kind?: InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;
 }

@@ -351,6 +351,7 @@ export class Range {
 	 */
 	public static lift(range: undefined | null): null;
 	public static lift(range: IRange): Range;
+	public static lift(range: IRange | undefined | null): Range | null;
 	public static lift(range: IRange | undefined | null): Range | null {
 		if (!range) {
 			return null;

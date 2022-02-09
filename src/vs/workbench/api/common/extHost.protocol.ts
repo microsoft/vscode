@@ -10,23 +10,25 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId, revive } from 'vs/base/common/marshalling';
+import { revive } from 'vs/base/common/marshalling';
 import * as performance from 'vs/base/common/performance';
 import Severity from 'vs/base/common/severity';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { RenderLineNumbersType, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import * as languages from 'vs/editor/common/languages';
 import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/languages/languageConfiguration';
+import { EndOfLineSequence } from 'vs/editor/common/model';
+import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
@@ -35,12 +37,11 @@ import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
 import * as quickInput from 'vs/platform/quickinput/common/quickInput';
 import { IRemoteConnectionData, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ICreateContributedTerminalProfileOptions, IProcessProperty, IShellLaunchConfigDto, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
+import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
@@ -54,22 +55,21 @@ import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
-import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
+import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTestResults, ITestItem, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, RunTestForControllerRequest, SerializedTestMessage, TestResultState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ISerializedTestResults, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, RunTestForControllerRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createProxyIdentifier, Dto, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ILanguageStatus } from 'vs/workbench/services/languageStatus/common/languageStatusService';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { ITextQueryBuilderOptions } from 'vs/workbench/services/search/common/queryBuilder';
 import * as search from 'vs/workbench/services/search/common/search';
-import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
-import { ILineChange } from 'vs/editor/common/diff/diffComputer';
-import { IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -111,9 +111,7 @@ export interface CommentChanges {
 	readonly commentReactions?: languages.CommentReaction[];
 	readonly label?: string;
 	readonly mode?: languages.CommentMode;
-	readonly timestamp?: {
-		$mid: MarshalledId.Date;
-	};
+	readonly timestamp?: string;
 }
 
 export type CommentThreadChanges = Partial<{
@@ -2053,7 +2051,7 @@ export interface ExtHostTestingShape {
 	$runControllerTests(req: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
 	$cancelExtensionTestRun(runId: string | undefined): void;
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
-	$acceptDiff(diff: TestsDiff): void;
+	$acceptDiff(diff: TestsDiffOp.Serialized[]): void;
 	/** Publishes that a test run finished. */
 	$publishTestResults(results: ISerializedTestResults[]): void;
 	/** Expands a test item's children, by the given number of levels. */
@@ -2090,7 +2088,7 @@ export interface MainThreadTestingShape {
 	/** Stops requesting tests published to VS Code. */
 	$unsubscribeFromDiffs(): void;
 	/** Publishes that new tests were available on the given source. */
-	$publishDiff(controllerId: string, diff: TestsDiff): void;
+	$publishDiff(controllerId: string, diff: TestsDiffOp.Serialized[]): void;
 
 	// --- test run configurations:
 
@@ -2110,11 +2108,11 @@ export interface MainThreadTestingShape {
 	 * Adds tests to the run. The tests are given in descending depth. The first
 	 * item will be a previously-known test, or a test root.
 	 */
-	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem[]): void;
+	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem.Serialized[]): void;
 	/** Updates the state of a test run in the given run. */
 	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void;
 	/** Appends a message to a test in the run. */
-	$appendTestMessagesInRun(runId: string, taskId: string, testId: string, messages: SerializedTestMessage[]): void;
+	$appendTestMessagesInRun(runId: string, taskId: string, testId: string, messages: ITestMessage.Serialized[]): void;
 	/** Appends raw output to the test run.. */
 	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer, location?: ILocationDto, testId?: string): void;
 	/** Triggered when coverage is added to test results. */

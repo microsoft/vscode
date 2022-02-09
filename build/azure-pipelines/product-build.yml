@@ -145,7 +145,7 @@ stages:
   - stage: Compile
     jobs:
       - job: Compile
-        pool: vscode-1es
+        pool: vscode-1es-linux
         variables:
           VSCODE_ARCH: x64
         steps:
@@ -156,7 +156,7 @@ stages:
         dependsOn:
           - Compile
         pool:
-          vmImage: windows-latest
+          vmImage: windows-2019
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
               - job: Windows
@@ -185,8 +185,7 @@ stages:
   - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
       - stage: LinuxServerDependencies
         dependsOn: [] # run in parallel to compile stage
-        pool:
-          vmImage: "Ubuntu-18.04"
+        pool: vscode-1es-linux
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - job: x64
@@ -202,8 +201,7 @@ stages:
         dependsOn:
           - Compile
           - LinuxServerDependencies
-        pool:
-          vmImage: "Ubuntu-18.04"
+        pool: vscode-1es-linux
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - job: Linuxx64
@@ -352,8 +350,7 @@ stages:
       - stage: Publish
         dependsOn:
           - Compile
-        pool:
-          vmImage: "Ubuntu-18.04"
+        pool: vscode-1es-linux
         variables:
           - name: BUILDS_API_URL
             value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
@@ -368,8 +365,7 @@ stages:
           - stage: Release
             dependsOn:
               - Publish
-            pool:
-              vmImage: "Ubuntu-18.04"
+            pool: vscode-1es-linux
             jobs:
               - job: ReleaseBuild
                 displayName: Release Build

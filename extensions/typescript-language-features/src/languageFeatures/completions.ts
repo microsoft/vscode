@@ -206,10 +206,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 			const detail = response.body[0];
 
-			if (!this.detail && detail.displayParts.length) {
-				this.detail = Previewer.plainWithLinks(detail.displayParts, client);
-			}
-			this.documentation = this.getDocumentation(client, detail, this, this.document.uri);
+			this.detail = this.getDetails(client, detail);
+			this.documentation = this.getDocumentation(client, detail, this.document.uri);
 
 			const codeAction = this.getCodeActions(detail, filepath);
 			const commands: vscode.Command[] = [{
@@ -249,22 +247,28 @@ class MyCompletionItem extends vscode.CompletionItem {
 		return this._resolvedPromise.promise;
 	}
 
+	private getDetails(
+		client: ITypeScriptServiceClient,
+		detail: Proto.CompletionEntryDetails,
+	): string | undefined {
+		const parts: string[] = [];
+
+		for (const action of detail.codeActions ?? []) {
+			parts.push(action.description);
+		}
+
+		parts.push(Previewer.plainWithLinks(detail.displayParts, client));
+		return parts.join('\n\n');
+	}
+
 	private getDocumentation(
 		client: ITypeScriptServiceClient,
 		detail: Proto.CompletionEntryDetails,
-		item: MyCompletionItem,
 		baseUri: vscode.Uri,
 	): vscode.MarkdownString | undefined {
 		const documentation = new vscode.MarkdownString();
-		if (detail.source) {
-			const importPath = `'${Previewer.plainWithLinks(detail.source, client)}'`;
-			const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
-			item.detail = `${autoImportLabel}\n${item.detail}`;
-		}
 		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags, client);
-
 		documentation.baseUri = baseUri;
-
 		return documentation.value.length ? documentation : undefined;
 	}
 

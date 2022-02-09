@@ -21,7 +21,6 @@
 		 * @returns {string}
 		 */
 		function stripComments(content) {
-			console.log(`Stripping comments`);
 			return content.replace(regexp, function (match, _m1, _m2, m3, m4) {
 				// Only one of m1, m2, m3, m4 matches
 				if (m3) {

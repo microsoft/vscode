@@ -365,10 +365,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const tests: typeof vscode.tests = {
 			createTestController(provider, label, refreshHandler?: (token: vscode.CancellationToken) => Thenable<void> | void) {
-				if (refreshHandler) {
-					checkProposedApiEnabled(extension, 'testRefresh');
-				}
-
 				return extHostTesting.createTestController(provider, label, refreshHandler);
 			},
 			createTestObserver() {
@@ -529,7 +525,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
 			},
 			createLanguageStatusItem(id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
-				checkProposedApiEnabled(extension, 'languageStatus');
 				return extHostLanguages.createLanguageStatusItem(extension, id, selector);
 			}
 		};

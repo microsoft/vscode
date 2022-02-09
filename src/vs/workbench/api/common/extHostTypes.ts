@@ -1424,7 +1424,6 @@ export enum SignatureHelpTriggerKind {
 
 
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2,
 }

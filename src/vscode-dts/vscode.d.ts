@@ -5629,6 +5629,82 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the severity of a language status item.
+	 */
+	export enum LanguageStatusSeverity {
+		Information = 0,
+		Warning = 1,
+		Error = 2
+	}
+
+	/**
+	 * A language status item is the preferred way to present language status reports for the active text editors,
+	 * such as selected linter or notifying about a configuration problem.
+	 */
+	export interface LanguageStatusItem {
+
+		/**
+		 * The identifier of this item.
+		 */
+		readonly id: string;
+
+		/**
+		 * The short name of this item, like 'Java Language Status', etc.
+		 */
+		name: string | undefined;
+
+		/**
+		 * A {@link DocumentSelector selector} that defines for what editors
+		 * this item shows.
+		 */
+		selector: DocumentSelector;
+
+		/**
+		 * The severity of this item.
+		 *
+		 * Defaults to {@link LanguageStatusSeverity.Information information}. You can use this property to
+		 * signal to users that there is a problem that needs attention, like a missing executable or an
+		 * invalid configuration.
+		 */
+		severity: LanguageStatusSeverity;
+
+		/**
+		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
+		 *
+		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
+		 *
+		 * Where the icon-name is taken from the ThemeIcon [icon set](https://code.visualstudio.com/api/references/icons-in-labels#icon-listing), e.g.
+		 * `light-bulb`, `thumbsup`, `zap` etc.
+		 */
+		text: string;
+
+		/**
+		 * Optional, human-readable details for this item.
+		 */
+		detail?: string;
+
+		/**
+		 * Controls whether the item is shown as "busy". Defaults to `false`.
+		 */
+		busy: boolean;
+
+		/**
+		 * A {@linkcode Command command} for this item.
+		 */
+		command: Command | undefined;
+
+		/**
+		 * Accessibility information used when a screen reader interacts with this item
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+
+		/**
+		 * Dispose and free associated resources.
+		 */
+		dispose(): void;
+	}
+
+	/**
 	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
 	 * and each column represents one editor location in that grid by counting the editors
 	 * in order of their appearance.
@@ -5759,7 +5835,7 @@ declare module 'vscode' {
 		/**
 		 * Label to be read out by a screen reader once the item has focus.
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * Role of the widget which defines how a screen reader interacts with it.
@@ -5767,7 +5843,7 @@ declare module 'vscode' {
 		 * If role is not specified the editor will pick the appropriate role automatically.
 		 * More about aria roles can be found here https://w3c.github.io/aria/#widget_roles
 		 */
-		role?: string;
+		readonly role?: string;
 	}
 
 	/**
@@ -11595,6 +11671,14 @@ declare module 'vscode' {
 		export function createDiagnosticCollection(name?: string): DiagnosticCollection;
 
 		/**
+		 * Creates a new {@link LanguageStatusItem language status item}.
+		 *
+		 * @param id The identifier of the item.
+		 * @param selector The document selector that defines for what editors the item shows.
+		 */
+		export function createLanguageStatusItem(id: string, selector: DocumentSelector): LanguageStatusItem;
+
+		/**
 		 * Register a completion provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
@@ -14532,6 +14616,19 @@ declare module 'vscode' {
 		resolveHandler?: (item: TestItem | undefined) => Thenable<void> | void;
 
 		/**
+		 * If this method is present, a refresh button will be present in the
+		 * UI, and this method will be invoked when it's clicked. When called,
+		 * the extension should scan the workspace for any new, changed, or
+		 * removed tests.
+		 *
+		 * It's recommended that extensions try to update tests in realtime, using
+		 * a {@link FileWatcher} for example, and use this method as a fallback.
+		 *
+		 * @returns A thenable that resolves when tests have been refreshed.
+		 */
+		refreshHandler: ((token: CancellationToken) => Thenable<void> | void) | undefined;
+
+		/**
 		 * Creates a {@link TestRun}. This should be called by the
 		 * {@link TestRunProfile} when a request is made to execute tests, and may
 		 * also be called if a test run is detected externally. Once created, tests
@@ -14817,6 +14914,13 @@ declare module 'vscode' {
 		 * Optional description that appears next to the label.
 		 */
 		description?: string;
+
+		/**
+		 * A string that should be used when comparing this item
+		 * with other items. When `falsy` the {@link TestItem.label label}
+		 * is used.
+		 */
+		sortText?: string | undefined;
 
 		/**
 		 * Location of the test item in its {@link TestItem.uri uri}.

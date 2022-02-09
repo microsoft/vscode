@@ -86,12 +86,12 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 	}
 }
 
-function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintKind {
+function fromProtocolInlayHintKind(kind: Proto.InlayHintKind): vscode.InlayHintKind | undefined {
 	switch (kind) {
 		case 'Parameter': return vscode.InlayHintKind.Parameter;
 		case 'Type': return vscode.InlayHintKind.Type;
-		case 'Enum': return vscode.InlayHintKind.Other;
-		default: return vscode.InlayHintKind.Other;
+		case 'Enum': return undefined;
+		default: return undefined;
 	}
 }
 

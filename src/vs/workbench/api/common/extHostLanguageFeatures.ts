@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, InlayHintKind, Location } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -1260,7 +1260,7 @@ class InlayHintsAdapter {
 			tooltip: typeConvert.MarkdownString.fromStrict(hint.tooltip),
 			command: hint.command && this._commands.toInternal(hint.command, disposables),
 			position: typeConvert.Position.from(hint.position),
-			kind: typeConvert.InlayHintKind.from(hint.kind ?? InlayHintKind.Other),
+			kind: hint.kind && typeConvert.InlayHintKind.from(hint.kind),
 			paddingLeft: hint.paddingLeft,
 			paddingRight: hint.paddingRight,
 		};

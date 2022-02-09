@@ -45,11 +45,14 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
+
+const DEAFULT_INLINE_DEBOUNCE_DELAY = 200;
 
 export const debugInlineForeground = registerColor('editor.inlineValuesForeground', {
 	dark: '#ffffff80',
@@ -217,6 +220,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private altListener: IDisposable | undefined;
 	private altPressed = false;
 	private oldDecorations: string[] = [];
+	private readonly debounceInfo: IFeatureDebounceInformation;
 
 	constructor(
 		private editor: ICodeEditor,
@@ -228,7 +232,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService
 	) {
+		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [];
 		this.registerListeners();
@@ -599,9 +605,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get updateInlineValuesScheduler(): RunOnceScheduler {
+		const model = this.editor.getModel();
 		return new RunOnceScheduler(
 			async () => await this.updateInlineValueDecorations(this.debugService.getViewModel().focusedStackFrame),
-			200
+			model ? this.debounceInfo.get(model) : DEAFULT_INLINE_DEBOUNCE_DELAY
 		);
 	}
 
@@ -706,7 +713,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				onUnexpectedExternalError(err);
 			}))));
 
+			const startTime = Date.now();
+
 			await Promise.all(promises);
+
+			// update debounce info
+			this.updateInlineValuesScheduler.delay = this.debounceInfo.update(model, Date.now() - startTime);
 
 			// sort line segments and concatenate them into a decoration
 

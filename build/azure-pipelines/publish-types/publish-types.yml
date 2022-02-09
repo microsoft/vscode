@@ -12,7 +12,7 @@ pool:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - bash: |
       TAG_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)

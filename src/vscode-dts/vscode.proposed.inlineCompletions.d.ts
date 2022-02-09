@@ -10,7 +10,10 @@ declare module 'vscode' {
 	export namespace languages {
 		/**
 		 * Registers an inline completion provider.
+		 *
+		 *  @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
+		// todo@API what are the rules when multiple providers apply
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
 	}
 
@@ -45,6 +48,7 @@ declare module 'vscode' {
 		readonly selectedCompletionInfo: SelectedCompletionInfo | undefined;
 	}
 
+	// todo@API is this to express a possible future outcome of the text document?
 	export interface SelectedCompletionInfo {
 		range: Range;
 		text: string;
@@ -69,6 +73,7 @@ declare module 'vscode' {
 		Explicit = 1,
 	}
 
+	// todo@API don't have separate type around array
 	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
 		items: T[];
 
@@ -85,6 +90,8 @@ declare module 'vscode' {
 		 * However, any indentation of the text to replace does not matter for the subword constraint.
 		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
 		*/
+		// todo@API is this like CompletionItem#label or insertText?
+		// todo@API insertText
 		text: string;
 
 		/**
@@ -107,10 +114,16 @@ declare module 'vscode' {
 		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 		 * Defaults to `false`.
 		*/
+		// todo@API is this to compensate "bad" extensions, why isn't this done for normal completions or formatting?
+		// todo@API is this an instance property or a provider property?
+		// (1) leave proposed
 		completeBracketPairs?: boolean;
+
 		constructor(text: string, range?: Range, command?: Command);
 	}
 
+
+	// TODO@API validate it is being used, iff so move to a different proposal
 
 	/**
 	 * Be aware that this API will not ever be finalized.
