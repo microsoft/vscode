@@ -1444,7 +1444,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public showMarkupCell(id: string, top: number, newContent: string | undefined): void {
 			const cell = this.getExpectedMarkupCell(id);
-			cell?.show(id, top, newContent);
+			cell?.show(top, newContent);
 		}
 
 		public hideMarkupCell(id: string): void {
@@ -1734,7 +1734,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 		}
 
-		public show(id: string, top: number, newContent: string | undefined): void {
+		public show(top: number, newContent: string | undefined): void {
 			this.element.style.visibility = 'visible';
 			this.element.style.top = `${top}px`;
 			if (typeof newContent === 'string') {
