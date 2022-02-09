@@ -47,7 +47,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
 	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
 
-	private readonly _onDidEditorsChange = this._register(new Emitter<IEditorsChangeEvent[]>());
+	private readonly _onDidEditorsChange = this._register(new Emitter<IEditorsChangeEvent>());
 	readonly onDidEditorsChange = this._onDidEditorsChange.event;
 
 	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
@@ -148,7 +148,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const groupDisposables = new DisposableStore();
 
 		groupDisposables.add(group.onDidModelChange(e => {
-			this._onDidEditorsChange.fire([{ groupId: group.id, ...e }]);
+			this._onDidEditorsChange.fire({ groupId: group.id, ...e });
 		}));
 
 		groupDisposables.add(group.onDidActiveEditorChange(() => {

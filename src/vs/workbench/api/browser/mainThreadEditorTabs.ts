@@ -26,13 +26,13 @@ export class MainThreadEditorTabs {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
 	) {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
 		// Queue all events that arrive on the same event loop and then send them as a batch
-		this._dispoables.add(editorService.onDidEditorsChange((events) => this._updateTabsModel(events)));
+		this._dispoables.add(editorService.onDidEditorsChange((event) => this._updateTabsModel(event)));
 		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
 	}
 
@@ -91,7 +91,6 @@ export class MainThreadEditorTabs {
 		for (const group of this._tabGroupModel) {
 			group.isActive = group.groupId === activeGroupId;
 		}
-		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
 
 	/**
@@ -123,46 +122,46 @@ export class MainThreadEditorTabs {
 			this._tabModel.set(group.id, tabs);
 			tabs = [];
 		}
-		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
 
 	// TODOD @lramos15 Remove this after done finishing the tab model code
-	// private _eventArrayToString(events: IEditorsChangeEvent[]): void {
-	// 	let eventString = '[';
-	// 	events.forEach(event => {
-	// 		switch (event.kind) {
-	// 			case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX, '; break;
-	// 			case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE, '; break;
-	// 			case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN, '; break;
-	// 			case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN, '; break;
-	// 			case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE, '; break;
-	// 			case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE, '; break;
-	// 			case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL, '; break;
-	// 			case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE, '; break;
-	// 			case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED, '; break;
-	// 			default: eventString += 'UNKNOWN, '; break;
-	// 		}
-	// 	});
-	// 	eventString += ']';
-	// 	console.log(eventString);
-	// }
+	private _eventToString(event: IEditorsChangeEvent): string {
+		let eventString = '';
+		switch (event.kind) {
+			case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
+			case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
+			case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
+			case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
+			case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
+			case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
+			case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
+			case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
+			case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
+			default: eventString += 'UNKNOWN'; break;
+		}
+		return eventString;
+	}
 
 	/**
 	 * The main handler for the tab events
 	 * @param events The list of events to process
 	 */
-	private _updateTabsModel(events: IEditorsChangeEvent[]): void {
-		console.log(`Total Events: ${events.length}`);
-		console.time('updateTabModel');
+	private _updateTabsModel(event: IEditorsChangeEvent): void {
+		console.time(`updateTabModel: ${this._eventToString(event)}`);
 		// We optimize for a select few trigger happy events for performance reasons
-		if (events[0]?.kind === GroupModelChangeKind.GROUP_ACTIVE) {
+		if (event.kind === GroupModelChangeKind.GROUP_ACTIVE && this._editorGroupsService.activeGroup.id === event.groupId) {
 			this._onDidGroupActivate();
+		} else if (event.kind === GroupModelChangeKind.GROUP_ACTIVE && this._editorGroupsService.activeGroup.id === event.groupId) {
+			console.timeEnd(`updateTabModel: ${this._eventToString(event)}`);
 			return;
+		} else {
+			// Because events are aggregated rebuilding the tab model is much easier
+			// In the future we can optimize certain events rather than full rebuilds
+			this._createTabsModel();
 		}
-		// Because events are aggregated rebuilding the tab model is much easier
-		// In the future we can optimize certain events rather than full rebuilds
-		this._createTabsModel();
-		console.timeEnd('updateTabModel');
+		console.timeEnd(`updateTabModel: ${this._eventToString(event)}`);
+		// notify the ext host of the new model
+		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
 	//#region Messages received from Ext Host
 	$moveTab(tab: IEditorTabDto, index: number, viewColumn: EditorGroupColumn): void {
