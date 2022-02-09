@@ -205,7 +205,7 @@ stages:
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
               - job: Linuxx64
-                container: vscode-bionic-x64-temp
+                container: vscode-bionic-x64
                 variables:
                   VSCODE_ARCH: x64
                   NPM_ARCH: x64
