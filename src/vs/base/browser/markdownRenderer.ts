@@ -138,9 +138,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		href = removeMarkdownEscapes(href);
 		if (
 			!href
-			|| href.match(/^data:|javascript:/i)
-			|| (href.match(/^command:/i) && !markdown.isTrusted)
-			|| href.match(/^command:(\/\/\/)?_workbench\.downloadResource/i)
+			|| /^data:|javascript:/i.test(href)
+			|| (/^command:/i.test(href) && !markdown.isTrusted)
+			|| /^command:(\/\/\/)?_workbench\.downloadResource/i.test(href)
 		) {
 			// drop the link
 			return text;
