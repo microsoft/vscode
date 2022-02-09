@@ -502,7 +502,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const container = assertIsDefined(this.getContainer());
 		const styleOverride: IStatusbarStyleOverride | undefined = [...this.styleOverrides].sort((a, b) => a.priority - b.priority)[0];
 
-		// Background colors
+		// Background / foreground colors
 		const backgroundColor = this.getColor(styleOverride?.background ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND)) || '';
 		container.style.backgroundColor = backgroundColor;
 		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
@@ -518,7 +518,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			container.style.removeProperty('--status-border-top-color');
 		}
 
-		// Colors via dynamic stylesheet
+		// Colors and focus outlines via dynamic stylesheet
 
 		if (!this.styleElement) {
 			this.styleElement = createStyleSheet(container);
