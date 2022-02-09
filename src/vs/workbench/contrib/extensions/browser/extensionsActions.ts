@@ -1125,7 +1125,6 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && !!this.extension.local && !!this.extension.server && this.extension.state === ExtensionState.Installed;
-		this.label = this.extension?.local?.isPreReleaseVersion ? localize('install another pre-release version', "Install Another Pre-Release Version...") : localize('install another version', "Install Another Version...");
 	}
 
 	override async run(): Promise<any> {
@@ -1143,15 +1142,15 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			return {
 				id: v.version,
 				label: v.version,
-				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
+				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.isPreReleaseVersion ? ` (${localize('pre-release', "pre-release")})` : ''}${v.version === this.extension!.version ? ` (${localize('current', "current")})` : ''}`,
 				latest: i === 0,
-				ariaLabel: v.version,
+				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-Release version' : 'Release version'} ${v.version}`,
 				isPreReleaseVersion: v.isPreReleaseVersion
 			};
 		});
 		const pick = await this.quickInputService.pick(picks,
 			{
-				placeHolder: this.extension!.local!.isPreReleaseVersion ? localize('selectPreReleaseVersion', "Select Pre-Release Version to Install") : localize('selectVersion', "Select Version to Install"),
+				placeHolder: localize('selectVersion', "Select Version to Install"),
 				matchOnDetail: true
 			});
 		if (pick) {
