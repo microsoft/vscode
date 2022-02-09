@@ -27,7 +27,7 @@ const enum DecorationSelector {
 }
 
 const enum DecorationProperties {
-	Width = .5
+	Width = 1
 }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
@@ -56,7 +56,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 						}
 						return;
 					}
-					const element = this.registerPromptDecoration(c);
+					const element = this.registerCommandDecoration(c);
 					if (element) {
 						this._decorations.push(element);
 					}
@@ -77,7 +77,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._terminal = terminal;
 	}
 
-	registerPromptDecoration(command: ITerminalCommand): IDecoration | undefined {
+	registerCommandDecoration(command: ITerminalCommand): IDecoration | undefined {
 		if (!command.marker) {
 			throw new Error(`cannot add decoration for command: ${command}, and terminal: ${this._terminal}`);
 		} else if (!this._terminal || command.command.trim().length === 0) {

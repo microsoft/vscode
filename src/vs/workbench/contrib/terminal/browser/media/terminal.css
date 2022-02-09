@@ -418,6 +418,7 @@
 	transition: all .2s ease-in-out;
 	position: absolute;
 	margin-left: -1%;
+	width: 50%;
 }
 
 .terminal-command-decoration:hover {
