@@ -141,7 +141,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			// Get a single link candidate if the cwd of the line is known
 			const linkCandidates: string[] = [];
 			if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-				const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, text, osPathModule(this._os).sep);
+				const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, link, osPathModule(this._os).sep);
 				// Only add a single exact link candidate if the cwd is available, this may cause
 				// the link to not be resolved but that should only occur when the actual file does
 				// not exist. Doing otherwise could cause unexpected results where handling via the
