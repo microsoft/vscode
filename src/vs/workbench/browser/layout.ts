@@ -352,6 +352,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
 		const oldPositionValue = (position === Position.RIGHT) ? 'left' : 'right';
 		const panelAlignment = this.getPanelAlignment();
+		const panelPosition = this.getPanelPosition();
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON, position);
 
@@ -374,7 +375,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		auxiliaryBar.updateStyles();
 
 		// Move activity bar, side bar, and side panel
-		this.adjustPartPositions(position, panelAlignment);
+		this.adjustPartPositions(position, panelAlignment, panelPosition);
 	}
 
 	private updateWindowBorder(skipLayout: boolean = false) {
@@ -1464,29 +1465,41 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return viewContainerModel.activeViewDescriptors.length >= 1;
 	}
 
-	private adjustPartPositions(sideBarPosition: Position, panelAlignment: PanelAlignment): void {
+	private adjustPartPositions(sideBarPosition: Position, panelAlignment: PanelAlignment, panelPosition: Position): void {
 		// Move activity bar, side bar, and side panel
-		const sideBarNextToEditor = !(panelAlignment === 'center' || (sideBarPosition === Position.LEFT && panelAlignment === 'right') || (sideBarPosition === Position.RIGHT && panelAlignment === 'left'));
-		const auxiliaryBarNextToEditor = !(panelAlignment === 'center' || (sideBarPosition === Position.RIGHT && panelAlignment === 'right') || (sideBarPosition === Position.LEFT && panelAlignment === 'left'));
+		const sideBarSiblingToEditor = panelPosition !== Position.BOTTOM || !(panelAlignment === 'center' || (sideBarPosition === Position.LEFT && panelAlignment === 'right') || (sideBarPosition === Position.RIGHT && panelAlignment === 'left'));
+		const auxiliaryBarSiblingToEditor = panelPosition !== Position.BOTTOM || !(panelAlignment === 'center' || (sideBarPosition === Position.RIGHT && panelAlignment === 'right') || (sideBarPosition === Position.LEFT && panelAlignment === 'left'));
+		const preMovePanelWidth = !this.isVisible(Parts.PANEL_PART) ? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView) ?? this.panelPartView.minimumWidth) : this.workbenchGrid.getViewSize(this.panelPartView).width;
+		const preMovePanelHeight = !this.isVisible(Parts.PANEL_PART) ? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView) ?? this.panelPartView.minimumHeight) : this.workbenchGrid.getViewSize(this.panelPartView).height;
 		const preMoveSideBarSize = !this.isVisible(Parts.SIDEBAR_PART) ? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.sideBarPartView) ?? this.sideBarPartView.minimumWidth) : this.workbenchGrid.getViewSize(this.sideBarPartView).width;
 		const preMoveAuxiliaryBarSize = !this.isVisible(Parts.AUXILIARYBAR_PART) ? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.auxiliaryBarPartView) ?? this.auxiliaryBarPartView.minimumWidth) : this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
 
 		if (sideBarPosition === Position.LEFT) {
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, 0]);
-			this.workbenchGrid.moveView(this.sideBarPartView, preMoveSideBarSize, sideBarNextToEditor ? this.editorPartView : this.activityBarPartView, sideBarNextToEditor ? Direction.Left : Direction.Right);
-			if (auxiliaryBarNextToEditor) {
+			this.workbenchGrid.moveView(this.sideBarPartView, preMoveSideBarSize, sideBarSiblingToEditor ? this.editorPartView : this.activityBarPartView, sideBarSiblingToEditor ? Direction.Left : Direction.Right);
+			if (auxiliaryBarSiblingToEditor) {
 				this.workbenchGrid.moveView(this.auxiliaryBarPartView, preMoveAuxiliaryBarSize, this.editorPartView, Direction.Right);
 			} else {
 				this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, -1]);
 			}
 		} else {
 			this.workbenchGrid.moveViewTo(this.activityBarPartView, [2, -1]);
-			this.workbenchGrid.moveView(this.sideBarPartView, preMoveSideBarSize, sideBarNextToEditor ? this.editorPartView : this.activityBarPartView, sideBarNextToEditor ? Direction.Right : Direction.Left);
-			if (auxiliaryBarNextToEditor) {
+			this.workbenchGrid.moveView(this.sideBarPartView, preMoveSideBarSize, sideBarSiblingToEditor ? this.editorPartView : this.activityBarPartView, sideBarSiblingToEditor ? Direction.Right : Direction.Left);
+			if (auxiliaryBarSiblingToEditor) {
 				this.workbenchGrid.moveView(this.auxiliaryBarPartView, preMoveAuxiliaryBarSize, this.editorPartView, Direction.Left);
 			} else {
 				this.workbenchGrid.moveViewTo(this.auxiliaryBarPartView, [2, 0]);
 			}
+		}
+
+		// We moved all the side parts based on the editor and ignored the panel
+		// Now, we need to put the panel back in the right position when it is next to the editor
+		if (panelPosition !== Position.BOTTOM) {
+			this.workbenchGrid.moveView(this.panelPartView, preMovePanelWidth, this.editorPartView, panelPosition === Position.LEFT ? Direction.Left : Direction.Right);
+			this.workbenchGrid.resizeView(this.panelPartView, {
+				height: preMovePanelHeight as number,
+				width: preMovePanelWidth as number
+			});
 		}
 
 		// Moving views in the grid can cause them to re-distribute sizing unnecessarily
@@ -1519,7 +1532,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
 
-		this.adjustPartPositions(this.getSideBarPosition(), alignment);
+		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
 
 		this._onDidChangePanelAlignment.fire(alignment);
 	}
@@ -1627,7 +1640,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	 */
 	private panelOpensMaximized(): boolean {
 		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-		if (this.getPanelAlignment() !== 'center') {
+		if (this.getPanelAlignment() !== 'center' && this.getPanelPosition() === Position.BOTTOM) {
 			return false;
 		}
 
@@ -1760,8 +1773,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const oldPositionValue = positionToString(this.getPanelPosition());
 		const newPositionValue = positionToString(position);
 
-		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_POSITION, position);
-
 		// Adjust CSS
 		const panelContainer = assertIsDefined(panelPart.getContainer());
 		panelContainer.classList.remove(oldPositionValue);
@@ -1775,7 +1786,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const sideBarSize = this.workbenchGrid.getViewSize(this.sideBarPartView);
 		const auxiliaryBarSize = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView);
 
-		const editorHidden = !this.isVisible(Parts.EDITOR_PART);
+		let editorHidden = !this.isVisible(Parts.EDITOR_PART);
 
 		// Save last non-maximized size for panel before move
 		if (newPositionValue !== oldPositionValue && !editorHidden) {
@@ -1789,6 +1800,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT, size.height);
 			}
 		}
+
+		if (position === Position.BOTTOM && this.getPanelAlignment() !== 'center' && editorHidden) {
+			this.toggleMaximizedPanel();
+			editorHidden = false;
+		}
+
+		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_POSITION, position);
 
 		const sideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 		const auxiliaryBarVisible = this.isVisible(Parts.AUXILIARYBAR_PART);
@@ -1810,6 +1828,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.resizeView(this.auxiliaryBarPartView, auxiliaryBarSize);
 		if (!auxiliaryBarVisible) {
 			this.setAuxiliaryBarHidden(true);
+		}
+
+		if (position === Position.BOTTOM) {
+			this.adjustPartPositions(this.getSideBarPosition(), this.getPanelAlignment(), position);
 		}
 
 		this._onDidChangePanelPosition.fire(newPositionValue);
