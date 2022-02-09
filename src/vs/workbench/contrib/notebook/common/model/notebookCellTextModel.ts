@@ -193,7 +193,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	constructor(
 		readonly uri: URI,
 		public readonly handle: number,
-		private _source: string,
+		private readonly _source: string,
 		private _language: string,
 		private _mime: string | undefined,
 		public readonly cellKind: CellKind,
