@@ -16,6 +16,7 @@ export const modifiedItemIndicator = registerColor('settings.modifiedItemIndicat
 	hc: new Color(new RGBA(0, 73, 122))
 }, localize('modifiedItemForeground', "The color of the modified setting indicator."));
 export const settingsHeaderBorder = registerColor('settings.headerBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hc: PANEL_BORDER }, localize('settingsHeaderBorder', "The color of the header container border."));
+export const settingsSashBorder = registerColor('settings.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hc: PANEL_BORDER }, localize('settingsSashBorder', "The color of the Settings editor splitview sash border."));
 
 // Enum control colors
 export const settingsSelectBackground = registerColor(`settings.dropdownBackground`, { dark: selectBackground, light: selectBackground, hc: selectBackground }, localize('settingsDropdownBackground', "Settings editor dropdown background."));
