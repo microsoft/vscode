@@ -117,7 +117,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		// Pass the sequence along to the capability
-		const [command, arg] = data.split(';');
+		const [command, ...args] = data.split(';');
 		switch (command) {
 			case FinalTermOscPt.PromptStart:
 				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
@@ -129,7 +129,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
 				return true;
 			case FinalTermOscPt.CommandFinished: {
-				const exitCode = parseInt(arg);
+				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
 				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
 				return true;
 			}
@@ -145,17 +145,22 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		}
 
 		// Pass the sequence along to the capability
-		const [command, arg] = data.split(';');
+		const [command, ...args] = data.split(';');
 		switch (command) {
 			case VSCodeOscPt.CommandLine: {
-				const commandLine = (arg
-					.replace(/<LF>/g, '\n')
-					.replace(/<CL>/g, ';'));
+				let commandLine: string;
+				if (args.length === 1) {
+					commandLine = (args[0]
+						.replace(/<LF>/g, '\n')
+						.replace(/<CL>/g, ';'));
+				} else {
+					commandLine = '';
+				}
 				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
 				return true;
 			}
 			case VSCodeOscPt.Property: {
-				const [key, value] = arg.split('=');
+				const [key, value] = args[0].split('=');
 				switch (key) {
 					case 'IsWindows': {
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
