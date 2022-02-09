@@ -68,6 +68,9 @@ interface PreloadContext {
 declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
+	const textEncoder = new TextEncoder();
+	const textDecoder = new TextDecoder();
+
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
 
@@ -691,21 +694,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 			public readonly valueBytes: Uint8Array
 		) { }
 
-		data() {
+		data(): Uint8Array {
 			return this.valueBytes;
 		}
 
-		bytes() { return this.data(); }
+		bytes(): Uint8Array { return this.data(); }
 
-		text() {
-			return new TextDecoder().decode(this.valueBytes);
+		text(): string {
+			return textDecoder.decode(this.valueBytes);
 		}
 
 		json() {
 			return JSON.parse(this.text());
 		}
 
-		blob() {
+		blob(): Blob {
 			return new Blob([this.valueBytes], { type: this.mime });
 		}
 	}
@@ -1587,12 +1590,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public readonly element: HTMLElement;
 
 		/// Internal field that holds text content
-		private _content: string;
+		private _content: { readonly value: string; readonly version: number };
 
 		constructor(id: string, mime: string, content: string, top: number) {
 			this.id = id;
 			this.mime = mime;
-			this._content = content;
+			this._content = { value: content, version: 0 };
 
 			let resolveReady: () => void;
 			this.ready = new Promise<void>(r => resolveReady = r);
@@ -1614,7 +1617,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.addEventListeners();
 
-			this.updateContentAndRender(this._content).then(() => {
+			this.updateContentAndRender(this._content.value).then(() => {
 				resizeObserver.observe(this.element, this.id, false);
 				resolveReady();
 			});
@@ -1625,10 +1628,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public readonly mime: string;
 		public readonly metadata = undefined;
 
-		text() { return this._content; }
+		text(): string { return this._content.value; }
+
 		json() { return undefined; }
-		bytes() { return this.data(); }
-		data() { return new TextEncoder().encode(this._content); }
+
+		bytes(): Uint8Array { return this.data(); }
+
+		#cachedData?: { readonly version: number; readonly value: Uint8Array };
+		data(): Uint8Array {
+			if (this.#cachedData?.version === this._content.version) {
+				return this.#cachedData.value;
+			}
+
+			const data = textEncoder.encode(this._content.value);
+			this.#cachedData = { version: this._content.version, value: data };
+			return data;
+		}
+
 		blob() { return new Blob([this.data()], { type: this.mime }); }
 		//#endregion
 
@@ -1677,7 +1693,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public async updateContentAndRender(newContent: string): Promise<void> {
-			this._content = newContent;
+			this._content = { value: newContent, version: this._content.version + 1 };
 
 			await renderers.render(this, this.element);
 
@@ -1739,7 +1755,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public rerender() {
-			this.updateContentAndRender(this._content);
+			this.updateContentAndRender(this._content.value);
 		}
 
 		public remove() {
