@@ -186,16 +186,8 @@ export class TestTextFileEditor extends TextFileEditor {
 		return this.instantiationService.createInstance(TestCodeEditor, parent, configuration, {});
 	}
 
-	fireSelectionChangeEvent(reason: EditorPaneSelectionChangeReason) {
-		this._onDidChangeSelection.fire({ reason });
-	}
-
 	setSelection(selection: Selection | undefined, reason: EditorPaneSelectionChangeReason): void {
-		if (selection) {
-			this.setOptions({ selection });
-		} else {
-			this.setOptions(undefined);
-		}
+		this._options = selection ? { selection } as IEditorOptions : undefined;
 
 		this._onDidChangeSelection.fire({ reason });
 	}

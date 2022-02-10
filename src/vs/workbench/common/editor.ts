@@ -223,10 +223,19 @@ export const enum EditorPaneSelectionChangeReason {
 	 * The selection was changed as a result of a navigation
 	 * action.
 	 *
-	 * For a text editor pane, this for example can be invoking
-	 * "Go to definition" on a symbol.
+	 * For a text editor pane, this for example can be a result
+	 * of selecting an entry from a text outline view.
 	 */
-	NAVIGATION
+	NAVIGATION,
+
+	/**
+	 * The selection was changed as a result of a jump action
+	 * from within the editor pane.
+	 *
+	 * For a text editor pane, this for example can be a result
+	 * of invoking "Go to definition" from a symbol.
+	 */
+	JUMP
 }
 
 export interface IEditorPaneSelection {

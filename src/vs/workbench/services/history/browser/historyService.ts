@@ -310,6 +310,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleActiveEditorSelectionChangeEventInNavigationStacks(editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
+		const previous = this.globalDefaultEditorNavigationStack.current;
 
 		// Always send to global navigation stack
 		this.globalDefaultEditorNavigationStack.notifyNavigation(editorPane, event);
@@ -324,15 +325,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Note: ignore if global navigation stack is navigating because
 		// in that case we do not want to receive repeated entries in
 		// the navigation stack.
-		else if (event.reason === EditorPaneSelectionChangeReason.NAVIGATION && !this.globalDefaultEditorNavigationStack.isNavigating()) {
+		else if (
+			(event.reason === EditorPaneSelectionChangeReason.NAVIGATION || event.reason === EditorPaneSelectionChangeReason.JUMP) &&
+			!this.globalDefaultEditorNavigationStack.isNavigating()
+		) {
 
-			// A navigation selection change always has a source and target
-			// As such, we add the previous entry of the global navigation
-			// stack so that our navigation stack receives both entries
-			// unless the user is currently navigating.
+			// A "JUMP" navigation selection change always has a source and
+			// target. As such, we add the previous entry of the global
+			// navigation stack so that our navigation stack receives both
+			// entries unless the user is currently navigating.
 
-			if (!this.globalNavigationsEditorNavigationStack.isNavigating()) {
-				const previous = this.globalDefaultEditorNavigationStack.previous;
+			if (event.reason === EditorPaneSelectionChangeReason.JUMP && !this.globalNavigationsEditorNavigationStack.isNavigating()) {
 				if (previous) {
 					this.globalNavigationsEditorNavigationStack.addOrReplace(previous.groupId, previous.editor, previous.selection);
 				}
@@ -1035,7 +1038,7 @@ export class EditorNavigationStack extends Disposable {
 
 	private currentSelectionState: EditorSelectionState | undefined = undefined;
 
-	private get current(): IEditorNavigationStackEntry | undefined {
+	get current(): IEditorNavigationStackEntry | undefined {
 		return this.stack[this.index];
 	}
 
@@ -1043,10 +1046,6 @@ export class EditorNavigationStack extends Disposable {
 		if (entry) {
 			this.stack[this.index] = entry;
 		}
-	}
-
-	get previous(): IEditorNavigationStackEntry | undefined {
-		return this.stack[this.index - 1];
 	}
 
 	constructor(
@@ -1120,6 +1119,7 @@ ${entryLabels.join('\n')}
 		switch (event.reason) {
 			case EditorPaneSelectionChangeReason.EDIT: return 'edit';
 			case EditorPaneSelectionChangeReason.NAVIGATION: return 'navigation';
+			case EditorPaneSelectionChangeReason.JUMP: return 'jump';
 			case EditorPaneSelectionChangeReason.PROGRAMMATIC: return 'programmatic';
 			case EditorPaneSelectionChangeReason.USER: return 'user';
 		}
