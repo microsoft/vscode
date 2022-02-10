@@ -1098,7 +1098,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const displayItemsCount = 3;
 		const maxPreviewLineLength = 30;
 
-		let detail = 'Preview:';
+		let detail = nls.localize('preview', "Preview:");
 		for (let i = 0; i < Math.min(textForLines.length, displayItemsCount); i++) {
 			const line = textForLines[i];
 			const cleanedLine = line.length > maxPreviewLineLength ? `${line.slice(0, maxPreviewLineLength)}…` : line;
