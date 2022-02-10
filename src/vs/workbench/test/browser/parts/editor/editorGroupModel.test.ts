@@ -1877,7 +1877,7 @@ suite('EditorGroupModel', () => {
 
 		input3.dispose();
 		assert.strictEqual(group1Listener.disposed.length, 2);
-		assert.strictEqual(group1Listener.disposed[1].editorIndex, 1);
+		assert.strictEqual(group1Listener.disposed[1].editorIndex, 2);
 		assert.strictEqual(group2Listener.disposed.length, 1);
 		assert.ok(group1Listener.disposed[1].editor.matches(input3));
 	});
