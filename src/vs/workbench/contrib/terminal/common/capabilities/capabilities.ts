@@ -109,6 +109,8 @@ export interface ITerminalCommand {
 	exitCode?: number;
 	marker?: IXtermMarker;
 	getOutput(): string | undefined;
+	hasOutput: boolean;
+	getTimeFromNow(): string;
 }
 
 /**
