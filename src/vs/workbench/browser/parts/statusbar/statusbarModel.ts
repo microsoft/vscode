@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { isStatusbarEntryLocation, IStatusbarEntryLocation, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { hide, show, isAncestor } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter } from 'vs/base/common/event';
@@ -30,34 +30,6 @@ export interface IStatusbarEntryPriority {
 	 * Should be unique across all entries.
 	 */
 	readonly secondary: number;
-}
-
-export interface IStatusbarEntryLocation {
-
-	/**
-	 * The identifier of another status bar entry to
-	 * position relative to.
-	 */
-	id: string;
-
-	/**
-	 * The alignment of the status bar entry relative
-	 * to the referenced entry.
-	 */
-	alignment: StatusbarAlignment;
-
-	/**
-	 * Whether to move the entry close to the location
-	 * so that it appears as if both this entry and
-	 * the location belong to each other.
-	 */
-	compact?: boolean;
-}
-
-export function isStatusbarEntryLocation(thing: unknown): thing is IStatusbarEntryLocation {
-	const candidate = thing as IStatusbarEntryLocation | undefined;
-
-	return typeof candidate?.id === 'string' && typeof candidate.alignment === 'number';
 }
 
 export interface IStatusbarViewModelEntry {
