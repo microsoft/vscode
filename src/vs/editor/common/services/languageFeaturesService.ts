@@ -50,7 +50,7 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 
 	private _score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean) {
 		const base = score(selector, candidateUri, candidateLanguage, candidateIsSynchronized);
-		if (base === 0 || !selector) {
+		if (!selector) {
 			return base;
 		}
 		if (!this._refinedScore) {
