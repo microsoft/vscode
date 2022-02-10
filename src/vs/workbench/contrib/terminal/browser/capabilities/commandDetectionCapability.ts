@@ -141,6 +141,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			const newCommand = {
 				command,
 				marker: this._currentCommand.commandStartMarker,
+				endMarker: this._currentCommand.commandFinishedMarker,
 				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,

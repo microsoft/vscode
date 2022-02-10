@@ -801,7 +801,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					detail,
 					id: entry.timestamp.toString(),
 					command: entry,
-					buttons
+					buttons: (!entry.endMarker?.isDisposed && !entry.marker?.isDisposed && (entry.endMarker!.line - entry.marker!.line > 0)) ? buttons : undefined
 				});
 			}
 		} else {
