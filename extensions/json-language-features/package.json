@@ -23,9 +23,6 @@
       "supported": true
     }
   },
-  "enabledApiProposals": [
-    "languageStatus"
-  ],
   "scripts": {
     "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
     "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
@@ -150,7 +147,7 @@
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "16.x"
   },
   "repository": {
     "type": "git",

@@ -903,6 +903,7 @@ abstract class BaseResizeViewAction extends Action2 {
 			const isEditorFocus = layoutService.hasFocus(Parts.EDITOR_PART);
 			const isSidebarFocus = layoutService.hasFocus(Parts.SIDEBAR_PART);
 			const isPanelFocus = layoutService.hasFocus(Parts.PANEL_PART);
+			const isAuxiliaryBarFocus = layoutService.hasFocus(Parts.AUXILIARYBAR_PART);
 
 			if (isSidebarFocus) {
 				part = Parts.SIDEBAR_PART;
@@ -910,6 +911,8 @@ abstract class BaseResizeViewAction extends Action2 {
 				part = Parts.PANEL_PART;
 			} else if (isEditorFocus) {
 				part = Parts.EDITOR_PART;
+			} else if (isAuxiliaryBarFocus) {
+				part = Parts.AUXILIARYBAR_PART;
 			}
 		} else {
 			part = partToResize;
@@ -1035,7 +1038,7 @@ const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('
 const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
 const zenModeIcon = registerIcon('zenMode', Codicon.target, localize('zenModeIcon', "Represents zen mode"));
 
-type ContextualLayoutVisualIcon = { iconA: ThemeIcon, iconB: ThemeIcon, whenA: ContextKeyExpression };
+type ContextualLayoutVisualIcon = { iconA: ThemeIcon; iconB: ThemeIcon; whenA: ContextKeyExpression };
 type LayoutVisualIcon = ThemeIcon | ContextualLayoutVisualIcon;
 
 function isContextualLayoutVisualIcon(icon: LayoutVisualIcon): icon is ContextualLayoutVisualIcon {

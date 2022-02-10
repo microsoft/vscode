@@ -56,8 +56,8 @@ export interface ITestProfileService {
 	 * Gets all registered controllers, grouping by controller.
 	 */
 	all(): Iterable<Readonly<{
-		controller: IMainThreadTestController,
-		profiles: ITestRunProfile[],
+		controller: IMainThreadTestController;
+		profiles: ITestRunProfile[];
 	}>>;
 
 	/**
@@ -106,8 +106,8 @@ export class TestProfileService implements ITestProfileService {
 	private readonly capabilitiesContexts: { [K in TestRunProfileBitset]: IContextKey<boolean> };
 	private readonly changeEmitter = new Emitter<void>();
 	private readonly controllerProfiles = new Map</* controller ID */string, {
-		profiles: ITestRunProfile[],
-		controller: IMainThreadTestController,
+		profiles: ITestRunProfile[];
+		controller: IMainThreadTestController;
 	}>();
 
 	/** @inheritdoc */

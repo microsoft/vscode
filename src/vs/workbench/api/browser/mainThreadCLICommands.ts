@@ -45,7 +45,7 @@ CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accesso
 });
 
 interface ManageExtensionsArgs {
-	list?: { showVersions?: boolean, category?: string; };
+	list?: { showVersions?: boolean; category?: string };
 	install?: (string | URI)[];
 	uninstall?: string[];
 	force?: boolean;

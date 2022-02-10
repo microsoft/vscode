@@ -327,7 +327,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
 	protected readonly _host: IEditorWorkerHost;
-	private _models: { [uri: string]: MirrorModel; };
+	private _models: { [uri: string]: MirrorModel };
 	private readonly _foreignModuleFactory: IForeignModuleFactory | null;
 	private _foreignModule: any;
 
@@ -533,7 +533,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 
 	private static readonly _suggestionsLimit = 10000;
 
-	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[], duration: number } | null> {
+	public async textualSuggest(modelUrls: string[], leadingWord: string | undefined, wordDef: string, wordDefFlags: string): Promise<{ words: string[]; duration: number } | null> {
 
 		const sw = new StopWatch(true);
 		const wordDefRegExp = new RegExp(wordDef, wordDefFlags);

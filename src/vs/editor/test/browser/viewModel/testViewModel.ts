@@ -10,6 +10,7 @@ import { TestConfiguration } from 'vs/editor/test/browser/config/testConfigurati
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 export function testViewModel(text: string[], options: IEditorOptions, callback: (viewModel: ViewModel, model: TextModel) => void): void {
 	const EDITOR_ID = 1;
@@ -17,7 +18,7 @@ export function testViewModel(text: string[], options: IEditorOptions, callback:
 	const configuration = new TestConfiguration(options);
 	const model = createTextModel(text.join('\n'));
 	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
-	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, new TestLanguageConfigurationService());
+	const viewModel = new ViewModel(EDITOR_ID, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!, new TestLanguageConfigurationService(), new TestThemeService());
 
 	callback(viewModel, model);
 

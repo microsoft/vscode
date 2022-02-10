@@ -289,7 +289,7 @@ export class ReplModel {
 		this._onDidChangeElements.fire();
 	}
 
-	logToRepl(session: IDebugSession, sev: severity, args: any[], frame?: { uri: URI, line: number, column: number }) {
+	logToRepl(session: IDebugSession, sev: severity, args: any[], frame?: { uri: URI; line: number; column: number }) {
 
 		let source: IReplElementSource | undefined;
 		if (frame) {

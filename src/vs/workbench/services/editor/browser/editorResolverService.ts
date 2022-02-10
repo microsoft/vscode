@@ -31,12 +31,12 @@ import { Emitter } from 'vs/base/common/event';
 import { IFileService } from 'vs/platform/files/common/files';
 
 interface RegisteredEditor {
-	globPattern: string | glob.IRelativePattern,
-	editorInfo: RegisteredEditorInfo,
-	options?: RegisteredEditorOptions,
-	createEditorInput: EditorInputFactoryFunction,
-	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
-	createDiffEditorInput?: DiffEditorInputFactoryFunction
+	globPattern: string | glob.IRelativePattern;
+	editorInfo: RegisteredEditorInfo;
+	options?: RegisteredEditorOptions;
+	createEditorInput: EditorInputFactoryFunction;
+	createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined;
+	createDiffEditorInput?: DiffEditorInputFactoryFunction;
 }
 
 type RegisteredEditors = Array<RegisteredEditor>;
@@ -299,7 +299,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private getAllUserAssociations(): EditorAssociations {
-		const rawAssociations = this.configurationService.getValue<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
+		const userAssociations = inspectedEditorAssociations.userValue ?? {};
+		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations };
+		// We want to apply the user associations on top of the workspace associations but ignore duplicate keys.
+		for (const [key, value] of Object.entries(userAssociations)) {
+			if (rawAssociations[key] === undefined) {
+				rawAssociations[key] = value;
+			}
+		}
 		let associations = [];
 		for (const [key, value] of Object.entries(rawAssociations)) {
 			const association: EditorAssociation = {
@@ -373,7 +382,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	 * Given a resource and an editorId selects the best possible editor
 	 * @returns The editor and whether there was another default which conflicted with it
 	 */
-	private getEditor(resource: URI, editorId: string | EditorResolution.EXCLUSIVE_ONLY | undefined): { editor: RegisteredEditor | undefined, conflictingDefault: boolean } {
+	private getEditor(resource: URI, editorId: string | EditorResolution.EXCLUSIVE_ONLY | undefined): { editor: RegisteredEditor | undefined; conflictingDefault: boolean } {
 
 		const findMatchingEditor = (editors: RegisteredEditors, viewType: string) => {
 			return editors.find((editor) => {
@@ -522,8 +531,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private findExistingEditorsForResource(
 		resource: URI,
 		editorId: string,
-	): Array<{ editor: EditorInput, group: IEditorGroup }> {
-		const out: Array<{ editor: EditorInput, group: IEditorGroup }> = [];
+	): Array<{ editor: EditorInput; group: IEditorGroup }> {
+		const out: Array<{ editor: EditorInput; group: IEditorGroup }> = [];
 		const orderedGroups = distinct([
 			...this.editorGroupService.groups,
 		]);
@@ -743,10 +752,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	private sendEditorResolutionTelemetry(chosenInput: EditorInput): void {
 		type editorResolutionClassification = {
-			viewType: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+			viewType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 		};
 		type editorResolutionEvent = {
-			viewType: string
+			viewType: string;
 		};
 		if (chosenInput.editorId) {
 			this.telemetryService.publicLog2<editorResolutionEvent, editorResolutionClassification>('override.viewType', { viewType: chosenInput.editorId });

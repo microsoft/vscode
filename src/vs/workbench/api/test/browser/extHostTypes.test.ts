@@ -251,6 +251,18 @@ suite('ExtHostTypes', function () {
 		assert.ok(!range.contains(new types.Range(1, 1, 3, 11)));
 	});
 
+	test('Range, contains (no instanceof)', function () {
+		let range = new types.Range(1, 1, 2, 11);
+
+		let startLike = { line: range.start.line, character: range.start.character };
+		let endLike = { line: range.end.line, character: range.end.character };
+		let rangeLike = { start: startLike, end: endLike };
+
+		assert.ok(range.contains((<types.Position>startLike)));
+		assert.ok(range.contains((<types.Position>endLike)));
+		assert.ok(range.contains((<types.Range>rangeLike)));
+	});
+
 	test('Range, intersection', function () {
 		let range = new types.Range(1, 1, 2, 11);
 		let res: types.Range;

@@ -196,7 +196,7 @@ class PlaywrightDriver implements IDriver {
 
 let port = 9000;
 
-export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver, kill: () => Promise<void> }> {
+export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; client: IDisposable; driver: IDriver; kill: () => Promise<void> }> {
 
 	// Launch server
 	const { serverProcess, endpoint } = await launchServer(options);
@@ -224,7 +224,7 @@ async function launchServer(options: LaunchOptions) {
 		...process.env
 	};
 
-	const args = ['--disable-telemetry', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder];
+	const args = ['--disable-telemetry', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder, '--accept-server-license-terms'];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {

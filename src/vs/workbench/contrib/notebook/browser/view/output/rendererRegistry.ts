@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
+import { BrandedService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 import { IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookDelegateForOutput } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
-export type IOutputTransformCtor = IConstructorSignature1<INotebookDelegateForOutput, IOutputTransformContribution>;
+export type IOutputTransformCtor = IConstructorSignature<IOutputTransformContribution, [INotebookDelegateForOutput]>;
 
 export interface IOutputTransformDescription {
 	ctor: IOutputTransformCtor;

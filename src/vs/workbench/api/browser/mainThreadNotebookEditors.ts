@@ -6,7 +6,7 @@
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { ExtHostContext, ExtHostNotebookEditorsShape, ICellEditOperationDto, IExtHostContext, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookEditorsShape, ICellEditOperationDto, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -18,6 +18,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { equals } from 'vs/base/common/objects';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 class MainThreadNotebook {
 

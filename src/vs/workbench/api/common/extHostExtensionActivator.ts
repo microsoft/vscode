@@ -29,10 +29,10 @@ export interface IExtensionAPI {
 }
 
 export type ExtensionActivationTimesFragment = {
-	startup?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; };
-	codeLoadingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; };
-	activateCallTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; };
-	activateResolvedTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true; };
+	startup?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+	codeLoadingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+	activateCallTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+	activateResolvedTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 };
 
 export class ExtensionActivationTimes {
@@ -162,7 +162,7 @@ export interface IExtensionsActivatorHost {
 	actualActivateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension>;
 }
 
-type ActivationIdAndReason = { id: ExtensionIdentifier, reason: ExtensionActivationReason; };
+type ActivationIdAndReason = { id: ExtensionIdentifier; reason: ExtensionActivationReason };
 
 export class ExtensionsActivator implements IDisposable {
 
@@ -177,7 +177,7 @@ export class ExtensionsActivator implements IDisposable {
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
-	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
+	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean };
 
 	constructor(
 		registry: ExtensionDescriptionRegistry,
@@ -247,7 +247,7 @@ export class ExtensionsActivator implements IDisposable {
 	 * Handle semantics related to dependencies for `currentExtension`.
 	 * semantics: `redExtensions` must wait for `greenExtensions`.
 	 */
-	private _handleActivateRequest(currentActivation: ActivationIdAndReason, greenExtensions: { [id: string]: ActivationIdAndReason; }, redExtensions: ActivationIdAndReason[]): void {
+	private _handleActivateRequest(currentActivation: ActivationIdAndReason, greenExtensions: { [id: string]: ActivationIdAndReason }, redExtensions: ActivationIdAndReason[]): void {
 		if (this._hostExtensionsMap.has(ExtensionIdentifier.toKey(currentActivation.id))) {
 			greenExtensions[ExtensionIdentifier.toKey(currentActivation.id)] = currentActivation;
 			return;
@@ -354,7 +354,7 @@ export class ExtensionsActivator implements IDisposable {
 			return Promise.resolve(undefined);
 		}
 
-		const greenMap: { [id: string]: ActivationIdAndReason; } = Object.create(null),
+		const greenMap: { [id: string]: ActivationIdAndReason } = Object.create(null),
 			red: ActivationIdAndReason[] = [];
 
 		for (let i = 0, len = extensions.length; i < len; i++) {

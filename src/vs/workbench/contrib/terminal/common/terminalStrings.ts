@@ -18,6 +18,7 @@ export function formatMessageForTerminal(message: string, excludeLeadingNewLine:
  */
 export const terminalStrings = {
 	terminal: localize('terminal', "Terminal"),
+	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
 	focus: {
 		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
 		original: 'Focus Terminal'

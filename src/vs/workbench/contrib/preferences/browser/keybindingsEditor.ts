@@ -51,8 +51,8 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
 type KeybindingEditorActionClassification = {
-	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-	command: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
 const $ = DOM.$;
@@ -775,7 +775,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	}
 
 	private reportKeybindingAction(action: string, command: string): void {
-		this.telemetryService.publicLog2<{ action: string, command: string }, KeybindingEditorActionClassification>('keybindingsEditor.action', { command, action });
+		this.telemetryService.publicLog2<{ action: string; command: string }, KeybindingEditorActionClassification>('keybindingsEditor.action', { command, action });
 	}
 
 	private onKeybindingEditingError(error: any): void {
@@ -987,7 +987,7 @@ interface IWhenColumnTemplateData {
 	readonly element: HTMLElement;
 	readonly whenContainer: HTMLElement;
 	readonly whenLabel: HighlightedLabel;
-	readonly whenInput: InputBox
+	readonly whenInput: InputBox;
 	readonly renderDisposables: DisposableStore;
 	readonly onDidAccept: Event<void>;
 	readonly onDidReject: Event<void>;

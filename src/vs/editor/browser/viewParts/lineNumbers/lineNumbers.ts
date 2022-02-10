@@ -10,7 +10,7 @@ import { RenderLineNumbersType, EditorOption } from 'vs/editor/common/config/edi
 import { Position } from 'vs/editor/common/core/position';
 import { editorActiveLineNumber, editorLineNumbers } from 'vs/editor/common/core/editorColorRegistry';
 import { RenderingContext } from 'vs/editor/browser/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
@@ -68,7 +68,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		const primaryViewPosition = e.selections[0].getPosition();
-		this._lastCursorModelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
+		this._lastCursorModelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
 
 		let shouldRender = false;
 		if (this._activeLineNumber !== primaryViewPosition.lineNumber) {
@@ -102,7 +102,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	// --- end event handlers
 
 	private _getLineRenderLineNumber(viewLineNumber: number): string {
-		const modelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(new Position(viewLineNumber, 1));
+		const modelPosition = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(viewLineNumber, 1));
 		if (modelPosition.column !== 1) {
 			return '';
 		}
@@ -144,13 +144,13 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 		const common = '<div class="' + LineNumbersOverlay.CLASS_NAME + lineHeightClassName + '" style="left:' + this._lineNumbersLeft + 'px;width:' + this._lineNumbersWidth + 'px;">';
 
-		const lineCount = this._context.model.getLineCount();
+		const lineCount = this._context.viewModel.getLineCount();
 		const output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - visibleStartLineNumber;
 
 			if (!this._renderFinalNewline) {
-				if (lineNumber === lineCount && this._context.model.getLineLength(lineNumber) === 0) {
+				if (lineNumber === lineCount && this._context.viewModel.getLineLength(lineNumber) === 0) {
 					// Do not render last (empty) line
 					output[lineIndex] = '';
 					continue;

@@ -5,8 +5,8 @@
 
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { revive } from 'vs/base/common/marshalling';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { SerializableObjectWithBuffers, Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';

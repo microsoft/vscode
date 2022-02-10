@@ -448,12 +448,12 @@ export class SuggestController implements IEditorContribution {
 			return;
 		}
 
-		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string; };
+		type AcceptedSuggestion = { providerId: string; fileExtension: string; languageId: string; basenameHash: string };
 		type AcceptedSuggestionClassification = {
-			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
-			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; };
-			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
-			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; };
+			providerId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+			basenameHash: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+			fileExtension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 		};
 		// _debugDisplayName looks like `vscode.css-language-features(/-:)`, where the last bit is the trigger chars
 		// normalize it to just the extension ID and lowercase
@@ -466,7 +466,7 @@ export class SuggestController implements IEditorContribution {
 		});
 	}
 
-	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number, overwriteAfter: number } {
+	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number; overwriteAfter: number } {
 		assertType(this.editor.hasModel());
 
 		let replace = this.editor.getOption(EditorOption.suggest).insertMode === 'replace';

@@ -9,10 +9,12 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('parameterHintsVisible', false),
@@ -20,13 +22,14 @@ export const Context = {
 };
 
 export async function provideSignatureHelp(
+	registry: LanguageFeatureRegistry<languages.SignatureHelpProvider>,
 	model: ITextModel,
 	position: Position,
-	context: modes.SignatureHelpContext,
+	context: languages.SignatureHelpContext,
 	token: CancellationToken
-): Promise<modes.SignatureHelpResult | undefined> {
+): Promise<languages.SignatureHelpResult | undefined> {
 
-	const supports = modes.SignatureHelpProviderRegistry.ordered(model);
+	const supports = registry.ordered(model);
 
 	for (const support of supports) {
 		try {
@@ -47,11 +50,13 @@ CommandsRegistry.registerCommand('_executeSignatureHelpProvider', async (accesso
 	assertType(Position.isIPosition(position));
 	assertType(typeof triggerCharacter === 'string' || !triggerCharacter);
 
+	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
+
 	const ref = await accessor.get(ITextModelService).createModelReference(uri);
 	try {
 
-		const result = await provideSignatureHelp(ref.object.textEditorModel, Position.lift(position), {
-			triggerKind: modes.SignatureHelpTriggerKind.Invoke,
+		const result = await provideSignatureHelp(languageFeaturesService.signatureHelpProvider, ref.object.textEditorModel, Position.lift(position), {
+			triggerKind: languages.SignatureHelpTriggerKind.Invoke,
 			isRetrigger: false,
 			triggerCharacter,
 		}, CancellationToken.None);

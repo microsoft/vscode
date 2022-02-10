@@ -246,8 +246,8 @@ function parseRegExp(pattern: string): string {
 // regexes to check for trivial glob patterns that just check for String#endsWith
 const T1 = /^\*\*\/\*\.[\w\.-]+$/; 						   									// **/*.something
 const T2 = /^\*\*\/([\w\.-]+)\/?$/; 							   							// **/something
-const T3 = /^{\*\*\/[\*\.]?[\w\.-]+\/?(,\*\*\/[\*\.]?[\w\.-]+\/?)*}$/; 						// {**/*.something,**/*.else} or {**/package.json,**/project.json}
-const T3_2 = /^{\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?(,\*\*\/[\*\.]?[\w\.-]+(\/(\*\*)?)?)*}$/; 	// Like T3, with optional trailing /**
+const T3 = /^{\*\*\/\*?[\w\.-]+\/?(,\*\*\/\*?[\w\.-]+\/?)*}$/; 						// {**/*.something,**/*.else} or {**/package.json,**/project.json}
+const T3_2 = /^{\*\*\/\*?[\w\.-]+(\/(\*\*)?)?(,\*\*\/\*?[\w\.-]+(\/(\*\*)?)?)*}$/; 	// Like T3, with optional trailing /**
 const T4 = /^\*\*((\/[\w\.-]+)+)\/?$/; 						   								// **/something/else
 const T5 = /^([\w\.-]+(\/[\w\.-]+)*)\/?$/; 						   							// something/else
 
@@ -490,7 +490,7 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 		if (parsedPattern === NULL) {
 			return FALSE;
 		}
-		const resultPattern: ParsedPattern & { allBasenames?: string[]; allPaths?: string[]; } = function (path: string, basename?: string) {
+		const resultPattern: ParsedPattern & { allBasenames?: string[]; allPaths?: string[] } = function (path: string, basename?: string) {
 			return !!parsedPattern(path, basename);
 		};
 		if (parsedPattern.allBasenames) {

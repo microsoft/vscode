@@ -28,14 +28,14 @@ type DirEntry = [string, FileType];
 
 type IndexedDBFileSystemEntry =
 	| {
-		path: string,
-		type: FileType.Directory,
-		children: Map<string, IndexedDBFileSystemNode>,
+		path: string;
+		type: FileType.Directory;
+		children: Map<string, IndexedDBFileSystemNode>;
 	}
 	| {
-		path: string,
-		type: FileType.File,
-		size: number | undefined,
+		path: string;
+		type: FileType.File;
+		size: number | undefined;
 	};
 
 class IndexedDBFileSystemNode {
@@ -92,11 +92,11 @@ class IndexedDBFileSystemNode {
 		}
 	}
 
-	add(path: string, entry: { type: 'file', size?: number } | { type: 'dir' }) {
+	add(path: string, entry: { type: 'file'; size?: number } | { type: 'dir' }) {
 		this.doAdd(path.split('/').filter(p => p.length), entry, path);
 	}
 
-	private doAdd(pathParts: string[], entry: { type: 'file', size?: number } | { type: 'dir' }, originalPath: string) {
+	private doAdd(pathParts: string[], entry: { type: 'file'; size?: number } | { type: 'dir' }, originalPath: string) {
 		if (pathParts.length === 0) {
 			throw ERR_UNKNOWN_INTERNAL(`Internal error creating IndexedDBFSNode -- adding empty path (encountered while adding ${originalPath})`);
 		}
@@ -464,7 +464,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 		this.triggerChanges(files.map(([resource]) => ({ resource, type: FileChangeType.UPDATED })));
 	}
 
-	private fileWriteBatch: { resource: URI, content: Uint8Array }[] = [];
+	private fileWriteBatch: { resource: URI; content: Uint8Array }[] = [];
 	private async writeMany() {
 		if (this.fileWriteBatch.length) {
 			const fileBatch = this.fileWriteBatch.splice(0, this.fileWriteBatch.length);

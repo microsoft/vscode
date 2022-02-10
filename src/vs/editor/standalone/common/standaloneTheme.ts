@@ -11,7 +11,7 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 export const IStandaloneThemeService = createDecorator<IStandaloneThemeService>('themeService');
 
 export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
-export type IColors = { [colorId: string]: string; };
+export type IColors = { [colorId: string]: string };
 
 export interface IStandaloneThemeData {
 	base: BuiltinTheme;

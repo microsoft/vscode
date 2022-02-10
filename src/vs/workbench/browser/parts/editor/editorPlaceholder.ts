@@ -18,8 +18,7 @@ import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { EditorOpenContext, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

@@ -30,8 +30,8 @@ export interface IDiffCellInfo extends ICommonCellInfo {
 export interface INotebookTextDiffEditor {
 	notebookOptions: NotebookOptions;
 	readonly textModel?: NotebookTextModel;
-	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase; }>;
-	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel, output: ICellOutputViewModel }>;
+	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: DiffElementViewModelBase }>;
+	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
 	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
 	layoutNotebookCell(cell: DiffElementViewModelBase, height: number): void;

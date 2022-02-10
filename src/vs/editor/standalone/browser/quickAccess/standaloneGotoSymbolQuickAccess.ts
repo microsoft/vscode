@@ -19,6 +19,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 export class StandaloneGotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -26,9 +27,10 @@ export class StandaloneGotoSymbolQuickAccessProvider extends AbstractGotoSymbolQ
 
 	constructor(
 		@ICodeEditorService private readonly editorService: ICodeEditorService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IOutlineModelService outlineModelService: IOutlineModelService,
 	) {
-		super(outlineModelService);
+		super(languageFeaturesService, outlineModelService);
 	}
 
 	protected get activeTextEditorControl() {

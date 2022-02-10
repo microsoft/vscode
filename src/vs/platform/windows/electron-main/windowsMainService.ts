@@ -43,7 +43,8 @@ import { CodeWindow } from 'vs/platform/windows/electron-main/window';
 import { ICodeWindow, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, UnloadReason } from 'vs/platform/windows/electron-main/windows';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { hasWorkspaceFileExtension, IRecent, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IRecent } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -209,13 +210,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				// Allow access to extension development path
 				if (window.config.extensionDevelopmentPath) {
 					for (const extensionDevelopmentPath of window.config.extensionDevelopmentPath) {
-						disposables.add(this.protocolMainService.addValidFileRoot(URI.file(extensionDevelopmentPath)));
+						disposables.add(this.protocolMainService.addValidFileRoot(extensionDevelopmentPath));
 					}
 				}
 
 				// Allow access to extension tests path
 				if (window.config.extensionTestsPath) {
-					disposables.add(this.protocolMainService.addValidFileRoot(URI.file(window.config.extensionTestsPath)));
+					disposables.add(this.protocolMainService.addValidFileRoot(window.config.extensionTestsPath));
 				}
 			}
 		}));
@@ -412,7 +413,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		emptyToOpen: number,
 		filesToOpen: IFilesToOpen | undefined,
 		foldersToAdd: ISingleFolderWorkspacePathToOpen[]
-	): { windows: ICodeWindow[], filesOpenedInWindow: ICodeWindow | undefined } {
+	): { windows: ICodeWindow[]; filesOpenedInWindow: ICodeWindow | undefined } {
 
 		// Keep track of used windows and remember
 		// if files have been opened in one of them
@@ -1098,7 +1099,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return { workspace: getSingleFolderWorkspaceIdentifier(uri), remoteAuthority };
 	}
 
-	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; } {
+	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean } {
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');

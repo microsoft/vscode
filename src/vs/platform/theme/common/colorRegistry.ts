@@ -32,7 +32,7 @@ export interface ColorContribution {
  * @sample `editorSuggestWidget.background` is `--vscode-editorSuggestWidget-background`.
  */
 export function asCssVariableName(colorIdent: ColorIdentifier): string {
-	return `--vscode-${colorIdent.replace('.', '-')}`;
+	return `--vscode-${colorIdent.replace(/\./g, '-')}`;
 }
 
 export const enum ColorTransformType {
@@ -50,7 +50,7 @@ export type ColorTransform =
 	| { op: ColorTransformType.Transparent; value: ColorValue; factor: number }
 	| { op: ColorTransformType.OneOf; values: readonly ColorValue[] }
 	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number }
-	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue, else: ColorValue };
+	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue; else: ColorValue };
 
 export interface ColorDefaults {
 	light: ColorValue | null;
@@ -114,7 +114,7 @@ class ColorRegistry implements IColorRegistry {
 
 	private colorsById: { [key: string]: ColorContribution };
 	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
-	private colorReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
+	private colorReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		this.colorsById = {};

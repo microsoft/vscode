@@ -12,10 +12,10 @@ class ResourcePerformanceMarks {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) {
 
-		type Entry = { name: string; duration: number; };
+		type Entry = { name: string; duration: number };
 		type EntryClassifify = {
-			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; };
-			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; };
+			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 		};
 		for (const item of performance.getEntriesByType('resource')) {
 			telemetryService.publicLog2<Entry, EntryClassifify>('startup.resource.perf', {

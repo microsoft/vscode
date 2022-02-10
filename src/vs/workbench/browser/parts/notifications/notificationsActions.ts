@@ -154,10 +154,10 @@ interface NotificationActionMetrics {
 }
 
 type NotificationActionMetricsClassification = {
-	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	actionLabel: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	silent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	actionLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export class NotificationActionRunner extends ActionRunner {

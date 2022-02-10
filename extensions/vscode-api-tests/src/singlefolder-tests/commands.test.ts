@@ -134,6 +134,17 @@ suite('vscode API - commands', () => {
 			e2 = error;
 		}
 		assert.ok(e2);
+
+
+		// we support strings but only http/https. those we cannot test but we can
+		// enforce that other schemes are treated strict
+		try {
+			await commands.executeCommand('vscode.open', 'file:///some/path/not/http');
+			assert.fail('expecting exception');
+		} catch {
+			assert.ok(true);
+		}
+
 	});
 
 	test('api-command: vscode.open with untitled supports associated resource (#138925)', async function () {

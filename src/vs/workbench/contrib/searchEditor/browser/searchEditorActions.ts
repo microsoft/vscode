@@ -125,6 +125,13 @@ export const openNewSearchEditor =
 			}
 			const selection = activeModel?.getSelection();
 			selected = (selection && activeModel?.getModel()?.getValueInRange(selection)) ?? '';
+
+			if (selection?.isEmpty() && configurationService.getValue<ISearchConfigurationProperties>('search').seedWithNearestWord) {
+				const wordAtPosition = activeModel.getModel()?.getWordAtPosition(selection.getStartPosition());
+				if (wordAtPosition) {
+					selected = wordAtPosition.word;
+				}
+			}
 		} else {
 			if (editorService.activeEditor instanceof SearchEditorInput) {
 				const active = editorService.activeEditorPane as SearchEditor;

@@ -108,7 +108,7 @@ export class BrowserKeyboardMapperFactoryBase {
 		this._keymapInfos.splice(index, 1);
 	}
 
-	getMatchedKeymapInfo(keyMapping: IKeyboardMapping | null): { result: KeymapInfo, score: number } | null {
+	getMatchedKeymapInfo(keyMapping: IKeyboardMapping | null): { result: KeymapInfo; score: number } | null {
 		if (!keyMapping) {
 			return null;
 		}

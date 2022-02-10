@@ -420,7 +420,7 @@ export const enum ScanCode {
 class KeyCodeStrMap {
 
 	public _keyCodeToStr: string[];
-	public _strToKeyCode: { [str: string]: KeyCode; };
+	public _strToKeyCode: { [str: string]: KeyCode };
 
 	constructor() {
 		this._keyCodeToStr = [];
@@ -445,10 +445,10 @@ const uiMap = new KeyCodeStrMap();
 const userSettingsUSMap = new KeyCodeStrMap();
 const userSettingsGeneralMap = new KeyCodeStrMap();
 export const EVENT_KEY_CODE_MAP: { [keyCode: number]: KeyCode } = new Array(230);
-export const NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode; } = {};
+export const NATIVE_WINDOWS_KEY_CODE_TO_KEY_CODE: { [nativeKeyCode: string]: KeyCode } = {};
 const scanCodeIntToStr: string[] = [];
-const scanCodeStrToInt: { [code: string]: number; } = Object.create(null);
-const scanCodeLowerCaseStrToInt: { [code: string]: number; } = Object.create(null);
+const scanCodeStrToInt: { [code: string]: number } = Object.create(null);
+const scanCodeLowerCaseStrToInt: { [code: string]: number } = Object.create(null);
 
 export const ScanCodeUtils = {
 	lowerCaseToEnum: (scanCode: string) => scanCodeLowerCaseStrToInt[scanCode] || ScanCode.None,

@@ -19,7 +19,7 @@ export interface ILanguageFeatureDebounceService {
 
 	readonly _serviceBrand: undefined;
 
-	for(feature: LanguageFeatureRegistry<object>, debugName: string, config?: { min?: number, max?: number, salt?: string }): IFeatureDebounceInformation;
+	for(feature: LanguageFeatureRegistry<object>, debugName: string, config?: { min?: number; max?: number; salt?: string }): IFeatureDebounceInformation;
 }
 
 export interface IFeatureDebounceInformation {
@@ -103,7 +103,7 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 
 	}
 
-	for(feature: LanguageFeatureRegistry<object>, name: string, config?: { min?: number, max?: number, key?: string }): IFeatureDebounceInformation {
+	for(feature: LanguageFeatureRegistry<object>, name: string, config?: { min?: number; max?: number; key?: string }): IFeatureDebounceInformation {
 		const min = config?.min ?? 50;
 		const max = config?.max ?? min ** 2;
 		const extra = config?.key ?? undefined;

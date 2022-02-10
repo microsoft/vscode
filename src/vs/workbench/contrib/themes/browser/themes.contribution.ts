@@ -347,7 +347,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SelectColorThemeCommandId,
-			title: localize('selectTheme.label', "Color Theme"),
+			title: { value: localize('selectTheme.label', "Color Theme"), original: 'Color Theme' },
 			category: CATEGORIES.Preferences,
 			f1: true,
 			keybinding: {
@@ -389,7 +389,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SelectFileIconThemeCommandId,
-			title: localize('selectIconTheme.label', "File Icon Theme"),
+			title: { value: localize('selectIconTheme.label', "File Icon Theme"), original: 'File Icon Theme' },
 			category: CATEGORIES.Preferences,
 			f1: true
 		});
@@ -424,7 +424,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SelectProductIconThemeCommandId,
-			title: localize('selectProductIconTheme.label', "Product Icon Theme"),
+			title: { value: localize('selectProductIconTheme.label', "Product Icon Theme"), original: 'Product Icon Theme' },
 			category: CATEGORIES.Preferences,
 			f1: true
 		});
@@ -453,7 +453,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string, name: string, version: string; }, themeSettingsId?: string) {
+CommandsRegistry.registerCommand('workbench.action.previewColorTheme', async function (accessor: ServicesAccessor, extension: { publisher: string; name: string; version: string }, themeSettingsId?: string) {
 	const themeService = accessor.get(IWorkbenchThemeService);
 
 	const themes = await themeService.getMarketplaceColorThemes(extension.publisher, extension.name, extension.version);
@@ -528,7 +528,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.generateColorTheme',
-			title: localize('generateColorTheme.label', "Generate Color Theme From Current Settings"),
+			title: { value: localize('generateColorTheme.label', "Generate Color Theme From Current Settings"), original: 'Generate Color Theme From Current Settings' },
 			category: CATEGORIES.Developer,
 			f1: true
 		});
@@ -540,7 +540,7 @@ registerAction2(class extends Action2 {
 		const theme = themeService.getColorTheme();
 		const colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
 		const colorIds = colors.map(c => c.id).sort();
-		const resultingColors: { [key: string]: string | null; } = {};
+		const resultingColors: { [key: string]: string | null } = {};
 		const inherited: string[] = [];
 		for (const colorId of colorIds) {
 			const color = theme.getColor(colorId, false);

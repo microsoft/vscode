@@ -22,7 +22,7 @@ import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeServi
 export type Item = string | QuickPickItem;
 
 export interface ExtHostQuickOpen {
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
 	showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
 	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
 	showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<Item | Item[] | undefined>;
@@ -56,7 +56,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._commands = commands;
 		}
 
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
+		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
 		showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
 		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
 		showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Promise<Item | Item[] | undefined> {
@@ -468,12 +468,12 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 	}
 
-	function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI; } | { id: string; } {
+	function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI; light?: URI } | { id: string } {
 		if (iconPath instanceof ThemeIcon) {
 			return { id: iconPath.id };
 		}
-		const dark = getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
-		const light = getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
+		const dark = getDarkIconUri(iconPath as URI | { light: URI; dark: URI });
+		const light = getLightIconUri(iconPath as URI | { light: URI; dark: URI });
 		// Tolerate strings: https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556
 		return {
 			dark: typeof dark === 'string' ? URI.file(dark) : dark,
@@ -481,17 +481,17 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		};
 	}
 
-	function getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+	function getLightIconUri(iconPath: URI | { light: URI; dark: URI }) {
 		return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
 	}
 
-	function getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+	function getDarkIconUri(iconPath: URI | { light: URI; dark: URI }) {
 		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
 	}
 
 	function getIconPathOrClass(button: QuickInputButton) {
 		const iconPathOrIconClass = getIconUris(button.iconPath);
-		let iconPath: { dark: URI; light?: URI | undefined; } | undefined;
+		let iconPath: { dark: URI; light?: URI | undefined } | undefined;
 		let iconClass: string | undefined;
 		if ('id' in iconPathOrIconClass) {
 			iconClass = ThemeIconUtils.asClassName(iconPathOrIconClass);

@@ -7,57 +7,64 @@
 
 const cp = require('child_process');
 const path = require('path');
-const os = require('os');
 const opn = require('opn');
 const crypto = require('crypto');
 const minimist = require('minimist');
 
-const args = minimist(process.argv.slice(2), {
-	boolean: [
-		'help',
-		'launch'
-	],
-	string: [
-		'host',
-		'port',
-		'driver',
-		'connection-token',
-		'server-data-dir'
-	],
-});
+function main() {
 
-if (args.help) {
-	console.log(
-		'./scripts/code-server.sh|bat [options]\n' +
-		' --launch              Opens a browser'
-	);
-	// more help options will be printed by startServer
+	const args = minimist(process.argv.slice(2), {
+		boolean: [
+			'help',
+			'launch'
+		],
+		string: [
+			'host',
+			'port',
+			'driver',
+			'connection-token',
+			'server-data-dir'
+		],
+	});
+
+	if (args.help) {
+		console.log(
+			'./scripts/code-server.sh|bat [options]\n' +
+			' --launch              Opens a browser'
+		);
+		startServer(['--help']);
+		return;
+	}
+
+	const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');
+
+	const HOST = args['host'] ?? 'localhost';
+	const PORT = args['port'] ?? '9888';
+	const TOKEN = args['connection-token'] ?? String(crypto.randomInt(0xffffffff));
+
+	if (args['connection-token'] === undefined && args['connection-token-file'] === undefined && !args['without-connection-token']) {
+		serverArgs.push('--connection-token', TOKEN);
+	}
+	if (args['host'] === undefined) {
+		serverArgs.push('--host', HOST);
+	}
+	if (args['port'] === undefined) {
+		serverArgs.push('--port', PORT);
+	}
+
+	startServer(serverArgs);
+	if (args['launch']) {
+		opn(`http://${HOST}:${PORT}/?tkn=${TOKEN}`);
+	}
 }
 
-const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');
+function startServer(programArgs) {
+	const env = { ...process.env };
 
-const HOST = args['host'] ?? 'localhost';
-const PORT = args['port'] ?? '9888';
-const TOKEN = args['connection-token'] ?? String(crypto.randomInt(0xffffffff));
+	const entryPoint = path.join(__dirname, '..', 'out', 'server-main.js');
 
-if (args['connection-token'] === undefined && args['connection-token-file'] === undefined && !args['without-connection-token']) {
-	serverArgs.push('--connection-token', TOKEN);
-}
-if (args['host'] === undefined) {
-	serverArgs.push('--host', HOST);
-}
-if (args['port'] === undefined) {
-	serverArgs.push('--port', PORT);
-}
-
-const env = { ...process.env };
-
-const entryPoint = path.join(__dirname, '..', 'out', 'server-main.js');
-startServer();
-
-function startServer() {
-	console.log(`Starting server: ${entryPoint} ${serverArgs.join(' ')}`);
-	const proc = cp.spawn(process.execPath, [entryPoint, ...serverArgs], { env, stdio: 'inherit' });
+	console.log(`Starting server: ${entryPoint} ${programArgs.join(' ')}`);
+	const proc = cp.spawn(process.execPath, [entryPoint, ...programArgs], { env, stdio: 'inherit' });
 
 	proc.on('exit', (code) => process.exit(code));
 
@@ -73,6 +80,5 @@ function startServer() {
 
 }
 
-if (args['launch']) {
-	opn(`http://${HOST}:${PORT}/?tkn=${TOKEN}`);
-}
+main();
+

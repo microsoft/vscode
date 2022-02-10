@@ -181,7 +181,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			return URI.revive(icon);
 		}
 		if (typeof icon === 'object' && icon && 'light' in icon && 'dark' in icon) {
-			const castedIcon = (icon as { light: unknown, dark: unknown });
+			const castedIcon = (icon as { light: unknown; dark: unknown });
 			if ((URI.isUri(castedIcon.light) || isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || isUriComponents(castedIcon.dark))) {
 				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
 			}

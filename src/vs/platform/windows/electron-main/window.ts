@@ -35,7 +35,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowsMainService, IWindowState, LoadReason, OpenContext, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export interface IWindowCreationOptions {
@@ -174,7 +174,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-			const options: BrowserWindowConstructorOptions = {
+			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
 				width: this.windowState.width,
 				height: this.windowState.height,
 				x: this.windowState.x,
@@ -192,6 +192,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					spellcheck: false,
 					nativeWindowOpen: true,
 					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
+					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
+					// Refs https://github.com/microsoft/vscode/issues/140098
+					enableBlinkFeatures: 'HighlightAPI',
 					...this.environmentMainService.sandbox ?
 
 						// Sandbox
@@ -204,7 +207,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 							nodeIntegration: true,
 							contextIsolation: false
 						}
-				}
+				},
+				experimentalDarkMode: true
 			};
 
 			// Apply icon to window
@@ -495,9 +499,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(error: WindowError.LOAD, details: { reason: string, exitCode: number }): Promise<void>;
-	private async onWindowError(type: WindowError, details?: { reason: string, exitCode: number }): Promise<void> {
+	private async onWindowError(error: WindowError.CRASHED, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(error: WindowError.LOAD, details: { reason: string; exitCode: number }): Promise<void>;
+	private async onWindowError(type: WindowError, details?: { reason: string; exitCode: number }): Promise<void> {
 
 		switch (type) {
 			case WindowError.CRASHED:
@@ -513,9 +517,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-			code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 		};
 		type WindowErrorEvent = {
 			type: WindowError;

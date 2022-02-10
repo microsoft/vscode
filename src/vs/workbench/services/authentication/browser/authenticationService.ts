@@ -6,11 +6,10 @@
 import { flatten } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -18,12 +17,12 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -31,7 +30,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
-export interface IAccountUsage {
+interface IAccountUsage {
 	extensionId: string;
 	extensionName: string;
 	lastUsed: number;
@@ -90,7 +89,7 @@ export function addAccountUsage(storageService: IStorageService, providerId: str
 	storageService.store(accountKey, JSON.stringify(usages), StorageScope.GLOBAL, StorageTarget.MACHINE);
 }
 
-export type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean };
+export type AuthenticationSessionInfo = { readonly id: string; readonly accessToken: string; readonly providerId: string; readonly canSignOut?: boolean };
 export async function getCurrentAuthenticationSessionInfo(credentialsService: ICredentialsService, productService: IProductService): Promise<AuthenticationSessionInfo | undefined> {
 	const authenticationSessionValue = await credentialsService.getPassword(`${productService.urlProtocol}.login`, 'account');
 	if (authenticationSessionValue) {
@@ -104,55 +103,6 @@ export async function getCurrentAuthenticationSessionInfo(credentialsService: IC
 		}
 	}
 	return undefined;
-}
-
-export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
-
-export interface IAuthenticationService {
-	readonly _serviceBrand: undefined;
-
-	isAuthenticationProviderRegistered(id: string): boolean;
-	getProviderIds(): string[];
-	registerAuthenticationProvider(id: string, provider: IAuthenticationProvider): void;
-	unregisterAuthenticationProvider(id: string): void;
-	isAccessAllowed(providerId: string, accountName: string, extensionId: string): boolean | undefined;
-	updatedAllowedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string, isAllowed: boolean): Promise<void>;
-	showGetSessionPrompt(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<boolean>;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
-	completeSessionAccessRequest(providerId: string, extensionId: string, extensionName: string, scopes: string[]): Promise<void>
-	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
-	sessionsUpdate(providerId: string, event: AuthenticationSessionsChangeEvent): void;
-
-	readonly onDidRegisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
-	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation>;
-
-	readonly onDidChangeSessions: Event<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }>;
-
-	// TODO @RMacfarlane completely remove this property
-	declaredProviders: AuthenticationProviderInformation[];
-	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]>;
-
-	getSessions(id: string, scopes?: string[], activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
-	getLabel(providerId: string): string;
-	supportsMultipleAccounts(providerId: string): boolean;
-	createSession(providerId: string, scopes: string[], activateImmediate?: boolean): Promise<AuthenticationSession>;
-	removeSession(providerId: string, sessionId: string): Promise<void>;
-
-	manageTrustedExtensionsForAccount(providerId: string, accountName: string): Promise<void>;
-	removeAccountSessions(providerId: string, accountName: string, sessions: AuthenticationSession[]): Promise<void>;
-}
-
-export interface IAuthenticationProvider {
-	readonly id: string,
-	readonly label: string,
-	readonly supportsMultipleAccounts: boolean,
-	dispose(): void;
-	manageTrustedExtensions(accountName: string): void;
-	removeAccountSessions(accountName: string, sessions: AuthenticationSession[]): Promise<void>;
-	getSessions(scopes?: string[]): Promise<readonly AuthenticationSession[]>;
-	createSession(scopes: string[]): Promise<AuthenticationSession>;
-	removeSession(sessionId: string): Promise<void>;
 }
 
 export interface AllowedExtension {
@@ -218,7 +168,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	declare readonly _serviceBrand: undefined;
 	private _placeholderMenuItem: IDisposable | undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
-	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[], possibleSessions: AuthenticationSession[] } }>();
+	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[]; possibleSessions: AuthenticationSession[] } }>();
 	private _accountBadgeDisposable = this._register(new MutableDisposable());
 
 	private _authenticationProviders: Map<string, IAuthenticationProvider> = new Map<string, IAuthenticationProvider>();
@@ -234,8 +184,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private _onDidUnregisterAuthenticationProvider: Emitter<AuthenticationProviderInformation> = this._register(new Emitter<AuthenticationProviderInformation>());
 	readonly onDidUnregisterAuthenticationProvider: Event<AuthenticationProviderInformation> = this._onDidUnregisterAuthenticationProvider.event;
 
-	private _onDidChangeSessions: Emitter<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }> = this._register(new Emitter<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }>());
-	readonly onDidChangeSessions: Event<{ providerId: string, label: string, event: AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
+	private _onDidChangeSessions: Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }> = this._register(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
+	readonly onDidChangeSessions: Event<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
 
 	private _onDidChangeDeclaredProviders: Emitter<AuthenticationProviderInformation[]> = this._register(new Emitter<AuthenticationProviderInformation[]>());
 	readonly onDidChangeDeclaredProviders: Event<AuthenticationProviderInformation[]> = this._onDidChangeDeclaredProviders.event;
@@ -415,7 +365,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private removeAccessRequest(providerId: string, extensionId: string): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
 		if (providerRequests[extensionId]) {
-			providerRequests[extensionId].disposables.forEach(d => d.dispose());
+			dispose(providerRequests[extensionId].disposables);
 			delete providerRequests[extensionId];
 			this.updateBadgeCount();
 		}
@@ -491,9 +441,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				reject('No available sessions');
 			}
 
-			const quickPick = this.quickInputService.createQuickPick<{ label: string, session?: AuthenticationSession }>();
+			const quickPick = this.quickInputService.createQuickPick<{ label: string; session?: AuthenticationSession }>();
 			quickPick.ignoreFocusOut = true;
-			const items: { label: string, session?: AuthenticationSession }[] = availableSessions.map(session => {
+			const items: { label: string; session?: AuthenticationSession }[] = availableSessions.map(session => {
 				return {
 					label: session.account.label,
 					session: session

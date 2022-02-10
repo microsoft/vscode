@@ -61,7 +61,7 @@ export async function createIPCServer(context?: string): Promise<IIPCServer> {
 
 export interface IIPCServer extends Disposable {
 	readonly ipcHandlePath: string | undefined;
-	getEnv(): { [key: string]: string; };
+	getEnv(): { [key: string]: string };
 	registerHandler(name: string, handler: IIPCHandler): Disposable;
 }
 
@@ -106,7 +106,7 @@ class IPCServer implements IIPCServer, Disposable {
 		});
 	}
 
-	getEnv(): { [key: string]: string; } {
+	getEnv(): { [key: string]: string } {
 		return { VSCODE_GIT_IPC_HANDLE: this.ipcHandlePath };
 	}
 

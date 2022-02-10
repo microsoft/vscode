@@ -32,7 +32,6 @@ import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/co
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
-	private _untrustedStatusItem: IDisposable | null = null;
 
 	private _renderedInputCollapseState: boolean | undefined;
 	private _renderedOutputCollapseState: boolean | undefined;
@@ -257,10 +256,11 @@ export class CodeCell extends Disposable {
 				return;
 			}
 
-			const primarySelection = this.templateData.editor.getSelection();
+			const selections = this.templateData.editor.getSelections();
 
-			if (primarySelection) {
-				this.notebookEditor.revealLineInViewAsync(this.viewCell, primarySelection.positionLineNumber);
+			if (selections?.length) {
+				const lastSelection = selections[selections.length - 1];
+				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
 			}
 		}));
 
@@ -511,7 +511,6 @@ export class CodeCell extends Disposable {
 		this.viewCell.detachTextEditor();
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
-		this._untrustedStatusItem?.dispose();
 		this.templateData.focusIndicator.left.setHeight(0);
 		this._pendingLayout?.dispose();
 

@@ -99,7 +99,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		};
 	}
 
-	async getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+	async getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }> {
 		const offset = typeof xoffset === 'number' && typeof yoffset === 'number' ? { x: xoffset, y: yoffset } : undefined;
 		return this._getElementXY(selector, offset);
 	}
@@ -176,7 +176,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		});
 	}
 
-	protected async _getElementXY(selector: string, offset?: { x: number, y: number }): Promise<{ x: number; y: number; }> {
+	protected async _getElementXY(selector: string, offset?: { x: number; y: number }): Promise<{ x: number; y: number }> {
 		const element = document.querySelector(selector);
 
 		if (!element) {

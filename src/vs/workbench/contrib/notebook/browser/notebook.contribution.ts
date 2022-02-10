@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { parse } from 'vs/base/common/marshalling';
 import { isEqual } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
@@ -44,7 +44,7 @@ import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/brows
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Event } from 'vs/base/common/event';
-import { getFormatedMetadataJSON, getStreamOutputData } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { getFormattedMetadataJSON, getStreamOutputData } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { NotebookModelResolverServiceImpl } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverServiceImpl';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
@@ -105,6 +105,7 @@ import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/not
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -148,7 +149,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number; };
+		type Data = { resource: URI; originalResource: URI; name: string; originalName: string; viewType: string; textDiffName: string | undefined; group: number };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
@@ -167,7 +168,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 	}
 
 }
-type SerializedNotebookEditorData = { resource: URI, viewType: string, options?: NotebookEditorInputOptions };
+type SerializedNotebookEditorData = { resource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
@@ -336,7 +337,7 @@ class CellInfoContentProvider {
 	}
 
 	dispose(): void {
-		this._disposables.forEach(d => d.dispose());
+		dispose(this._disposables);
 	}
 
 	async provideMetadataTextContent(resource: URI): Promise<ITextModel | null> {
@@ -357,7 +358,7 @@ class CellInfoContentProvider {
 
 		for (const cell of ref.object.notebook.cells) {
 			if (cell.handle === data.handle) {
-				const metadataSource = getFormatedMetadataJSON(ref.object.notebook, cell.metadata, cell.language);
+				const metadataSource = getFormattedMetadataJSON(ref.object.notebook, cell.metadata, cell.language);
 				result = this._modelService.createModel(
 					metadataSource,
 					mode,
@@ -377,7 +378,7 @@ class CellInfoContentProvider {
 		return result;
 	}
 
-	private parseStreamOutput(op?: ICellOutput): { content: string, mode: ILanguageSelection } | undefined {
+	private parseStreamOutput(op?: ICellOutput): { content: string; mode: ILanguageSelection } | undefined {
 		if (!op) {
 			return;
 		}
@@ -398,7 +399,7 @@ class CellInfoContentProvider {
 		handle: number;
 		outputId?: string | undefined;
 	}, cell: NotebookCellTextModel) {
-		let result: { content: string, mode: ILanguageSelection } | undefined = undefined;
+		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
 
 		const mode = this._languageService.createById('json');
 		const op = cell.outputs.find(op => op.outputId === data.outputId);
@@ -615,12 +616,35 @@ class ComplexNotebookWorkingCopyEditorHandler extends Disposable implements IWor
 	}
 }
 
+class NotebookLanguageSelectorScoreRefine {
+
+	constructor(
+		@INotebookService private readonly _notebookService: INotebookService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+	) {
+		languageFeaturesService.setNotebookTypeResolver(this._getNotebookType.bind(this));
+	}
+
+	private _getNotebookType(uri: URI): string | undefined {
+		const cellUri = CellUri.parse(uri);
+		if (!cellUri) {
+			return undefined;
+		}
+		const notebook = this._notebookService.getNotebookTextModel(cellUri.notebook);
+		if (!notebook) {
+			return undefined;
+		}
+		return notebook.viewType;
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
@@ -636,7 +660,7 @@ registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingSe
 registerSingleton(INotebookKeymapService, NotebookKeymapService, true);
 
 const schemas: IJSONSchemaMap = {};
-function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema; }): x is IConfigurationPropertySchema {
+function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {
 	return (typeof x.type !== 'undefined' || typeof x.anyOf !== 'undefined');
 }
 for (const editorOption of editorOptionsRegistry) {

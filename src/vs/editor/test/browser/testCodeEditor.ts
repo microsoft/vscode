@@ -4,26 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
+import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { View } from 'vs/editor/browser/view/view';
+import { View } from 'vs/editor/browser/view';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
-import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestConfiguration } from 'vs/editor/test/browser/config/testConfiguration';
+import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -32,8 +35,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { BrandedService, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -44,8 +47,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { EditorConfiguration, IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
-import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
@@ -76,8 +77,8 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 	public getViewModel(): ViewModel | undefined {
 		return this._modelData ? this._modelData.viewModel : undefined;
 	}
-	public registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T {
-		const r: T = this._instantiationService.createInstance(ctor as IEditorContributionCtor, this);
+	public registerAndInstantiateContribution<T extends IEditorContribution>(id: string, ctor: new (editor: ICodeEditor, ...services: BrandedService[]) => T): T {
+		const r: T = this._instantiationService.createInstance(ctor, this);
 		this._contributions[id] = r;
 		return r;
 	}
@@ -173,6 +174,7 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	define(ICommandService, TestCommandService);
 	define(ITelemetryService, NullTelemetryServiceShape);
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
+	define(ILanguageFeaturesService, LanguageFeaturesService);
 
 	const instantiationService = new TestInstantiationService(services);
 	disposables.add(toDisposable(() => {
