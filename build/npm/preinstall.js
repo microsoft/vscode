@@ -53,7 +53,7 @@ function hasSupportedVisualStudioVersion() {
 	const path = require('path');
 	// Translated over from
 	// https://source.chromium.org/chromium/chromium/src/+/master:build/vs_toolchain.py;l=140-175
-	const supportedVersions = ['2019', '2017'];
+	const supportedVersions = ['2022', '2019', '2017'];
 
 	const availableVersions = [];
 	for (const version of supportedVersions) {
