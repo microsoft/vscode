@@ -709,6 +709,7 @@
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator-container {
+	display: none;
 	position: relative;
 	cursor: pointer;
 	pointer-events: all; /* Take pointer-events in markdown cell */

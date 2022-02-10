@@ -768,6 +768,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				margin-left: ${focusIndicatorLeftMargin}px;
 			}
 
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left .codeOutput-focus-indicator-container,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left .codeOutput-focus-indicator-container {
+				display: block;
+			}
+
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left .codeOutput-focus-indicator-container:hover .codeOutput-focus-indicator,
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left .codeOutput-focus-indicator-container:hover .codeOutput-focus-indicator {
 				border-left: 5px solid transparent;
