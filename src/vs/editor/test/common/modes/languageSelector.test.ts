@@ -95,6 +95,21 @@ suite('LanguageSelector', function () {
 		assert.strictEqual(score(['fooLang', '*', { language: '*', hasAccessToAllModels: true }], doc.uri, doc.langId, false, undefined), 5);
 	});
 
+	test('score, notebookType', function () {
+		let obj = {
+			uri: URI.parse('file:/my/file.js'),
+			langId: 'javascript',
+			notebookType: 'fooBook'
+		};
+
+		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, undefined), 10);
+		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, obj.notebookType), 10);
+		assert.strictEqual(score({ notebookType: 'fooBook' }, obj.uri, obj.langId, true, obj.notebookType), 10);
+		assert.strictEqual(score({ notebookType: 'fooBook', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 10);
+		assert.strictEqual(score({ notebookType: '*', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 5);
+		assert.strictEqual(score({ notebookType: '*', language: 'javascript' }, obj.uri, obj.langId, true, obj.notebookType), 10);
+	});
+
 	test('Document selector match - unexpected result value #60232', function () {
 		let selector = {
 			language: 'json',
