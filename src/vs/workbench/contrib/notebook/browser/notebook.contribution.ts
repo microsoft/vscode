@@ -106,7 +106,6 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFilter, LanguageSelector } from 'vs/editor/common/languageSelector';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -623,46 +622,7 @@ class NotebookLanguageSelectorScoreRefine {
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		languageFeaturesService.setScoreRefineFunction(this._scoreNotebook.bind(this));
-	}
-
-	private _scoreNotebook(baseScore: number, selector: LanguageSelector, candidateUri: URI): number {
-
-		if (Array.isArray(selector)) {
-			// array -> take max individual value
-			let ret = 0;
-			for (const filter of selector) {
-				const value = this._scoreNotebook(baseScore, filter, candidateUri);
-				if (value === 10) {
-					return value; // already at the highest
-				}
-				if (value > ret) {
-					ret = value;
-				}
-			}
-			return ret;
-
-		} else if (typeof selector === 'string') {
-			//  string defaults to { languageId} -> no possibility to express notebook type
-			return baseScore;
-
-		} else {
-			// check for notebookType-selector -> makes this more strict
-			const { notebookType } = selector as LanguageFilter;
-			if (notebookType === undefined) {
-				return baseScore;
-			}
-			const candidateType = this._getNotebookType(candidateUri);
-			if (!candidateType) {
-				return 0; // wanted notebook but isn't notebook...
-			} else if (notebookType === '*') {
-				return 5; // any notebook type
-			} else if (notebookType === candidateType) {
-				return 10;
-			} else {
-				return 0;
-			}
-		}
+		languageFeaturesService.setNotebookTypeResolver(this._getNotebookType.bind(this));
 	}
 
 	private _getNotebookType(uri: URI): string | undefined {

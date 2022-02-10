@@ -3,15 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { LanguageFeatureRegistry, NotebooTypeResolver } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
-import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export interface RefineScoreFunction {
-	(baseScore: number, selector: LanguageSelector, candidateUri: URI, candidateLanguage: string): number;
-}
 
 export const ILanguageFeaturesService = createDecorator<ILanguageFeaturesService>('ILanguageFeaturesService');
 
@@ -75,5 +69,5 @@ export interface ILanguageFeaturesService {
 
 	// --
 
-	setScoreRefineFunction(fn: RefineScoreFunction | undefined): void;
+	setNotebookTypeResolver(resolver: NotebooTypeResolver | undefined): void;
 }
