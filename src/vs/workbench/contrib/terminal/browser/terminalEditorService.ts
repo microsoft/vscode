@@ -267,7 +267,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return instance;
 	}
 
-	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput {
+	reviveInput(deserializedInput: DeserializedTerminalEditorInput): EditorInput {
 		const resource: URI = URI.isUri(deserializedInput) ? deserializedInput : deserializedInput.resource;
 		const inputKey = resource.path;
 
