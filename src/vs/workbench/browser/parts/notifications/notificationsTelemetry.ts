@@ -16,9 +16,9 @@ export interface NotificationMetrics {
 }
 
 export type NotificationMetricsClassification = {
-	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	silent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 };
 
 export function notificationToMetrics(message: NotificationMessage, source: string | undefined, silent: boolean): NotificationMetrics {

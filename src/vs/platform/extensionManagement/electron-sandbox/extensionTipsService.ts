@@ -25,14 +25,14 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type ExeExtensionRecommendationsClassification = {
-	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-	exeName: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	exeName: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 };
 
 type IExeBasedExtensionTips = {
-	readonly exeFriendlyName: string,
-	readonly windowsPath?: string,
-	readonly recommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[];
+	readonly exeFriendlyName: string;
+	readonly windowsPath?: string;
+	readonly recommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[];
 };
 
 const promptedExecutableTipsStorageKey = 'extensionTips/promptedExecutableTips';
@@ -64,9 +64,9 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		super(fileService, productService, requestService, logService);
 		if (productService.exeBasedExtensionTips) {
 			forEach(productService.exeBasedExtensionTips, ({ key, value: exeBasedExtensionTip }) => {
-				const highImportanceRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
-				const mediumImportanceRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
-				const otherRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
+				const highImportanceRecommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[] = [];
+				const mediumImportanceRecommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[] = [];
+				const otherRecommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[] = [];
 				forEach(exeBasedExtensionTip.recommendations, ({ key: extensionId, value }) => {
 					if (value.important) {
 						if (exeBasedExtensionTip.important) {
@@ -130,13 +130,13 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		for (const extensionId of installed) {
 			const tip = importantExeBasedRecommendations.get(extensionId);
 			if (tip) {
-				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: tip.exeName });
+				this.telemetryService.publicLog2<{ exeName: string; extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: tip.exeName });
 			}
 		}
 		for (const extensionId of recommendations) {
 			const tip = importantExeBasedRecommendations.get(extensionId);
 			if (tip) {
-				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: tip.exeName });
+				this.telemetryService.publicLog2<{ exeName: string; extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: tip.exeName });
 			}
 		}
 
@@ -271,7 +271,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		this.storageService.store(promptedExecutableTipsStorageKey, JSON.stringify(promptedExecutableTips), StorageScope.GLOBAL, StorageTarget.USER);
 	}
 
-	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[], uninstalled: string[] } {
+	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[]; uninstalled: string[] } {
 		const installed: string[] = [], uninstalled: string[] = [];
 		const installedExtensionsIds = local.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
 		recommendationsToSuggest.forEach(id => {

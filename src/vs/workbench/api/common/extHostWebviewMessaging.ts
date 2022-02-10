@@ -22,7 +22,7 @@ class ArrayBufferSet {
 export function serializeWebviewMessage(
 	message: any,
 	options: { serializeBuffersForPostMessage?: boolean }
-): { message: string, buffers: VSBuffer[] } {
+): { message: string; buffers: VSBuffer[] } {
 	if (options.serializeBuffersForPostMessage) {
 		// Extract all ArrayBuffers from the message and replace them with references.
 		const arrayBuffers = new ArrayBufferSet();
@@ -83,7 +83,7 @@ function getTypedArrayType(value: ArrayBufferView): extHostProtocol.WebviewMessa
 	return undefined;
 }
 
-export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer[]): { message: any, arrayBuffers: ArrayBuffer[] } {
+export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer[]): { message: any; arrayBuffers: ArrayBuffer[] } {
 	const arrayBuffers: ArrayBuffer[] = buffers.map(buffer => {
 		const arrayBuffer = new ArrayBuffer(buffer.byteLength);
 		const uint8Array = new Uint8Array(arrayBuffer);
@@ -92,7 +92,7 @@ export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer
 	});
 
 	const reviver = !buffers.length ? undefined : (_key: string, value: any) => {
-		if (typeof value === 'object' && (value as extHostProtocol.WebviewMessageArrayBufferReference).$$vscode_array_buffer_reference$$) {
+		if (value && typeof value === 'object' && (value as extHostProtocol.WebviewMessageArrayBufferReference).$$vscode_array_buffer_reference$$) {
 			const ref = value as extHostProtocol.WebviewMessageArrayBufferReference;
 			const { index } = ref;
 			const arrayBuffer = arrayBuffers[index];

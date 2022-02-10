@@ -29,11 +29,6 @@ export const CopyOptions = {
 	forceCopyWithSyntaxHighlighting: false
 };
 
-const enum ReadFromTextArea {
-	Type,
-	Paste
-}
-
 export interface IPasteData {
 	text: string;
 	metadata: ClipboardStoredMetadata | null;
@@ -55,7 +50,7 @@ export interface ClipboardStoredMetadata {
 }
 
 export interface ITextAreaInputHost {
-	getDataToCopy(html: boolean): ClipboardDataToCopy;
+	getDataToCopy(): ClipboardDataToCopy;
 	getScreenReaderContent(currentState: TextAreaState): TextAreaState;
 	deduceModelPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
 }
@@ -201,7 +196,6 @@ export class TextAreaInput extends Disposable {
 
 	private _hasFocus: boolean;
 	private _currentComposition: CompositionContext | null;
-	private _nextCommand: ReadFromTextArea;
 
 	constructor(
 		private readonly _host: ITextAreaInputHost,
@@ -219,7 +213,6 @@ export class TextAreaInput extends Disposable {
 
 		this._hasFocus = false;
 		this._currentComposition = null;
-		this._nextCommand = ReadFromTextArea.Type;
 
 		let lastKeyDown: IKeyboardEvent | null = null;
 
@@ -368,21 +361,13 @@ export class TextAreaInput extends Disposable {
 			}
 
 			this._textAreaState = newState;
-			const typeInputIsNoOp = (
-				typeInput.text === ''
-				&& typeInput.replacePrevCharCnt === 0
-				&& typeInput.replaceNextCharCnt === 0
-				&& typeInput.positionDelta === 0
-			);
-			if (this._nextCommand === ReadFromTextArea.Type) {
-				if (!typeInputIsNoOp) {
-					this._onType.fire(typeInput);
-				}
-			} else {
-				if (!typeInputIsNoOp) {
-					this._firePaste(typeInput.text, null);
-				}
-				this._nextCommand = ReadFromTextArea.Type;
+			if (
+				typeInput.text !== ''
+				|| typeInput.replacePrevCharCnt !== 0
+				|| typeInput.replaceNextCharCnt !== 0
+				|| typeInput.positionDelta !== 0
+			) {
+				this._onType.fire(typeInput);
 			}
 		}));
 
@@ -406,18 +391,24 @@ export class TextAreaInput extends Disposable {
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
 
-			if (ClipboardEventUtils.canUseTextData(e)) {
-				const [pastePlainText, metadata] = ClipboardEventUtils.getTextData(e);
-				if (pastePlainText !== '') {
-					this._firePaste(pastePlainText, metadata);
-				}
-			} else {
-				if (this._textArea.getSelectionStart() !== this._textArea.getSelectionEnd()) {
-					// Clean up the textarea, to get a clean paste
-					this._setAndWriteTextAreaState('paste', TextAreaState.EMPTY);
-				}
-				this._nextCommand = ReadFromTextArea.Paste;
+			e.preventDefault();
+
+			if (!e.clipboardData) {
+				return;
 			}
+
+			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			if (!text) {
+				return;
+			}
+
+			// try the in-memory store
+			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
+
+			this._onPaste.fire({
+				text: text,
+				metadata: metadata
+			});
 		}));
 
 		this._register(this._textArea.onFocus(() => {
@@ -623,7 +614,7 @@ export class TextAreaInput extends Disposable {
 	}
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
-		const dataToCopy = this._host.getDataToCopy(ClipboardEventUtils.canUseTextData(e));
+		const dataToCopy = this._host.getDataToCopy();
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
@@ -637,73 +628,39 @@ export class TextAreaInput extends Disposable {
 			storedMetadata
 		);
 
-		if (!ClipboardEventUtils.canUseTextData(e)) {
-			// Looks like an old browser. The strategy is to place the text
-			// we'd like to be copied to the clipboard in the textarea and select it.
-			this._setAndWriteTextAreaState('copy or cut', TextAreaState.selectedText(dataToCopy.text));
-			return;
+		e.preventDefault();
+		if (e.clipboardData) {
+			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
 		}
-
-		ClipboardEventUtils.setTextData(e, dataToCopy.text, dataToCopy.html, storedMetadata);
-	}
-
-	private _firePaste(text: string, metadata: ClipboardStoredMetadata | null): void {
-		if (!metadata) {
-			// try the in-memory store
-			metadata = InMemoryClipboardMetadataManager.INSTANCE.get(text);
-		}
-		this._onPaste.fire({
-			text: text,
-			metadata: metadata
-		});
 	}
 }
 
 class ClipboardEventUtils {
 
-	public static canUseTextData(e: ClipboardEvent): boolean {
-		if (e.clipboardData) {
-			return true;
-		}
-		return false;
-	}
-
-	public static getTextData(e: ClipboardEvent): [string, ClipboardStoredMetadata | null] {
-		if (e.clipboardData) {
-			e.preventDefault();
-
-			const text = e.clipboardData.getData(Mimes.text);
-			let metadata: ClipboardStoredMetadata | null = null;
-			const rawmetadata = e.clipboardData.getData('vscode-editor-data');
-			if (typeof rawmetadata === 'string') {
-				try {
-					metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
-					if (metadata.version !== 1) {
-						metadata = null;
-					}
-				} catch (err) {
-					// no problem!
+	public static getTextData(clipboardData: DataTransfer): [string, ClipboardStoredMetadata | null] {
+		const text = clipboardData.getData(Mimes.text);
+		let metadata: ClipboardStoredMetadata | null = null;
+		const rawmetadata = clipboardData.getData('vscode-editor-data');
+		if (typeof rawmetadata === 'string') {
+			try {
+				metadata = <ClipboardStoredMetadata>JSON.parse(rawmetadata);
+				if (metadata.version !== 1) {
+					metadata = null;
 				}
+			} catch (err) {
+				// no problem!
 			}
-
-			return [text, metadata];
 		}
 
-		throw new Error('ClipboardEventUtils.getTextData: Cannot use text data!');
+		return [text, metadata];
 	}
 
-	public static setTextData(e: ClipboardEvent, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
-		if (e.clipboardData) {
-			e.clipboardData.setData(Mimes.text, text);
-			if (typeof html === 'string') {
-				e.clipboardData.setData('text/html', html);
-			}
-			e.clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
-			e.preventDefault();
-			return;
+	public static setTextData(clipboardData: DataTransfer, text: string, html: string | null | undefined, metadata: ClipboardStoredMetadata): void {
+		clipboardData.setData(Mimes.text, text);
+		if (typeof html === 'string') {
+			clipboardData.setData('text/html', html);
 		}
-
-		throw new Error('ClipboardEventUtils.setTextData: Cannot use text data!');
+		clipboardData.setData('vscode-editor-data', JSON.stringify(metadata));
 	}
 }
 

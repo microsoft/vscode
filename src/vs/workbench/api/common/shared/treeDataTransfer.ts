@@ -19,7 +19,8 @@ export namespace TreeDataTransferConverter {
 		const newDataTransfer: ITreeDataTransfer = new Map<string, ITreeDataTransferItem>();
 		value.types.forEach((type, index) => {
 			newDataTransfer.set(type, {
-				asString: async () => value.items[index].asString
+				asString: async () => value.items[index].asString,
+				value: undefined
 			});
 		});
 		return newDataTransfer;

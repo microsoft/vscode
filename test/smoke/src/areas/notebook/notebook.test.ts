@@ -8,7 +8,7 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe('Notebooks', () => {
+	describe.skip('Notebooks', () => { // TODO@rebornix https://github.com/microsoft/vscode/issues/140575
 
 		// Shared before/after handling
 		installAllHandlers(logger);

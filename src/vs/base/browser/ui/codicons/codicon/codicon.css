@@ -15,6 +15,7 @@
 	text-decoration: none;
 	text-rendering: auto;
 	text-align: center;
+	text-transform: none;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	user-select: none;

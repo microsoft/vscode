@@ -49,7 +49,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 	constructor(private trait: Trait<T>) { }
 
 	get templateId(): string {
-		return `template:${this.trait.trait}`;
+		return `template:${this.trait.name}`;
 	}
 
 	renderTemplate(container: HTMLElement): ITraitTemplateData {
@@ -117,7 +117,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	private readonly _onChange = new Emitter<ITraitChangeEvent>();
 	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
 
-	get trait(): string { return this._trait; }
+	get name(): string { return this._trait; }
 
 	@memoize
 	get renderer(): TraitRenderer<T> {

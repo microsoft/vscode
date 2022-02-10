@@ -86,7 +86,7 @@ export class Source {
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	static getEncodedDebugData(modelUri: URI): { name: string, path: string, sessionId?: string, sourceReference?: number } {
+	static getEncodedDebugData(modelUri: URI): { name: string; path: string; sessionId?: string; sourceReference?: number } {
 		let path: string;
 		let sourceReference: number | undefined;
 		let sessionId: string | undefined;
@@ -99,7 +99,7 @@ export class Source {
 				path = modelUri.path;
 				if (modelUri.query) {
 					const keyvalues = modelUri.query.split('&');
-					for (let keyvalue of keyvalues) {
+					for (const keyvalue of keyvalues) {
 						const pair = keyvalue.split('=');
 						if (pair.length === 2) {
 							switch (pair[0]) {

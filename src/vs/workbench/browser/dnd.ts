@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer } from 'vs/base/common/buffer';
 import Severity from 'vs/base/common/severity';
-import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -19,7 +19,7 @@ import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Mimes } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -31,8 +31,13 @@ import { Emitter } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ITreeDataTransfer } from 'vs/workbench/common/views';
+import { selectionFragment } from 'vs/platform/opener/common/opener';
+import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
+import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 
 //#region Editor / Resources DND
 
@@ -44,6 +49,11 @@ export class DraggedEditorIdentifier {
 export class DraggedEditorGroupIdentifier {
 
 	constructor(readonly identifier: GroupIdentifier) { }
+}
+
+export class DraggedTreeItemsIdentifier {
+
+	constructor(readonly identifier: string) { }
 }
 
 export const CodeDataTransfers = {
@@ -74,14 +84,7 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 		else {
 			try {
 				const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
-				if (rawResourcesData) {
-					const resourcesRaw: string[] = JSON.parse(rawResourcesData);
-					for (const resourceRaw of resourcesRaw) {
-						if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
-							editors.push({ resource: URI.parse(resourceRaw) });
-						}
-					}
-				}
+				editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 			} catch (error) {
 				// Invalid transfer
 			}
@@ -127,6 +130,45 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 			}
 		}
 	}
+
+	return editors;
+}
+
+function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string | undefined): IDraggedResourceEditorInput[] {
+	const editors: IDraggedResourceEditorInput[] = [];
+
+	if (rawResourcesData) {
+		const resourcesRaw: string[] = JSON.parse(rawResourcesData);
+		for (const resourceRaw of resourcesRaw) {
+			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
+				const resource = URI.parse(resourceRaw);
+				editors.push({
+					resource,
+					options: {
+						selection: selectionFragment(resource)
+					}
+				});
+			}
+		}
+	}
+
+	return editors;
+}
+
+export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
+	const editors: IDraggedResourceEditorInput[] = [];
+	const resourcesKey = DataTransfers.RESOURCES.toLowerCase();
+
+	// Data Transfer: Resources
+	if (dataTransfer.has(resourcesKey)) {
+		try {
+			const rawResourcesData = await dataTransfer.get(resourcesKey)?.asString();
+			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
+		} catch (error) {
+			// Invalid transfer
+		}
+	}
+
 	return editors;
 }
 
@@ -364,7 +406,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		if (isEditorIdentifier(resourceOrEditor)) {
 			editor = resourceOrEditor.editor.toUntyped({ preserveViewState: resourceOrEditor.groupId });
 		} else if (URI.isUri(resourceOrEditor)) {
-			editor = { resource: resourceOrEditor };
+			const selection = selectionFragment(resourceOrEditor);
+			editor = { resource: resourceOrEditor, options: selection ? { selection } : undefined };
 		} else if (!resourceOrEditor.isDirectory) {
 			editor = { resource: resourceOrEditor.resource };
 		}
@@ -383,9 +426,9 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 				const textFileModel = textFileService.files.get(resource);
 				if (textFileModel) {
 
-					// mode
-					if (typeof editor.mode !== 'string') {
-						editor.mode = textFileModel.getMode();
+					// language
+					if (typeof editor.languageId !== 'string') {
+						editor.languageId = textFileModel.getLanguageId();
 					}
 
 					// encoding
@@ -730,7 +773,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		return this._register(disposableStore);
 	}
 
-	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType, id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
+	registerDraggable(element: HTMLElement, draggedItemProvider: () => { type: ViewType; id: string }, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
 		element.draggable = true;
 
 		const disposableStore = new DisposableStore();
@@ -823,6 +866,43 @@ export function toggleDropEffect(dataTransfer: DataTransfer | null, dropEffect: 
 	}
 
 	dataTransfer.dropEffect = shouldHaveIt ? dropEffect : 'none';
+}
+
+export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
+	constructor(
+		private readonly toResource: (e: T) => URI | null,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) { }
+
+	getDragURI(element: T): string | null {
+		const resource = this.toResource(element);
+		return resource ? resource.toString() : null;
+	}
+
+	getDragLabel(elements: T[]): string | undefined {
+		const resources = coalesce(elements.map(this.toResource));
+		return resources.length === 1 ? basename(resources[0]) : resources.length > 1 ? String(resources.length) : undefined;
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		const resources: URI[] = [];
+		for (const element of (data as ElementsDragAndDropData<T>).elements) {
+			const resource = this.toResource(element);
+			if (resource) {
+				resources.push(resource);
+			}
+		}
+		if (resources.length) {
+			// Apply some datatransfer types to allow for dragging the element outside of the application
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
+		}
+	}
+
+	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+		return false;
+	}
+
+	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void { }
 }
 
 //#endregion

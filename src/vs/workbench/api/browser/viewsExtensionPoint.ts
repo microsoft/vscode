@@ -401,7 +401,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private addViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
 		const viewIds: Set<string> = new Set<string>();
-		const allViewDescriptors: { views: IViewDescriptor[], viewContainer: ViewContainer }[] = [];
+		const allViewDescriptors: { views: IViewDescriptor[]; viewContainer: ViewContainer }[] = [];
 
 		for (const extension of extensions) {
 			const { value, collector } = extension;

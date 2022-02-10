@@ -11,9 +11,9 @@ import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement } fro
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
 import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 
-type SerializedTree = { e: string; children?: SerializedTree[], data?: string };
+type SerializedTree = { e: string; children?: SerializedTree[]; data?: string };
 
 const element = document.createElement('div');
 element.style.height = '1000px';

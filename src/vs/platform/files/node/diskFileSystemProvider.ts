@@ -21,12 +21,12 @@ import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs'
 import { localize } from 'vs/nls';
 import { createFileSystemProviderError, FileAtomicReadOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { NodeJSFileWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
-import { ParcelWatcherClient } from 'vs/platform/files/node/watcher/parcel/parcelWatcherClient';
-import { AbstractRecursiveWatcherClient, IDiskFileChange, ILogMessage, IWatchRequest } from 'vs/platform/files/common/watcher';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
-import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
+import { AbstractDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { UniversalWatcherClient } from 'vs/platform/files/node/watcher/watcherClient';
+import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodejsClient';
 
 /**
  * Enable graceful-fs very early from here to have it enabled
@@ -40,31 +40,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 	}
 })();
 
-export interface IWatcherOptions {
-
-	/**
-	 * If `true`, will enable polling for all watchers, otherwise
-	 * will enable it for paths included in the string array.
-	 *
-	 * @deprecated this only exists for WSL1 support and should never
-	 * be used in any other case.
-	 */
-	usePolling: boolean | string[];
-
-	/**
-	 * If polling is enabled (via `usePolling`), defines the duration
-	 * in which the watcher will poll for changes.
-	 *
-	 * @deprecated this only exists for WSL1 support and should never
-	 * be used in any other case.
-	 */
-	pollingInterval?: number;
-}
-
-export interface IDiskFileSystemProviderOptions {
-	watcher?: IWatcherOptions;
-}
-
 export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider implements
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
@@ -74,14 +49,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	constructor(
 		logService: ILogService,
-		private readonly options?: IDiskFileSystemProviderOptions
+		options?: IDiskFileSystemProviderOptions
 	) {
-		super(logService);
+		super(logService, options);
 	}
 
 	//#region File Capabilities
 
-	readonly onDidChangeCapabilities: Event<void> = Event.None;
+	readonly onDidChangeCapabilities = Event.None;
 
 	private _capabilities: FileSystemProviderCapabilities | undefined;
 	get capabilities(): FileSystemProviderCapabilities {
@@ -410,20 +385,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let bytesRead: number | null = null;
 		try {
-			const result = await Promises.read(fd, data, offset, length, normalizedPos);
-
-			if (typeof result === 'number') {
-				bytesRead = result; // node.d.ts fail
-			} else {
-				bytesRead = result.bytesRead;
-			}
-
-			return bytesRead;
+			bytesRead = (await Promises.read(fd, data, offset, length, normalizedPos)).bytesRead;
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
 			this.updatePos(fd, normalizedPos, bytesRead);
 		}
+
+		return bytesRead;
 	}
 
 	private normalizePos(fd: number, pos: number): number | null {
@@ -496,20 +465,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		let bytesWritten: number | null = null;
 		try {
-			const result = await Promises.write(fd, data, offset, length, normalizedPos);
-
-			if (typeof result === 'number') {
-				bytesWritten = result; // node.d.ts fail
-			} else {
-				bytesWritten = result.bytesWritten;
-			}
-
-			return bytesWritten;
+			bytesWritten = (await Promises.write(fd, data, offset, length, normalizedPos)).bytesWritten;
 		} catch (error) {
 			throw await this.toFileSystemProviderWriteError(this.writeHandles.get(fd), error);
 		} finally {
 			this.updatePos(fd, normalizedPos, bytesWritten);
 		}
+
+		return bytesWritten;
 	}
 
 	//#endregion
@@ -621,47 +584,20 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	//#region File Watching
 
-	protected createRecursiveWatcher(
+	protected createUniversalWatcher(
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
-	): AbstractRecursiveWatcherClient {
-		return new ParcelWatcherClient(
-			changes => onChange(changes),
-			msg => onLogMessage(msg),
-			verboseLogging
-		);
-	}
-
-	protected override doWatch(watcher: AbstractRecursiveWatcherClient, requests: IWatchRequest[]): Promise<void> {
-		const usePolling = this.options?.watcher?.usePolling;
-		if (usePolling === true) {
-			for (const request of requests) {
-				request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
-			}
-		} else if (Array.isArray(usePolling)) {
-			for (const request of requests) {
-				if (usePolling.includes(request.path)) {
-					request.pollingInterval = this.options?.watcher?.pollingInterval ?? 5000;
-				}
-			}
-		}
-
-		return super.doWatch(watcher, requests);
+	): AbstractUniversalWatcherClient {
+		return new UniversalWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging);
 	}
 
 	protected createNonRecursiveWatcher(
-		path: string,
 		onChange: (changes: IDiskFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
-	): IDisposable & { setVerboseLogging: (verboseLogging: boolean) => void } {
-		return new NodeJSFileWatcher(
-			path,
-			changes => onChange(changes),
-			msg => onLogMessage(msg),
-			verboseLogging
-		);
+	): AbstractNonRecursiveWatcherClient {
+		return new NodeJSWatcherClient(changes => onChange(changes), msg => onLogMessage(msg), verboseLogging);
 	}
 
 	//#endregion

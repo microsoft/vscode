@@ -8,7 +8,7 @@ import { EditorActivation, EditorResolution, IResourceEditorInput } from 'vs/pla
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestEditorWithOptions, TestTextFileEditor, TestSingletonFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestSingletonFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -27,6 +27,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { UnknownErrorEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 
 suite('EditorService', () => {
 
@@ -90,7 +91,7 @@ suite('EditorService', () => {
 		assert.strictEqual(service.visibleEditorPanes.length, 1);
 		assert.strictEqual(service.visibleEditorPanes[0], editor);
 		assert.ok(!service.activeTextEditorControl);
-		assert.ok(!service.activeTextEditorMode);
+		assert.ok(!service.activeTextEditorLanguageId);
 		assert.strictEqual(service.visibleTextEditorControls.length, 0);
 		assert.strictEqual(service.isOpened(input), true);
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
@@ -1407,9 +1408,8 @@ suite('EditorService', () => {
 		let pane = await service.openEditor(new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID));
 		pane = await service.openEditor(new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID), { sticky: true, preserveFocus: true });
 
-		assert.ok(pane instanceof TestEditorWithOptions);
-		assert.strictEqual(pane.lastSetOptions?.sticky, true);
-		assert.strictEqual(pane.lastSetOptions?.preserveFocus, true);
+		assert.strictEqual(pane?.options?.sticky, true);
+		assert.strictEqual(pane?.options?.preserveFocus, true);
 
 		await pane.group?.closeAllEditors();
 
@@ -1418,16 +1418,15 @@ suite('EditorService', () => {
 		pane = await service.openEditor({ resource: URI.file('resource-openEditors'), options: { sticky: true, preserveFocus: true } });
 
 		assert.ok(pane instanceof TestTextFileEditor);
-		assert.strictEqual(pane.lastSetOptions?.sticky, true);
-		assert.strictEqual(pane.lastSetOptions?.preserveFocus, true);
+		assert.strictEqual(pane?.options?.sticky, true);
+		assert.strictEqual(pane?.options?.preserveFocus, true);
 
 		// Untyped editor (with registered editor)
 		pane = await service.openEditor({ resource: URI.file('file.editor-service-override-tests') });
 		pane = await service.openEditor({ resource: URI.file('file.editor-service-override-tests'), options: { sticky: true, preserveFocus: true } });
 
-		assert.ok(pane instanceof TestEditorWithOptions);
-		assert.strictEqual(pane.lastSetOptions?.sticky, true);
-		assert.strictEqual(pane.lastSetOptions?.preserveFocus, true);
+		assert.strictEqual(pane?.options?.sticky, true);
+		assert.strictEqual(pane?.options?.preserveFocus, true);
 	});
 
 	test('isOpen() with side by side editor', async () => {
@@ -2012,7 +2011,7 @@ suite('EditorService', () => {
 
 		assert.strictEqual(service.activeEditorPane, editor);
 		assert.strictEqual(service.activeTextEditorControl, editor?.getControl());
-		assert.strictEqual(service.activeTextEditorMode, 'plaintext');
+		assert.strictEqual(service.activeTextEditorLanguageId, PLAINTEXT_LANGUAGE_ID);
 	});
 
 	test('openEditor returns NULL when opening fails or is inactive', async function () {

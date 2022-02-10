@@ -24,6 +24,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ILogService } from 'vs/platform/log/common/log';
 
 function isSilentKeyCode(keyCode: KeyCode) {
 	return keyCode < KeyCode.Digit0;
@@ -43,10 +44,13 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@ILogService private readonly logService: ILogService
 	) { }
 
 	async registerWindowDriver(windowId: number): Promise<IDriverOptions> {
+		this.logService.info(`[driver] registerWindowDriver(${windowId})`);
+
 		this.registeredWindowIds.add(windowId);
 		this.reloadingWindowIds.delete(windowId);
 		this.onDidReloadingChange.fire();
@@ -54,22 +58,25 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	async reloadWindowDriver(windowId: number): Promise<void> {
+		this.logService.info(`[driver] reloadWindowDriver(${windowId})`);
+
 		this.reloadingWindowIds.add(windowId);
 	}
 
 	async getWindowIds(): Promise<number[]> {
-		return this.windowsMainService.getWindows()
-			.map(w => w.id)
-			.filter(id => this.registeredWindowIds.has(id) && !this.reloadingWindowIds.has(id));
+		const windowIds = this.windowsMainService.getWindows()
+			.map(window => window.id)
+			.filter(windowId => this.registeredWindowIds.has(windowId) && !this.reloadingWindowIds.has(windowId));
+
+		return windowIds;
 	}
 
 	async capturePage(windowId: number): Promise<string> {
-		await this.whenUnfrozen(windowId);
-
 		const window = this.windowsMainService.getWindowById(windowId) ?? this.windowsMainService.getLastActiveWindow(); // fallback to active window to ensure we capture window
 		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
+
 		const webContents = window.win.webContents;
 		const image = await webContents.capturePage();
 		return image.toPNG().toString('base64');
@@ -91,17 +98,22 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 	}
 
 	async reloadWindow(windowId: number): Promise<void> {
+		this.logService.info(`[driver] reloadWindow(${windowId})`);
+
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsMainService.getWindowById(windowId);
 		if (!window) {
 			throw new Error('Invalid window');
 		}
+
 		this.reloadingWindowIds.add(windowId);
 		this.lifecycleMainService.reload(window);
 	}
 
 	exitApplication(): Promise<boolean> {
+		this.logService.info(`[driver] exitApplication()`);
+
 		return this.lifecycleMainService.quit();
 	}
 
@@ -188,7 +200,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return await windowDriver.getElements(selector, recursive);
 	}
 
-	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number; }> {
+	async getElementXY(windowId: number, selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		return await windowDriver.getElementXY(selector, xoffset, yoffset);
 	}

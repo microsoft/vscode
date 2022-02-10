@@ -7,9 +7,10 @@ import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { Condition, conditionalRegistration, requireConfiguration, requireMinVersion } from '../utils/dependentRegistration';
+import { Condition, conditionalRegistration, requireMinVersion } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
 import { DocumentSelector } from '../utils/documentSelector';
+import { LanguageDescription } from '../utils/languageDescription';
 import * as typeConverters from '../utils/typeConverters';
 
 class TagClosing extends Disposable {
@@ -139,29 +140,34 @@ class TagClosing extends Disposable {
 	}
 }
 
-function requireActiveDocument(
-	selector: vscode.DocumentSelector
+function requireActiveDocumentSetting(
+	selector: vscode.DocumentSelector,
+	language: LanguageDescription,
 ) {
 	return new Condition(
 		() => {
 			const editor = vscode.window.activeTextEditor;
-			return !!(editor && vscode.languages.match(selector, editor.document));
+			if (!editor || !vscode.languages.match(selector, editor.document)) {
+				return false;
+			}
+
+			return !!vscode.workspace.getConfiguration(language.id, editor.document).get('autoClosingTags');
 		},
 		handler => {
 			return vscode.Disposable.from(
 				vscode.window.onDidChangeActiveTextEditor(handler),
-				vscode.workspace.onDidOpenTextDocument(handler));
+				vscode.workspace.onDidOpenTextDocument(handler),
+				vscode.workspace.onDidChangeConfiguration(handler));
 		});
 }
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 ) {
 	return conditionalRegistration([
 		requireMinVersion(client, TagClosing.minVersion),
-		requireConfiguration(modeId, 'autoClosingTags'),
-		requireActiveDocument(selector.syntax)
+		requireActiveDocumentSetting(selector.syntax, language)
 	], () => new TagClosing(client));
 }

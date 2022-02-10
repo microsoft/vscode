@@ -29,7 +29,7 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 	private window: BrowserWindow | undefined = undefined;
 	private windowCloseListener: ((event: ElectronEvent) => void) | undefined = undefined;
 
-	private readonly _onDidError = this._register(new Emitter<{ type: WindowError, details?: { reason: string, exitCode: number } }>());
+	private readonly _onDidError = this._register(new Emitter<{ type: WindowError; details?: { reason: string; exitCode: number } }>());
 	readonly onDidError = Event.buffer(this._onDidError.event); // buffer until we have a listener!
 
 	constructor(

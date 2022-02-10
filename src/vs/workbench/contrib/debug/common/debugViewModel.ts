@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_SET_EXPRESSION_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugSession, IExpression, IStackFrame, IThread, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export class ViewModel implements IViewModel {
@@ -17,7 +17,7 @@ export class ViewModel implements IViewModel {
 	private _focusedThread: IThread | undefined;
 	private selectedExpression: { expression: IExpression; settingWatch: boolean } | undefined;
 	private readonly _onDidFocusSession = new Emitter<IDebugSession | undefined>();
-	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined, explicit: boolean }>();
+	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined; explicit: boolean }>();
 	private readonly _onDidSelectExpression = new Emitter<{ expression: IExpression; settingWatch: boolean } | undefined>();
 	private readonly _onWillUpdateViews = new Emitter<void>();
 	private expressionSelectedContextKey!: IContextKey<boolean>;
@@ -103,7 +103,7 @@ export class ViewModel implements IViewModel {
 		return this._onDidFocusSession.event;
 	}
 
-	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }> {
+	get onDidFocusStackFrame(): Event<{ stackFrame: IStackFrame | undefined; explicit: boolean }> {
 		return this._onDidFocusStackFrame.event;
 	}
 

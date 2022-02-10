@@ -45,8 +45,8 @@ declare module 'vscode' {
 		 * always be at index 0.
 		 */
 		readonly additionalResourcesAndViewIds: readonly {
-			readonly resource: Uri | undefined,
-			readonly viewId: string | undefined
+			readonly resource: Uri | undefined;
+			readonly viewId: string | undefined;
 		}[];
 
 		/**

@@ -28,7 +28,7 @@ class WindowDriver extends BaseWindowDriver {
 		return this._click(selector, 2);
 	}
 
-	private async _click(selector: string, clickCount: number, offset?: { x: number, y: number }): Promise<void> {
+	private async _click(selector: string, clickCount: number, offset?: { x: number; y: number }): Promise<void> {
 		const { x, y } = await this._getElementXY(selector, offset);
 
 		await this.nativeHostService.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
@@ -55,11 +55,6 @@ export async function registerWindowDriver(accessor: ServicesAccessor, windowId:
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
 	await windowDriverRegistry.registerWindowDriver(windowId);
-	// const options = await windowDriverRegistry.registerWindowDriver(windowId);
-
-	// if (options.verbose) {
-	// 	windowDriver.openDevTools();
-	// }
 
 	return toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
 }

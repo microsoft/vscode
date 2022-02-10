@@ -8,7 +8,7 @@ import { addDisposableListener } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IAction } from 'vs/base/common/actions';
 import { ThrottledDelayer } from 'vs/base/common/async';
-import { streamToBuffer } from 'vs/base/common/buffer';
+import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -27,10 +27,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { WebviewPortMappingManager } from 'vs/platform/webview/common/webviewPortMapping';
-import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri, decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from 'vs/workbench/common/webview';
 import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/browser/resourceLoading';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewMessageReceivedEvent, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
@@ -48,6 +48,8 @@ export const enum WebviewMessageChannels {
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
 	setConfirmBeforeClose = 'set-confirm-before-close',
+	loadResource = 'load-resource',
+	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
 	wheel = 'did-scroll-wheel',
 	fatalError = 'fatal-error',
@@ -55,28 +57,7 @@ export const enum WebviewMessageChannels {
 	didKeydown = 'did-keydown',
 	didKeyup = 'did-keyup',
 	didContextMenu = 'did-context-menu',
-
-	// Service worker
-	initServiceWorker = 'init-service-worker',
-	didInitServiceWorker = 'did-init-service-worker',
 }
-
-const enum ServiceWorkerMessages {
-	// From
-	loadResource = 'load-resource',
-	loadLocalhost = 'load-localhost',
-
-	// To
-	didLoadLocalHost = 'did-load-localhost',
-	didLoadResource = 'did-load-resource',
-}
-
-type ResponseResponse =
-	| { readonly status: 200; id: number; path: string; mime: string; data: Uint8Array; etag: string | undefined; mtime: number | undefined; } // success
-	| { readonly status: 304; id: number; path: string; mime: string; mtime: number | undefined } // not modified
-	| { readonly status: 401; id: number; path: string } // unauthorized
-	| { readonly status: 404; id: number; path: string } // not found
-	;
 
 interface IKeydownEvent {
 	key: string;
@@ -102,7 +83,11 @@ namespace WebviewState {
 		readonly type = Type.Initializing;
 
 		constructor(
-			public readonly pendingMessages: Array<{ readonly channel: string, readonly data?: any }>
+			public readonly pendingMessages: Array<{
+				readonly channel: string;
+				readonly data?: any;
+				readonly transferable: Transferable[];
+			}>
 		) { }
 	}
 
@@ -118,7 +103,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 	protected get platform(): string { return 'browser'; }
 
-	private readonly _expectedServiceWorkerVersion = 3; // Keep this in sync with the version in service-worker.js
+	private readonly _expectedServiceWorkerVersion = 4; // Keep this in sync with the version in service-worker.js
 
 	private _element: HTMLIFrameElement | undefined;
 	protected get element(): HTMLIFrameElement | undefined { return this._element; }
@@ -217,6 +202,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				this.messagePort = e.ports[0];
 				this.messagePort.onmessage = (e) => {
 					const handlers = this._messageHandlers.get(e.data.channel);
+					if (!handlers) {
+						console.log(`No handlers found for '${e.data.channel}'`);
+						return;
+					}
 					handlers?.forEach(handler => handler(e.data.data, e));
 				};
 
@@ -239,7 +228,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this._onDidClickLink.fire(uri);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.onmessage, (data: { message: any, transfer?: ArrayBuffer[] }) => {
+		this._register(this.on(WebviewMessageChannels.onmessage, (data: { message: any; transfer?: ArrayBuffer[] }) => {
 			this._onMessage.fire({
 				message: data.message,
 				transfer: data.transfer,
@@ -290,7 +279,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			this.handleKeyEvent('keyup', data);
 		}));
 
-		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number, clientY: number }) => {
+		this._register(this.on(WebviewMessageChannels.didContextMenu, (data: { clientX: number; clientY: number }) => {
 			if (!this.element) {
 				return;
 			}
@@ -313,61 +302,28 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			});
 		}));
 
-		this._register(this.on(WebviewMessageChannels.initServiceWorker, (_, e) => {
-			const swPort = e.ports[0];
-			swPort.onmessage = async (e) => {
-				switch (e.data.channel) {
-					case ServiceWorkerMessages.loadResource:
-						{
-							const entry = e.data;
-							try {
-								// Restore the authority we previously encoded
-								const authority = decodeAuthority(entry.authority);
-								const uri = URI.from({
-									scheme: entry.scheme,
-									authority: authority,
-									path: decodeURIComponent(entry.path), // This gets re-encoded
-									query: entry.query ? decodeURIComponent(entry.query) : entry.query,
-								});
+		this._register(this.on(WebviewMessageChannels.loadResource, async (entry: { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string }) => {
+			try {
+				// Restore the authority we previously encoded
+				const authority = decodeAuthority(entry.authority);
+				const uri = URI.from({
+					scheme: entry.scheme,
+					authority: authority,
+					path: decodeURIComponent(entry.path), // This gets re-encoded
+					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
+				});
+				this.loadResource(entry.id, uri, entry.ifNoneMatch);
+			} catch (e) {
+				this._send('did-load-resource', {
+					id: entry.id,
+					status: 404,
+					path: entry.path,
+				});
+			}
+		}));
 
-								const body = await this.loadResource(entry.id, uri, entry.ifNoneMatch);
-								return swPort.postMessage({
-									channel: ServiceWorkerMessages.didLoadResource,
-									...body
-								});
-							} catch (e) {
-								return swPort.postMessage({
-									channel: ServiceWorkerMessages.didLoadResource,
-									id: entry.id,
-									status: 404,
-									path: entry.path,
-								});
-							}
-						}
-					case ServiceWorkerMessages.loadLocalhost:
-						{
-							const entry = e.data;
-							try {
-								const redirect = await this.getLocalhostRedirect(entry.id, entry.origin);
-								return swPort.postMessage({
-									channel: ServiceWorkerMessages.didLoadLocalHost,
-									id: entry.id,
-									origin: entry.origin,
-									location: redirect
-								});
-							} catch (e) {
-								return swPort.postMessage({
-									channel: ServiceWorkerMessages.didLoadLocalHost,
-									id: entry.id,
-									origin: entry.origin,
-									location: undefined
-								});
-							}
-						}
-				}
-			};
-
-			this._send(WebviewMessageChannels.didInitServiceWorker);
+		this._register(this.on(WebviewMessageChannels.loadLocalhost, (entry: any) => {
+			this.localLocalhost(entry.id, entry.origin);
 		}));
 
 		this._register(Event.runAndSubscribe(webviewThemeDataProvider.onThemeDataChanged, () => this.style()));
@@ -429,7 +385,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 	private readonly _onMessage = this._register(new Emitter<WebviewMessageReceivedEvent>());
 	public readonly onMessage = this._onMessage.event;
 
-	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
+	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number }>());
 	public readonly onDidScroll = this._onDidScroll.event;
 
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
@@ -451,11 +407,11 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._send('message', { message, transfer });
 	}
 
-	protected _send(channel: string, data?: any): void {
+	protected _send(channel: string, data?: any, transferable: Transferable[] = []): void {
 		if (this._state.type === WebviewState.Type.Initializing) {
-			this._state.pendingMessages.push({ channel, data });
+			this._state.pendingMessages.push({ channel, data, transferable });
 		} else {
-			this.doPostMessage(channel, data);
+			this.doPostMessage(channel, data, transferable);
 		}
 	}
 
@@ -495,10 +451,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			params.purpose = options.purpose;
 		}
 
-		const queryString = (Object.keys(params) as Array<keyof typeof params>)
-			.map((key) => `${key}=${encodeURIComponent(params[key]!)}`)
-			.join('&');
-
+		const queryString = new URLSearchParams(params).toString();
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint}/index.html?${queryString}`);
 	}
 
@@ -531,9 +484,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		return this._webviewContentOrigin;
 	}
 
-	private doPostMessage(channel: string, data?: any): void {
+	private doPostMessage(channel: string, data?: any, transferable: Transferable[] = []): void {
 		if (this.element && this.messagePort) {
-			this.messagePort.postMessage({ channel, args: data });
+			this.messagePort.postMessage({ channel, args: data }, transferable);
 		}
 	}
 
@@ -563,10 +516,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}
 
 			type TelemetryClassification = {
-				extension?: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+				extension?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 			};
 			type TelemetryData = {
-				extension?: string,
+				extension?: string;
 			};
 
 			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {
@@ -749,7 +702,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}
 	}
 
-	private async loadResource(id: number, uri: URI, ifNoneMatch: string | undefined): Promise<ResponseResponse> {
+	private async loadResource(id: number, uri: URI, ifNoneMatch: string | undefined) {
 		try {
 			const result = await loadLocalResource(uri, {
 				ifNoneMatch,
@@ -758,8 +711,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 			switch (result.type) {
 				case WebviewResourceResponse.Type.Success: {
-					const { buffer } = await streamToBuffer(result.stream);
-					return {
+					const buffer = await this.streamToBuffer(result.stream);
+					return this._send('did-load-resource', {
 						id,
 						status: 200,
 						path: uri.path,
@@ -767,39 +720,50 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 						data: buffer,
 						etag: result.etag,
 						mtime: result.mtime
-					};
+					}, [buffer]);
 				}
-				case WebviewResourceResponse.Type.NotModified:
-					return {
+				case WebviewResourceResponse.Type.NotModified: {
+					return this._send('did-load-resource', {
 						id,
 						status: 304, // not modified
 						path: uri.path,
 						mime: result.mimeType,
 						mtime: result.mtime
-					};
-
-				case WebviewResourceResponse.Type.AccessDenied:
-					return {
+					});
+				}
+				case WebviewResourceResponse.Type.AccessDenied: {
+					return this._send('did-load-resource', {
 						id,
 						status: 401, // unauthorized
 						path: uri.path,
-					};
+					});
+				}
 			}
 		} catch {
 			// noop
 		}
 
-		return {
+		return this._send('did-load-resource', {
 			id,
 			status: 404,
 			path: uri.path,
-		};
+		});
 	}
 
-	private async getLocalhostRedirect(id: string, origin: string) {
+	protected async streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
+		const vsBuffer = await streamToBuffer(stream);
+		return vsBuffer.buffer.buffer;
+	}
+
+	private async localLocalhost(id: string, origin: string) {
 		const authority = this._environmentService.remoteAuthority;
 		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
-		return resolveAuthority ? this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
+		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
+		return this._send('did-load-localhost', {
+			id,
+			origin,
+			location: redirect
+		});
 	}
 
 	public focus(): void {

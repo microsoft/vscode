@@ -13,9 +13,9 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellIntegration, ITerminalFont, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isSafari } from 'vs/base/browser/browser';
-import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandTracker, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
@@ -28,6 +28,9 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -52,6 +55,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	// Always on addons
 	private _commandTrackerAddon: CommandTrackerAddon;
+	private _shellIntegrationAddon: ShellIntegrationAddon;
 
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
@@ -59,6 +63,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _webglAddon?: WebglAddonType;
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
+	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {
@@ -76,7 +81,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		cols: number,
 		rows: number,
 		location: TerminalLocation,
+		capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -111,8 +118,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			fastScrollModifier: 'alt',
-			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
-			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
+			fastScrollSensitivity: config.fastScrollSensitivity,
+			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
 			wordSeparator: config.wordSeparators
 		}));
@@ -139,9 +146,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
-
-		this._commandTrackerAddon = new CommandTrackerAddon();
+		this._commandTrackerAddon = new CommandTrackerAddon(capabilities);
 		this.raw.loadAddon(this._commandTrackerAddon);
+		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
+		this.raw.loadAddon(this._shellIntegrationAddon);
 	}
 
 	attachToElement(container: HTMLElement) {
@@ -151,6 +159,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			this.raw.open(container);
 		}
 		this._container = container;
+		if (this._shouldLoadWebgl()) {
+			this._enableWebglRenderer();
+		}
 	}
 
 	updateConfig(): void {
@@ -171,12 +182,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.options.rightClickSelectsWord = config.rightClickBehavior === 'selectWord';
 		this.raw.options.wordSeparator = config.wordSeparators;
 		this.raw.options.customGlyphs = config.customGlyphs;
-		if ((!isSafari && config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
+		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
 			this.raw.options.rendererType = this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType);
 		}
+	}
+
+	private _shouldLoadWebgl(): boolean {
+		return !isSafari && (this._configHelper.config.gpuAcceleration === 'auto' && XtermTerminal._suggestedRendererType === undefined) || this._configHelper.config.gpuAcceleration === 'on';
 	}
 
 	forceRedraw() {
@@ -234,7 +249,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		return maxLineLength;
 	}
 
-	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number, endSpaces: number } {
+	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number; currentIndex: number; endSpaces: number } {
 		let line = buffer.getLine(index);
 		if (!line) {
 			throw new Error('Could not get line');
@@ -320,6 +335,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._webglAddon = new Addon();
 		try {
 			this.raw.loadAddon(this._webglAddon);
+			this._logService.trace('Webgl was loaded');
 			this._webglAddon.onContextLoss(() => {
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();

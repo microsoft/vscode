@@ -80,6 +80,7 @@ export const refreshComputedState = <T>(
 	accessor: IComputedStateAccessor<T>,
 	node: T,
 	explicitNewComputedState?: TestResultState,
+	refreshDuration = true,
 ) => {
 	const oldState = accessor.getCurrentComputedState(node);
 	const oldPriority = statePriority[oldState];
@@ -116,7 +117,7 @@ export const refreshComputedState = <T>(
 		}
 	}
 
-	if (isDurationAccessor(accessor)) {
+	if (isDurationAccessor(accessor) && refreshDuration) {
 		for (const parent of Iterable.concat(Iterable.single(node), accessor.getParents(node))) {
 			const oldDuration = accessor.getCurrentComputedDuration(parent);
 			const newDuration = getComputedDuration(accessor, parent, true);

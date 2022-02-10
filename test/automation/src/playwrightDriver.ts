@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as playwright from 'playwright';
+import * as playwright from '@playwright/test';
 import { ChildProcess, spawn } from 'child_process';
 import { join } from 'path';
 import { mkdir } from 'fs';
@@ -196,7 +196,7 @@ class PlaywrightDriver implements IDriver {
 
 let port = 9000;
 
-export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess, client: IDisposable, driver: IDriver, kill: () => Promise<void> }> {
+export async function launch(options: LaunchOptions): Promise<{ serverProcess: ChildProcess; client: IDisposable; driver: IDriver; kill: () => Promise<void> }> {
 
 	// Launch server
 	const { serverProcess, endpoint } = await launchServer(options);
@@ -220,28 +220,28 @@ async function launchServer(options: LaunchOptions) {
 	const agentFolder = userDataDir;
 	await measureAndLog(promisify(mkdir)(agentFolder), `mkdir(${agentFolder})`, logger);
 	const env = {
-		VSCODE_AGENT_FOLDER: agentFolder,
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
 		...process.env
 	};
 
-	const args = ['--disable-telemetry', '--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extensionsPath];
+	const args = ['--disable-telemetry', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder, '--accept-server-license-terms'];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
-		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
-		args.push(`--logsPath=${logsPath}`);
+		const { serverApplicationName } = require(join(codeServerPath, 'product.json'));
+		serverLocation = join(codeServerPath, 'bin', `${serverApplicationName}${process.platform === 'win32' ? '.cmd' : ''}`);
 
 		logger.log(`Starting built server from '${serverLocation}'`);
-		logger.log(`Storing log files into '${logsPath}'`);
 	} else {
-		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
-		args.push('--logsPath', logsPath);
+		serverLocation = join(root, `scripts/code-server.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 
 		logger.log(`Starting server out of sources from '${serverLocation}'`);
-		logger.log(`Storing log files into '${logsPath}'`);
 	}
 
+	logger.log(`Storing log files into '${logsPath}'`);
+	args.push('--logsPath', logsPath);
+
+	logger.log(`Command line: '${serverLocation}' ${args.join(' ')}`);
 	const serverProcess = spawn(
 		serverLocation,
 		args,
@@ -249,20 +249,19 @@ async function launchServer(options: LaunchOptions) {
 	);
 
 	logger.log(`Started server for browser smoke tests (pid: ${serverProcess.pid})`);
-	serverProcess.once('exit', (code, signal) => logger.log(`Server for browser smoke tests terminated (pid: ${serverProcess.pid}, code: ${code}, signal: ${signal})`));
-
-	serverProcess.stderr?.on('data', error => logger.log(`Server stderr: ${error}`));
-	serverProcess.stdout?.on('data', data => logger.log(`Server stdout: ${data}`));
 
 	return {
 		serverProcess,
-		endpoint: await measureAndLog(waitForEndpoint(serverProcess), 'waitForEndpoint(serverProcess)', logger)
+		endpoint: await measureAndLog(waitForEndpoint(serverProcess, logger), 'waitForEndpoint(serverProcess)', logger)
 	};
 }
 
 async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const { logger, workspacePath } = options;
+
 	const browser = await measureAndLog(playwright[options.browser ?? 'chromium'].launch({ headless: options.headless ?? false }), 'playwright#launch', logger);
+	browser.on('disconnected', () => logger.log(`Playwright: browser disconnected`));
+
 	const context = await measureAndLog(browser.newContext(), 'browser.newContext', logger);
 
 	try {
@@ -275,15 +274,16 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	await measureAndLog(page.setViewportSize({ width, height }), 'page.setViewportSize', logger);
 
 	page.on('pageerror', async (error) => logger.log(`Playwright ERROR: page error: ${error}`));
-	page.on('crash', page => logger.log('Playwright ERROR: page crash'));
+	page.on('crash', () => logger.log('Playwright ERROR: page crash'));
+	page.on('close', () => logger.log('Playwright: page close'));
 	page.on('response', async (response) => {
 		if (response.status() >= 400) {
 			logger.log(`Playwright ERROR: HTTP status ${response.status()} for ${response.url()}`);
 		}
 	});
 
-	const payloadParam = `[["enableProposedApi",""],["webviewExternalEndpointCommit","69df0500a8963fc469161c038a14a39384d5a303"],["skipWelcome","true"]]`;
-	await measureAndLog(page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
+	const payloadParam = `[["enableProposedApi",""],["webviewExternalEndpointCommit","d372f9187401bd145a0a6e15ba369e2d82d02005"],["skipWelcome","true"]]`;
+	await measureAndLog(page.goto(`${endpoint}&folder=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };
 }
@@ -313,12 +313,30 @@ async function teardown(server: ChildProcess, logger: Logger): Promise<void> {
 	logger.log(`Gave up tearing down server after ${retries} attempts...`);
 }
 
-function waitForEndpoint(server: ChildProcess): Promise<string> {
-	return new Promise<string>(resolve => {
-		server.stdout?.on('data', (d: Buffer) => {
-			const matches = d.toString('ascii').match(/Web UI available at (.+)/);
+function waitForEndpoint(server: ChildProcess, logger: Logger): Promise<string> {
+	return new Promise<string>((resolve, reject) => {
+		let endpointFound = false;
+
+		server.stdout?.on('data', data => {
+			if (!endpointFound) {
+				logger.log(`[server] stdout: ${data}`); // log until endpoint found to diagnose issues
+			}
+
+			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
+				endpointFound = true;
+
 				resolve(matches[1]);
+			}
+		});
+
+		server.stderr?.on('data', error => {
+			if (!endpointFound) {
+				logger.log(`[server] stderr: ${error}`); // log until endpoint found to diagnose issues
+			}
+
+			if (error.toString().indexOf('EADDRINUSE') !== -1) {
+				reject(new Error(error));
 			}
 		});
 	});

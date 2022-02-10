@@ -162,7 +162,12 @@
 }
 
 .monaco-workbench .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container {
-	display: inline-block;
+	display: flex;
+	justify-content: center;
+}
+
+.monaco-workbench:not(.mac):not(.web) .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container {
+	width: 46px;
 }
 
 .monaco-workbench .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container .codicon {

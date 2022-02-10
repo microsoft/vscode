@@ -9,6 +9,9 @@ import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm
 import { isWindows } from 'vs/base/common/platform';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { timeout } from 'vs/base/common/async';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
+import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;
@@ -31,13 +34,14 @@ async function writeP(terminal: TestTerminal, data: string): Promise<void> {
 suite('Workbench - TerminalCommandTracker', function () {
 	let xterm: TestTerminal;
 	let commandTracker: CommandTrackerAddon;
+	let store: TerminalCapabilityStore;
+
+	// These tests are flaky on GH actions as sometimes they are particularly slow and timeout
+	// on the await writeP calls. These have been reduced but the timeout is increased to try
+	// catch edge cases.
+	this.timeout(20000);
 
 	setup(async function () {
-		// These tests are flaky on GH actions as sometimes they are particularly slow and timeout
-		// on the await writeP calls. These have been reduced but the timeout is increased to try
-		// catch edge cases.
-		this.timeout(20000);
-
 		xterm = (<TestTerminal>new Terminal({
 			cols: COLS,
 			rows: ROWS
@@ -48,7 +52,9 @@ suite('Workbench - TerminalCommandTracker', function () {
 			data += `${i}\n`;
 		}
 		await writeP(xterm, data);
-		commandTracker = new CommandTrackerAddon();
+		store = new TerminalCapabilityStore();
+		commandTracker = new CommandTrackerAddon(store);
+		store.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(xterm));
 		xterm.loadAddon(commandTracker);
 	});
 
@@ -70,9 +76,6 @@ suite('Workbench - TerminalCommandTracker', function () {
 	suite('Commands', () => {
 		let container: HTMLElement;
 		setup(() => {
-			(<any>window).matchMedia = () => {
-				return { addListener: () => { } };
-			};
 			container = document.createElement('div');
 			document.body.appendChild(container);
 			xterm.open(container);

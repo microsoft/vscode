@@ -68,7 +68,7 @@ export class ApiRepository implements Repository {
 		return this._repository.apply(patch, reverse);
 	}
 
-	getConfigs(): Promise<{ key: string; value: string; }[]> {
+	getConfigs(): Promise<{ key: string; value: string }[]> {
 		return this._repository.getConfigs();
 	}
 
@@ -84,11 +84,11 @@ export class ApiRepository implements Repository {
 		return this._repository.getGlobalConfig(key);
 	}
 
-	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number; }> {
+	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number }> {
 		return this._repository.getObjectDetails(treeish, path);
 	}
 
-	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
 		return this._repository.detectObjectType(object);
 	}
 

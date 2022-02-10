@@ -52,7 +52,24 @@ const CORE_TYPES = [
     'trimEnd',
     'trimLeft',
     'trimRight',
-    'queueMicrotask'
+    'queueMicrotask',
+    'Array',
+    'Uint8Array',
+    'Uint16Array',
+    'Uint32Array',
+    'Int8Array',
+    'Int16Array',
+    'Int32Array',
+    'Float32Array',
+    'Float64Array',
+    'Uint8ClampedArray',
+    'BigUint64Array',
+    'BigInt64Array',
+    'btoa',
+    'atob',
+    'AbortSignal',
+    'MessageChannel',
+    'MessagePort'
 ];
 // Types that are defined in a common layer but are known to be only
 // available in native environments should not be allowed in browser
@@ -87,8 +104,8 @@ const RULES = [
     // Common: vs/platform/environment/common/*
     {
         target: '**/vs/platform/environment/common/*.ts',
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
         allowedTypes: CORE_TYPES,
+        disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [
             'lib.dom.d.ts',
             '@types/node' // no node.js
@@ -97,8 +114,8 @@ const RULES = [
     // Common: vs/platform/windows/common/windows.ts
     {
         target: '**/vs/platform/windows/common/windows.ts',
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
         allowedTypes: CORE_TYPES,
+        disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [
             'lib.dom.d.ts',
             '@types/node' // no node.js
@@ -107,8 +124,8 @@ const RULES = [
     // Common: vs/platform/native/common/native.ts
     {
         target: '**/vs/platform/native/common/native.ts',
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
         allowedTypes: CORE_TYPES,
+        disallowedTypes: [ /* Ignore native types that are defined from here */],
         disallowedDefinitions: [
             'lib.dom.d.ts',
             '@types/node' // no node.js
@@ -143,6 +160,9 @@ const RULES = [
         target: '**/vs/**/browser/**',
         allowedTypes: CORE_TYPES,
         disallowedTypes: NATIVE_TYPES,
+        allowedDefinitions: [
+            '@types/node/stream/consumers.d.ts' // node.js started to duplicate types from lib.dom.d.ts so we have to account for that
+        ],
         disallowedDefinitions: [
             '@types/node' // no node.js
         ]
@@ -226,13 +246,20 @@ function checkFile(program, sourceFile, rule) {
         if (symbol) {
             const declarations = symbol.declarations;
             if (Array.isArray(declarations)) {
-                for (const declaration of declarations) {
+                DeclarationLoop: for (const declaration of declarations) {
                     if (declaration) {
                         const parent = declaration.parent;
                         if (parent) {
                             const parentSourceFile = parent.getSourceFile();
                             if (parentSourceFile) {
                                 const definitionFileName = parentSourceFile.fileName;
+                                if (rule.allowedDefinitions) {
+                                    for (const allowedDefinition of rule.allowedDefinitions) {
+                                        if (definitionFileName.indexOf(allowedDefinition) >= 0) {
+                                            continue DeclarationLoop;
+                                        }
+                                    }
+                                }
                                 if (rule.disallowedDefinitions) {
                                     for (const disallowedDefinition of rule.disallowedDefinitions) {
                                         if (definitionFileName.indexOf(disallowedDefinition) >= 0) {

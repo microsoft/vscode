@@ -102,7 +102,7 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('getElements', [windowId, selector, recursive]);
 	}
 
-	getElementXY(windowId: number, selector: string, xoffset: number | undefined, yoffset: number | undefined): Promise<{ x: number, y: number }> {
+	getElementXY(windowId: number, selector: string, xoffset: number | undefined, yoffset: number | undefined): Promise<{ x: number; y: number }> {
 		return this.channel.call('getElementXY', [windowId, selector, xoffset, yoffset]);
 	}
 
@@ -145,7 +145,7 @@ export class WindowDriverRegistryChannel implements IServerChannel {
 	}
 }
 
-export async function connect(handle: string): Promise<{ client: Client, driver: IDriver }> {
+export async function connect(handle: string): Promise<{ client: Client; driver: IDriver }> {
 	const client = await connectNet(handle, 'driverClient');
 	const channel = client.getChannel('driver');
 	const driver = new DriverChannelClient(channel);

@@ -7,7 +7,7 @@
 	"labels": {
 		"L10N": {"assign": ["TylerLeonhardt", "csigs"]},
 		"VIM": {"assign": []},
-		"accessibility": { "assign": ["sana-ajani"]},
+		"accessibility": { "assign": ["isidorn"]},
 		"api": {"assign": ["jrieken"]},
 		"api-finalization": {"assign": []},
 		"api-proposal": {"assign": ["jrieken"]},

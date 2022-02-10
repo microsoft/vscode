@@ -12,15 +12,16 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/suggest';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Snippet } from './snippetsFile';
 import { SnippetCompletion } from './snippetCompletionProvider';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/contrib/editorState/browser/editorState';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TabCompletionController implements IEditorContribution {
 
@@ -39,6 +40,7 @@ export class TabCompletionController implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISnippetsService private readonly _snippetService: ISnippetsService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -148,7 +150,7 @@ export class TabCompletionController implements IEditorContribution {
 		} else if (this._activeSnippets.length > 1) {
 			// two or more -> show IntelliSense box
 			const position = this._editor.getPosition();
-			showSimpleSuggestions(this._editor, this._activeSnippets.map(snippet => {
+			this._instantiationService.invokeFunction(showSimpleSuggestions, this._editor, this._activeSnippets.map(snippet => {
 				const range = Range.fromPositions(position.delta(0, -snippet.prefix.length), position);
 				return new SnippetCompletion(snippet, range);
 			}));

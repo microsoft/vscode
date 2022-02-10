@@ -7,7 +7,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
@@ -27,9 +27,9 @@ export interface TimelineItem {
 	timestamp: number;
 	label: string;
 	accessibilityInformation?: IAccessibilityInformation;
-	icon?: URI,
-	iconDark?: URI,
-	themeIcon?: ThemeIcon,
+	icon?: URI;
+	iconDark?: URI;
+	themeIcon?: ThemeIcon;
 	description?: string;
 	detail?: string;
 	command?: Command;
@@ -42,7 +42,7 @@ export interface TimelineItem {
 export interface TimelineChangeEvent {
 	id: string;
 	uri: URI | undefined;
-	reset: boolean
+	reset: boolean;
 }
 
 export interface TimelineOptions {
@@ -61,7 +61,7 @@ export interface Timeline {
 
 	paging?: {
 		cursor: string | undefined;
-	}
+	};
 }
 
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {

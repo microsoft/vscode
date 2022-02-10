@@ -14,7 +14,7 @@ import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
 import { toDisposable, filterEvent, eventToPromise, logTimestamp } from './util';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { GitExtension } from './api/git';
 import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';
@@ -25,7 +25,7 @@ import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 import { TerminalEnvironmentManager } from './terminal';
 
-const deactivateTasks: { (): Promise<any>; }[] = [];
+const deactivateTasks: { (): Promise<any> }[] = [];
 
 export async function deactivate(): Promise<any> {
 	for (const task of deactivateTasks) {
@@ -73,7 +73,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		version: info.version,
 		env: environment,
 	});
-	const model = new Model(git, askpass, context.globalState, outputChannel);
+	const model = new Model(git, askpass, context.globalState, outputChannel, telemetryReporter);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
@@ -151,7 +151,7 @@ async function warnAboutMissingGit(): Promise<void> {
 	);
 
 	if (choice === download) {
-		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+		commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreMissingGitWarning', true, true);
 	}
@@ -165,7 +165,7 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	commands.registerCommand('git.showOutput', () => outputChannel.show());
 	disposables.push(outputChannel);
 
-	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
+	const { name, version, aiKey } = require('../package.json') as { name: string; version: string; aiKey: string };
 	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 	deactivateTasks.push(() => telemetryReporter.dispose());
 
@@ -191,6 +191,11 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 
 		console.warn(err.message);
 		outputChannel.appendLine(`${logTimestamp()} ${err.message}`);
+
+		/* __GDPR__
+			"git.missing" : {}
+		*/
+		telemetryReporter.sendTelemetryEvent('git.missing');
 
 		commands.executeCommand('setContext', 'git.missing', true);
 		warnAboutMissingGit();
@@ -234,7 +239,7 @@ async function checkGitv1(info: IGit): Promise<void> {
 	);
 
 	if (choice === update) {
-		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+		commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreLegacyWarning', true, true);
 	}
@@ -261,7 +266,7 @@ async function checkGitWindows(info: IGit): Promise<void> {
 	);
 
 	if (choice === update) {
-		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+		commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-download-git'));
 	} else if (choice === neverShowAgain) {
 		await config.update('ignoreWindowsGit27Warning', true, true);
 	}

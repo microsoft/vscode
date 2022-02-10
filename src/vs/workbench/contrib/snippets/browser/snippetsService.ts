@@ -9,8 +9,8 @@ import * as resources from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
@@ -21,7 +21,7 @@ import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/comm
 import { ISnippetGetOptions, ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
 import { Snippet, SnippetFile, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchLanguageService';
+import { languagesExtPoint } from 'vs/workbench/services/language/common/languageService';
 import { SnippetCompletionProvider } from './snippetCompletionProvider';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { ResourceMap } from 'vs/base/common/map';
@@ -29,7 +29,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { isStringArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 namespace snippetExt {
 
@@ -185,6 +185,7 @@ class SnippetsService implements ISnippetsService {
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 	) {
 		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this._initExtensionSnippets();
@@ -192,7 +193,7 @@ class SnippetsService implements ISnippetsService {
 			this._initWorkspaceSnippets();
 		})));
 
-		setSnippetSuggestSupport(new SnippetCompletionProvider(this._languageService, this, new TestLanguageConfigurationService()));
+		setSnippetSuggestSupport(new SnippetCompletionProvider(this._languageService, this, languageConfigurationService));
 
 		this._enablement = instantiationService.createInstance(SnippetEnablement);
 	}
@@ -228,11 +229,10 @@ class SnippetsService implements ISnippetsService {
 		const result: Snippet[] = [];
 		const promises: Promise<any>[] = [];
 
-		const langName = this._languageService.validateLanguageId(languageId);
-		if (langName) {
+		if (this._languageService.isRegisteredLanguageId(languageId)) {
 			for (const file of this._files.values()) {
 				promises.push(file.load()
-					.then(file => file.select(langName, result))
+					.then(file => file.select(languageId, result))
 					.catch(err => this._logService.error(err, file.location.toString()))
 				);
 			}
@@ -243,13 +243,12 @@ class SnippetsService implements ISnippetsService {
 
 	getSnippetsSync(languageId: string, opts?: ISnippetGetOptions): Snippet[] {
 		const result: Snippet[] = [];
-		const langName = this._languageService.validateLanguageId(languageId);
-		if (langName) {
+		if (this._languageService.isRegisteredLanguageId(languageId)) {
 			for (const file of this._files.values()) {
 				// kick off loading (which is a noop in case it's already loaded)
 				// and optimistically collect snippets
 				file.load().catch(_err => { /*ignore*/ });
-				file.select(langName, result);
+				file.select(languageId, result);
 			}
 		}
 		return this._filterSnippets(result, opts);

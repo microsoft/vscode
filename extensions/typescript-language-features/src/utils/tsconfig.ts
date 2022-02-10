@@ -115,8 +115,8 @@ export async function openProjectConfigOrPromptToCreate(
 
 	const selected = await vscode.window.showInformationMessage(
 		(projectType === ProjectType.TypeScript
-			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
-			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project Click [here]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
+			? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project. View the [tsconfig.json documentation]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=841896')
+			: localize('typescript.noJavaScriptProjectConfig', 'File is not part of a JavaScript project. View the [jsconfig.json documentation]({0}) to learn more.', 'https://go.microsoft.com/fwlink/?linkid=759670')
 		),
 		CreateConfigItem);
 

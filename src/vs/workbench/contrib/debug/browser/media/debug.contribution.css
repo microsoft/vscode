@@ -118,6 +118,5 @@
 
 .monaco-workbench .debug-inline-value {
 	background-color: var(--vscode-editor-inlineValuesBackground);
-	margin: 10px;
 	color: var(--vscode-editor-inlineValuesForeground);
 }

@@ -103,6 +103,7 @@
 	margin-left: 2px;
 }
 
+.extension-list-item > .details > .header-container > .header > .activation-status .activationTime,
 .extension-list-item > .details > .header-container > .header > .activation-status:not(:empty) .codicon {
 	margin-right: 2px;
 }
@@ -197,6 +198,7 @@
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {
 	max-width: 150px;
+	line-height: 16px;
 }
 
 .extension-list-item .footer .monaco-action-bar .action-item.action-dropdown-item.empty > .action-label {

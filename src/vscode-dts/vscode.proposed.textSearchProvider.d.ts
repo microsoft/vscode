@@ -80,6 +80,12 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
 		 */
 		useGlobalIgnoreFiles: boolean;
+
+		/**
+		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useParentIgnoreFiles"`.
+		 */
+		useParentIgnoreFiles: boolean;
 	}
 
 	/**
@@ -150,16 +156,16 @@ declare module 'vscode' {
 		/**
 		 * Markdown text of the message.
 		 */
-		text: string,
+		text: string;
 		/**
 		 * Whether the source of the message is trusted, command links are disabled for untrusted message sources.
 		 * Messaged are untrusted by default.
 		 */
-		trusted?: boolean,
+		trusted?: boolean;
 		/**
 		 * The message type, this affects how the message will be rendered.
 		 */
-		type: TextSearchCompleteMessageType,
+		type: TextSearchCompleteMessageType;
 	}
 
 	/**

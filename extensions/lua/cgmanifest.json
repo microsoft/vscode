@@ -4,13 +4,13 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "textmate/lua.tmbundle",
-					"repositoryUrl": "https://github.com/textmate/lua.tmbundle",
-					"commitHash": "8ae5641365b28f697121ba1133890e8d81f5b00e"
+					"name": "sumneko/lua.tmbundle",
+					"repositoryUrl": "https://github.com/sumneko/lua.tmbundle",
+					"commitHash": "e531d0a651f1de222c6059d6e2edaca61b4dd4c4"
 				}
 			},
 			"licenseDetail": [
-				"Copyright (c) textmate-lua.tmbundle project authors",
+				"Copyright (c) sumneko-lua.tmbundle project authors",
 				"",
 				"If not otherwise specified (see below), files in this repository fall under the following license:",
 				"",
@@ -25,7 +25,7 @@
 				"\"tidy\" is accompanied by \"tidy-license.txt\"."
 			],
 			"license": "TextMate Bundle License",
-			"version": "0.0.0"
+			"version": "1.0.0"
 		}
 	],
 	"version": 1

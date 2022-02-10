@@ -30,7 +30,7 @@ export interface RuntimeEnvironment {
 	readonly timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
-	}
+	};
 }
 
 export function startServer(connection: Connection, runtime: RuntimeEnvironment) {

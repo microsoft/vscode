@@ -96,7 +96,7 @@ export interface ITextFileService extends IDisposable {
 	 * Create files. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
-	create(operations: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	create(operations: { resource: URI; value?: string | ITextSnapshot; options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Returns the readable that uses the appropriate encoding. This method should
@@ -273,9 +273,9 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 	readonly reason?: TextFileResolveReason;
 
 	/**
-	 * The language mode to use for the model text content.
+	 * The language id to use for the model text content.
 	 */
-	readonly mode?: string;
+	readonly languageId?: string;
 
 	/**
 	 * The encoding to use when resolving the model text content.
@@ -374,7 +374,7 @@ export interface ITextFileEditorModelManager {
 	/**
 	 * Runs the registered save participants on the provided model.
 	 */
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Waits for the model to be ready to be disposed. There may be conditions
@@ -468,15 +468,15 @@ export interface IEncodingSupport {
 	setEncoding(encoding: string, mode: EncodingMode): Promise<void>;
 }
 
-export interface IModeSupport {
+export interface ILanguageSupport {
 
 	/**
-	 * Sets the language mode of the object.
+	 * Sets the language id of the object.
 	 */
-	setMode(mode: string, setExplicitly?: boolean): void;
+	setLanguageId(languageId: string, setExplicitly?: boolean): void;
 }
 
-export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
+export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, ILanguageSupport, IWorkingCopy {
 
 	readonly onDidChangeContent: Event<void>;
 	readonly onDidSaveError: Event<void>;
@@ -496,7 +496,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	isDirty(): this is IResolvedTextFileEditorModel;
 
-	getMode(): string | undefined;
+	getLanguageId(): string | undefined;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
 }
@@ -504,7 +504,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 export function isTextFileEditorModel(model: ITextEditorModel): model is ITextFileEditorModel {
 	const candidate = model as ITextFileEditorModel;
 
-	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getMode);
+	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getLanguageId);
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {

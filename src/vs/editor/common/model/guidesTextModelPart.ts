@@ -5,83 +5,15 @@
 
 import { ArrayQueue, findLast } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
-import { CursorColumns } from 'vs/editor/common/controller/cursorColumns';
+import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPairInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
 import type { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
-import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/modes/languageConfigurationRegistry';
-
-export interface IGuidesTextModelPart {
-	/**
-	 * @internal
-	 */
-	getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
-
-	/**
-	 * @internal
-	 */
-	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
-
-	/**
-	 * @internal
-	 */
-	getLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null, options: BracketGuideOptions): IndentGuide[][];
-}
-
-/**
- * @internal
- */
-export interface IActiveIndentGuideInfo {
-	startLineNumber: number;
-	endLineNumber: number;
-	indent: number;
-}
-
-/**
- * @internal
- */
-export enum HorizontalGuidesState {
-	Disabled,
-	EnabledForActive,
-	Enabled
-}
-
-/**
- * @internal
- */
-export interface BracketGuideOptions {
-	includeInactive: boolean,
-	horizontalGuides: HorizontalGuidesState,
-	highlightActive: boolean,
-}
-
-/**
- * @internal
- */
-export class IndentGuide {
-	constructor(
-		public readonly visibleColumn: number,
-		public readonly className: string,
-		/**
-		 * If set, this indent guide is a horizontal guide (no vertical part).
-		 * It starts at visibleColumn and continues until endColumn.
-		*/
-		public readonly horizontalLine: IndentGuideHorizontalLine | null,
-	) { }
-}
-
-/**
- * @internal
- */
-export class IndentGuideHorizontalLine {
-	constructor(
-		public readonly top: boolean,
-		public readonly endColumn: number,
-	) { }
-}
+import { ILanguageConfigurationService, ResolvedLanguageConfiguration } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { BracketGuideOptions, HorizontalGuidesState, IActiveIndentGuideInfo, IGuidesTextModelPart, IndentGuide, IndentGuideHorizontalLine } from 'vs/editor/common/textModelGuides';
 
 export class GuidesTextModelPart extends TextModelPart implements IGuidesTextModelPart {
 	constructor(
@@ -140,7 +72,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find previous line with content
 				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						up_aboveContentLineIndex = lineIndex;
 						up_aboveContentLineIndent = indent;
@@ -155,7 +87,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find next line with content
 				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						up_belowContentLineIndex = lineIndex;
 						up_belowContentLineIndent = indent;
@@ -178,7 +110,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find previous line with content
 				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						down_aboveContentLineIndex = lineIndex;
 						down_aboveContentLineIndent = indent;
@@ -197,7 +129,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find next line with content
 				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						down_belowContentLineIndex = lineIndex;
 						down_belowContentLineIndent = indent;
@@ -596,7 +528,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 		).foldingRules;
 		const offSide = Boolean(foldingRules && foldingRules.offSide);
 
-		let result: number[] = new Array<number>(
+		const result: number[] = new Array<number>(
 			endLineNumber - startLineNumber + 1
 		);
 
@@ -613,7 +545,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 			lineNumber <= endLineNumber;
 			lineNumber++
 		) {
-			let resultIndex = lineNumber - startLineNumber;
+			const resultIndex = lineNumber - startLineNumber;
 
 			const currentIndent = this._computeIndentLevel(lineNumber - 1);
 			if (currentIndent >= 0) {
@@ -631,7 +563,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find previous line with content
 				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						aboveContentLineIndex = lineIndex;
 						aboveContentLineIndent = indent;
@@ -649,7 +581,7 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 				// must find next line with content
 				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
-					let indent = this._computeIndentLevel(lineIndex);
+					const indent = this._computeIndentLevel(lineIndex);
 					if (indent >= 0) {
 						belowContentLineIndex = lineIndex;
 						belowContentLineIndent = indent;

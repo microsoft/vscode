@@ -88,10 +88,10 @@ export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
 	encoding?: string;
 
 	/**
-	 * The identifier of the language mode of the text input
+	 * The identifier of the language id of the text input
 	 * if known to use when displaying the contents.
 	 */
-	mode?: string;
+	languageId?: string;
 }
 
 export interface IResourceEditorInput extends IBaseResourceEditorInput {
@@ -289,7 +289,7 @@ export interface IEditorOptions {
 
 	/**
 	 * An optional property to signal that certain view state should be
-	 * applied when opening the editor. 
+	 * applied when opening the editor.
 	 */
 	viewState?: object;
 }
@@ -322,6 +322,22 @@ export const enum TextEditorSelectionRevealType {
 	 * Only if it lies outside the viewport
 	 */
 	NearTopIfOutsideViewport = 3,
+}
+
+export const enum TextEditorSelectionSource {
+
+	/**
+	 * Programmatic source indicates a selection change that
+	 * was not triggered by the user via keyboard or mouse.
+	 */
+	PROGRAMMATIC = 'api',
+
+	/**
+	 * Navigation source indicates a change that was caused
+	 * by navigating in the text editor from  commands such
+	 * as "Go to definition"
+	 */
+	NAVIGATION = 'code.navigation'
 }
 
 export interface ITextEditorOptions extends IEditorOptions {

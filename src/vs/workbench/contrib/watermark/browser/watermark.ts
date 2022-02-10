@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./watermark';
+import 'vs/css!./media/watermark';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWeb, OS } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -90,7 +91,8 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -176,6 +178,11 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 		this.watermarkDisposable.add(this.editorGroupsService.onDidLayout(dimension => this.handleEditorPartSize(container, dimension)));
 
 		this.handleEditorPartSize(container, this.editorGroupsService.contentDimension);
+
+		/* __GDPR__
+		"watermark:open" : { }
+		*/
+		this.telemetryService.publicLog('watermark:open');
 	}
 
 	private handleEditorPartSize(container: HTMLElement, dimension: dom.IDimension): void {

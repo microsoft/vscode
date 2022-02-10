@@ -80,16 +80,16 @@ export class TerminalViewPane extends ViewPane {
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
-		this._terminalService.onDidRegisterProcessSupport(() => {
+		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
 			if (this._actions) {
 				for (const action of this._actions) {
 					action.enabled = true;
 				}
 			}
 			this._onDidChangeViewWelcomeState.fire();
-		});
+		}));
 
-		this._terminalService.onDidChangeInstances(() => {
+		this._register(this._terminalService.onDidChangeInstances(() => {
 			if (!this._isWelcomeShowing) {
 				return;
 			}
@@ -99,11 +99,16 @@ export class TerminalViewPane extends ViewPane {
 				this._createTabsView();
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
-		});
+		}));
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalInlineTabContext, this._contextKeyService));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
 		this._viewShowing = TerminalContextKeys.viewShowing.bindTo(this._contextKeyService);
+		this._register(this.onDidChangeBodyVisibility(e => {
+			if (e) {
+				this._terminalTabbedView?.rerenderTabs();
+			}
+		}));
 	}
 
 	override renderBody(container: HTMLElement): void {

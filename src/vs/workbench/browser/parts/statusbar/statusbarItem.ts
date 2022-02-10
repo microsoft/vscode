@@ -15,7 +15,7 @@ import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { addDisposableListener, EventType, hide, show, append } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { assertIsDefined } from 'vs/base/common/types';
-import { Command } from 'vs/editor/common/modes';
+import { Command } from 'vs/editor/common/languages';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
@@ -105,7 +105,7 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Update: Hover
 		if (!this.entry || !this.isEqualTooltip(this.entry, entry)) {
-			const hoverContents = { markdown: entry.tooltip, markdownNotSupportedFallback: undefined };
+			const hoverContents = isMarkdownString(entry.tooltip) ? { markdown: entry.tooltip, markdownNotSupportedFallback: undefined } : entry.tooltip;
 			if (this.hover) {
 				this.hover.update(hoverContents);
 			} else {

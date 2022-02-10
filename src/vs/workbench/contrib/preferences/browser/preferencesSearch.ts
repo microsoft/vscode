@@ -98,7 +98,10 @@ export class LocalSearchProvider implements ISearchProvider {
 	static readonly EXACT_MATCH_SCORE = 10000;
 	static readonly START_SCORE = 1000;
 
-	constructor(private _filter: string) {
+	constructor(
+		private _filter: string,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
 		// Remove " and : which are likely to be copypasted as part of a setting name.
 		// Leave other special characters which the user might want to search for.
 		this._filter = this._filter
@@ -114,7 +117,7 @@ export class LocalSearchProvider implements ISearchProvider {
 
 		let orderedScore = LocalSearchProvider.START_SCORE; // Sort is not stable
 		const settingMatcher = (setting: ISetting) => {
-			const { matches, matchType } = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting));
+			const { matches, matchType } = new SettingMatches(this._filter, setting, true, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting), this.configurationService);
 			const score = this._filter === setting.key ?
 				LocalSearchProvider.EXACT_MATCH_SCORE :
 				orderedScore--;
@@ -173,7 +176,8 @@ class RemoteSearchProvider implements ISearchProvider {
 	constructor(private options: IRemoteSearchProviderOptions, private installedExtensions: Promise<ILocalExtension[]>,
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this._remoteSearchP = this.options.filter ?
 			Promise.resolve(this.getSettingsForFilter(this.options.filter)) :
@@ -340,7 +344,7 @@ class RemoteSearchProvider implements ISearchProvider {
 				scoredResults[getSettingKey(setting.key, 'core')] || // core setting
 				scoredResults[getSettingKey(setting.key)]; // core setting from original prod endpoint
 			if (remoteSetting && remoteSetting.score >= minScore) {
-				const { matches, matchType } = new SettingMatches(this.options.filter, setting, false, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting));
+				const { matches, matchType } = new SettingMatches(this.options.filter, setting, false, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting), this.configurationService);
 				return { matches, matchType, score: remoteSetting.score };
 			}
 
@@ -452,7 +456,14 @@ export class SettingMatches {
 	readonly matches: IRange[];
 	matchType: SettingMatchType = SettingMatchType.None;
 
-	constructor(searchString: string, setting: ISetting, private requireFullQueryMatch: boolean, private searchDescription: boolean, private valuesMatcher: (filter: string, setting: ISetting) => IRange[]) {
+	constructor(
+		searchString: string,
+		setting: ISetting,
+		private requireFullQueryMatch: boolean,
+		private searchDescription: boolean,
+		private valuesMatcher: (filter: string, setting: ISetting) => IRange[],
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
 		this.matches = distinct(this._findMatchesInSetting(searchString, setting), (match) => `${match.startLineNumber}_${match.startColumn}_${match.endLineNumber}_${match.endColumn}_`);
 	}
 
@@ -460,7 +471,7 @@ export class SettingMatches {
 		const result = this._doFindMatchesInSetting(searchString, setting);
 		if (setting.overrides && setting.overrides.length) {
 			for (const subSetting of setting.overrides) {
-				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.searchDescription, this.valuesMatcher);
+				const subSettingMatches = new SettingMatches(searchString, subSetting, this.requireFullQueryMatch, this.searchDescription, this.valuesMatcher, this.configurationService);
 				const words = searchString.split(' ');
 				const descriptionRanges: IRange[] = this.getRangesForWords(words, this.descriptionMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
 				const keyRanges: IRange[] = this.getRangesForWords(words, this.keyMatchingWords, [subSettingMatches.descriptionMatchingWords, subSettingMatches.keyMatchingWords, subSettingMatches.valueMatchingWords]);
@@ -482,6 +493,8 @@ export class SettingMatches {
 		const words = searchString.split(' ');
 		const settingKeyAsWords: string = setting.key.split('.').join(' ');
 
+		const settingValue = this.configurationService.getValue(setting.key);
+
 		for (const word of words) {
 			// Whole word match attempts also take place within this loop.
 			if (this.searchDescription) {
@@ -500,14 +513,14 @@ export class SettingMatches {
 			}
 			this.checkForWholeWordMatchType(word, settingKeyAsWords);
 
-			const valueMatches = typeof setting.value === 'string' ? matchesContiguousSubString(word, setting.value) : null;
+			const valueMatches = typeof settingValue === 'string' ? matchesContiguousSubString(word, settingValue) : null;
 			if (valueMatches) {
 				this.valueMatchingWords.set(word, valueMatches.map(match => this.toValueRange(setting, match)));
 			} else if (schema && schema.enum && schema.enum.some(enumValue => typeof enumValue === 'string' && !!matchesContiguousSubString(word, enumValue))) {
 				this.valueMatchingWords.set(word, []);
 			}
-			if (typeof setting.value === 'string') {
-				this.checkForWholeWordMatchType(word, setting.value);
+			if (typeof settingValue === 'string') {
+				this.checkForWholeWordMatchType(word, settingValue);
 			}
 		}
 
@@ -526,8 +539,8 @@ export class SettingMatches {
 		const keyRanges: IRange[] = keyMatches ? keyMatches.map(match => this.toKeyRange(setting, match)) : this.getRangesForWords(words, this.keyMatchingWords, [this.descriptionMatchingWords, this.valueMatchingWords]);
 
 		let valueRanges: IRange[] = [];
-		if (setting.value && typeof setting.value === 'string') {
-			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
+		if (typeof settingValue === 'string' && settingValue) {
+			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, settingValue);
 			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
 		} else {
 			valueRanges = this.valuesMatcher(searchString, setting);
