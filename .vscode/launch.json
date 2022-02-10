@@ -223,6 +223,7 @@
 			},
 			"cleanUp": "wholeBrowser",
 			"urlFilter": "*workbench.html*",
+			"trace": true,
 			"runtimeArgs": [
 				"--inspect=5875",
 				"--no-cached-data",
