@@ -32,9 +32,6 @@ import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xte
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { Emitter } from 'vs/base/common/event';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
@@ -66,14 +63,12 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
-	private _decorationAddon?: DecorationAddon;
 
 	private readonly _onDidRequestRunCommand = new Emitter<string>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
-	get decoration(): DecorationAddon { return this._decorationAddon!; }
 
 	private _target: TerminalLocation | undefined;
 	set target(location: TerminalLocation | undefined) {
@@ -98,10 +93,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IHoverService hoverService: IHoverService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 		this.target = location;
@@ -163,9 +155,9 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._commandTrackerAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		this._decorationAddon = new DecorationAddon(this._clipboardService, contextMenuService, hoverService, this._configurationService, capabilities);
-		this._decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
-		this.raw.loadAddon(this._decorationAddon);
+		const decorationAddon = this._instantiationService.createInstance(DecorationAddon, capabilities);
+		decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
+		this.raw.loadAddon(decorationAddon);
 	}
 
 	attachToElement(container: HTMLElement) {

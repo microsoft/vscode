@@ -37,11 +37,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
 
 	constructor(
+		private readonly _capabilities: ITerminalCapabilityStore,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		private readonly _capabilities: ITerminalCapabilityStore
 	) {
 		super();
 		this._register({
@@ -101,7 +101,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!command.marker) {
 			throw new Error(`cannot add decoration for command: ${command}, and terminal: ${this._terminal}`);
 		}
-		 if (!this._terminal || command.command.trim().length === 0) {
+		if (!this._terminal || command.command.trim().length === 0) {
 			return undefined;
 		}
 
@@ -121,14 +121,18 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _createContextMenu(target: HTMLElement, command: ITerminalCommand) {
-		this._register(dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
+		// When the xterm Decoration gets disposed of, its element gets removed from the dom
+		// along with its listeners
+		dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
 			const actions = await this._getCommandActions(command);
 			this._contextMenuService.showContextMenu({ getAnchor: () => target, getActions: () => actions });
-		}));
+		});
 	}
 
 	private _createHover(target: HTMLElement, command: ITerminalCommand): void {
-		this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
+		// When the xterm Decoration gets disposed of, its element gets removed from the dom
+		// along with its listeners
+		dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
 			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${fromNow(command.timestamp)} `;
 			if (command.exitCode) {
 				hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
@@ -137,10 +141,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			await this._hoverDelayer.trigger(() => {
 				this._hoverService.showHover(hoverOptions);
 			});
-		}));
-		this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
+		});
+		dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
 			this._hoverService.hideHover();
-		}));
+		});
+		dom.addDisposableListener(target, dom.EventType.MOUSE_OUT, async () => {
+			this._hoverService.hideHover();
+		});
+		dom.addDisposableListener(target.parentElement?.parentElement!, 'click', async () => {
+			this._hoverService.hideHover();
+		});
 	}
 
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
@@ -148,16 +158,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (command.hasOutput) {
 			actions.push({
 				class: 'copy-output', tooltip: 'Copy Output', dispose: () => { }, id: 'terminal.copyOutput', label: localize("terminal.copyOutput", 'Copy Output'), enabled: true,
-				run: async () => {
-					await this._clipboardService.writeText(command.getOutput()!);
-				}
+				run: () => this._clipboardService.writeText(command.getOutput()!)
 			});
 		}
 		actions.push({
 			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Re-run Command'), enabled: true,
-			run: async () => {
-				this._onDidRequestRunCommand.fire(command.command);
-			}
+			run: () => this._onDidRequestRunCommand.fire(command.command)
 		});
 		return actions;
 	}
