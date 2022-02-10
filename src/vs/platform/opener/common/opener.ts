@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
@@ -137,6 +137,10 @@ export function matchesSomeScheme(target: URI | string, ...schemes: string[]): b
 	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
+export function withSelectionFragment(uri: URI, selection: ITextEditorSelection): URI {
+	return uri.with({ fragment: `${selection.startLineNumber},${selection.startColumn}${selection.endLineNumber ? `-${selection.endLineNumber}${selection.endColumn ? `,${selection.endColumn}` : ''}` : ''}` });
+}
+
 /**
  * file:///some/file.js#73
  * file:///some/file.js#L73
@@ -147,18 +151,16 @@ export function matchesSomeScheme(target: URI | string, ...schemes: string[]): b
  * file:///some/file.js#73,84-83,52
  * file:///some/file.js#L73,84-L83,52
  */
-export function selectionFragment(target: URI): { startLineNumber: number; startColumn: number; endLineNumber?: number; endColumn?: number } | undefined {
-	let selection: { startLineNumber: number; startColumn: number; endLineNumber?: number; endColumn?: number } | undefined = undefined;
+export function selectionFragment(target: URI): ITextEditorSelection | undefined {
+	let selection: ITextEditorSelection | undefined = undefined;
 	const match = /^L?(\d+)(?:,(\d+))?(-L?(\d+)(?:,(\d+))?)?/.exec(target.fragment);
 	if (match) {
 		selection = {
 			startLineNumber: parseInt(match[1]),
 			startColumn: match[2] ? parseInt(match[2]) : 1,
+			endLineNumber: match[4] ? parseInt(match[4]) : undefined,
+			endColumn: match[4] ? (match[5] ? parseInt(match[5]) : 1) : undefined
 		};
-		if (match[4]) {
-			selection.endLineNumber = parseInt(match[4]);
-			selection.endColumn = match[5] ? parseInt(match[5]) : 1;
-		}
 	}
 	return selection;
 }

@@ -9,7 +9,7 @@ import { DisposableStore, dispose, IDisposable, MutableDisposable, toDisposable 
 import { Part } from 'vs/workbench/browser/part';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarStyleOverride, isStatusbarEntryLocation, IStatusbarEntryLocation } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -31,7 +31,7 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverWidget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { HideStatusbarEntryAction, ToggleStatusbarEntryVisibilityAction } from 'vs/workbench/browser/parts/statusbar/statusbarActions';
-import { IStatusbarEntryPriority, IStatusbarEntryLocation, IStatusbarViewModelEntry, StatusbarViewModel, isStatusbarEntryLocation } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
+import { IStatusbarEntryPriority, IStatusbarViewModelEntry, StatusbarViewModel } from 'vs/workbench/browser/parts/statusbar/statusbarModel';
 import { StatusbarEntryItem } from 'vs/workbench/browser/parts/statusbar/statusbarItem';
 import { StatusBarFocused } from 'vs/workbench/common/contextkeys';
 

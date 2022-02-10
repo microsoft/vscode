@@ -151,8 +151,9 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	private toEditorPaneSelectionChangeReason(e: ICursorPositionChangedEvent): EditorPaneSelectionChangeReason {
 		switch (e.source) {
-			case TextEditorSelectionSource.DEFAULT: return EditorPaneSelectionChangeReason.API;
+			case TextEditorSelectionSource.PROGRAMMATIC: return EditorPaneSelectionChangeReason.PROGRAMMATIC;
 			case TextEditorSelectionSource.NAVIGATION: return EditorPaneSelectionChangeReason.NAVIGATION;
+			case TextEditorSelectionSource.JUMP: return EditorPaneSelectionChangeReason.JUMP;
 			default: return EditorPaneSelectionChangeReason.USER;
 		}
 	}
@@ -356,5 +357,9 @@ export class TextEditorPaneSelection implements IEditorPaneSelection {
 		};
 
 		return textEditorOptions;
+	}
+
+	log(): string {
+		return `line: ${this.textSelection.startLineNumber}-${this.textSelection.endLineNumber}, col:  ${this.textSelection.startColumn}-${this.textSelection.endColumn}`;
 	}
 }

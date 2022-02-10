@@ -62,7 +62,7 @@ class EditorOpener implements IOpener {
 		if (typeof target === 'string') {
 			target = URI.parse(target);
 		}
-		const selection: { startLineNumber: number; startColumn: number } | undefined = selectionFragment(target);
+		const selection = selectionFragment(target);
 		if (selection) {
 			target = target.with({ fragment: '' });
 		}

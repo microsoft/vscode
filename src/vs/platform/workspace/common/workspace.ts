@@ -13,16 +13,6 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
-export interface IRawFileWorkspaceFolder {
-	path: string;
-	name?: string;
-}
-
-export interface IRawUriWorkspaceFolder {
-	uri: string;
-	name?: string;
-}
-
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
 export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
@@ -87,7 +77,7 @@ export interface IWorkspaceContextService extends IWorkspaceFolderProvider {
 }
 
 export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {
-	folders: IWorkspaceFolder[];
+	readonly folders: IWorkspaceFolder[];
 }
 
 export interface IBaseWorkspace {
@@ -96,7 +86,7 @@ export interface IBaseWorkspace {
 	 * If present, marks the window that opens the workspace
 	 * as a remote window with the given authority.
 	 */
-	remoteAuthority?: string;
+	readonly remoteAuthority?: string;
 
 	/**
 	 * Transient workspaces are meant to go away after being used
@@ -105,7 +95,7 @@ export interface IBaseWorkspace {
 	 *
 	 * See: https://github.com/microsoft/vscode/issues/119695
 	 */
-	transient?: boolean;
+	readonly transient?: boolean;
 }
 
 export interface IBaseWorkspaceIdentifier {
@@ -115,7 +105,7 @@ export interface IBaseWorkspaceIdentifier {
 	 * has a unique identifier. It is not possible to open
 	 * a workspace with the same `id` in multiple windows
 	 */
-	id: string;
+	readonly id: string;
 }
 
 /**
@@ -126,7 +116,7 @@ export interface ISingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifi
 	/**
 	 * Folder path as `URI`.
 	 */
-	uri: URI;
+	readonly uri: URI;
 }
 
 /**
@@ -179,11 +169,11 @@ export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier
 }
 
 export interface ISerializedSingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-	uri: UriComponents;
+	readonly uri: UriComponents;
 }
 
 export interface ISerializedWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-	configPath: UriComponents;
+	readonly configPath: UriComponents;
 }
 
 export function reviveIdentifier(identifier: undefined): undefined;
@@ -220,9 +210,11 @@ export const enum WorkbenchState {
 }
 
 export interface IWorkspaceFoldersWillChangeEvent {
-	join(promise: Promise<void>): void;
+
 	readonly changes: IWorkspaceFoldersChangeEvent;
 	readonly fromCache: boolean;
+
+	join(promise: Promise<void>): void;
 }
 
 export interface IWorkspaceFoldersChangeEvent {
@@ -372,14 +364,31 @@ export class Workspace implements IWorkspace {
 	}
 }
 
+export interface IRawFileWorkspaceFolder {
+	readonly path: string;
+	name?: string;
+}
+
+export interface IRawUriWorkspaceFolder {
+	readonly uri: string;
+	name?: string;
+}
+
 export class WorkspaceFolder implements IWorkspaceFolder {
 
 	readonly uri: URI;
-	name: string;
-	index: number;
+	readonly name: string;
+	readonly index: number;
 
 	constructor(
 		data: IWorkspaceFolderData,
+		/**
+		 * Provides access to the original metadata for this workspace
+		 * folder. This can be different from the metadata provided in
+		 * this class:
+		 * - raw paths can be relative
+		 * - raw paths are not normalized
+		 */
 		readonly raw?: IRawFileWorkspaceFolder | IRawUriWorkspaceFolder
 	) {
 		this.uri = data.uri;

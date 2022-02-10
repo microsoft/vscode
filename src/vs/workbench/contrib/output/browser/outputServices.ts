@@ -20,6 +20,7 @@ import { IOutputChannelModel } from 'vs/workbench/contrib/output/common/outputCh
 import { IViewsService } from 'vs/workbench/common/views';
 import { OutputViewPane } from 'vs/workbench/contrib/output/browser/outputView';
 import { IOutputChannelModelService } from 'vs/workbench/contrib/output/common/outputChannelModelService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -33,13 +34,14 @@ class OutputChannel extends Disposable implements IOutputChannel {
 
 	constructor(
 		readonly outputChannelDescriptor: IOutputChannelDescriptor,
-		@IOutputChannelModelService outputChannelModelService: IOutputChannelModelService
+		@IOutputChannelModelService outputChannelModelService: IOutputChannelModelService,
+		@ILanguageService languageService: ILanguageService,
 	) {
 		super();
 		this.id = outputChannelDescriptor.id;
 		this.label = outputChannelDescriptor.label;
 		this.uri = URI.from({ scheme: OUTPUT_SCHEME, path: this.id });
-		this.model = this._register(outputChannelModelService.createOutputChannelModel(this.id, this.uri, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file));
+		this.model = this._register(outputChannelModelService.createOutputChannelModel(this.id, this.uri, outputChannelDescriptor.languageId ? languageService.createById(outputChannelDescriptor.languageId) : languageService.createByMimeType(outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME), outputChannelDescriptor.file));
 	}
 
 	append(output: string): void {
@@ -196,7 +198,8 @@ export class LogContentProvider {
 
 	constructor(
 		@IOutputService private readonly outputService: IOutputService,
-		@IOutputChannelModelService private readonly outputChannelModelService: IOutputChannelModelService
+		@IOutputChannelModelService private readonly outputChannelModelService: IOutputChannelModelService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 	}
 
@@ -217,7 +220,7 @@ export class LogContentProvider {
 			const channelDisposables: IDisposable[] = [];
 			const outputChannelDescriptor = this.outputService.getChannelDescriptors().filter(({ id }) => id === channelId)[0];
 			if (outputChannelDescriptor && outputChannelDescriptor.file) {
-				channelModel = this.outputChannelModelService.createOutputChannelModel(channelId, resource, outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME, outputChannelDescriptor.file);
+				channelModel = this.outputChannelModelService.createOutputChannelModel(channelId, resource, outputChannelDescriptor.languageId ? this.languageService.createById(outputChannelDescriptor.languageId) : this.languageService.createByMimeType(outputChannelDescriptor.log ? LOG_MIME : OUTPUT_MIME), outputChannelDescriptor.file);
 				channelModel.onDispose(() => dispose(channelDisposables), channelDisposables);
 				this.channelModels.set(channelId, channelModel);
 			}

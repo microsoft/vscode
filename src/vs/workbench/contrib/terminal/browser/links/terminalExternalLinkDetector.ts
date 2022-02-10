@@ -44,11 +44,12 @@ export class TerminalExternalLinkDetector implements ITerminalLinkDetector {
 			}, startLine);
 			const matchingText = text.substring(link.startIndex, link.startIndex + link.length) || '';
 
-			const l = {
+			const l: ITerminalSimpleLink = {
 				text: matchingText,
 				label: link.label,
 				bufferRange,
-				type: { id: this.id }
+				type: { id: this.id },
+				activate: link.activate
 			};
 			return l;
 		});

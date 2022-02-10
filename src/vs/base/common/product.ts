@@ -118,7 +118,7 @@ export interface IProductConfiguration {
 	readonly privacyStatementUrl?: string;
 	readonly showTelemetryOptOut?: boolean;
 
-	readonly serverGreeting: string[];
+	readonly serverGreeting?: string[];
 	readonly serverLicense?: string[];
 	readonly serverLicensePrompt?: string;
 	readonly serverApplicationName: string;

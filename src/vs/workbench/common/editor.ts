@@ -200,7 +200,7 @@ export const enum EditorPaneSelectionChangeReason {
 	 * For a text editor pane, this for example can be a selection
 	 * being restored from previous view state automatically.
 	 */
-	API = 1,
+	PROGRAMMATIC = 1,
 
 	/**
 	 * The selection was changed by the user.
@@ -223,10 +223,19 @@ export const enum EditorPaneSelectionChangeReason {
 	 * The selection was changed as a result of a navigation
 	 * action.
 	 *
-	 * For a text editor pane, this for example can be invoking
-	 * "Go to definition" on a symbol.
+	 * For a text editor pane, this for example can be a result
+	 * of selecting an entry from a text outline view.
 	 */
-	NAVIGATION
+	NAVIGATION,
+
+	/**
+	 * The selection was changed as a result of a jump action
+	 * from within the editor pane.
+	 *
+	 * For a text editor pane, this for example can be a result
+	 * of invoking "Go to definition" from a symbol.
+	 */
+	JUMP
 }
 
 export interface IEditorPaneSelection {
@@ -245,6 +254,11 @@ export interface IEditorPaneSelection {
 	 * line and column as text editor options.
 	 */
 	restore(options: IEditorOptions): IEditorOptions;
+
+	/**
+	 * Only used for logging to print more info about the selection.
+	 */
+	log?(): string;
 }
 
 export const enum EditorPaneSelectionCompareResult {
@@ -893,33 +907,7 @@ export interface IEditorWillMoveEvent extends IEditorIdentifier {
 	readonly target: GroupIdentifier;
 }
 
-export interface IEditorMoveEvent extends IEditorIdentifier {
-
-	/**
-	 * The target group of the move operation.
-	 */
-	readonly target: GroupIdentifier;
-
-	/**
-	 * The index of the editor before moving.
-	 */
-	readonly index: number;
-
-	/**
-	 * The index of the editor after moving.
-	 */
-	readonly newIndex: number;
-}
-
 export interface IEditorWillOpenEvent extends IEditorIdentifier { }
-
-export interface IEditorOpenEvent extends IEditorIdentifier {
-
-	/**
-	 * The index the editor opens in.
-	 */
-	readonly index: number;
-}
 
 export type GroupIdentifier = number;
 

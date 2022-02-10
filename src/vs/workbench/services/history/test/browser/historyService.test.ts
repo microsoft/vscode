@@ -24,7 +24,6 @@ import { IResolvedTextFileEditorModel, ITextFileService } from 'vs/workbench/ser
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
-import { TextEditorPaneSelection } from 'vs/workbench/browser/parts/editor/textEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 
@@ -166,8 +165,35 @@ suite('HistoryService', function () {
 		await setTextSelection(historyService, pane, new Selection(500, 3, 500, 20)); // unrelated user navigation
 		await setTextSelection(historyService, pane, new Selection(200, 3, 200, 20)); // unrelated user navigation
 
-		await historyService.goLast(GoFilter.NAVIGATION);
+		await historyService.goBack(GoFilter.NAVIGATION); // this should reveal the last navigation entry because we are not at it currently
 		assertTextSelection(new Selection(120, 8, 120, 18), pane);
+
+		await historyService.goBack(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goBack(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goForward(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(120, 8, 120, 18), pane);
+
+		await historyService.goPrevious(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goPrevious(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(120, 8, 120, 18), pane);
+	});
+
+	test('back / forward: in-editor text selection changes (jump)', async function () {
+		const [, historyService, editorService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+
+		const pane = await editorService.openEditor({ resource, options: { pinned: true } }) as TestTextFileEditor;
+
+		await setTextSelection(historyService, pane, new Selection(2, 2, 2, 10), EditorPaneSelectionChangeReason.USER);
+		await setTextSelection(historyService, pane, new Selection(5, 3, 5, 20), EditorPaneSelectionChangeReason.JUMP);
+		await setTextSelection(historyService, pane, new Selection(120, 8, 120, 18), EditorPaneSelectionChangeReason.JUMP);
 
 		await historyService.goBack(GoFilter.NAVIGATION);
 		assertTextSelection(new Selection(5, 3, 5, 20), pane);
@@ -177,6 +203,15 @@ suite('HistoryService', function () {
 
 		await historyService.goForward(GoFilter.NAVIGATION);
 		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goLast(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(120, 8, 120, 18), pane);
+
+		await historyService.goPrevious(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goPrevious(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(120, 8, 120, 18), pane);
 	});
 
 	test('back / forward: edit selection changes', async function () {
@@ -194,7 +229,7 @@ suite('HistoryService', function () {
 		await setTextSelection(historyService, pane, new Selection(5, 3, 5, 20), EditorPaneSelectionChangeReason.EDIT);
 		await setTextSelection(historyService, pane, new Selection(200, 3, 200, 20)); // unrelated user navigation
 
-		await historyService.goLast(GoFilter.EDITS);
+		await historyService.goBack(GoFilter.EDITS); // this should reveal the last navigation entry because we are not at it currently
 		assertTextSelection(new Selection(5, 3, 5, 20), pane);
 
 		await historyService.goBack(GoFilter.EDITS);
@@ -206,7 +241,7 @@ suite('HistoryService', function () {
 
 	async function setTextSelection(historyService: IHistoryService, pane: TestTextFileEditor, selection: Selection, reason = EditorPaneSelectionChangeReason.USER): Promise<void> {
 		const promise = Event.toPromise((historyService as HistoryService).onDidChangeEditorNavigationStack);
-		pane.setSelection(new TextEditorPaneSelection(selection), reason);
+		pane.setSelection(selection, reason);
 		await promise;
 	}
 
@@ -216,10 +251,10 @@ suite('HistoryService', function () {
 			assert.fail('EditorPane has no selection');
 		}
 
-		assert.strictEqual(expected.startLineNumber, options.selection?.startLineNumber);
-		assert.strictEqual(expected.startColumn, options.selection?.startColumn);
-		assert.strictEqual(expected.endLineNumber, options.selection?.endLineNumber);
-		assert.strictEqual(expected.endColumn, options.selection?.endColumn);
+		assert.strictEqual(options.selection?.startLineNumber, expected.startLineNumber);
+		assert.strictEqual(options.selection?.startColumn, expected.startColumn);
+		assert.strictEqual(options.selection?.endLineNumber, expected.endLineNumber);
+		assert.strictEqual(options.selection?.endColumn, expected.endColumn);
 	}
 
 	test('back / forward: tracks editor moves across groups', async function () {
@@ -279,7 +314,7 @@ suite('HistoryService', function () {
 	test('back / forward: editor navigation stack - navigation', async function () {
 		const [, , editorService, , instantiationService] = await createServices();
 
-		const stack = instantiationService.createInstance(EditorNavigationStack);
+		const stack = instantiationService.createInstance(EditorNavigationStack, GoFilter.NONE);
 
 		const resource = toResource.call(this, '/path/index.txt');
 		const otherResource = toResource.call(this, '/path/index.html');
@@ -342,7 +377,7 @@ suite('HistoryService', function () {
 	test('back / forward: editor navigation stack - mutations', async function () {
 		const [, , editorService, , instantiationService] = await createServices();
 
-		const stack = instantiationService.createInstance(EditorNavigationStack);
+		const stack = instantiationService.createInstance(EditorNavigationStack, GoFilter.NONE);
 
 		const resource = toResource.call(this, '/path/index.txt');
 		const otherResource = toResource.call(this, '/path/index.html');

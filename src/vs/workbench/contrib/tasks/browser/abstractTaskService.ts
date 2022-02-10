@@ -1703,13 +1703,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
-		if (executeResult.task.taskLoadMessages && executeResult.task.taskLoadMessages.length > 0) {
-			executeResult.task.taskLoadMessages.forEach(loadMessage => {
-				this._outputChannel.append(loadMessage + '\n');
-			});
-			this.showOutput();
-		}
-
 		if (runSource === TaskRunSource.User) {
 			await this.setRecentlyUsedTask(executeResult.task);
 		}
@@ -1780,7 +1773,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
-			this.pathService, this.viewDescriptorService, this.logService, this.configurationService,
+			this.pathService, this.viewDescriptorService, this.logService, this.configurationService, this.notificationService,
 			this,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {

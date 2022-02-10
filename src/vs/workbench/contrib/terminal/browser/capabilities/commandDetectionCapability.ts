@@ -5,8 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IBuffer, IMarker, Terminal } from 'xterm';
 
 interface ICurrentPartialCommand {
@@ -127,7 +126,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 	}
 
-	handleCommandFinished(exitCode: number): void {
+	handleCommandFinished(exitCode: number | undefined): void {
 		this._currentCommand.commandFinishedMarker = this._terminal.registerMarker(0);
 		const command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
@@ -135,7 +134,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
 			return;
 		}
-		if (command && !command.startsWith('\\') && command !== '') {
+		if (command !== undefined && !command.startsWith('\\')) {
 			const buffer = this._terminal.buffer.active;
 			const clonedPartialCommand = { ...this._currentCommand };
 			const newCommand = {
@@ -147,6 +146,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				marker: this._currentCommand.commandStartMarker
 			};
 			this._commands.push(newCommand);
+			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, detectFullscreen, getCookieValue, WebFileSystemAccess } from 'vs/base/browser/dom';
+import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
@@ -68,6 +68,7 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
 export class BrowserMain extends Disposable {
 
@@ -242,7 +243,7 @@ export class BrowserMain extends Disposable {
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, logService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly

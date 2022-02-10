@@ -11,6 +11,7 @@ export interface LanguageFilter {
 	readonly language?: string;
 	readonly scheme?: string;
 	readonly pattern?: string | IRelativePattern;
+	readonly notebookType?: string;
 	/**
 	 * This provider is implemented in the UI thread.
 	 */

@@ -92,7 +92,7 @@ export function deserializeWebviewMessage(jsonMessage: string, buffers: VSBuffer
 	});
 
 	const reviver = !buffers.length ? undefined : (_key: string, value: any) => {
-		if (typeof value === 'object' && (value as extHostProtocol.WebviewMessageArrayBufferReference).$$vscode_array_buffer_reference$$) {
+		if (value && typeof value === 'object' && (value as extHostProtocol.WebviewMessageArrayBufferReference).$$vscode_array_buffer_reference$$) {
 			const ref = value as extHostProtocol.WebviewMessageArrayBufferReference;
 			const { index } = ref;
 			const arrayBuffer = arrayBuffers[index];
