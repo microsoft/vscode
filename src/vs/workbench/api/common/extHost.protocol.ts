@@ -617,14 +617,15 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 export interface IEditorTabGroupDto {
 	isActive: boolean;
 	viewColumn: EditorGroupColumn;
-	activeTabIndex: number | undefined;
+	// Decided not to go with simple index here due to opening and closing causing index shifts
+	// This allows us to patch the model without having to do full rebuilds
+	activeTab: IEditorTabDto | undefined;
 	tabs: IEditorTabDto[];
 	groupId: number;
 }
 
 export interface IEditorTabDto {
 	viewColumn: EditorGroupColumn;
-	index: number;
 	label: string;
 	resource?: UriComponents;
 	editorId?: string;

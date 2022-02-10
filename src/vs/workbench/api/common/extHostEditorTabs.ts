@@ -14,7 +14,6 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 export interface IEditorTab {
 	label: string;
 	viewColumn: ViewColumn;
-	index: number;
 	resource: vscode.Uri | undefined;
 	viewId: string | undefined;
 	isActive: boolean;
@@ -66,24 +65,28 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		// Clears the tab groups array
 		this._tabGroups.all.length = 0;
 		for (const group of tabGroups) {
+			let activeTab: IEditorTab | undefined;
 			const tabs = group.tabs.map(tab => {
-				return this.createExtHostTabObject(tab, tab.index);
+				const extHostTab = this.createExtHostTabObject(tab);
+				if (tab.isActive) {
+					activeTab = extHostTab;
+				}
+				return extHostTab;
 			});
 			this._tabGroups.all.push(Object.freeze({
 				isActive: group.isActive,
 				viewColumn: typeConverters.ViewColumn.to(group.viewColumn),
-				activeTab: group.activeTabIndex ? tabs[group.activeTabIndex] : undefined,
+				activeTab,
 				tabs
 			}));
 		}
 		this._onDidChangeTabGroup.fire();
 	}
 
-	private createExtHostTabObject(tabDto: IEditorTabDto, index: number) {
+	private createExtHostTabObject(tabDto: IEditorTabDto) {
 		return Object.freeze({
 			label: tabDto.label,
 			viewColumn: typeConverters.ViewColumn.to(tabDto.viewColumn),
-			index,
 			resource: URI.revive(tabDto.resource),
 			additionalResourcesAndViewIds: tabDto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
 			viewId: tabDto.editorId,

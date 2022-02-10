@@ -17,11 +17,6 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The index of the tab within the column
-		 */
-		readonly index: number;
-
-		/**
 		 * The column which the tab belongs to
 		 */
 		readonly viewColumn: ViewColumn;

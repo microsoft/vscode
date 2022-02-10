@@ -46,7 +46,7 @@ export class MainThreadEditorTabs {
 	 * @param group The group the tab is in
 	 * @returns A tab object
 	 */
-	private _buildTabObject(editor: EditorInput, group: IEditorGroup, index: number): IEditorTabDto {
+	private _buildTabObject(editor: EditorInput, group: IEditorGroup): IEditorTabDto {
 		// Even though the id isn't a diff / sideBySide on the main side we need to let the ext host know what type of editor it is
 		const editorId = editor instanceof DiffEditorInput ? 'diff' : editor instanceof SideBySideEditorInput ? 'sideBySide' : editor.editorId;
 		const tab: IEditorTabDto = {
@@ -54,7 +54,6 @@ export class MainThreadEditorTabs {
 			label: editor.getName(),
 			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 			editorId,
-			index,
 			additionalResourcesAndViewIds: [],
 			isActive: group.isActive(editor)
 		};
@@ -94,6 +93,69 @@ export class MainThreadEditorTabs {
 	}
 
 	/**
+	 * Called when the tab label changes
+	 * @param groupId The id of the group the tab exists in
+	 * @param editorInput The editor input represented by the tab
+	 * @param editorIndex The index of the editor within that group
+	 */
+	private _onDidTabLabelChange(groupId: number, editorInput: EditorInput, editorIndex: number) {
+		this._tabGroupModel[groupId].tabs[editorIndex].label = editorInput.getName();
+	}
+
+	/**
+	 * Called when a new tab is opened
+	 * @param groupId The id of the group the tab is being created in
+	 * @param editorInput The editor input being opened
+	 * @param editorIndex The index of the editor within that group
+	 */
+	private _onDidTabOpen(groupId: number, editorInput: EditorInput, editorIndex: number) {
+		const group = this._editorGroupsService.getGroup(groupId);
+		if (!group) {
+			return;
+		}
+		// Splice tab into group at index editorIndex
+		this._tabGroupModel[groupId].tabs.splice(editorIndex, 0, this._buildTabObject(editorInput, group));
+	}
+
+	/**
+ * Called when a tab is closed
+ * @param groupId The id of the group the tab is being removed from
+ * @param editorIndex The index of the editor within that group
+ */
+	private _onDidTabClose(groupId: number, editorIndex: number) {
+		const group = this._editorGroupsService.getGroup(groupId);
+		if (!group) {
+			return;
+		}
+		// Splice tab into group at index editorIndex
+		this._tabGroupModel[groupId].tabs.splice(editorIndex, 1);
+		// If no tabs it's an empty group and gets deleted from the model
+		// In the future we may want to support empty groups
+		if (this._tabGroupModel[groupId].tabs.length === 0) {
+			this._tabGroupModel.splice(groupId, 1);
+		}
+	}
+
+	/**
+	 * Called when the active tab changes
+	 * @param groupId The id of the group the tab is contained in
+	 * @param editorIndex The index of the tab
+	 */
+	private _onDidTabActiveChange(groupId: number, editorIndex: number) {
+		const tabs = this._tabGroupModel[groupId].tabs;
+		let activeTab: IEditorTabDto | undefined;
+		for (let i = 0; i < tabs.length; i++) {
+			if (i === editorIndex) {
+				tabs[i].isActive = true;
+				activeTab = tabs[i];
+			} else {
+				tabs[i].isActive = false;
+			}
+		}
+		this._tabGroupModel[groupId].activeTab = activeTab;
+	}
+
+	/**
 	 * Builds the model from scratch based on the current state of the editor service.
 	 */
 	private _createTabsModel(): void {
@@ -105,15 +167,14 @@ export class MainThreadEditorTabs {
 				groupId: group.id,
 				isActive: group.id === this._editorGroupsService.activeGroup.id,
 				viewColumn: editorGroupToColumn(this._editorGroupsService, group),
-				activeTabIndex: undefined,
+				activeTab: undefined,
 				tabs: []
 			};
-			for (let i = 0; i < group.editors.length; i++) {
-				const editor = group.editors[i];
-				const tab = this._buildTabObject(editor, group, i);
+			for (const editor of group.editors) {
+				const tab = this._buildTabObject(editor, group);
 				// Mark the tab active within the group
 				if (tab.isActive) {
-					currentTabGroupModel.activeTabIndex = i;
+					currentTabGroupModel.activeTab = tab;
 				}
 				tabs.push(tab);
 			}
@@ -147,19 +208,39 @@ export class MainThreadEditorTabs {
 	 * @param events The list of events to process
 	 */
 	private _updateTabsModel(event: IEditorsChangeEvent): void {
-		console.time(`updateTabModel: ${this._eventToString(event)}`);
-		// We optimize for a select few trigger happy events for performance reasons
-		if (event.kind === GroupModelChangeKind.GROUP_ACTIVE && this._editorGroupsService.activeGroup.id === event.groupId) {
-			this._onDidGroupActivate();
-		} else if (event.kind === GroupModelChangeKind.GROUP_ACTIVE && this._editorGroupsService.activeGroup.id === event.groupId) {
-			console.timeEnd(`updateTabModel: ${this._eventToString(event)}`);
-			return;
-		} else {
-			// Because events are aggregated rebuilding the tab model is much easier
-			// In the future we can optimize certain events rather than full rebuilds
-			this._createTabsModel();
+		console.log(this._eventToString(event));
+		switch (event.kind) {
+			case GroupModelChangeKind.GROUP_ACTIVE:
+				if (event.groupId === this._editorGroupsService.activeGroup.id) {
+					this._onDidGroupActivate();
+					break;
+				} else {
+					return;
+				}
+			case GroupModelChangeKind.EDITOR_LABEL:
+				if (event.editor && event.editorIndex) {
+					this._onDidTabLabelChange(event.groupId, event.editor, event.editorIndex);
+					break;
+				}
+			case GroupModelChangeKind.EDITOR_OPEN:
+				if (event.editor && event.editorIndex) {
+					this._onDidTabOpen(event.groupId, event.editor, event.editorIndex);
+					break;
+				}
+			case GroupModelChangeKind.EDITOR_CLOSE:
+				if (event.editorIndex) {
+					this._onDidTabClose(event.groupId, event.editorIndex);
+					break;
+				}
+			case GroupModelChangeKind.EDITOR_ACTIVE:
+				if (event.editorIndex) {
+					this._onDidTabActiveChange(event.groupId, event.editorIndex);
+					break;
+				}
+			default:
+				// If it's not an optimized case we rebuild the tabs model from scratch
+				this._createTabsModel();
 		}
-		console.timeEnd(`updateTabModel: ${this._eventToString(event)}`);
 		// notify the ext host of the new model
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
