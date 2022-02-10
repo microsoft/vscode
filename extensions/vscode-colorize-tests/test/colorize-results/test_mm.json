@@ -289,11 +289,11 @@
 		"c": "(",
 		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.begin.objcpp",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -311,22 +311,22 @@
 		"c": ")",
 		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.end.objcpp",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -454,11 +454,11 @@
 		"c": "(",
 		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.begin.objcpp",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -476,11 +476,11 @@
 		"c": ")",
 		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.end.objcpp",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -2093,11 +2093,11 @@
 		"c": "(",
 		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.begin.objcpp",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -2115,22 +2115,22 @@
 		"c": ")",
 		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp punctuation.definition.type.end.objcpp",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "source.objcpp meta.implementation.objcpp meta.scope.implementation.objcpp meta.function-with-body.objcpp meta.function.objcpp meta.return-type.objcpp",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
