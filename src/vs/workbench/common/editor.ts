@@ -898,33 +898,7 @@ export interface IEditorWillMoveEvent extends IEditorIdentifier {
 	readonly target: GroupIdentifier;
 }
 
-export interface IEditorMoveEvent extends IEditorIdentifier {
-
-	/**
-	 * The target group of the move operation.
-	 */
-	readonly target: GroupIdentifier;
-
-	/**
-	 * The index of the editor before moving.
-	 */
-	readonly index: number;
-
-	/**
-	 * The index of the editor after moving.
-	 */
-	readonly newIndex: number;
-}
-
 export interface IEditorWillOpenEvent extends IEditorIdentifier { }
-
-export interface IEditorOpenEvent extends IEditorIdentifier {
-
-	/**
-	 * The index the editor opens in.
-	 */
-	readonly index: number;
-}
 
 export type GroupIdentifier = number;
 
