@@ -105,6 +105,8 @@ import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/not
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFilter, LanguageSelector } from 'vs/editor/common/languageSelector';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -615,12 +617,74 @@ class ComplexNotebookWorkingCopyEditorHandler extends Disposable implements IWor
 	}
 }
 
+class NotebookLanguageSelectorScoreRefine {
+
+	constructor(
+		@INotebookService private readonly _notebookService: INotebookService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+	) {
+		languageFeaturesService.setScoreRefineFunction(this._scoreNotebook.bind(this));
+	}
+
+	private _scoreNotebook(baseScore: number, selector: LanguageSelector, candidateUri: URI): number {
+
+		if (Array.isArray(selector)) {
+			// array -> take max individual value
+			let ret = 0;
+			for (const filter of selector) {
+				const value = this._scoreNotebook(baseScore, filter, candidateUri);
+				if (value === 10) {
+					return value; // already at the highest
+				}
+				if (value > ret) {
+					ret = value;
+				}
+			}
+			return ret;
+
+		} else if (typeof selector === 'string') {
+			//  string defaults to { languageId} -> no possibility to express notebook type
+			return baseScore;
+
+		} else {
+			// check for notebookType-selector -> makes this more strict
+			const { notebookType } = selector as LanguageFilter;
+			if (notebookType === undefined) {
+				return baseScore;
+			}
+			const candidateType = this._getNotebookType(candidateUri);
+			if (!candidateType) {
+				return 0; // wanted notebook but isn't notebook...
+			} else if (notebookType === '*') {
+				return 5; // any notebook type
+			} else if (notebookType === candidateType) {
+				return 10;
+			} else {
+				return 0;
+			}
+		}
+	}
+
+	private _getNotebookType(uri: URI): string | undefined {
+		const cellUri = CellUri.parse(uri);
+		if (!cellUri) {
+			return undefined;
+		}
+		const notebook = this._notebookService.getNotebookTextModel(cellUri.notebook);
+		if (!notebook) {
+			return undefined;
+		}
+		return notebook.viewType;
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 
