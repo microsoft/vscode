@@ -615,6 +615,16 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 	$closeTab(tab: IEditorTabDto): Promise<void>;
 }
 
+export interface IEditorTabGroupDto {
+	isActive: boolean;
+	viewColumn: EditorGroupColumn;
+	// Decided not to go with simple index here due to opening and closing causing index shifts
+	// This allows us to patch the model without having to do full rebuilds
+	activeTab: IEditorTabDto | undefined;
+	tabs: IEditorTabDto[];
+	groupId: number;
+}
+
 export interface IEditorTabDto {
 	viewColumn: EditorGroupColumn;
 	label: string;
@@ -625,7 +635,7 @@ export interface IEditorTabDto {
 }
 
 export interface IExtHostEditorTabsShape {
-	$acceptEditorTabs(tabs: IEditorTabDto[]): void;
+	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void;
 }
 
 //#endregion
