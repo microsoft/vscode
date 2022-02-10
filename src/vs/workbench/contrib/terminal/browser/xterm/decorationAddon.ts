@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
@@ -19,21 +19,19 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { fromNow } from 'vs/base/common/date';
+import { isWindows } from 'vs/base/common/platform';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
 	Error = 'error',
-	NoOutput = 'no-output'
-}
-
-const enum DecorationProperties {
-	Width = 1
 }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: IDecoration[] = [];
 	protected _terminal: Terminal | undefined;
 	private _hoverDelayer: Delayer<void>;
+	private _commandListener: IDisposable | undefined;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<string>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -43,34 +41,56 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		capabilities: ITerminalCapabilityStore
+		private readonly _capabilities: ITerminalCapabilityStore
 	) {
 		super();
-		capabilities.onDidAddCapability(c => {
-			if (c === TerminalCapability.CommandDetection) {
-				capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(c => {
-					if (c.command === 'clear') {
-						this._terminal?.clear();
-						for (const decoration of this._decorations) {
-							decoration.dispose();
-						}
-						return;
-					}
-					const element = this.registerCommandDecoration(c);
-					if (element) {
-						this._decorations.push(element);
-					}
-				});
+		this._register({
+			dispose: () => {
+				dispose(this._decorations);
+				this._commandListener?.dispose();
 			}
 		});
+		this._attachToCommandCapability();
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 	}
 
-	override dispose(): void {
-		for (const decoration of this._decorations) {
-			decoration.dispose();
+	private _attachToCommandCapability(): void {
+		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
+			this._addCommandListener();
+		} else {
+			this._register(this._capabilities.onDidAddCapability(c => {
+				if (c === TerminalCapability.CommandDetection) {
+					this._addCommandListener();
+				}
+			}));
 		}
-		super.dispose();
+		this._register(this._capabilities.onDidRemoveCapability(c => {
+			if (c === TerminalCapability.CommandDetection) {
+				this._commandListener?.dispose();
+			}
+		}));
+	}
+
+	private _addCommandListener(): void {
+		if (this._commandListener) {
+			return;
+		}
+		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (!capability) {
+			return;
+		}
+		this._commandListener = capability.onCommandFinished(c => {
+			//TODO: remove when this has been fixed in xterm.js
+			if (!isWindows && c.command === 'clear') {
+				this._terminal?.clear();
+				dispose(this._decorations);
+				return;
+			}
+			const element = this.registerCommandDecoration(c);
+			if (element) {
+				this._decorations.push(element);
+			}
+		});
 	}
 
 	activate(terminal: Terminal): void {
@@ -84,7 +104,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			return undefined;
 		}
 
-		const decoration = this._terminal.registerDecoration({ marker: command.marker, width: DecorationProperties.Width });
+		const decoration = this._terminal.registerDecoration({ marker: command.marker });
 
 		decoration?.onRender(target => {
 			this._createContextMenu(target, command);
@@ -108,7 +128,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _createHover(target: HTMLElement, command: ITerminalCommand): void {
 		this._register(dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
-			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${command.getTimeFromNow()} `;
+			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${fromNow(command.timestamp)} `;
 			if (command.exitCode) {
 				hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
 			}

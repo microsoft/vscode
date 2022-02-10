@@ -110,7 +110,6 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	getOutput(): string | undefined;
 	hasOutput: boolean;
-	getTimeFromNow(): string;
 }
 
 /**

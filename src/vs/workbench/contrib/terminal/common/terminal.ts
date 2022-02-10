@@ -338,7 +338,6 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	hasOutput: boolean;
 	getOutput(): string | undefined;
-	getTimeFromNow(): string | undefined;
 }
 
 export interface INavigationMode {
