@@ -286,37 +286,37 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 
 	trace(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Trace) {
-			console.log(`%cTRACE %c${message}`, 'color: #888', 'color: #000', ...args);
+			console.log(`%cTRACE%c ${message}`, 'color: #888', 'color: #444', ...args);
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Debug) {
-			console.log(`%cDEBUG %c${message}`, 'background: #eee; color: #888', 'color: #000', ...args);
+			console.log(`%cDEBUG%c ${message}`, 'background: #eee; color: #888', 'color: #444', ...args);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Info) {
-			console.log(`%c INFO %c${message}`, 'color: #33f', 'color: #000', ...args);
+			console.log(`%c INFO%c ${message}`, 'color: #33f', 'color: #444', ...args);
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Warning) {
-			console.log(`%c WARN %c${message}`, 'color: #993', 'color: #000', ...args);
+			console.log(`%c WARN%c ${message}`, 'color: #993', 'color: #444', ...args);
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Error) {
-			console.log(`%c  ERR %c${message}`, 'color: #f33', 'color: #000', ...args);
+			console.log(`%c  ERR%c ${message}`, 'color: #f33', 'color: #444', ...args);
 		}
 	}
 
 	critical(message: string, ...args: any[]): void {
 		if (this.getLevel() <= LogLevel.Critical) {
-			console.log(`%cCRITI %c${message}`, 'background: #f33; color: white', 'color: #000', ...args);
+			console.log(`%cCRITI%c ${message}`, 'background: #f33; color: white', 'color: #444', ...args);
 		}
 	}
 
