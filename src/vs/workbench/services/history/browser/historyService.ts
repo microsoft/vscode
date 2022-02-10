@@ -310,6 +310,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private handleActiveEditorSelectionChangeEventInNavigationStacks(editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
+		const previous = this.globalDefaultEditorNavigationStack.current;
 
 		// Always send to global navigation stack
 		this.globalDefaultEditorNavigationStack.notifyNavigation(editorPane, event);
@@ -324,15 +325,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Note: ignore if global navigation stack is navigating because
 		// in that case we do not want to receive repeated entries in
 		// the navigation stack.
-		else if (event.reason === EditorPaneSelectionChangeReason.NAVIGATION && !this.globalDefaultEditorNavigationStack.isNavigating()) {
+		else if (
+			(event.reason === EditorPaneSelectionChangeReason.NAVIGATION || event.reason === EditorPaneSelectionChangeReason.JUMP) &&
+			!this.globalDefaultEditorNavigationStack.isNavigating()
+		) {
 
-			// A navigation selection change always has a source and target
-			// As such, we add the previous entry of the global navigation
-			// stack so that our navigation stack receives both entries
-			// unless the user is currently navigating.
+			// A "JUMP" navigation selection change always has a source and
+			// target. As such, we add the previous entry of the global
+			// navigation stack so that our navigation stack receives both
+			// entries unless the user is currently navigating.
 
-			if (!this.globalNavigationsEditorNavigationStack.isNavigating()) {
-				const previous = this.globalDefaultEditorNavigationStack.previous;
+			if (event.reason === EditorPaneSelectionChangeReason.JUMP && !this.globalNavigationsEditorNavigationStack.isNavigating()) {
 				if (previous) {
 					this.globalNavigationsEditorNavigationStack.addOrReplace(previous.groupId, previous.editor, previous.selection);
 				}
@@ -1035,7 +1038,7 @@ export class EditorNavigationStack extends Disposable {
 
 	private currentSelectionState: EditorSelectionState | undefined = undefined;
 
-	private get current(): IEditorNavigationStackEntry | undefined {
+	get current(): IEditorNavigationStackEntry | undefined {
 		return this.stack[this.index];
 	}
 
@@ -1043,10 +1046,6 @@ export class EditorNavigationStack extends Disposable {
 		if (entry) {
 			this.stack[this.index] = entry;
 		}
-	}
-
-	get previous(): IEditorNavigationStackEntry | undefined {
-		return this.stack[this.index - 1];
 	}
 
 	constructor(
@@ -1120,6 +1119,7 @@ ${entryLabels.join('\n')}
 		switch (event.reason) {
 			case EditorPaneSelectionChangeReason.EDIT: return 'edit';
 			case EditorPaneSelectionChangeReason.NAVIGATION: return 'navigation';
+			case EditorPaneSelectionChangeReason.JUMP: return 'jump';
 			case EditorPaneSelectionChangeReason.PROGRAMMATIC: return 'programmatic';
 			case EditorPaneSelectionChangeReason.USER: return 'user';
 		}
@@ -1436,6 +1436,11 @@ ${entryLabels.join('\n')}
 	}
 
 	async goForward(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
+
 		if (!this.canGoForward()) {
 			return;
 		}
@@ -1449,6 +1454,11 @@ ${entryLabels.join('\n')}
 	}
 
 	async goBack(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
+
 		if (!this.canGoBack()) {
 			return;
 		}
@@ -1457,7 +1467,11 @@ ${entryLabels.join('\n')}
 		return this.navigate();
 	}
 
-	goPrevious(): Promise<void> {
+	async goPrevious(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
 
 		// If we never navigated, just go back
 		if (this.previousIndex === -1) {
@@ -1480,6 +1494,54 @@ ${entryLabels.join('\n')}
 
 		this.setIndex(this.stack.length - 1);
 		return this.navigate();
+	}
+
+	private async maybeGoCurrent(): Promise<boolean> {
+
+		// When this navigation stack works with a specific
+		// filter where not every selection change is added
+		// to the stack, we want to first reveal the current
+		// selection before attempting to navigate in the
+		// stack.
+
+		if (this.kind === GoFilter.NONE) {
+			return false; // only applies when  we are a filterd stack
+		}
+
+		if (this.isCurrentSelectionActive()) {
+			return false; // we are at the current navigation stop
+		}
+
+		// Go to current selection
+		await this.navigate();
+
+		return true;
+	}
+
+	private isCurrentSelectionActive(): boolean {
+		if (!this.current?.selection) {
+			return false; // we need a current selection
+		}
+
+		const pane = this.editorService.activeEditorPane;
+		if (!isEditorPaneWithSelection(pane)) {
+			return false; // we need an active editor pane with selection support
+		}
+
+		if (pane.group?.id !== this.current.groupId) {
+			return false; // we need matching groups
+		}
+
+		if (!pane.input || !this.editorHelper.matchesEditor(pane.input, this.current.editor)) {
+			return false; // we need matching editors
+		}
+
+		const paneSelection = pane.getSelection();
+		if (!paneSelection) {
+			return false; // we need a selection to compare with
+		}
+
+		return paneSelection.compare(this.current.selection) === EditorPaneSelectionCompareResult.IDENTICAL;
 	}
 
 	private setIndex(newIndex: number, skipEvent?: boolean): void {

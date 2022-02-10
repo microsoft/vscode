@@ -382,6 +382,13 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 
 	constructor(
 		data: IWorkspaceFolderData,
+		/**
+		 * Provides access to the original metadata for this workspace
+		 * folder. This can be different from the metadata provided in
+		 * this class:
+		 * - raw paths can be relative
+		 * - raw paths are not normalized
+		 */
 		readonly raw?: IRawFileWorkspaceFolder | IRawUriWorkspaceFolder
 	) {
 		this.uri = data.uri;

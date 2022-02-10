@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -45,7 +45,7 @@ suite('TextEditorPane', () => {
 		const accessor = await createServices();
 
 		const resource = toResource.call(this, '/path/index.txt');
-		let pane = await accessor.editorService.openEditor({ resource });
+		let pane = (await accessor.editorService.openEditor({ resource }) as TestTextFileEditor);
 
 		assert.ok(pane && isEditorPaneWithSelection(pane));
 
@@ -71,11 +71,12 @@ suite('TextEditorPane', () => {
 		//       no view and no cursor can be set as such. So the selection
 		//       will always report for the first line and column.
 
+		pane.setSelection(new Selection(1, 1, 1, 1), EditorPaneSelectionChangeReason.USER);
 		const selection = pane.getSelection();
 		assert.ok(selection);
 		await pane.group?.closeAllEditors();
 		const options = selection.restore({});
-		pane = await accessor.editorService.openEditor({ resource, options });
+		pane = (await accessor.editorService.openEditor({ resource, options }) as TestTextFileEditor);
 
 		assert.ok(pane && isEditorPaneWithSelection(pane));
 

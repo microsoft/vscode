@@ -289,11 +289,11 @@
 		"c": "(",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc punctuation.definition.type.begin.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -311,22 +311,22 @@
 		"c": ")",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc punctuation.definition.type.end.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -454,11 +454,11 @@
 		"c": "(",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc punctuation.definition.type.begin.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -476,11 +476,11 @@
 		"c": ")",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc punctuation.definition.type.end.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -2159,11 +2159,11 @@
 		"c": "(",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc punctuation.definition.type.begin.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -2181,22 +2181,22 @@
 		"c": ")",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc punctuation.definition.type.end.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
 		"c": " ",
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.function.objc meta.return-type.objc",
 		"r": {
-			"dark_plus": "meta.return-type: #4EC9B0",
-			"light_plus": "meta.return-type: #267F99",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "meta.return-type: #4EC9B0"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{

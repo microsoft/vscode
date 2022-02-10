@@ -172,9 +172,9 @@ suite('multi-root workspace', () => {
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
-					new WorkspaceFolder({ uri: sources, index: 0, name: 'Sources' }, { uri: sources.toString() }),
-					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }, { uri: tests.toString() }),
-					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }, { uri: other.toString() }),
+					new WorkspaceFolder({ uri: sources, index: 0, name: 'Sources' }),
+					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }),
+					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }),
 				])),
 			new TestPathService());
 	});
@@ -261,7 +261,7 @@ suite('workspace at FSP root', () => {
 			TestEnvironmentService,
 			new TestContextService(
 				new Workspace('test-workspace', [
-					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }, { uri: rootFolder.toString() }),
+					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }),
 				])),
 			new TestPathService());
 		labelService.registerFormatter({

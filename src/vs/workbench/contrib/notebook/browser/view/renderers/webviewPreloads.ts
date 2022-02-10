@@ -7,6 +7,7 @@ import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
+import type * as rendererApi from 'vscode-notebook-renderer';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringified and injected into
@@ -68,6 +69,9 @@ interface PreloadContext {
 declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
+	const textEncoder = new TextEncoder();
+	const textDecoder = new TextDecoder();
+
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
 
@@ -201,7 +205,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	interface RendererModule {
-		activate(ctx: RendererContext): Promise<RendererApi | undefined | any> | RendererApi | undefined | any;
+		readonly activate: rendererApi.ActivationFunction;
 	}
 
 	interface KernelPreloadContext {
@@ -670,44 +674,35 @@ async function webviewPreloads(ctx: PreloadContext) {
 		outputNode.appendChild(errList);
 	}
 
-	interface IOutputItem {
-		readonly id: string;
+	function createOutputItem(
+		id: string,
+		element: HTMLElement,
+		mime: string,
+		metadata: unknown,
+		valueBytes: Uint8Array
+	): rendererApi.OutputItem {
+		return Object.freeze(<rendererApi.OutputItem>{
+			id,
+			element,
+			mime,
+			metadata,
 
-		readonly mime: string;
-		metadata: unknown;
+			data(): Uint8Array {
+				return valueBytes;
+			},
 
-		text(): string;
-		json(): any;
-		data(): Uint8Array;
-		blob(): Blob;
-	}
+			text(): string {
+				return textDecoder.decode(valueBytes);
+			},
 
-	class OutputItem implements IOutputItem {
-		constructor(
-			public readonly id: string,
-			public readonly element: HTMLElement,
-			public readonly mime: string,
-			public readonly metadata: unknown,
-			public readonly valueBytes: Uint8Array
-		) { }
+			json() {
+				return JSON.parse(this.text());
+			},
 
-		data() {
-			return this.valueBytes;
-		}
-
-		bytes() { return this.data(); }
-
-		text() {
-			return new TextDecoder().decode(this.valueBytes);
-		}
-
-		json() {
-			return JSON.parse(this.text());
-		}
-
-		blob() {
-			return new Blob([this.valueBytes], { type: this.mime });
-		}
+			blob(): Blob {
+				return new Blob([valueBytes], { type: this.mime });
+			}
+		});
 	}
 
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
@@ -1176,11 +1171,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	});
 
-	interface RendererApi {
-		renderOutputItem: (outputItem: IOutputItem, element: HTMLElement) => void;
-		disposeOutputItem?: (id?: string) => void;
-	}
-
 	class Renderer {
 		constructor(
 			public readonly data: RendererMetadata,
@@ -1188,12 +1178,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		) { }
 
 		private _onMessageEvent = createEmitter();
-		private _loadPromise?: Promise<RendererApi | undefined>;
-		private _api: RendererApi | undefined;
+		private _loadPromise?: Promise<rendererApi.RendererApi | undefined>;
+		private _api: rendererApi.RendererApi | undefined;
 
 		public get api() { return this._api; }
 
-		public load(): Promise<RendererApi | undefined> {
+		public load(): Promise<rendererApi.RendererApi | undefined> {
 			if (!this._loadPromise) {
 				this._loadPromise = this._load();
 			}
@@ -1230,7 +1220,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		/** Inner function cached in the _loadPromise(). */
-		private async _load(): Promise<RendererApi | undefined> {
+		private async _load(): Promise<rendererApi.RendererApi | undefined> {
 			const module: RendererModule = await __import(this.data.entrypoint);
 			if (!module) {
 				return;
@@ -1362,7 +1352,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
 		}
 
-		public async render(info: IOutputItem, element: HTMLElement) {
+		public async render(info: rendererApi.OutputItem, element: HTMLElement) {
 			const renderers = Array.from(this._renderers.values())
 				.filter(renderer => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
@@ -1566,7 +1556,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}();
 
-	class MarkupCell implements IOutputItem {
+	class MarkupCell {
 
 		private static pendingCodeBlocksToHighlight = new Map<string, HTMLElement>();
 
@@ -1584,18 +1574,49 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public readonly ready: Promise<void>;
 
+		public readonly id: string;
 		public readonly element: HTMLElement;
 
+		private readonly outputItem: rendererApi.OutputItem;
+
 		/// Internal field that holds text content
-		private _content: string;
+		private _content: { readonly value: string; readonly version: number };
 
 		constructor(id: string, mime: string, content: string, top: number) {
 			this.id = id;
-			this.mime = mime;
-			this._content = content;
+			this._content = { value: content, version: 0 };
 
 			let resolveReady: () => void;
 			this.ready = new Promise<void>(r => resolveReady = r);
+
+			let cachedData: { readonly version: number; readonly value: Uint8Array } | undefined;
+			this.outputItem = Object.freeze(<rendererApi.OutputItem>{
+				id,
+				mime,
+				metadata: undefined,
+
+				text: (): string => {
+					return this._content.value;
+				},
+
+				json: () => {
+					return undefined;
+				},
+
+				data: (): Uint8Array => {
+					if (cachedData?.version === this._content.version) {
+						return cachedData.value;
+					}
+
+					const data = textEncoder.encode(this._content.value);
+					cachedData = { version: this._content.version, value: data };
+					return data;
+				},
+
+				blob(): Blob {
+					return new Blob([this.data()], { type: this.mime });
+				}
+			});
 
 			const root = document.getElementById('container')!;
 			const markupCell = document.createElement('div');
@@ -1614,23 +1635,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.addEventListeners();
 
-			this.updateContentAndRender(this._content).then(() => {
+			this.updateContentAndRender(this._content.value).then(() => {
 				resizeObserver.observe(this.element, this.id, false);
 				resolveReady();
 			});
 		}
-
-		//#region IOutputItem
-		public readonly id: string;
-		public readonly mime: string;
-		public readonly metadata = undefined;
-
-		text() { return this._content; }
-		json() { return undefined; }
-		bytes() { return this.data(); }
-		data() { return new TextEncoder().encode(this._content); }
-		blob() { return new Blob([this.data()], { type: this.mime }); }
-		//#endregion
 
 		private addEventListeners() {
 			this.element.addEventListener('dblclick', () => {
@@ -1677,9 +1686,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public async updateContentAndRender(newContent: string): Promise<void> {
-			this._content = newContent;
+			this._content = { value: newContent, version: this._content.version + 1 };
 
-			await renderers.render(this, this.element);
+			await renderers.render(this.outputItem, this.element);
 
 			const root = (this.element.shadowRoot ?? this.element);
 			const html = [];
@@ -1739,7 +1748,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		public rerender() {
-			this.updateContentAndRender(this._content);
+			this.updateContentAndRender(this._content.value);
 		}
 
 		public remove() {
@@ -1942,9 +1951,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const errors = preloadsAndErrors.filter((e): e is Error => e instanceof Error);
 				showPreloadErrors(this.element, ...errors);
 			} else {
-				const rendererApi = preloadsAndErrors[0] as RendererApi;
+				const rendererApi = preloadsAndErrors[0] as rendererApi.RendererApi;
 				try {
-					rendererApi.renderOutputItem(new OutputItem(this.outputId, this.element, content.mimeType, content.metadata, content.valueBytes), this.element);
+					rendererApi.renderOutputItem(createOutputItem(this.outputId, this.element, content.mimeType, content.metadata, content.valueBytes), this.element);
 				} catch (e) {
 					showPreloadErrors(this.element, e);
 				}

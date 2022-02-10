@@ -215,6 +215,8 @@
 }
 
 .monaco-workbench .notebookOverlay .output .cell-output-toolbar {
+	left: -29px;
+	width: 22px;
 	z-index: var(--z-index-notebook-cell-output-toolbar);
 }
 
@@ -706,11 +708,17 @@
 	border-color: var(--notebook-focused-cell-border-color) !important;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator {
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator-container {
+	display: none;
 	position: relative;
-	width: 0px;
 	cursor: pointer;
 	pointer-events: all; /* Take pointer-events in markdown cell */
+	width: 11px;
+}
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator {
+	width: 0px;
+	height: 100%;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left,

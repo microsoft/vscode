@@ -148,7 +148,8 @@ export namespace DocumentSelector {
 				language: selector.language,
 				scheme: _transformScheme(selector.scheme, uriTransformer),
 				pattern: GlobPattern.from(selector.pattern) ?? undefined,
-				exclusive: selector.exclusive
+				exclusive: selector.exclusive,
+				notebookType: selector.notebookType
 			};
 		}
 

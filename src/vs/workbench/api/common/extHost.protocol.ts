@@ -336,6 +336,7 @@ export interface IDocumentFilterDto {
 	scheme?: string;
 	pattern?: string | IRelativePattern;
 	exclusive?: boolean;
+	notebookType?: string;
 }
 
 export interface ISignatureHelpProviderMetadataDto {

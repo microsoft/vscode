@@ -105,6 +105,7 @@ import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/not
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -615,12 +616,35 @@ class ComplexNotebookWorkingCopyEditorHandler extends Disposable implements IWor
 	}
 }
 
+class NotebookLanguageSelectorScoreRefine {
+
+	constructor(
+		@INotebookService private readonly _notebookService: INotebookService,
+		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
+	) {
+		languageFeaturesService.setNotebookTypeResolver(this._getNotebookType.bind(this));
+	}
+
+	private _getNotebookType(uri: URI): string | undefined {
+		const cellUri = CellUri.parse(uri);
+		if (!cellUri) {
+			return undefined;
+		}
+		const notebook = this._notebookService.getNotebookTextModel(cellUri.notebook);
+		if (!notebook) {
+			return undefined;
+		}
+		return notebook.viewType;
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellInfoContentProvider, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookEditorManager, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookLanguageSelectorScoreRefine, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(SimpleNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 workbenchContributionsRegistry.registerWorkbenchContribution(ComplexNotebookWorkingCopyEditorHandler, LifecyclePhase.Ready);
 

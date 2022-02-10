@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	export interface Comment {
+
+	// https://github.com/microsoft/vscode/issues/141143
+
+	export interface DocumentFilter {
+
 		/**
-		 * An optional timestamp that will be displayed in comments.
-		 * The date will be formatted according to the user's locale and settings.
+		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter`
 		 */
-		timestamp?: Date;
+		readonly notebookType?: string;
 	}
 }

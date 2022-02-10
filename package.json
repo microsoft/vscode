@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.65.0",
-  "distro": "8922d59448b923922cbc9f0fa0a065fe35a6807f",
+  "distro": "3b05df4c4eab6ba06689471a7a1927cfca47a304",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -61,7 +61,7 @@
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
     "@parcel/watcher": "2.0.5",
-    "@vscode/debugprotocol": "1.51.0",
+    "@vscode/debugprotocol": "1.54.0-pre.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.14.1",
     "@vscode/sqlite3": "5.0.7",
@@ -85,12 +85,12 @@
     "vscode-proxy-agent": "^0.12.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "6.0.0",
-    "xterm": "4.18.0-beta.2",
+    "xterm": "4.18.0-beta.4",
     "xterm-addon-search": "0.9.0-beta.10",
     "xterm-addon-serialize": "0.7.0-beta.8",
     "xterm-addon-unicode11": "0.4.0-beta.3",
     "xterm-addon-webgl": "0.12.0-beta.24",
-    "xterm-headless": "4.18.0-beta.2",
+    "xterm-headless": "4.18.0-beta.4",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -113,6 +113,7 @@
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
     "@types/trusted-types": "^1.0.6",
+    "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/webpack": "^4.41.25",
     "@types/wicg-file-system-access": "^2020.9.5",
     "@types/windows-foreground-love": "^0.3.0",
@@ -201,7 +202,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.3",
     "tsec": "0.1.4",
-    "typescript": "^4.6.0-dev.20220110",
+    "typescript": "^4.6.0-dev.20220209",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

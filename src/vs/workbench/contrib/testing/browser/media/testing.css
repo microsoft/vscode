@@ -209,5 +209,8 @@
 .test-message-inline-content {
 	font-family: var(--testMessageDecorationFontFamily);
 	font-size: var(--testMessageDecorationFontSize);
+}
+
+.test-message-inline-content-clickable {
 	cursor: pointer;
 }
