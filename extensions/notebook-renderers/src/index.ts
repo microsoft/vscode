@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ActivationFunction, OutputItem } from 'vscode-notebook-renderer';
+import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
 import { handleANSIOutput } from './ansi';
+import { truncatedArrayOfString } from './textHelper';
 
 interface IDisposable {
 	dispose(): void;
 }
+
+
 
 function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable {
 	const blob = new Blob([outputInfo.data()], { type: outputInfo.mime });
@@ -76,20 +79,18 @@ function renderJavascript(outputInfo: OutputItem, container: HTMLElement): void 
 	domEval(element);
 }
 
-function renderError(outputIfo: OutputItem, container: HTMLElement): void {
+function renderError(outputInfo: OutputItem, container: HTMLElement): void {
 	const element = document.createElement('div');
 	container.appendChild(element);
 	type ErrorLike = Partial<Error>;
 
 	let err: ErrorLike;
 	try {
-		err = <ErrorLike>JSON.parse(outputIfo.text());
+		err = <ErrorLike>JSON.parse(outputInfo.text());
 	} catch (e) {
 		console.log(e);
 		return;
 	}
-
-	console.log(err);
 
 	if (err.stack) {
 		const stack = document.createElement('pre');
@@ -109,9 +110,70 @@ function renderError(outputIfo: OutputItem, container: HTMLElement): void {
 	container.classList.add('error');
 }
 
+function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boolean, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+	const outputContainer = container.parentElement;
+	if (!outputContainer) {
+		// should never happen
+		return;
+	}
+
+	const prev = outputContainer.previousSibling;
+	if (prev) {
+		// OutputItem in the same cell
+		// check if the previous item is a stream
+		const outputElement = (prev.firstChild as HTMLElement | null);
+		if (outputElement && outputElement.getAttribute('output-mime-type') === outputInfo.mime) {
+			// same stream
+			const text = outputInfo.text();
+
+			const element = document.createElement('span');
+			truncatedArrayOfString(outputInfo.id, [text], 30, element);
+			outputElement.appendChild(element);
+			return;
+		}
+	}
+
+	const element = document.createElement('span');
+	element.classList.add('output-stream');
+
+	const text = outputInfo.text();
+	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
+	container.appendChild(element);
+	container.setAttribute('output-mime-type', outputInfo.mime);
+	if (error) {
+		container.classList.add('error');
+	}
+}
+
+function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
+	const contentNode = document.createElement('div');
+	contentNode.classList.add('.output-plaintext');
+	const text = outputInfo.text();
+	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, contentNode);
+	container.appendChild(contentNode);
+
+}
+
 export const activate: ActivationFunction<void> = (ctx) => {
 	const disposables = new Map<string, IDisposable>();
+	const latestContext = ctx as (RendererContext<void> & { readonly settings: { readonly lineLimit: number } });
 
+	const style = document.createElement('style');
+	style.textContent = `
+	.output-stream {
+		line-height: 22px;
+		font-family: var(--notebook-cell-output-font-family);
+		white-space: pre-wrap;
+		word-wrap: break-word;
+
+		font-size: var(--notebook-cell-output-font-size);
+		user-select: text;
+		-webkit-user-select: text;
+		-ms-user-select: text;
+		cursor: auto;
+	}
+	`;
+	document.body.appendChild(style);
 	return {
 		renderOutputItem: (outputInfo, element) => {
 			switch (outputInfo.mime) {
@@ -137,6 +199,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'image/gif':
 				case 'image/png':
 				case 'image/jpeg':
+				case 'image/git':
 					{
 						const disposable = renderImage(outputInfo, element);
 						disposables.set(outputInfo.id, disposable);
@@ -146,6 +209,25 @@ export const activate: ActivationFunction<void> = (ctx) => {
 					{
 						renderError(outputInfo, element);
 					}
+					break;
+				case 'application/vnd.code.notebook.stdout':
+				case 'application/x.notebook.stdout':
+				case 'application/x.notebook.stream':
+					{
+						renderStream(outputInfo, element, false, latestContext);
+					}
+					break;
+				case 'application/vnd.code.notebook.stderr':
+				case 'application/x.notebook.stderr':
+					{
+						renderStream(outputInfo, element, true, latestContext);
+					}
+					break;
+				case 'text/plain':
+					{
+						renderText(outputInfo, element, latestContext);
+					}
+					break;
 				default:
 					break;
 			}
