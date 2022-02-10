@@ -51,6 +51,11 @@
 	min-width: 0;
 }
 
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .count,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .timestamp {
+	font-size: 0.9em;
+}
+
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text * {
 	margin: 0;
 	text-overflow: ellipsis;
