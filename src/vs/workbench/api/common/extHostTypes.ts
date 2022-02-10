@@ -104,6 +104,15 @@ export class Position {
 		return false;
 	}
 
+	static of(obj: vscode.Position): Position {
+		if (obj instanceof Position) {
+			return obj;
+		} else if (this.isPosition(obj)) {
+			return new Position(obj.line, obj.character);
+		}
+		throw new Error('Invalid argument, is NOT a position-like object');
+	}
+
 	private _line: number;
 	private _character: number;
 
@@ -245,6 +254,16 @@ export class Range {
 			&& Position.isPosition((<Range>thing.end));
 	}
 
+	static of(obj: vscode.Range): Range {
+		if (obj instanceof Range) {
+			return obj;
+		}
+		if (this.isRange(obj)) {
+			return new Range(obj.start, obj.end);
+		}
+		throw new Error('Invalid argument, is NOT a range-like object');
+	}
+
 	protected _start: Position;
 	protected _end: Position;
 
@@ -256,18 +275,19 @@ export class Range {
 		return this._end;
 	}
 
+	constructor(start: vscode.Position, end: vscode.Position);
 	constructor(start: Position, end: Position);
 	constructor(startLine: number, startColumn: number, endLine: number, endColumn: number);
-	constructor(startLineOrStart: number | Position, startColumnOrEnd: number | Position, endLine?: number, endColumn?: number) {
+	constructor(startLineOrStart: number | Position | vscode.Position, startColumnOrEnd: number | Position | vscode.Position, endLine?: number, endColumn?: number) {
 		let start: Position | undefined;
 		let end: Position | undefined;
 
 		if (typeof startLineOrStart === 'number' && typeof startColumnOrEnd === 'number' && typeof endLine === 'number' && typeof endColumn === 'number') {
 			start = new Position(startLineOrStart, startColumnOrEnd);
 			end = new Position(endLine, endColumn);
-		} else if (startLineOrStart instanceof Position && startColumnOrEnd instanceof Position) {
-			start = startLineOrStart;
-			end = startColumnOrEnd;
+		} else if (Position.isPosition(startLineOrStart) && Position.isPosition(startColumnOrEnd)) {
+			start = Position.of(startLineOrStart);
+			end = Position.of(startColumnOrEnd);
 		}
 
 		if (!start || !end) {
@@ -284,12 +304,12 @@ export class Range {
 	}
 
 	contains(positionOrRange: Position | Range): boolean {
-		if (positionOrRange instanceof Range) {
-			return this.contains(positionOrRange._start)
-				&& this.contains(positionOrRange._end);
+		if (Range.isRange(positionOrRange)) {
+			return this.contains(positionOrRange.start)
+				&& this.contains(positionOrRange.end);
 
-		} else if (positionOrRange instanceof Position) {
-			if (positionOrRange.isBefore(this._start)) {
+		} else if (Position.isPosition(positionOrRange)) {
+			if (Position.of(positionOrRange).isBefore(this._start)) {
 				return false;
 			}
 			if (this._end.isBefore(positionOrRange)) {
@@ -403,9 +423,9 @@ export class Selection extends Range {
 		if (typeof anchorLineOrAnchor === 'number' && typeof anchorColumnOrActive === 'number' && typeof activeLine === 'number' && typeof activeColumn === 'number') {
 			anchor = new Position(anchorLineOrAnchor, anchorColumnOrActive);
 			active = new Position(activeLine, activeColumn);
-		} else if (anchorLineOrAnchor instanceof Position && anchorColumnOrActive instanceof Position) {
-			anchor = anchorLineOrAnchor;
-			active = anchorColumnOrActive;
+		} else if (Position.isPosition(anchorLineOrAnchor) && Position.isPosition(anchorColumnOrActive)) {
+			anchor = Position.of(anchorLineOrAnchor);
+			active = Position.of(anchorColumnOrActive);
 		}
 
 		if (!anchor || !active) {
@@ -893,9 +913,9 @@ export class Location {
 
 		if (!rangeOrPosition) {
 			//that's OK
-		} else if (rangeOrPosition instanceof Range) {
-			this.range = rangeOrPosition;
-		} else if (rangeOrPosition instanceof Position) {
+		} else if (Range.isRange(rangeOrPosition)) {
+			this.range = Range.of(rangeOrPosition);
+		} else if (Position.isPosition(rangeOrPosition)) {
 			this.range = new Range(rangeOrPosition, rangeOrPosition);
 		} else {
 			throw new Error('Illegal argument');
