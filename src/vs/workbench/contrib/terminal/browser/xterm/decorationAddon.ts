@@ -100,7 +100,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	registerCommandDecoration(command: ITerminalCommand): IDecoration | undefined {
 		if (!command.marker) {
 			throw new Error(`cannot add decoration for command: ${command}, and terminal: ${this._terminal}`);
-		} else if (!this._terminal || command.command.trim().length === 0) {
+		}
+		 if (!this._terminal || command.command.trim().length === 0) {
 			return undefined;
 		}
 
