@@ -13,7 +13,7 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntry
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
+import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode } from 'vs/base/browser/dom';
@@ -507,6 +507,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		container.style.backgroundColor = backgroundColor;
 		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
 		container.style.color = foregroundColor;
+		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
 
 		// Border color
 		const borderColor = this.getColor(styleOverride?.border ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER)) || this.getColor(contrastBorder);
@@ -527,7 +528,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.styleElement.textContent = `
 				/* Focus outline */
 				.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus-visible:not(.disabled) {
-					outline: 1px solid ${this.getColor(activeContrastBorder) ?? foregroundColor};
+					outline: 1px solid ${this.getColor(activeContrastBorder) ?? itemBorderColor};
 					outline-offset: ${borderColor ? '-2px' : '-1px'};
 				}
 				/* Notification Beak */
