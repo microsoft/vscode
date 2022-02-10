@@ -1555,10 +1555,10 @@
   resolved "https://registry.yarnpkg.com/@ungap/promise-all-settled/-/promise-all-settled-1.1.2.tgz#aa58042711d6e3275dd37dc597e5d31e8c290a44"
   integrity sha512-sL/cEvJWAnClXw0wHk85/2L0G6Sj8UB0Ctc1TEMbKSsmpRosqhwj9gWgFRZSrBr2f9tiXISwNhCPmlfqUqyb9Q==
 
-"@vscode/debugprotocol@1.51.0":
-  version "1.51.0"
-  resolved "https://registry.yarnpkg.com/@vscode/debugprotocol/-/debugprotocol-1.51.0.tgz#1d28a8581f8ea74b8e2fd465d4448717589a0ae3"
-  integrity sha512-39ShbKzI+0r53haLZQVEhY4XhdMJVSqfcliaDFigQjqiWattno5Ex0jXq2WRHrAtPf+W5Un9/HtED0K3pAiqZg==
+"@vscode/debugprotocol@1.54.0-pre.1":
+  version "1.54.0-pre.1"
+  resolved "https://registry.yarnpkg.com/@vscode/debugprotocol/-/debugprotocol-1.54.0-pre.1.tgz#857fe4e25ce24996bd59e8429269240fc5c94601"
+  integrity sha512-+txaF9Rplurzggmty7e3UDMWYEMxVt6uIXMzdAJ5YVHTJBUbLSVXtAVCBez2lZpnw1gTuA4y+vOTA1QUFD/0IQ==
 
 "@vscode/iconv-lite-umd@0.7.0":
   version "0.7.0"
