@@ -18,17 +18,19 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
+import { Codicon } from 'vs/base/common/codicons';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_TITLE = 'Comments';
 
 export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
 	hasChildren(element: any): boolean {
-		return element instanceof CommentsModel || element instanceof ResourceWithCommentThreads || (element instanceof CommentNode && !!element.replies.length);
+		return (element instanceof CommentsModel || element instanceof ResourceWithCommentThreads) && !(element instanceof CommentNode);
 	}
 
 	getChildren(element: any): any[] | Promise<any[]> {
@@ -37,9 +39,6 @@ export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
 		}
 		if (element instanceof ResourceWithCommentThreads) {
 			return Promise.resolve(element.commentThreads);
-		}
-		if (element instanceof CommentNode) {
-			return Promise.resolve(element.replies);
 		}
 		return Promise.resolve([]);
 	}
@@ -50,10 +49,20 @@ interface IResourceTemplateData {
 }
 
 interface ICommentThreadTemplateData {
-	icon: HTMLImageElement;
-	userName: HTMLSpanElement;
-	timestamp: TimestampWidget;
-	commentText: HTMLElement;
+	threadMetadata: {
+		icon?: HTMLElement;
+		userNames: HTMLSpanElement;
+		timestamp: TimestampWidget;
+		separator: HTMLElement;
+		count: HTMLSpanElement;
+	};
+	displayedComment: {
+		container: HTMLElement;
+		userName: HTMLSpanElement;
+		timestamp: TimestampWidget;
+		separator: HTMLElement;
+		commentText: HTMLElement;
+	};
 	disposables: IDisposable[];
 }
 
@@ -63,6 +72,9 @@ export class CommentsModelVirualDelegate implements IListVirtualDelegate<any> {
 
 
 	getHeight(element: any): number {
+		if (element instanceof CommentNode) {
+			return 44;
+		}
 		return 22;
 	}
 
@@ -113,46 +125,85 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	renderTemplate(container: HTMLElement) {
 		const data = <ICommentThreadTemplateData>Object.create(null);
-		const labelContainer = dom.append(container, dom.$('.comment-container'));
-		data.userName = dom.append(labelContainer, dom.$('.user'));
-		data.timestamp = new TimestampWidget(this.configurationService, dom.append(labelContainer, dom.$('.timestamp')));
-		data.commentText = dom.append(labelContainer, dom.$('.text'));
-		data.disposables = [];
+
+		const threadContainer = dom.append(container, dom.$('.comment-thread-container'));
+		const metadataContainer = dom.append(threadContainer, dom.$('.comment-metadata-container'));
+		data.threadMetadata = {
+			icon: dom.append(metadataContainer, dom.$('.icon')),
+			userNames: dom.append(metadataContainer, dom.$('.user')),
+			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp'))),
+			separator: dom.append(metadataContainer, dom.$('.separator')),
+			count: dom.append(metadataContainer, dom.$('.count'))
+		};
+		data.threadMetadata.separator.innerText = '\u00b7';
+
+		const snippetContainer = dom.append(threadContainer, dom.$('.comment-snippet-container'));
+		data.displayedComment = {
+			container: snippetContainer,
+			userName: dom.append(snippetContainer, dom.$('.user')),
+			timestamp: new TimestampWidget(this.configurationService, dom.append(snippetContainer, dom.$('.timestamp'))),
+			separator: dom.append(snippetContainer, dom.$('.separator')),
+			commentText: dom.append(snippetContainer, dom.$('.text'))
+		};
+		data.displayedComment.separator.innerText = '\u00b7';
+		data.disposables = [data.threadMetadata.timestamp, data.displayedComment.timestamp];
 
 		return data;
 	}
 
-	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
-		templateData.userName.textContent = node.element.comment.userName;
-		templateData.timestamp.setTimestamp(node.element.comment.timestamp);
-		templateData.commentText.innerText = '';
-		if (typeof node.element.comment.body === 'string') {
-			templateData.commentText.innerText = node.element.comment.body;
+	private getCountString(commentCount: number): string {
+		if (commentCount > 1) {
+			return nls.localize('commentsCount', "{0} comments", commentCount);
 		} else {
-			const commentBody = node.element.comment.body;
+			return nls.localize('commentCount', "1 comment");
+		}
+	}
+
+	private getRenderedComment(commentBody: IMarkdownString, disposables: DisposableStore) {
+		const renderedComment = renderMarkdown(commentBody, {
+			inline: true,
+			actionHandler: {
+				callback: (content) => {
+					this.openerService.open(content, { allowCommands: commentBody.isTrusted }).catch(onUnexpectedError);
+				},
+				disposables: disposables
+			}
+		});
+		const images = renderedComment.element.getElementsByTagName('img');
+		for (let i = 0; i < images.length; i++) {
+			const image = images[i];
+			const textDescription = dom.$('');
+			textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
+			image.parentNode!.replaceChild(textDescription, image);
+		}
+		return renderedComment;
+	}
+
+	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
+		const commentCount = node.element.replies.length + 1;
+		templateData.threadMetadata.icon?.classList.add(...ThemeIcon.asClassNameArray((commentCount === 1) ? Codicon.comment : Codicon.commentDiscussion));
+		templateData.threadMetadata.userNames.textContent = node.element.comment.userName;
+		templateData.threadMetadata.timestamp.setTimestamp(node.element.comment.timestamp ? new Date(node.element.comment.timestamp) : undefined);
+		templateData.threadMetadata.count.textContent = this.getCountString(commentCount);
+		if (!node.element.hasReply()) {
+			templateData.displayedComment.container.style.display = 'none';
+			return;
+		}
+
+		templateData.displayedComment.container.style.display = '';
+		const recentReply = node.element.replies[node.element.replies.length - 1];
+		templateData.displayedComment.userName.textContent = recentReply.comment.userName;
+		templateData.displayedComment.timestamp.setTimestamp(recentReply.comment.timestamp ? new Date(recentReply.comment.timestamp) : undefined);
+		templateData.displayedComment.commentText.innerText = '';
+		if (typeof recentReply.comment.body === 'string') {
+			templateData.displayedComment.commentText.innerText = recentReply.comment.body;
+		} else {
 			const disposables = new DisposableStore();
 			templateData.disposables.push(disposables);
-			const renderedComment = renderMarkdown(commentBody, {
-				inline: true,
-				actionHandler: {
-					callback: (content) => {
-						this.openerService.open(content, { allowCommands: commentBody.isTrusted }).catch(onUnexpectedError);
-					},
-					disposables: disposables
-				}
-			});
+			const renderedComment = this.getRenderedComment(recentReply.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
-
-			const images = renderedComment.element.getElementsByTagName('img');
-			for (let i = 0; i < images.length; i++) {
-				const image = images[i];
-				const textDescription = dom.$('');
-				textDescription.textContent = image.alt ? nls.localize('imageWithLabel', "Image: {0}", image.alt) : nls.localize('image', "Image");
-				image.parentNode!.replaceChild(textDescription, image);
-			}
-
-			templateData.commentText.appendChild(renderedComment.element);
-			templateData.commentText.title = renderedComment.element.textContent ?? '';
+			templateData.displayedComment.commentText.appendChild(renderedComment.element);
+			templateData.displayedComment.commentText.title = renderedComment.element.textContent ?? '';
 		}
 	}
 
