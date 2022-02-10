@@ -185,13 +185,9 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		templateData.threadMetadata.userNames.textContent = node.element.comment.userName;
 		templateData.threadMetadata.timestamp.setTimestamp(node.element.comment.timestamp ? new Date(node.element.comment.timestamp) : undefined);
 		templateData.threadMetadata.count.textContent = this.getCountString(commentCount);
-		if (!node.element.hasReply()) {
-			templateData.displayedComment.container.style.display = 'none';
-			return;
-		}
 
 		templateData.displayedComment.container.style.display = '';
-		const recentReply = node.element.replies[node.element.replies.length - 1];
+		const recentReply = node.element.hasReply() ? node.element.replies[node.element.replies.length - 1] : node.element;
 		templateData.displayedComment.userName.textContent = recentReply.comment.userName;
 		templateData.displayedComment.timestamp.setTimestamp(recentReply.comment.timestamp ? new Date(recentReply.comment.timestamp) : undefined);
 		templateData.displayedComment.commentText.innerText = '';
