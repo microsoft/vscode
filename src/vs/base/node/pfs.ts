@@ -479,7 +479,6 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 
 /**
  * A drop-in replacement for `fs.rename` that:
- * - updates the `mtime` of the `source` after the operation
  * - allows to move across multiple disks
  */
 async function move(source: string, target: string): Promise<void> {
