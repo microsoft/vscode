@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { LanguageFeatureRegistry, NotebooTypeResolver } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
-import { LanguageSelector, score } from 'vs/editor/common/languageSelector';
-import { ILanguageFeaturesService, RefineScoreFunction } from 'vs/editor/common/services/languageFeatures';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class LanguageFeaturesService implements ILanguageFeaturesService {
@@ -42,26 +41,15 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 	readonly documentRangeSemanticTokensProvider = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>(this._score.bind(this));
 	readonly documentSemanticTokensProvider = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>(this._score.bind(this));
 
-	private _refinedScore?: RefineScoreFunction;
 
-	setScoreRefineFunction(fn: RefineScoreFunction | undefined): void {
-		this._refinedScore = fn;
+	private _notebookTypeResolver?: NotebooTypeResolver;
+
+	setNotebookTypeResolver(resolver: NotebooTypeResolver | undefined) {
+		this._notebookTypeResolver = resolver;
 	}
 
-	private _score(selector: LanguageSelector | undefined, candidateUri: URI, candidateLanguage: string, candidateIsSynchronized: boolean) {
-		const base = score(selector, candidateUri, candidateLanguage, candidateIsSynchronized);
-		if (base === 0 || !selector) {
-			return base;
-		}
-		if (!this._refinedScore) {
-			return base;
-		}
-		const refined = this._refinedScore(base, selector, candidateUri, candidateLanguage);
-		if (refined === 0) {
-			return 0;
-		} else {
-			return Math.max(refined, base);
-		}
+	private _score(uri: URI): string | undefined {
+		return this._notebookTypeResolver?.(uri);
 	}
 
 }

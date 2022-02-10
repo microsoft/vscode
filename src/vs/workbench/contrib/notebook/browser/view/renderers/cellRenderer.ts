@@ -439,6 +439,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.notebookEditor));
 		const betweenCellToolbar = templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellToolbarContainer));
 
+		const focusIndicatorPart = new CellFocusIndicator(this.notebookEditor, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom);
 		const templateData: CodeCellRenderTemplate = {
 			rootContainer,
 			editorPart,
@@ -450,7 +451,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			cellContainer,
 			progressBar,
 			statusBar,
-			focusIndicator: new CellFocusIndicator(this.notebookEditor, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom),
+			focusIndicator: focusIndicatorPart,
 			cellExecution: new CellExecutionPart(this.notebookEditor, executionOrderLabel),
 			titleToolbar,
 			betweenCellToolbar,
@@ -466,7 +467,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		this.setupOutputCollapsedPart(templateData);
 
-		this.dndController?.registerDragHandle(templateData, rootContainer, focusIndicatorLeft.domNode, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
+		// focusIndicatorLeft covers the left margin area
+		// code/outputFocusIndicator need to be registered as drag handlers so their click handlers don't take over
+		const dragHandles = [focusIndicatorLeft.domNode, focusIndicatorPart.codeFocusIndicator.domNode, focusIndicatorPart.outputFocusIndicator.domNode];
+		this.dndController?.registerDragHandle(templateData, rootContainer, dragHandles, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
 		templateDisposables.add(this.addCollapseClickCollapseHandler(templateData));
 		templateDisposables.add(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {

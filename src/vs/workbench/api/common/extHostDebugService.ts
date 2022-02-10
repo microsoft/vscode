@@ -953,14 +953,14 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				if (activeEditor) {
 					return activeEditor.document.uri;
 				}
-				const tabs = editorTabs.tabs.filter(tab => tab.isActive);
-				if (tabs.length > 0) {
+				const activeTab = editorTabs.tabGroups.all.find(group => group.isActive)?.activeTab;
+				if (activeTab !== undefined) {
 					// Resolve a resource from the tab
-					const asSideBySideResource = tabs[0].resource as { primary?: URI; secondary?: URI } | undefined;
+					const asSideBySideResource = activeTab.resource as { primary?: URI; secondary?: URI } | undefined;
 					if (asSideBySideResource && (asSideBySideResource.primary || asSideBySideResource.secondary)) {
 						return asSideBySideResource.primary ?? asSideBySideResource.secondary;
 					} else {
-						return tabs[0].resource as URI | undefined;
+						return activeTab.resource as URI | undefined;
 					}
 				}
 			}

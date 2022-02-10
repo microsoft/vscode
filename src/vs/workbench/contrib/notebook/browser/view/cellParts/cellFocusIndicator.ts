@@ -13,8 +13,8 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellFocusIndicator extends CellPart {
-	private codeFocusIndicator: FastDomNode<HTMLElement>;
-	private outputFocusIndicator: FastDomNode<HTMLElement>;
+	public codeFocusIndicator: FastDomNode<HTMLElement>;
+	public outputFocusIndicator: FastDomNode<HTMLElement>;
 
 	private currentElement: ICellViewModel | undefined;
 

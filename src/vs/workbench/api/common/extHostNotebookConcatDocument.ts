@@ -74,7 +74,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		const cellLengths: number[] = [];
 		const cellLineCounts: number[] = [];
 		for (const cell of this._notebook.getCells()) {
-			if (cell.kind === types.NotebookCellKind.Code && (!this._selector || score(this._selector, cell.document.uri, cell.document.languageId, true))) {
+			if (cell.kind === types.NotebookCellKind.Code && (!this._selector || score(this._selector, cell.document.uri, cell.document.languageId, true, undefined))) {
 				this._cellUris.set(cell.document.uri, this._cells.length);
 				this._cells.push(cell);
 				cellLengths.push(cell.document.getText().length + 1);
