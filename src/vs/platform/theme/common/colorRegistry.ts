@@ -32,7 +32,7 @@ export interface ColorContribution {
  * @sample `editorSuggestWidget.background` is `--vscode-editorSuggestWidget-background`.
  */
 export function asCssVariableName(colorIdent: ColorIdentifier): string {
-	return `--vscode-${colorIdent.replace('.', '-')}`;
+	return `--vscode-${colorIdent.replace(/\./g, '-')}`;
 }
 
 export const enum ColorTransformType {

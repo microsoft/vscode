@@ -32,7 +32,7 @@ import * as nls from 'vs/nls';
 import { ISubmenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -202,7 +202,8 @@ export abstract class SymbolNavigationAction extends EditorAction {
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
+				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
+				selectionSource: TextEditorSelectionSource.JUMP
 			}
 		}, editor, sideBySide);
 

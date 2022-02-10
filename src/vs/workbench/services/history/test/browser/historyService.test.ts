@@ -172,6 +172,33 @@ suite('HistoryService', function () {
 		assertTextSelection(new Selection(5, 3, 5, 20), pane);
 
 		await historyService.goBack(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goForward(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(120, 8, 120, 18), pane);
+
+		await historyService.goPrevious(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goPrevious(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(120, 8, 120, 18), pane);
+	});
+
+	test('back / forward: in-editor text selection changes (jump)', async function () {
+		const [, historyService, editorService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+
+		const pane = await editorService.openEditor({ resource, options: { pinned: true } }) as TestTextFileEditor;
+
+		await setTextSelection(historyService, pane, new Selection(2, 2, 2, 10), EditorPaneSelectionChangeReason.USER);
+		await setTextSelection(historyService, pane, new Selection(5, 3, 5, 20), EditorPaneSelectionChangeReason.JUMP);
+		await setTextSelection(historyService, pane, new Selection(120, 8, 120, 18), EditorPaneSelectionChangeReason.JUMP);
+
+		await historyService.goBack(GoFilter.NAVIGATION);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goBack(GoFilter.NAVIGATION);
 		assertTextSelection(new Selection(2, 2, 2, 10), pane);
 
 		await historyService.goForward(GoFilter.NAVIGATION);

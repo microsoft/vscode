@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.65.0",
-  "distro": "c3b60faa31dfdab1c61aabfd39185ea5e35ce017",
+  "distro": "09cb47b3861f2ac9f054642aa7fb088022e4bbab",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -61,7 +61,7 @@
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
     "@parcel/watcher": "2.0.5",
-    "@vscode/debugprotocol": "1.51.0",
+    "@vscode/debugprotocol": "1.54.0-pre.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.14.1",
     "@vscode/sqlite3": "5.0.7",
@@ -113,6 +113,7 @@
     "@types/sinon": "^10.0.2",
     "@types/sinon-test": "^2.4.2",
     "@types/trusted-types": "^1.0.6",
+    "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/webpack": "^4.41.25",
     "@types/wicg-file-system-access": "^2020.9.5",
     "@types/windows-foreground-love": "^0.3.0",
@@ -201,7 +202,7 @@
     "style-loader": "^1.0.0",
     "ts-loader": "^9.2.3",
     "tsec": "0.1.4",
-    "typescript": "^4.6.0-dev.20220110",
+    "typescript": "^4.6.0-dev.20220209",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.12.1",
     "util": "^0.12.4",

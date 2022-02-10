@@ -1393,6 +1393,11 @@
     "@types/expect" "^1.20.4"
     "@types/node" "*"
 
+"@types/vscode-notebook-renderer@^1.60.0":
+  version "1.60.0"
+  resolved "https://registry.yarnpkg.com/@types/vscode-notebook-renderer/-/vscode-notebook-renderer-1.60.0.tgz#8a67d561f48ddf46a95dfa9f712a79c72c7b8f7a"
+  integrity sha512-u7TD2uuEZTVuitx0iijOJdKI0JLiQP6PsSBSRy2XmHXUOXcp5p1S56NrjOEDoF+PIHd3NL3eO6KTRSf5nukDqQ==
+
 "@types/webpack-sources@*":
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/@types/webpack-sources/-/webpack-sources-2.1.0.tgz#8882b0bd62d1e0ce62f183d0d01b72e6e82e8c10"
@@ -1550,10 +1555,10 @@
   resolved "https://registry.yarnpkg.com/@ungap/promise-all-settled/-/promise-all-settled-1.1.2.tgz#aa58042711d6e3275dd37dc597e5d31e8c290a44"
   integrity sha512-sL/cEvJWAnClXw0wHk85/2L0G6Sj8UB0Ctc1TEMbKSsmpRosqhwj9gWgFRZSrBr2f9tiXISwNhCPmlfqUqyb9Q==
 
-"@vscode/debugprotocol@1.51.0":
-  version "1.51.0"
-  resolved "https://registry.yarnpkg.com/@vscode/debugprotocol/-/debugprotocol-1.51.0.tgz#1d28a8581f8ea74b8e2fd465d4448717589a0ae3"
-  integrity sha512-39ShbKzI+0r53haLZQVEhY4XhdMJVSqfcliaDFigQjqiWattno5Ex0jXq2WRHrAtPf+W5Un9/HtED0K3pAiqZg==
+"@vscode/debugprotocol@1.54.0-pre.1":
+  version "1.54.0-pre.1"
+  resolved "https://registry.yarnpkg.com/@vscode/debugprotocol/-/debugprotocol-1.54.0-pre.1.tgz#857fe4e25ce24996bd59e8429269240fc5c94601"
+  integrity sha512-+txaF9Rplurzggmty7e3UDMWYEMxVt6uIXMzdAJ5YVHTJBUbLSVXtAVCBez2lZpnw1gTuA4y+vOTA1QUFD/0IQ==
 
 "@vscode/iconv-lite-umd@0.7.0":
   version "0.7.0"
@@ -11530,10 +11535,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^4.6.0-dev.20220110:
-  version "4.6.0-dev.20220110"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.6.0-dev.20220110.tgz#3f553b81b0b1f78432170e90786f4660ef27c98e"
-  integrity sha512-OqcSY8hktJW3KbW3HKOAaLt/bJstt5hKS+z8o71dMvEv1+xMIYkRUlnVmuPZExJY7sf8ELFRx9cFhjOQ7moSbg==
+typescript@^4.6.0-dev.20220209:
+  version "4.6.0-dev.20220209"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.6.0-dev.20220209.tgz#e50fbf9838cd1d102398c360dbc7d5e2b17be4d9"
+  integrity sha512-T55LJkTXli4n2+zjAkxTXXM2aCUErlEnJGcNInZh/GWCwlEKWHWRDZ8d7Ow1NSGUGwJHjb/cnESptrsCP5p8PA==
 
 typical@^4.0.0:
   version "4.0.0"

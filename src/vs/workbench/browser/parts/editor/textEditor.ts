@@ -153,6 +153,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		switch (e.source) {
 			case TextEditorSelectionSource.PROGRAMMATIC: return EditorPaneSelectionChangeReason.PROGRAMMATIC;
 			case TextEditorSelectionSource.NAVIGATION: return EditorPaneSelectionChangeReason.NAVIGATION;
+			case TextEditorSelectionSource.JUMP: return EditorPaneSelectionChangeReason.JUMP;
 			default: return EditorPaneSelectionChangeReason.USER;
 		}
 	}

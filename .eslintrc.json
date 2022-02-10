@@ -449,6 +449,7 @@
 							"vs/workbench/~",
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
+							"vscode-notebook-renderer", // Type of import
 							{
 								"when": "hasBrowser",
 								"pattern": "xterm"
