@@ -291,6 +291,8 @@ stages:
           - Compile
         pool:
           vmImage: macOS-latest
+        variables:
+          BUILDSECMON_OPT_IN: true
         jobs:
           - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: macOS

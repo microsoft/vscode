@@ -73,16 +73,22 @@ declare module 'vscode' {
 		Explicit = 1,
 	}
 
-	// todo@API don't have separate type around array
+	/**
+	 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
+	*/
 	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
 		items: T[];
 
+		/**
+		 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
+		*/
 		constructor(items: T[]);
 	}
 
 	export class InlineCompletionItem {
 		/**
-		 * The text to replace the range with.
+		 * The text to replace the range with. Must be set.
+		 * Is used both for the preview and the accept operation.
 		 *
 		 * The text the range refers to must be a subword of this value (`AB` and `BEF` are subwords of `ABCDEF`, but `Ab` is not).
 		 * Additionally, if possible, it should be a prefix of this value for a better user-experience.
@@ -90,9 +96,12 @@ declare module 'vscode' {
 		 * However, any indentation of the text to replace does not matter for the subword constraint.
 		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
 		*/
-		// todo@API is this like CompletionItem#label or insertText?
-		// todo@API insertText
-		text: string;
+		insertText?: string;
+
+		/**
+		 * @deprecated Use `insertText` instead. Will be removed eventually.
+		*/
+		text?: string;
 
 		/**
 		 * The range to replace.
@@ -110,20 +119,18 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
+		constructor(insertText: string, range?: Range, command?: Command);
+	}
+
+	// TODO@API validate it is being used, iff so move to a different proposal
+
+	export interface InlineCompletionItem {
 		/**
 		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 		 * Defaults to `false`.
 		*/
-		// todo@API is this to compensate "bad" extensions, why isn't this done for normal completions or formatting?
-		// todo@API is this an instance property or a provider property?
-		// (1) leave proposed
 		completeBracketPairs?: boolean;
-
-		constructor(text: string, range?: Range, command?: Command);
 	}
-
-
-	// TODO@API validate it is being used, iff so move to a different proposal
 
 	/**
 	 * Be aware that this API will not ever be finalized.

@@ -34,6 +34,7 @@ import { assertNoRpc } from '../utils';
 
 		suite('ShellExecution', () => {
 			test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', async () => {
+				window.terminals.forEach(terminal => terminal.dispose());
 				const executeDoneEvent: EventEmitter<void> = new EventEmitter();
 				const taskExecutionShouldBeSet: Promise<void> = new Promise(resolve => {
 					const disposable = executeDoneEvent.event(() => {

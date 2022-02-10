@@ -17,7 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IBaseWorkspace, IWorkspaceIdentifier, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
@@ -52,21 +52,21 @@ export interface IRecentlyOpened {
 export type IRecent = IRecentWorkspace | IRecentFolder | IRecentFile;
 
 export interface IRecentWorkspace {
-	workspace: IWorkspaceIdentifier;
+	readonly workspace: IWorkspaceIdentifier;
 	label?: string;
-	remoteAuthority?: string;
+	readonly remoteAuthority?: string;
 }
 
 export interface IRecentFolder {
-	folderUri: URI;
+	readonly folderUri: URI;
 	label?: string;
-	remoteAuthority?: string;
+	readonly remoteAuthority?: string;
 }
 
 export interface IRecentFile {
-	fileUri: URI;
+	readonly fileUri: URI;
 	label?: string;
-	remoteAuthority?: string;
+	readonly remoteAuthority?: string;
 }
 
 export function isRecentWorkspace(curr: IRecent): curr is IRecentWorkspace {
@@ -86,13 +86,13 @@ export function isRecentFile(curr: IRecent): curr is IRecentFile {
 //#region Backups
 
 export interface IWorkspaceBackupInfo {
-	workspace: IWorkspaceIdentifier;
-	remoteAuthority?: string;
+	readonly workspace: IWorkspaceIdentifier;
+	readonly remoteAuthority?: string;
 }
 
 export interface IFolderBackupInfo {
-	folderUri: URI;
-	remoteAuthority?: string;
+	readonly folderUri: URI;
+	readonly remoteAuthority?: string;
 }
 
 export function isFolderBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IFolderBackupInfo {
@@ -111,26 +111,16 @@ export function isStoredWorkspaceFolder(obj: unknown): obj is IStoredWorkspaceFo
 	return isRawFileWorkspaceFolder(obj) || isRawUriWorkspaceFolder(obj);
 }
 
-export function isRawFileWorkspaceFolder(obj: unknown): obj is IRawFileWorkspaceFolder {
+function isRawFileWorkspaceFolder(obj: unknown): obj is IRawFileWorkspaceFolder {
 	const candidate = obj as IRawFileWorkspaceFolder | undefined;
 
 	return typeof candidate?.path === 'string' && (!candidate.name || typeof candidate.name === 'string');
 }
 
-export function isRawUriWorkspaceFolder(obj: unknown): obj is IRawUriWorkspaceFolder {
+function isRawUriWorkspaceFolder(obj: unknown): obj is IRawUriWorkspaceFolder {
 	const candidate = obj as IRawUriWorkspaceFolder | undefined;
 
 	return typeof candidate?.uri === 'string' && (!candidate.name || typeof candidate.name === 'string');
-}
-
-export interface IRawFileWorkspaceFolder {
-	path: string;
-	name?: string;
-}
-
-export interface IRawUriWorkspaceFolder {
-	uri: string;
-	name?: string;
 }
 
 export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
@@ -140,18 +130,18 @@ export interface IStoredWorkspace extends IBaseWorkspace {
 }
 
 export interface IWorkspaceFolderCreationData {
-	uri: URI;
-	name?: string;
+	readonly uri: URI;
+	readonly name?: string;
 }
 
 export interface IUntitledWorkspaceInfo {
-	workspace: IWorkspaceIdentifier;
-	remoteAuthority?: string;
+	readonly workspace: IWorkspaceIdentifier;
+	readonly remoteAuthority?: string;
 }
 
 export interface IEnterWorkspaceResult {
-	workspace: IWorkspaceIdentifier;
-	backupPath?: string;
+	readonly workspace: IWorkspaceIdentifier;
+	readonly backupPath?: string;
 }
 
 /**
@@ -308,35 +298,35 @@ export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolea
 //#region Workspace Storage
 
 interface ISerializedRecentWorkspace {
-	workspace: {
+	readonly workspace: {
 		id: string;
 		configPath: string;
 	};
-	label?: string;
-	remoteAuthority?: string;
+	readonly label?: string;
+	readonly remoteAuthority?: string;
 }
 
 interface ISerializedRecentFolder {
-	folderUri: string;
-	label?: string;
-	remoteAuthority?: string;
+	readonly folderUri: string;
+	readonly label?: string;
+	readonly remoteAuthority?: string;
 }
 
 interface ISerializedRecentFile {
-	fileUri: string;
-	label?: string;
-	remoteAuthority?: string;
+	readonly fileUri: string;
+	readonly label?: string;
+	readonly remoteAuthority?: string;
 }
 
 interface ISerializedRecentlyOpenedLegacy {
-	workspaces3: Array<{ id: string; configURIPath: string } | string>; // workspace or URI.toString() // added in 1.32
-	workspaceLabels?: Array<string | null>; // added in 1.33
-	files2: string[]; // files as URI.toString() // added in 1.32
-	fileLabels?: Array<string | null>; // added in 1.33
+	readonly workspaces3: Array<{ id: string; configURIPath: string } | string>; // workspace or URI.toString() // added in 1.32
+	readonly workspaceLabels?: Array<string | null>; // added in 1.33
+	readonly files2: string[]; // files as URI.toString() // added in 1.32
+	readonly fileLabels?: Array<string | null>; // added in 1.33
 }
 
 interface ISerializedRecentlyOpened {
-	entries: Array<ISerializedRecentWorkspace | ISerializedRecentFolder | ISerializedRecentFile>; // since 1.55
+	readonly entries: Array<ISerializedRecentWorkspace | ISerializedRecentFolder | ISerializedRecentFile>; // since 1.55
 }
 
 export type RecentlyOpenedStorageData = object;

@@ -8,7 +8,8 @@ import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkDetector, ITerminalSimpleLink, ResolvedLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
-import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { convertLinkRangeToBuffer, getXtermLineContent, osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IBufferLine, Terminal } from 'xterm';
 
 const enum Constants {
@@ -68,6 +69,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 	constructor(
 		readonly xterm: Terminal,
+		private readonly _capabilities: ITerminalCapabilityStore,
 		private readonly _os: OperatingSystem,
 		private readonly _resolvePath: (link: string) => Promise<ResolvedLink>,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
@@ -136,9 +138,27 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				continue;
 			}
 
-			const linkCandidates = [link];
-			if (link.match(/^(\.\.[\/\\])+/)) {
-				linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));
+			// Get a single link candidate if the cwd of the line is known
+			const linkCandidates: string[] = [];
+			if (osPathModule(this._os).isAbsolute(link)) {
+				linkCandidates.push(link);
+			} else {
+				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
+					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, link, osPathModule(this._os).sep);
+					// Only add a single exact link candidate if the cwd is available, this may cause
+					// the link to not be resolved but that should only occur when the actual file does
+					// not exist. Doing otherwise could cause unexpected results where handling via the
+					// word link detector is preferable.
+					if (absolutePath) {
+						linkCandidates.push(absolutePath);
+					}
+				} else {
+					// Fallback to resolving against the initial cwd, removing any relative directory prefixes
+					linkCandidates.push(link);
+					if (link.match(/^(\.\.[\/\\])+/)) {
+						linkCandidates.push(link.replace(/^(\.\.[\/\\])+/, ''));
+					}
+				}
 			}
 			const linkStat = await this._validateLinkCandidates(linkCandidates);
 

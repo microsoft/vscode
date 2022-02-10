@@ -220,7 +220,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		// Remove first (if any)
 		let currentWorkspaceFolders = this.getWorkspace().folders;
-		let newStoredFolders: IStoredWorkspaceFolder[] = currentWorkspaceFolders.map(f => f.stored).filter((folder, index): folder is IStoredWorkspaceFolder => {
+		let newStoredFolders: IStoredWorkspaceFolder[] = currentWorkspaceFolders.map(f => f.raw).filter((folder, index): folder is IStoredWorkspaceFolder => {
 			if (!isStoredWorkspaceFolder(folder)) {
 				return true; // keep entries which are unrelated
 			}

@@ -8,7 +8,6 @@ import { findFreePort } from 'vs/base/node/ports';
 import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 
 import * as nls from 'vs/nls';
-import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -40,8 +39,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { isUUID } from 'vs/base/common/uuid';
-import { join } from 'vs/base/common/path';
 import { IShellEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentService';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 import { SerializedError } from 'vs/base/common/errors';
@@ -269,31 +266,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				if (this._environmentService.args['max-memory']) {
 					opts.execArgv.unshift(`--max-old-space-size=${this._environmentService.args['max-memory']}`);
-				}
-
-				// On linux crash reporter needs to be started on child node processes explicitly
-				// TODO@bpasero TODO@deepak1556 remove once we updated to Electron 15
-				if (platform.isLinux) {
-					const crashReporterStartOptions: CrashReporterStartOptions = {
-						companyName: this._productService.crashReporter?.companyName || 'Microsoft',
-						productName: this._productService.crashReporter?.productName || this._productService.nameShort,
-						submitURL: '',
-						uploadToServer: false
-					};
-					const crashReporterId = this._environmentService.crashReporterId; // crashReporterId is set by the main process only when crash reporting is enabled by the user.
-					const appcenter = this._productService.appCenter;
-					const uploadCrashesToServer = !this._environmentService.crashReporterDirectory; // only upload unless --crash-reporter-directory is provided
-					if (uploadCrashesToServer && appcenter && crashReporterId && isUUID(crashReporterId)) {
-						const submitURL = appcenter[`linux-x64`];
-						crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
-						crashReporterStartOptions.uploadToServer = true;
-					}
-					// In the upload to server case, there is a bug in electron that creates client_id file in the current
-					// working directory. Setting the env BREAKPAD_DUMP_LOCATION will force electron to create the file in that location,
-					// For https://github.com/microsoft/vscode/issues/105743
-					const extHostCrashDirectory = this._environmentService.crashReporterDirectory || this._environmentService.userDataPath;
-					opts.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, `${ExtensionHostLogFileName} Crash Reports`);
-					opts.env.VSCODE_CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
 				}
 
 				// Catch all output coming from the extension host process

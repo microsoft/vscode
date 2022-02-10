@@ -217,10 +217,12 @@ export class InlayHintsController implements IEditorContribution {
 
 	private _installLinkGesture(): IDisposable {
 
-		let removeHighlight = () => { };
-		const gesture = new ClickLinkGesture(this._editor);
+		const store = new DisposableStore();
+		const gesture = store.add(new ClickLinkGesture(this._editor));
 
-		gesture.onMouseMoveOrRelevantKeyDown(e => {
+		let removeHighlight = () => { };
+
+		store.add(gesture.onMouseMoveOrRelevantKeyDown(e => {
 			const [mouseEvent] = e;
 			const labelPart = this._getInlayHintLabelPart(mouseEvent);
 			const model = this._editor.getModel();
@@ -254,9 +256,9 @@ export class InlayHintsController implements IEditorContribution {
 					this._updateHintsDecorators([range], Array.from(lineHints));
 				};
 			}
-		});
-		gesture.onCancel(removeHighlight);
-		gesture.onExecute(async e => {
+		}));
+		store.add(gesture.onCancel(removeHighlight));
+		store.add(gesture.onExecute(async e => {
 			const label = this._getInlayHintLabelPart(e);
 			if (label) {
 				const part = label.part;
@@ -268,8 +270,8 @@ export class InlayHintsController implements IEditorContribution {
 					await this._invokeCommand(part.command, label.item);
 				}
 			}
-		});
-		return gesture;
+		}));
+		return store;
 	}
 
 	private _installDblClickGesture(): IDisposable {

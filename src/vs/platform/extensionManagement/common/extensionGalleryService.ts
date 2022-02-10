@@ -1024,7 +1024,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return '';
 	}
 
-	async getAllCompatibleVersions(extension: IGalleryExtension, preRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
+	async getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1);
@@ -1052,7 +1052,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				if (seenVersions.has(version.version)) {
 					return;
 				}
-				if (await this.isValidVersion(version, preRelease ? 'prerelease' : 'release', true, allTargetPlatforms, targetPlatform)) {
+				if (await this.isValidVersion(version, includePreRelease ? 'any' : 'release', true, allTargetPlatforms, targetPlatform)) {
 					result.push({ version: version.version, date: version.lastUpdated, isPreReleaseVersion: isPreReleaseVersion(version) });
 					seenVersions.add(version.version);
 				}

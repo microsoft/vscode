@@ -327,16 +327,17 @@ export const enum TextEditorSelectionRevealType {
 export const enum TextEditorSelectionSource {
 
 	/**
-	 * Standard source is `api` indicating that the selection
-	 * change was caused by code and not the user.
+	 * Programmatic source indicates a selection change that
+	 * was not triggered by the user via keyboard or mouse.
 	 */
-	DEFAULT = 'api',
+	PROGRAMMATIC = 'api',
 
 	/**
 	 * Navigation source indicates a change that was caused
-	 * by navigating in the text editor, such as "Go to definition"
+	 * by navigating in the text editor from  commands such
+	 * as "Go to definition"
 	 */
-	NAVIGATION = 'navigation'
+	NAVIGATION = 'code.navigation'
 }
 
 export interface ITextEditorOptions extends IEditorOptions {
@@ -351,9 +352,4 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
 	selectionRevealType?: TextEditorSelectionRevealType;
-
-	/**
-	 * Source of the call that caused the selection.
-	 */
-	selectionSource?: TextEditorSelectionSource | string;
 }

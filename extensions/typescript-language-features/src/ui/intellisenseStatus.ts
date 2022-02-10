@@ -140,70 +140,68 @@ export class IntellisenseStatus extends Disposable {
 		this._state = newState;
 
 		switch (this._state.type) {
-			case IntellisenseState.Type.None:
+			case IntellisenseState.Type.None: {
 				this._statusItem?.dispose();
 				this._statusItem = undefined;
 				break;
-
-			case IntellisenseState.Type.Pending:
-				{
-					const statusItem = this.ensureStatusItem();
-					statusItem.severity = vscode.LanguageStatusSeverity.Information;
-					statusItem.text = '$(loading~spin)';
-					statusItem.detail = localize('pending.detail', 'Loading IntelliSense status');
-					statusItem.command = undefined;
-					break;
+			}
+			case IntellisenseState.Type.Pending: {
+				const statusItem = this.ensureStatusItem();
+				statusItem.severity = vscode.LanguageStatusSeverity.Information;
+				statusItem.text = localize('pending.detail', 'Loading IntelliSense status');
+				statusItem.detail = undefined;
+				statusItem.command = undefined;
+				statusItem.busy = true;
+				break;
+			}
+			case IntellisenseState.Type.Resolved: {
+				const rootPath = this._client.getWorkspaceRootForResource(this._state.resource);
+				if (!rootPath) {
+					return;
 				}
 
-			case IntellisenseState.Type.Resolved:
-				{
-					const rootPath = this._client.getWorkspaceRootForResource(this._state.resource);
-					if (!rootPath) {
-						return;
-					}
+				const statusItem = this.ensureStatusItem();
+				statusItem.busy = false;
+				statusItem.detail = undefined;
 
-					const statusItem = this.ensureStatusItem();
-					statusItem.severity = vscode.LanguageStatusSeverity.Information;
-					if (isImplicitProjectConfigFile(this._state.configFile)) {
-						statusItem.text = this._state.projectType === ProjectType.TypeScript
-							? localize('resolved.detail.noTsConfig', "No tsconfig")
-							: localize('resolved.detail.noJsConfig', "No jsconfig");
+				statusItem.severity = vscode.LanguageStatusSeverity.Information;
+				if (isImplicitProjectConfigFile(this._state.configFile)) {
+					statusItem.text = this._state.projectType === ProjectType.TypeScript
+						? localize('resolved.detail.noTsConfig', "No tsconfig")
+						: localize('resolved.detail.noJsConfig', "No jsconfig");
 
-						statusItem.detail = undefined;
-						statusItem.command = {
-							command: this.createConfigCommandId,
-							title: this._state.projectType === ProjectType.TypeScript
-								? localize('resolved.command.title.createTsconfig', "Create tsconfig")
-								: localize('resolved.command.title.createJsconfig', "Create jsconfig"),
-							arguments: [rootPath],
-						};
-					} else {
-						statusItem.text = vscode.workspace.asRelativePath(this._state.configFile);
-						statusItem.detail = undefined;
-						statusItem.command = {
-							command: this.openOpenConfigCommandId,
-							title: localize('resolved.command.title.open', "Open config file"),
-							arguments: [rootPath],
-						};
-					}
+					statusItem.command = {
+						command: this.createConfigCommandId,
+						title: this._state.projectType === ProjectType.TypeScript
+							? localize('resolved.command.title.createTsconfig', "Create tsconfig")
+							: localize('resolved.command.title.createJsconfig', "Create jsconfig"),
+						arguments: [rootPath],
+					};
+				} else {
+					statusItem.text = vscode.workspace.asRelativePath(this._state.configFile);
+					statusItem.command = {
+						command: this.openOpenConfigCommandId,
+						title: localize('resolved.command.title.open', "Open config file"),
+						arguments: [rootPath],
+					};
 				}
 				break;
-
-			case IntellisenseState.Type.SyntaxOnly:
-				{
-					const statusItem = this.ensureStatusItem();
-					statusItem.severity = vscode.LanguageStatusSeverity.Warning;
-					statusItem.text = localize('syntaxOnly.text', 'Partial Mode');
-					statusItem.detail = localize('syntaxOnly.detail', 'Project Wide IntelliSense not available');
-					statusItem.command = {
-						title: localize('syntaxOnly.command.title.learnMore', "Learn More"),
-						command: 'vscode.open',
-						arguments: [
-							vscode.Uri.parse('https://aka.ms/vscode/jsts/partial-mode'),
-						]
-					};
-					break;
-				}
+			}
+			case IntellisenseState.Type.SyntaxOnly: {
+				const statusItem = this.ensureStatusItem();
+				statusItem.severity = vscode.LanguageStatusSeverity.Warning;
+				statusItem.text = localize('syntaxOnly.text', 'Partial Mode');
+				statusItem.detail = localize('syntaxOnly.detail', 'Project Wide IntelliSense not available');
+				statusItem.busy = false;
+				statusItem.command = {
+					title: localize('syntaxOnly.command.title.learnMore', "Learn More"),
+					command: 'vscode.open',
+					arguments: [
+						vscode.Uri.parse('https://aka.ms/vscode/jsts/partial-mode'),
+					]
+				};
+				break;
+			}
 		}
 	}
 

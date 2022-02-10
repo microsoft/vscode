@@ -9,6 +9,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
+import { isErrorWithActions } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { deepClone, equals } from 'vs/base/common/objects';
@@ -595,7 +596,7 @@ export class DebugService implements IDebugService {
 			const errorMessage = error instanceof Error ? error.message : error;
 			if (error.showUser !== false) {
 				// Only show the error when showUser is either not defined, or is true #128484
-				await this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+				await this.showError(errorMessage, isErrorWithActions(error) ? error.actions : []);
 			}
 			return false;
 		}
