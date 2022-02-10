@@ -760,21 +760,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}`);
 		} else {
 			styleSheets.push(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left .codeOutput-focus-indicator,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left .codeOutput-focus-indicator {
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator {
 				border-left: 3px solid transparent;
 				border-radius: 4px;
 				width: 0px;
 				margin-left: ${focusIndicatorLeftMargin}px;
+				border-color: var(--notebook-inactive-focused-cell-border-color) !important;
 			}
 
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left .codeOutput-focus-indicator-container,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left .codeOutput-focus-indicator-container {
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-output-hover .cell-focus-indicator-left .codeOutput-focus-indicator-container,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row:hover .cell-focus-indicator-left .codeOutput-focus-indicator-container {
 				display: block;
 			}
 
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left .codeOutput-focus-indicator-container:hover .codeOutput-focus-indicator,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left .codeOutput-focus-indicator-container:hover .codeOutput-focus-indicator {
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator-container:hover .codeOutput-focus-indicator {
 				border-left: 5px solid transparent;
 				margin-left: ${focusIndicatorLeftMargin - 1}px;
 			}
@@ -786,12 +786,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				border-color: var(--notebook-focused-cell-border-color) !important;
 			}
 
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left .code-focus-indicator,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left .output-focus-indicator {
-				border-color: var(--notebook-inactive-focused-cell-border-color) !important;
-			}
-
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left .output-focus-indicator {
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-inner-container .cell-focus-indicator-left .output-focus-indicator {
 				margin-top: ${focusIndicatorGap}px;
 			}
 			`);
