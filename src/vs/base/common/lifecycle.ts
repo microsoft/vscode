@@ -345,8 +345,8 @@ export class RefCountedDisposable {
  */
 export class SafeDisposable implements IDisposable {
 
-	dispose: VoidFunction = () => { };
-	unset: VoidFunction = () => { };
+	dispose: () => void = () => { };
+	unset: () => void = () => { };
 	isset: () => boolean = () => false;
 
 	constructor() {
