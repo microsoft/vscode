@@ -34,12 +34,17 @@ const enum DecorationStyles {
 	ButtonMargin = 4
 }
 
+interface IDisposableDecoration {
+	decoration: IDecoration;
+	diposables: IDisposable[];
+}
+
 export class DecorationAddon extends Disposable implements ITerminalAddon {
-	private _decorations: IDecoration[] = [];
 	protected _terminal: Terminal | undefined;
 	private _hoverDelayer: Delayer<void>;
 	private _commandListener: IDisposable | undefined;
 	private _contextMenuVisible: boolean = false;
+	private _decorations: Map<string, IDisposableDecoration> = new Map();
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<string>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -54,10 +59,19 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		super();
 		this._register({
 			dispose: () => {
-				dispose(this._decorations);
+				for (const [, decorationDisposables] of Object.entries(this._decorations)) {
+					decorationDisposables.decoration.dispose();
+					dispose(decorationDisposables.disposables);
+				}
 				this._commandListener?.dispose();
 			}
 		});
+		this._register(this._contextMenuService.onDidShowContextMenu(() => {
+			this._contextMenuVisible = true;
+		}));
+		this._register(this._contextMenuService.onDidHideContextMenu(() => {
+			this._contextMenuVisible = false;
+		}));
 		this._attachToCommandCapability();
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 	}
@@ -91,12 +105,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			//TODO: remove when this has been fixed in xterm.js
 			if (!isWindows && c.command === 'clear') {
 				this._terminal?.clear();
-				dispose(this._decorations);
+				for (const [, decorationDisposables] of Object.entries(this._decorations)) {
+					decorationDisposables.decoration.dispose();
+					dispose(decorationDisposables.disposables);
+				}
 				return;
 			}
-			const element = this.registerCommandDecoration(c);
-			if (element) {
-				this._decorations.push(element);
+			const result = this.registerCommandDecoration(c);
+			if (result?.decoration.element) {
+				this._decorations.set(result.decoration.marker.id.toString(), { decoration: result.decoration, diposables: result.disposables });
 			}
 		});
 	}
@@ -105,7 +122,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._terminal = terminal;
 	}
 
-	registerCommandDecoration(command: ITerminalCommand): IDecoration | undefined {
+	registerCommandDecoration(command: ITerminalCommand): { decoration: IDecoration; disposables: IDisposable[] } | undefined {
 		if (!command.marker) {
 			throw new Error(`cannot add decoration for a command: ${JSON.stringify(command)} with no marker`);
 		}
@@ -114,11 +131,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 
 		const decoration = this._terminal.registerDecoration({ marker: command.marker });
-
-		decoration?.onRender(target => {
+		if (!decoration) {
+			return undefined;
+		}
+		let disposables: IDisposable[] = [];
+		decoration.onRender(target => {
 			if (decoration.element?.clientWidth! > 0) {
-				this._createContextMenu(target, command);
-				this._createHover(target, command);
+				if (disposables.length === 0) {
+					disposables.push(this._createContextMenu(target, command), ...this._createHover(target, command));
+				}
 				const marginWidth = ((decoration.element?.parentElement?.parentElement?.previousElementSibling?.clientWidth || 0) - (decoration.element?.parentElement?.parentElement?.clientWidth || 0)) * .5;
 				target.style.marginLeft = `${((marginWidth - (decoration.element!.clientWidth + DecorationStyles.ButtonMargin)) * .5) - marginWidth}px`;
 				target.classList.add(DecorationSelector.CommandDecoration);
@@ -133,49 +154,42 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				target.style.height = `${marginWidth}px`;
 			}
 		});
-		return decoration;
+		return { decoration, disposables };
 	}
 
-	private _createContextMenu(target: HTMLElement, command: ITerminalCommand) {
+	private _createContextMenu(target: HTMLElement, command: ITerminalCommand): IDisposable {
 		// When the xterm Decoration gets disposed of, its element gets removed from the dom
 		// along with its listeners
-		dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
+		return dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
 			const actions = await this._getCommandActions(command);
 			this._contextMenuService.showContextMenu({ getAnchor: () => target, getActions: () => actions });
 		});
-		this._contextMenuService.onDidShowContextMenu(() => {
-			this._contextMenuVisible = true;
-		});
-		this._contextMenuService.onDidHideContextMenu(() => {
-			this._contextMenuVisible = false;
-		});
 	}
 
-	private _createHover(target: HTMLElement, command: ITerminalCommand): void {
-		// When the xterm Decoration gets disposed of, its element gets removed from the dom
-		// along with its listeners
-		dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
-			if (this._contextMenuVisible) {
-				return;
-			}
-			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${fromNow(command.timestamp, true)}`;
-			if (command.exitCode) {
-				hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
-			}
-			const hoverOptions = { content: new MarkdownString(hoverContent), target };
-			await this._hoverDelayer.trigger(() => {
-				this._hoverService.showHover(hoverOptions);
-			});
-		});
-		dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
-			this._hoverService.hideHover();
-		});
-		dom.addDisposableListener(target, dom.EventType.MOUSE_OUT, async () => {
-			this._hoverService.hideHover();
-		});
-		dom.addDisposableListener(target.parentElement?.parentElement!, 'click', async () => {
-			this._hoverService.hideHover();
-		});
+	private _createHover(target: HTMLElement, command: ITerminalCommand): IDisposable[] {
+		return [
+			dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
+				if (this._contextMenuVisible) {
+					return;
+				}
+				let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${fromNow(command.timestamp, true)}`;
+				if (command.exitCode) {
+					hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
+				}
+				const hoverOptions = { content: new MarkdownString(hoverContent), target };
+				await this._hoverDelayer.trigger(() => {
+					this._hoverService.showHover(hoverOptions);
+				});
+			}),
+			dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
+				this._hoverService.hideHover();
+			}),
+			dom.addDisposableListener(target, dom.EventType.MOUSE_OUT, async () => {
+				this._hoverService.hideHover();
+			}),
+			dom.addDisposableListener(target.parentElement?.parentElement!, 'click', async () => {
+				this._hoverService.hideHover();
+			})];
 	}
 
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
