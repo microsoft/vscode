@@ -20,7 +20,6 @@ import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { fromNow } from 'vs/base/common/date';
-import { isWindows } from 'vs/base/common/platform';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
@@ -30,14 +29,9 @@ const enum DecorationSelector {
 	Codicon = 'codicon',
 }
 
-const enum DecorationStyles {
-	ButtonMargin = 4
-}
+const enum DecorationStyles { ButtonMargin = 4 }
 
-interface IDisposableDecoration {
-	decoration: IDecoration;
-	diposables: IDisposable[];
-}
+interface IDisposableDecoration { decoration: IDecoration; diposables: IDisposable[] }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	protected _terminal: Terminal | undefined;
@@ -63,13 +57,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._clearDecorations();
 			}
 		});
-		this._register(this._contextMenuService.onDidShowContextMenu(() => {
-			this._contextMenuVisible = true;
-		}));
-		this._register(this._contextMenuService.onDidHideContextMenu(() => {
-			this._contextMenuVisible = false;
-		}));
 		this._attachToCommandCapability();
+		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
+		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 	}
 
@@ -109,9 +99,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._commandListener = capability.onCommandFinished(c => this.registerCommandDecoration(c));
 	}
 
-	activate(terminal: Terminal): void {
-		this._terminal = terminal;
-	}
+	activate(terminal: Terminal): void { this._terminal = terminal; }
 
 	registerCommandDecoration(command: ITerminalCommand): IDecoration | undefined {
 		if (!command.marker) {
@@ -123,12 +111,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 		const decoration = this._terminal.registerDecoration({ marker: command.marker });
 		if (!decoration) {
-			return undefined;
-		}
-
-		if (!isWindows && command.command === 'clear') {
-			this._terminal?.clear();
-			this._clearDecorations();
 			return undefined;
 		}
 
