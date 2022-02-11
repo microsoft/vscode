@@ -414,6 +414,5 @@
 }
 
 .terminal-command-decoration {
-	margin-left: -1%;
-	width: 50%;
+	width: '18px';
 }

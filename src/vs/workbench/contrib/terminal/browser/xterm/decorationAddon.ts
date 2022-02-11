@@ -28,6 +28,10 @@ const enum DecorationSelector {
 	Error = 'error',
 }
 
+const enum DecorationStyles {
+	ButtonSize = '18px',
+}
+
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _decorations: IDecoration[] = [];
 	protected _terminal: Terminal | undefined;
@@ -111,7 +115,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		decoration?.onRender(target => {
 			this._createContextMenu(target, command);
 			this._createHover(target, command);
-
+			const viewport = decoration.element?.parentElement?.parentElement?.previousElementSibling?.clientWidth || 0;
+			const screen = decoration.element?.parentElement?.parentElement?.clientWidth || 0;
+			const leftMarginWidth = (viewport - screen) * .5;
+			const offset = ((leftMarginWidth - 16) / 2) - leftMarginWidth;
+			target.style.marginLeft = `${offset}px`;
 			target.classList.add(DecorationSelector.CommandDecoration);
 			if (command.exitCode) {
 				target.classList.add(DecorationSelector.Error);
@@ -122,8 +130,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			} else {
 				target.classList.add('codicon-x');
 			}
-			target.style.width = '18px';
-			target.style.height = '18px';
+			// to fit the 16px codicon plus padding
+			target.style.width = DecorationStyles.ButtonSize;
+			target.style.height = DecorationStyles.ButtonSize;
 		});
 
 		return decoration;
@@ -180,7 +189,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const commandDecorationDefaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
-	collector.addRule(`.${DecorationSelector.CommandDecoration} { background-color: ${commandDecorationDefaultColor ? commandDecorationDefaultColor.toString() : ''}; }`);
+	collector.addRule(`.${DecorationSelector.CommandDecoration} { color: ${commandDecorationDefaultColor ? commandDecorationDefaultColor.toString() : ''}; }`);
 	const commandDecorationErrorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
 	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.Error} { color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; }`);
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
