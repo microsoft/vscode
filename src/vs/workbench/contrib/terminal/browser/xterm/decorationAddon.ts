@@ -26,6 +26,9 @@ import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
 	Error = 'error',
+	Codicon = 'codicon',
+	CodiconError = 'codicon-x',
+	CodiconDefault = 'codicon-triangle-right'
 }
 
 const enum DecorationStyles {
@@ -113,20 +116,18 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		const decoration = this._terminal.registerDecoration({ marker: command.marker });
 
 		decoration?.onRender(target => {
-			this._createContextMenu(target, command);
-			this._createHover(target, command);
 			if (decoration.element?.clientWidth! > 0) {
+				this._createContextMenu(target, command);
+				this._createHover(target, command);
 				const marginWidth = ((decoration.element?.parentElement?.parentElement?.previousElementSibling?.clientWidth || 0) - (decoration.element?.parentElement?.parentElement?.clientWidth || 0)) * .5;
-				target.style.marginLeft = `${((marginWidth - (decoration.element!.clientWidth + DecorationStyles.ButtonMargin)) / 2) - marginWidth}px`;
+				target.style.marginLeft = `${((marginWidth - (decoration.element!.clientWidth + DecorationStyles.ButtonMargin)) * .5) - marginWidth}px`;
 				target.classList.add(DecorationSelector.CommandDecoration);
+				target.classList.add(DecorationSelector.Codicon);
 				if (command.exitCode) {
 					target.classList.add(DecorationSelector.Error);
-				}
-				target.classList.add('codicon');
-				if (!command.exitCode) {
-					target.classList.add('codicon-triangle-right');
+					target.classList.add(DecorationSelector.CodiconError);
 				} else {
-					target.classList.add('codicon-x');
+					target.classList.add(DecorationSelector.CodiconDefault);
 				}
 				target.style.width = `${marginWidth}px`;
 				target.style.height = `${marginWidth}px`;
