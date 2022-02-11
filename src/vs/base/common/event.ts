@@ -50,21 +50,27 @@ export namespace Event {
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
 	export function map<I, O>(event: Event<I>, map: (i: I) => O, disposable?: DisposableStore): Event<O> {
 		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables), disposable);
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
 	export function forEach<I>(event: Event<I>, each: (i: I) => void, disposable?: DisposableStore): Event<I> {
 		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables), disposable);
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
 	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T, disposable?: DisposableStore): Event<T>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean, disposable?: DisposableStore): Event<T>;
@@ -91,7 +97,9 @@ export namespace Event {
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
 	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O, disposable?: DisposableStore): Event<O> {
 		let output: O | undefined = initial;
@@ -103,19 +111,19 @@ export namespace Event {
 	}
 
 	function snapshot<T>(event: Event<T>, disposable: DisposableStore | undefined): Event<T> {
-		// let stack = Stacktrace.create();
-		// let count = 0;
+		let stack = Stacktrace.create();
+		let count = 0;
 		let listener: IDisposable;
 		const emitter = new Emitter<T>({
 			onFirstListenerAdd() {
 				listener = event(emitter.fire, emitter);
 			},
-			// onListenerDidAdd() {
-			// 	if (++count === 2) {
-			// 		console.warn('snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here');
-			// 		stack.print();
-			// 	}
-			// },
+			onListenerDidAdd() {
+				if (++count === 2) {
+					console.warn('snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here');
+					stack.print();
+				}
+			},
 			onLastListenerRemove() {
 				listener.dispose();
 			}
@@ -213,7 +221,9 @@ export namespace Event {
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
 	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b, disposable?: DisposableStore): Event<T> {
 		let firstCall = true;
@@ -228,7 +238,9 @@ export namespace Event {
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
 	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T, disposable?: DisposableStore): [Event<T>, Event<U>] {
 		return [
@@ -238,7 +250,9 @@ export namespace Event {
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
 	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = []): Event<T> {
 		let buffer: T[] | null = _buffer.slice();

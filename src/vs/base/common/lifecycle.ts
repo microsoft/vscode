@@ -242,7 +242,7 @@ export abstract class Disposable implements IDisposable {
 
 	static readonly None = Object.freeze<IDisposable>({ dispose() { } });
 
-	private readonly _store = new DisposableStore();
+	protected readonly _store = new DisposableStore();
 
 	constructor() {
 		trackDisposable(this);
