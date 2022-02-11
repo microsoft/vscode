@@ -85,13 +85,13 @@ export class IconExtensionPoint {
 				}
 
 				if (!extensionValue || typeof extensionValue !== 'object') {
-					collector.error(nls.localize('invalid.icons.configuration', "'configuration.icons' must be a array"));
+					collector.error(nls.localize('invalid.icons.configuration', "'configuration.icons' must be an object with the icon names as properties."));
 					return;
 				}
 
 				for (const id in extensionValue) {
 					if (!id.match(iconIdPattern)) {
-						collector.error(nls.localize('invalid.icons.id.format', "'configuration.icons' ids can only contain letter, digits and minuses and need to consist of at least two segments in the form `component-iconname`."));
+						collector.error(nls.localize('invalid.icons.id.format', "'configuration.icons' keys represent the icon id and can only contain letter, digits and minuses. They need to consist of at least two segments in the form `component-iconname`."));
 						return;
 					}
 					const iconContribution = extensionValue[id];
