@@ -152,7 +152,7 @@ export interface IProductConfiguration {
 	readonly darwinUniversalAssetId?: string;
 }
 
-export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };
+export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean; whenNotInstalled?: string[] };
 
 export interface IAppCenterConfiguration {
 	readonly 'win32-ia32': string;
