@@ -604,9 +604,6 @@
 	opacity: .7;
 	width: 35px;
 	right: 0px;
-
-	/* Sizing hacks */
-	bottom: 0px;
 	text-align: center;
 }
 

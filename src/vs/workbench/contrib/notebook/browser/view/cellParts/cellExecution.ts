@@ -65,6 +65,7 @@ export class CellExecutionPart extends CellPart {
 			DOM.hide(this._executionOrderLabel);
 		} else {
 			DOM.show(this._executionOrderLabel);
+			this._executionOrderLabel.style.top = `${element.layoutInfo.editorHeight}px`;
 		}
 	}
 
