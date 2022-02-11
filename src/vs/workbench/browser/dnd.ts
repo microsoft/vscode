@@ -157,12 +157,13 @@ function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string |
 
 export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
-	const resourcesKey = DataTransfers.RESOURCES.toLowerCase();
+	const resourcesKey = Mimes.uriList.toLowerCase();
 
 	// Data Transfer: Resources
 	if (dataTransfer.has(resourcesKey)) {
 		try {
-			const rawResourcesData = await dataTransfer.get(resourcesKey)?.asString();
+			const asString = await dataTransfer.get(resourcesKey)?.asString();
+			const rawResourcesData = JSON.stringify(asString?.split('\\n').filter(value => !value.startsWith('#')));
 			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 		} catch (error) {
 			// Invalid transfer

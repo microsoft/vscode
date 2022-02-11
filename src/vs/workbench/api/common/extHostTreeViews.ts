@@ -87,8 +87,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const dropMimeTypes = options.dragAndDropController?.dropMimeTypes;
-		const dragMimeTypes = options.dragAndDropController?.dragMimeTypes;
+		const dropMimeTypes = options.dragAndDropController?.dropMimeTypes ?? [];
+		const dragMimeTypes = options.dragAndDropController?.dragMimeTypes ?? [];
 		const hasHandleDrag = !!options.dragAndDropController?.handleDrag;
 		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag: hasHandleDrag });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
@@ -457,7 +457,7 @@ class ExtHostTreeView<T> extends Disposable {
 		if (!target) {
 			return;
 		}
-		return asPromise(() => this.dndController?.handleDrop(treeDataTransfer, target, token));
+		return asPromise(() => this.dndController?.handleDrop(target, treeDataTransfer, token));
 	}
 
 	get hasResolve(): boolean {
