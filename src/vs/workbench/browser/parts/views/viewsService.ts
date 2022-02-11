@@ -351,7 +351,7 @@ export class ViewsService extends Disposable implements IViewsService {
 								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
 							}
 						},
-						category: CATEGORIES.View.value,
+						category: CATEGORIES.View,
 						precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
 						keybinding: keybindings ? { ...keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
 						f1: true
@@ -417,7 +417,7 @@ export class ViewsService extends Disposable implements IViewsService {
 								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
 							}
 						},
-						category: CATEGORIES.View.value,
+						category: CATEGORIES.View,
 						precondition: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
 						keybinding: viewDescriptor.openCommandActionDescriptor!.keybindings ? { ...viewDescriptor.openCommandActionDescriptor!.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
 						f1: true
