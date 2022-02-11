@@ -103,7 +103,9 @@ export const enum TerminalSettingId {
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 	AutoReplies = 'terminal.integrated.autoReplies',
 	EnableShellIntegration = 'terminal.integrated.enableShellIntegration',
-	ShowShellIntegrationWelcome = 'terminal.integrated.showShellIntegrationWelcome'
+	ShowShellIntegrationWelcome = 'terminal.integrated.showShellIntegrationWelcome',
+	CommandIcon = 'terminal.integrated.commandIcon',
+	CommandIconError = 'terminal.integrated.commandIconError'
 }
 
 export enum WindowsShellType {
@@ -521,6 +523,18 @@ export const enum TerminalLocationString {
 	TerminalView = 'view',
 	Editor = 'editor'
 }
+
+export const enum TerminalCommandIcon {
+	TriangleRight = 'triangle-right',
+	ChevronRight = 'chevron-right',
+}
+
+export const enum TerminalCommandIconError {
+	TriangleRight = 'triangle-right',
+	ChevronRight = 'chevron-right',
+	X = 'x'
+}
+
 
 export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
 

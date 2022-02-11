@@ -413,7 +413,6 @@
 	top: 50%;
 }
 
-.terminal-command-decoration {
-	margin-left: -1%;
-	width: 50%;
+.terminal-command-decoration:hover {
+	cursor: pointer;
 }
