@@ -465,6 +465,7 @@ export type IConfigBasedExtensionTip = {
 	readonly isExtensionPack: boolean;
 	readonly configName: string;
 	readonly important: boolean;
+	readonly whenNotInstalled?: string[];
 };
 
 export type IExecutableBasedExtensionTip = {
@@ -474,6 +475,7 @@ export type IExecutableBasedExtensionTip = {
 	readonly exeName: string;
 	readonly exeFriendlyName: string;
 	readonly windowsPath?: string;
+	readonly whenNotInstalled?: string[];
 };
 
 export type IWorkspaceTips = { readonly remoteSet: string[]; readonly recommendations: string[] };

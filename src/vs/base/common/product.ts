@@ -165,14 +165,14 @@ export interface IConfigBasedExtensionTip {
 	configPath: string;
 	configName: string;
 	configScheme?: string;
-	recommendations: IStringDictionary<{ name: string; remotes?: string[]; important?: boolean; isExtensionPack?: boolean }>;
+	recommendations: IStringDictionary<{ name: string; remotes?: string[]; important?: boolean; isExtensionPack?: boolean; whenNotInstalled?: string[] }>;
 }
 
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
 	important?: boolean;
-	recommendations: IStringDictionary<{ name: string; important?: boolean; isExtensionPack?: boolean }>;
+	recommendations: IStringDictionary<{ name: string; important?: boolean; isExtensionPack?: boolean; whenNotInstalled?: string[] }>;
 }
 
 export interface IRemoteExtensionTip {
