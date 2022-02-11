@@ -6,8 +6,9 @@ import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay, SafeDisposable } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { AsyncEmitter, DebounceEmitter, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, MicrotaskEmitter, PauseableEmitter, Relay } from 'vs/base/common/event';
+import { DisposableStore, IDisposable, isDisposable, setDisposableTracker, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableTracker } from 'vs/base/test/common/utils';
 
 namespace Samples {
 
@@ -37,6 +38,70 @@ namespace Samples {
 
 	}
 }
+
+suite('Event utils dispose', function () {
+
+	let tracker = new DisposableTracker();
+
+	function assertDisposablesCount(expected: number | Array<IDisposable>) {
+		if (Array.isArray(expected)) {
+			const instances = new Set(expected);
+			const actualInstances = tracker.getTrackedDisposables();
+			assert.strictEqual(actualInstances.length, expected.length);
+
+			for (let item of actualInstances) {
+				assert.ok(instances.has(item));
+			}
+
+		} else {
+			assert.strictEqual(tracker.getTrackedDisposables().length, expected);
+		}
+
+	}
+
+	setup(() => {
+		tracker = new DisposableTracker();
+		setDisposableTracker(tracker);
+	});
+
+	teardown(function () {
+		setDisposableTracker(null);
+	});
+
+	test('no leak with snapshot-utils', function () {
+
+		const store = new DisposableStore();
+		const emitter = new Emitter<number>();
+		const evens = Event.filter(emitter.event, n => n % 2 === 0, store);
+		assertDisposablesCount(1); // snaphot only listen when `evens` is being listened on
+
+		let all = 0;
+		let leaked = evens(n => all += n);
+		assert.ok(isDisposable(leaked));
+		assertDisposablesCount(3);
+
+		emitter.dispose();
+		store.dispose();
+		assertDisposablesCount([leaked]); // leaked is still there
+	});
+
+	test('no leak with debounce-util', function () {
+		const store = new DisposableStore();
+		const emitter = new Emitter<number>();
+		const debounced = Event.debounce(emitter.event, (l) => 0, undefined, undefined, undefined, store);
+		assertDisposablesCount(1); // debounce only listens when `debounce` is being listened on
+
+		let all = 0;
+		let leaked = debounced(n => all += n);
+		assert.ok(isDisposable(leaked));
+		assertDisposablesCount(3);
+
+		emitter.dispose();
+		store.dispose();
+
+		assertDisposablesCount([leaked]); // leaked is still there
+	});
+});
 
 suite('Event', function () {
 
@@ -319,25 +384,6 @@ suite('Event', function () {
 		const e = new Emitter<number>();
 		const dispo = e.event(() => { });
 		dispo.dispose.call(undefined);  // assert that disposable can be called with this
-	});
-
-	test('SafeDisposable, dispose', function () {
-		let disposed = 0;
-		const actual = toDisposable(() => disposed += 1);
-		const d = new SafeDisposable();
-		d.set(actual);
-		d.dispose();
-		assert.strictEqual(disposed, 1);
-	});
-
-	test('SafeDisposable, unset', function () {
-		let disposed = 0;
-		const actual = toDisposable(() => disposed += 1);
-		const d = new SafeDisposable();
-		d.set(actual);
-		d.unset();
-		d.dispose();
-		assert.strictEqual(disposed, 0);
 	});
 });
 

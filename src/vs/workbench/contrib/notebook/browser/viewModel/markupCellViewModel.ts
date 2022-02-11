@@ -45,8 +45,10 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	}
 
 	private _editorHeight = 0;
+	private _statusBarHeight = 0;
 	set editorHeight(newHeight: number) {
 		this._editorHeight = newHeight;
+		this._statusBarHeight = this.viewContext.notebookOptions.computeStatusBarHeight();
 		this._updateTotalHeight(this._computeTotalHeight());
 	}
 
@@ -115,7 +117,8 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			bottomToolbarOffset: bottomToolbarGap,
 			totalHeight: 100,
 			layoutState: CellLayoutState.Uninitialized,
-			foldHintHeight: 0
+			foldHintHeight: 0,
+			statusBarHeight: 0
 		};
 
 		this._register(this.onDidChangeState(e => {
@@ -137,7 +140,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				+ layoutConfiguration.markdownCellTopMargin
 				+ layoutConfiguration.markdownCellBottomMargin
 				+ bottomToolbarGap
-				+ this.viewContext.notebookOptions.computeStatusBarHeight();
+				+ this._statusBarHeight;
 		} else {
 			// @rebornix
 			// On file open, the previewHeight + bottomToolbarGap for a cell out of viewport can be 0
@@ -197,6 +200,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				editorWidth,
 				previewHeight,
 				editorHeight: this._editorHeight,
+				statusBarHeight: this._statusBarHeight,
 				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
 				totalHeight,
 				layoutState: CellLayoutState.Measured,
@@ -214,6 +218,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
 				editorHeight: this._editorHeight,
+				statusBarHeight: this._statusBarHeight,
 				previewHeight: this._previewHeight,
 				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
 				totalHeight,
@@ -236,6 +241,7 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				totalHeight: totalHeight,
 				editorHeight: this._editorHeight,
+				statusBarHeight: this._statusBarHeight,
 				layoutState: CellLayoutState.FromCache,
 				foldHintHeight: this._layoutInfo.foldHintHeight
 			};

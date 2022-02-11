@@ -179,8 +179,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const commandDecorationSuccessColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
-	collector.addRule(`.${DecorationSelector.CommandDecoration} { color: ${commandDecorationSuccessColor ? commandDecorationSuccessColor.toString() : ''}; }`);
+	const commandDecorationDefaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
+	collector.addRule(`.${DecorationSelector.CommandDecoration} { background-color: ${commandDecorationDefaultColor ? commandDecorationDefaultColor.toString() : ''}; }`);
 	const commandDecorationErrorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
 	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.Error} { color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; }`);
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);

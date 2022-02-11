@@ -414,8 +414,6 @@
 }
 
 .terminal-command-decoration {
-	transition: opacity 0.5s;
-	transition: all .2s ease-in-out;
-	margin-left: -17px;
-	width: 16px;
+	margin-left: -1%;
+	width: 50%;
 }

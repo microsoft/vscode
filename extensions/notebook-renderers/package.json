@@ -25,10 +25,17 @@
 					"image/gif",
 					"image/png",
 					"image/jpeg",
+					"image/git",
 					"image/svg+xml",
 					"text/html",
 					"application/javascript",
-					"application/vnd.code.notebook.error"
+					"application/vnd.code.notebook.error",
+					"application/vnd.code.notebook.stdout",
+					"application/x.notebook.stdout",
+					"application/x.notebook.stream",
+					"application/vnd.code.notebook.stderr",
+					"application/x.notebook.stderr",
+					"text/plain"
 				]
 			}
 		]

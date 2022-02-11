@@ -64,6 +64,7 @@ interface PreloadContext {
 	readonly options: PreloadOptions;
 	readonly rendererData: readonly RendererMetadata[];
 	readonly isWorkspaceTrusted: boolean;
+	readonly lineLimit: number;
 }
 
 declare function __import(path: string): Promise<any>;
@@ -74,6 +75,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	let currentOptions = ctx.options;
 	let isWorkspaceTrusted = ctx.isWorkspaceTrusted;
+	let lineLimit = ctx.lineLimit;
 
 	const acquireVsCodeApi = globalThis.acquireVsCodeApi;
 	const vscode = acquireVsCodeApi();
@@ -202,6 +204,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		postMessage?(message: unknown): void;
 		onDidReceiveMessage?: Event<unknown>;
 		readonly workspace: { readonly isTrusted: boolean };
+		readonly settings: { readonly lineLimit: number };
 	}
 
 	interface RendererModule {
@@ -1208,6 +1211,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				getRenderer: async (id: string) => renderers.getRenderer(id)?.api,
 				workspace: {
 					get isTrusted() { return isWorkspaceTrusted; }
+				},
+				settings: {
+					get lineLimit() { return lineLimit; },
 				}
 			};
 
@@ -2103,12 +2109,13 @@ export interface RendererMetadata {
 	readonly isBuiltin: boolean;
 }
 
-export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean, nonce: string) {
+export function preloadsScriptStr(styleValues: PreloadStyles, options: PreloadOptions, renderers: readonly RendererMetadata[], isWorkspaceTrusted: boolean, lineLimit: number, nonce: string) {
 	const ctx: PreloadContext = {
 		style: styleValues,
 		options,
 		rendererData: renderers,
 		isWorkspaceTrusted,
+		lineLimit,
 		nonce,
 	};
 	// TS will try compiling `import()` in webviewPreloads, so use a helper function instead

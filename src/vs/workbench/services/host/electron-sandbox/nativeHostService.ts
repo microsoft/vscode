@@ -43,7 +43,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	private _onDidChangeFocus: Event<boolean> = Event.latch(Event.any(
 		Event.map(Event.filter(this.nativeHostService.onDidFocusWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus),
 		Event.map(Event.filter(this.nativeHostService.onDidBlurWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus)
-	));
+	), undefined, this._store);
 
 	get hasFocus(): boolean {
 		return document.hasFocus();
