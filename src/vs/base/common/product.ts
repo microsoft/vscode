@@ -152,7 +152,7 @@ export interface IProductConfiguration {
 	readonly darwinUniversalAssetId?: string;
 }
 
-export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };
+export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean; whenNotInstalled?: string[] };
 
 export interface IAppCenterConfiguration {
 	readonly 'win32-ia32': string;
@@ -165,14 +165,14 @@ export interface IConfigBasedExtensionTip {
 	configPath: string;
 	configName: string;
 	configScheme?: string;
-	recommendations: IStringDictionary<{ name: string; remotes?: string[]; important?: boolean; isExtensionPack?: boolean }>;
+	recommendations: IStringDictionary<{ name: string; remotes?: string[]; important?: boolean; isExtensionPack?: boolean; whenNotInstalled?: string[] }>;
 }
 
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
 	important?: boolean;
-	recommendations: IStringDictionary<{ name: string; important?: boolean; isExtensionPack?: boolean }>;
+	recommendations: IStringDictionary<{ name: string; important?: boolean; isExtensionPack?: boolean; whenNotInstalled?: string[] }>;
 }
 
 export interface IRemoteExtensionTip {

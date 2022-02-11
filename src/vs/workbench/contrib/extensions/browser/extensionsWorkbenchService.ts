@@ -695,6 +695,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.queryLocal().then(() => {
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallyCheckForUpdates(true);
+			// Always auto update builtin extensions
+			if (!this.isAutoUpdateEnabled()) {
+				this.autoUpdateBuiltinExtensions();
+			}
 		});
 
 		this._register(this.onChange(() => {
@@ -994,7 +998,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return ExtensionState.Uninstalled;
 	}
 
-	async checkForUpdates(): Promise<void> {
+	async checkForUpdates(onlyBuiltin?: boolean): Promise<void> {
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
 			extensions.push(this.localExtensions);
@@ -1010,7 +1014,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		const infos: IExtensionInfo[] = [];
 		for (const installed of this.local) {
-			if (installed.type === ExtensionType.User) {
+			if (installed.type === ExtensionType.User && (!onlyBuiltin || installed.isBuiltin)) {
 				infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
 			}
 		}
@@ -1068,6 +1072,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private eventuallyAutoUpdateExtensions(): void {
 		this.autoUpdateDelayer.trigger(() => this.autoUpdateExtensions())
 			.then(undefined, err => null);
+	}
+
+	private async autoUpdateBuiltinExtensions(): Promise<void> {
+		await this.checkForUpdates(true);
+		const toUpdate = this.outdated.filter(e => e.isBuiltin);
+		await Promises.settled(toUpdate.map(e => this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true } : undefined)));
 	}
 
 	private autoUpdateExtensions(): Promise<any> {

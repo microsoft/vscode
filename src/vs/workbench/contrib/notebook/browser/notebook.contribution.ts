@@ -86,7 +86,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo'
 import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
-import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
 import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/execution';
@@ -95,7 +94,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/execute/execution';
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
-import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionStateServiceImpl';
 import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';
@@ -396,7 +394,6 @@ class CellInfoContentProvider {
 
 	private _getResult(data: {
 		notebook: URI;
-		handle: number;
 		outputId?: string | undefined;
 	}, cell: NotebookCellTextModel) {
 		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
@@ -438,7 +435,7 @@ class CellInfoContentProvider {
 		}
 
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
-		const cell = ref.object.notebook.cells.find(cell => cell.handle === data.handle);
+		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId));
 
 		if (!cell) {
 			return null;
@@ -510,12 +507,11 @@ class NotebookEditorManager implements IWorkbenchContribution {
 
 		// OPEN notebook editor for models that have turned dirty without being visible in an editor
 		type E = IResolvedNotebookEditorModel;
-		this._disposables.add(Event.debouncedListener<E, E[]>(
+		this._disposables.add(Event.debounce<E, E[]>(
 			this._notebookEditorModelService.onDidChangeDirty,
-			this._openMissingDirtyNotebookEditors.bind(this),
 			(last, current) => !last ? [current] : [...last, current],
 			100
-		));
+		)(this._openMissingDirtyNotebookEditors, this));
 
 		// CLOSE notebook editor for models that have no more serializer
 		this._disposables.add(notebookService.onWillRemoveViewType(e => {

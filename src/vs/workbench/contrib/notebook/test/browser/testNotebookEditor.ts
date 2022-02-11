@@ -12,8 +12,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
-import { EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { LanguageService } from 'vs/editor/common/services/languageService';
@@ -22,7 +20,6 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -42,7 +39,6 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { ListViewInfoAccessor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
@@ -253,34 +249,6 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override focusElement() { }
 		override setCellEditorSelection() { }
 		override async revealRangeInCenterIfOutsideViewportAsync() { }
-		override getOutputRenderer() {
-			return new OutputRenderer({
-				creationOptions: notebookEditor.creationOptions,
-				getCellOutputLayoutInfo() {
-					return {
-						height: 100,
-						width: 100,
-						fontInfo: new FontInfo({
-							pixelRatio: 1,
-							fontFamily: 'mockFont',
-							fontWeight: 'normal',
-							fontSize: 14,
-							fontFeatureSettings: EditorFontLigatures.OFF,
-							lineHeight: 19,
-							letterSpacing: 1.5,
-							isMonospace: true,
-							typicalHalfwidthCharacterWidth: 10,
-							typicalFullwidthCharacterWidth: 20,
-							canUseHalfwidthRightwardsArrow: true,
-							spaceWidth: 10,
-							middotWidth: 10,
-							wsmiddotWidth: 10,
-							maxDigitWidth: 10,
-						}, true)
-					};
-				}
-			}, instantiationService, NullCommandService);
-		}
 		override async layoutNotebookCell() { }
 		override async removeInset() { }
 		override async focusNotebookCell() { }

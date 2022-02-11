@@ -3,137 +3,68 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal } from 'xterm';
-import { strictEqual } from 'assert';
-import { timeout } from 'vs/base/common/async';
-import * as sinon from 'sinon';
-import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { notEqual, strictEqual, throws } from 'assert';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
+import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IDecoration, IDecorationOptions, Terminal } from 'xterm';
+import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
 
-async function writeP(terminal: Terminal, data: string): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		const failTimeout = timeout(2000);
-		failTimeout.then(() => reject('Writing to xterm is taking longer than 2 seconds'));
-		terminal.write(data, () => {
-			failTimeout.cancel();
-			resolve();
-		});
-	});
-}
-
-class TestShellIntegrationAddon extends ShellIntegrationAddon {
-	getCommandDetectionMock(terminal: Terminal): sinon.SinonMock {
-		const capability = super._createOrGetCommandDetection(terminal);
-		this.capabilities.add(TerminalCapability.CommandDetection, capability);
-		return sinon.mock(capability);
-	}
-	getCwdDectionMock(): sinon.SinonMock {
-		const capability = super._createOrGetCwdDetection();
-		this.capabilities.add(TerminalCapability.CwdDetection, capability);
-		return sinon.mock(capability);
+class TestTerminal extends Terminal {
+	override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
+		if (decorationOptions.marker.isDisposed) {
+			return undefined;
+		}
+		const element = document.createElement('div');
+		return { marker: decorationOptions.marker, element, onDispose: () => { }, isDisposed: false, dispose: () => { }, onRender: (element: HTMLElement) => { return element; } } as unknown as IDecoration;
 	}
 }
 
 suite('DecorationAddon', () => {
-	let xterm: Terminal;
-	let shellIntegrationAddon: TestShellIntegrationAddon;
-	let capabilities: ITerminalCapabilityStore;
+	let decorationAddon: DecorationAddon;
+	let xterm: TestTerminal;
 
 	setup(() => {
-		xterm = new Terminal({
+		const instantiationService = new TestInstantiationService();
+		const configurationService = new TestConfigurationService({
+			workbench: {
+				hover: { delay: 5 }
+			}
+		});
+		xterm = new TestTerminal({
 			cols: 80,
 			rows: 30
 		});
-		const instantiationService = new TestInstantiationService();
+		instantiationService.stub(IConfigurationService, configurationService);
+		const capabilities = new TerminalCapabilityStore();
+		capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability(xterm, new NullLogService()));
+		decorationAddon = instantiationService.createInstance(DecorationAddon, capabilities);
+		xterm.loadAddon(decorationAddon);
 		instantiationService.stub(ILogService, NullLogService);
-		shellIntegrationAddon = instantiationService.createInstance(TestShellIntegrationAddon);
-		xterm.loadAddon(shellIntegrationAddon);
-		capabilities = shellIntegrationAddon.capabilities;
 	});
 
-	suite('cwd detection', async () => {
-		test('should activate capability on the cwd sequence (OSC 1337 ; CurrentDir=<cwd> ST)', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, 'foo');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]1337;CurrentDir=/foo\x07');
-			strictEqual(capabilities.has(TerminalCapability.CwdDetection), true);
+	suite('registerDecoration', async () => {
+		test('should throw when command has no marker', async () => {
+			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: false } as ITerminalCommand));
 		});
-		test('should pass cwd sequence to the capability', async () => {
-			const mock = shellIntegrationAddon.getCwdDectionMock();
-			mock.expects('updateCwd').once().withExactArgs('/foo');
-			await writeP(xterm, '\x1b]1337;CurrentDir=/foo\x07');
-			mock.verify();
+		test('should return undefined when marker has been disposed of', async () => {
+			const marker = xterm.registerMarker(1);
+			marker?.dispose();
+			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: false } as ITerminalCommand), undefined);
 		});
-	});
-
-	suite('command tracking', async () => {
-		test('should activate capability on the prompt start sequence (OSC 133 ; A ST)', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, 'foo');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]133;A\x07');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
+		test('should return undefined when command is just empty chars', async () => {
+			const marker = xterm.registerMarker(1);
+			marker?.dispose();
+			strictEqual(decorationAddon.registerCommandDecoration({ command: ' ', marker, timestamp: Date.now(), hasOutput: false } as ITerminalCommand), undefined);
 		});
-		test('should pass prompt start sequence to the capability', async () => {
-			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
-			mock.expects('handlePromptStart').once().withExactArgs();
-			await writeP(xterm, '\x1b]133;A\x07');
-			mock.verify();
-		});
-		test('should activate capability on the command start sequence (OSC 133 ; B ST)', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, 'foo');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]133;B\x07');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
-		});
-		test('should pass command start sequence to the capability', async () => {
-			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
-			mock.expects('handleCommandStart').once().withExactArgs();
-			await writeP(xterm, '\x1b]133;B\x07');
-			mock.verify();
-		});
-		test('should activate capability on the command executed sequence (OSC 133 ; C ST)', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, 'foo');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]133;C\x07');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
-		});
-		test('should pass command executed sequence to the capability', async () => {
-			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
-			mock.expects('handleCommandExecuted').once().withExactArgs();
-			await writeP(xterm, '\x1b]133;C\x07');
-			mock.verify();
-		});
-		test('should activate capability on the command finished sequence (OSC 133 ; D ; <ExitCode> ST)', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, 'foo');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]133;D;7\x07');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
-		});
-		test('should pass command finished sequence to the capability', async () => {
-			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
-			mock.expects('handleCommandFinished').once().withExactArgs(7);
-			await writeP(xterm, '\x1b]133;D;7\x07');
-			mock.verify();
-		});
-		test('should not activate capability on the cwd sequence (OSC 1337 ; CurrentDir=<cwd> ST)', async () => {
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, 'foo');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]1337;CurrentDir=/foo\x07');
-			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-		});
-		test('should pass cwd sequence to the capability if it\'s initialized', async () => {
-			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
-			mock.expects('setCwd').once().withExactArgs('/foo');
-			await writeP(xterm, '\x1b]1337;CurrentDir=/foo\x07');
-			mock.verify();
+		test('should return decoration when marker has not been disposed of', async () => {
+			const marker = xterm.registerMarker(2);
+			notEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: false } as ITerminalCommand), undefined);
 		});
 	});
 });

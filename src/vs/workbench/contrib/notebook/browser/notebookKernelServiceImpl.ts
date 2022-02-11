@@ -225,6 +225,15 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 		}
 	}
 
+	preselectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void {
+		const key = NotebookTextModelLikeId.str(notebook);
+		const oldKernel = this._notebookBindings.get(key);
+		if (oldKernel !== kernel?.id) {
+			this._notebookBindings.set(key, kernel.id);
+			this._persistMementos();
+		}
+	}
+
 	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void {
 		const info = this._kernels.get(kernel.id);
 		if (!info) {
