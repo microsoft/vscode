@@ -127,13 +127,13 @@ export class AudioCueContribution extends Disposable implements IWorkbenchContri
 			store
 		);
 		const featureStatesBeforeTyping = isTyping.map((isTyping) =>
-			!isTyping
+			(!isTyping
 				? undefined
 				: lineNumberWithObservableFeatures
 					.get()
 					?.featureStatesForLine?.map((featureState, idx) =>
 						features[idx].debounceWhileTyping ? featureState.get() : undefined
-					)
+					)) ?? []
 		);
 
 		const state = new LazyDerived(reader => {
@@ -146,7 +146,7 @@ export class AudioCueContribution extends Disposable implements IWorkbenchContri
 				featureStates: new Map(
 					lineInfo.featureStatesForLine.map((featureState, idx) => [
 						features[idx],
-						featureStatesBeforeTyping.read(reader)?.at(idx) ??
+						featureStatesBeforeTyping.read(reader)[idx] ??
 						featureState.read(reader),
 					])
 				),
