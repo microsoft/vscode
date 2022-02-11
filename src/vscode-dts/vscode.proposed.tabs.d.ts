@@ -80,7 +80,7 @@ declare module 'vscode' {
 		all: TabGroup[];
 
 		/**
-	 * Fires when any of the groups have a change occured
+		 * An {@link Event} which fires when a group changes.
 		 */
 		onDidChangeTabGroup: Event<void>;
 
