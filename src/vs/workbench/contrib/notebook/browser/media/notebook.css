@@ -603,7 +603,7 @@
 	box-sizing: border-box;
 	opacity: .7;
 	width: 35px;
-	left: -35px;
+	right: 0px;
 
 	/* Sizing hacks */
 	bottom: 0px;
