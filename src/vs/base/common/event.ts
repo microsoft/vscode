@@ -6,7 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
@@ -546,28 +546,6 @@ class Stacktrace {
 	}
 }
 
-export class SafeDisposable implements IDisposable {
-
-	private static _noop = () => { };
-
-	dispose: () => void = SafeDisposable._noop;
-	unset: () => void = SafeDisposable._noop;
-	isset: () => boolean = () => false;
-
-	set(disposable: IDisposable) {
-		let actual: IDisposable | undefined = disposable;
-		this.unset = () => actual = undefined;
-		this.isset = () => actual !== undefined;
-		this.dispose = () => {
-			if (actual) {
-				actual.dispose();
-				actual = undefined;
-			}
-		};
-		return this;
-	}
-}
-
 class Listener<T> {
 
 	readonly subscription = new SafeDisposable();
@@ -655,7 +633,7 @@ export class Emitter<T> {
 					this._options.onListenerDidAdd(this, callback, thisArgs);
 				}
 
-				const result = listener.subscription.set(toDisposable(() => {
+				const result = listener.subscription.set(() => {
 					if (removeMonitor) {
 						removeMonitor();
 					}
@@ -668,7 +646,7 @@ export class Emitter<T> {
 							}
 						}
 					}
-				}));
+				});
 
 				if (disposables instanceof DisposableStore) {
 					disposables.add(result);

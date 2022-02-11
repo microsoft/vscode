@@ -339,6 +339,35 @@ export class RefCountedDisposable {
 	}
 }
 
+/**
+ * A safe disposable can be `unset` so that a leaked reference (listener)
+ * can be cut-off.
+ */
+export class SafeDisposable implements IDisposable {
+
+	dispose: VoidFunction = () => { };
+	unset: VoidFunction = () => { };
+	isset: () => boolean = () => false;
+
+	constructor() {
+		trackDisposable(this);
+	}
+
+	set(fn: Function) {
+		let callback: Function | undefined = fn;
+		this.unset = () => callback = undefined;
+		this.isset = () => callback !== undefined;
+		this.dispose = () => {
+			if (callback) {
+				callback();
+				callback = undefined;
+				markAsDisposed(this);
+			}
+		};
+		return this;
+	}
+}
+
 export interface IReference<T> extends IDisposable {
 	readonly object: T;
 }
