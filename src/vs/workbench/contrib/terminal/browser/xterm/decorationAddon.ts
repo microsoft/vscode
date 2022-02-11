@@ -21,6 +21,7 @@ import { Delayer } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { fromNow } from 'vs/base/common/date';
 import { isWindows } from 'vs/base/common/platform';
+import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -115,6 +116,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (command.exitCode) {
 				target.classList.add(DecorationSelector.Error);
 			}
+			target.classList.add('codicon');
+			if (!command.exitCode) {
+				target.classList.add('codicon-triangle-right');
+			} else {
+				target.classList.add('codicon-x');
+			}
+			target.style.width = '18px';
+			target.style.height = '18px';
 		});
 
 		return decoration;
@@ -133,7 +142,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		// When the xterm Decoration gets disposed of, its element gets removed from the dom
 		// along with its listeners
 		dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
-			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${fromNow(command.timestamp)} `;
+			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${fromNow(command.timestamp, true)} `;
 			if (command.exitCode) {
 				hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
 			}
@@ -171,7 +180,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const commandDecorationSuccessColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
-	collector.addRule(`.${DecorationSelector.CommandDecoration} { background-color: ${commandDecorationSuccessColor ? commandDecorationSuccessColor.toString() : ''}; }`);
+	collector.addRule(`.${DecorationSelector.CommandDecoration} { color: ${commandDecorationSuccessColor ? commandDecorationSuccessColor.toString() : ''}; }`);
 	const commandDecorationErrorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
-	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.Error} { background-color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; }`);
+	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.Error} { color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; }`);
+	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
+	if (toolbarHoverBackgroundColor) {
+		collector.addRule(`
+		.${DecorationSelector.CommandDecoration}:hover {
+			background-color: ${toolbarHoverBackgroundColor};
+		}
+	`);
+	}
 });
