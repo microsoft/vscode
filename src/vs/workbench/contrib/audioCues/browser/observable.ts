@@ -538,7 +538,7 @@ class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T> {
 	const debouncedObservable = new ObservableValue(observable.get(), 'debounced');
 
-	let timeout: NodeJS.Timeout | undefined;
+	let timeout: any = undefined;
 
 	disposableStore.add(autorun(reader => {
 		const value = observable.read(reader);
@@ -558,7 +558,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 export function wasEventTriggeredRecently(event: Event<any>, timeoutMs: number, disposableStore: DisposableStore): IObservable<boolean> {
 	const observable = new ObservableValue(false, 'triggeredRecently');
 
-	let timeout: NodeJS.Timeout | undefined;
+	let timeout: any = undefined;
 
 	disposableStore.add(event(() => {
 		observable.set(true, undefined);
