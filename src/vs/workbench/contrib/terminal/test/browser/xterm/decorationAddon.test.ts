@@ -14,6 +14,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IDecoration, IDecorationOptions, Terminal } from 'xterm';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 
 class TestTerminal extends Terminal {
 	override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
@@ -41,6 +43,7 @@ suite('DecorationAddon', () => {
 			rows: 30
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 		const capabilities = new TerminalCapabilityStore();
 		capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability(xterm, new NullLogService()));
 		decorationAddon = instantiationService.createInstance(DecorationAddon, capabilities);
