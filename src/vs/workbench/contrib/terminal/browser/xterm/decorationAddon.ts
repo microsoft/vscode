@@ -44,7 +44,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _hoverDelayer: Delayer<void>;
 	private _commandListener: IDisposable | undefined;
 	private _contextMenuVisible: boolean = false;
-	private _decorations: Map<string, IDisposableDecoration> = new Map();
+	private _decorations: Map<number, IDisposableDecoration> = new Map();
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<string>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -59,11 +59,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		super();
 		this._register({
 			dispose: () => {
-				for (const [, decorationDisposables] of Object.entries(this._decorations)) {
-					decorationDisposables.decoration.dispose();
-					dispose(decorationDisposables.disposables);
-				}
 				this._commandListener?.dispose();
+				this._clearDecorations();
 			}
 		});
 		this._register(this._contextMenuService.onDidShowContextMenu(() => {
@@ -74,6 +71,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}));
 		this._attachToCommandCapability();
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
+	}
+
+	private _clearDecorations(): void {
+		for (const [, decorationDisposables] of Object.entries(this._decorations)) {
+			decorationDisposables.decoration.dispose();
+			dispose(decorationDisposables.disposables);
+		}
+		this._decorations.clear();
 	}
 
 	private _attachToCommandCapability(): void {
@@ -101,30 +106,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
-		this._commandListener = capability.onCommandFinished(c => {
-			//TODO: remove when this has been fixed in xterm.js
-			if (!isWindows && c.command === 'clear') {
-				this._terminal?.clear();
-				for (const [, decorationDisposables] of Object.entries(this._decorations)) {
-					decorationDisposables.decoration.dispose();
-					dispose(decorationDisposables.disposables);
-				}
-				return;
-			}
-			const result = this.registerCommandDecoration(c);
-			if (result?.decoration.element) {
-				this._decorations.set(result.decoration.marker.id.toString(), { decoration: result.decoration, diposables: result.disposables });
-			}
-		});
+		this._commandListener = capability.onCommandFinished(c => this.registerCommandDecoration(c));
 	}
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 	}
 
-	registerCommandDecoration(command: ITerminalCommand): { decoration: IDecoration; disposables: IDisposable[] } | undefined {
+	registerCommandDecoration(command: ITerminalCommand): IDecoration | undefined {
 		if (!command.marker) {
-			throw new Error(`cannot add decoration for a command: ${JSON.stringify(command)} with no marker`);
+			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
 		if (!this._terminal || command.command.trim().length === 0) {
 			return undefined;
@@ -134,12 +125,18 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!decoration) {
 			return undefined;
 		}
-		let disposables: IDisposable[] = [];
+
+		if (!isWindows && command.command === 'clear') {
+			this._terminal?.clear();
+			this._clearDecorations();
+			return undefined;
+		}
+
 		decoration.onRender(target => {
+			if (decoration.element && !this._decorations.get(decoration.marker.id)) {
+				this._decorations.set(decoration.marker.id, { decoration, diposables: [this._createContextMenu(decoration.element, command), ...this._createHover(decoration.element, command)] });
+			}
 			if (decoration.element?.clientWidth! > 0) {
-				if (disposables.length === 0) {
-					disposables.push(this._createContextMenu(target, command), ...this._createHover(target, command));
-				}
 				const marginWidth = ((decoration.element?.parentElement?.parentElement?.previousElementSibling?.clientWidth || 0) - (decoration.element?.parentElement?.parentElement?.clientWidth || 0)) * .5;
 				target.style.marginLeft = `${((marginWidth - (decoration.element!.clientWidth + DecorationStyles.ButtonMargin)) * .5) - marginWidth}px`;
 				target.classList.add(DecorationSelector.CommandDecoration);
@@ -154,7 +151,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				target.style.height = `${marginWidth}px`;
 			}
 		});
-		return { decoration, disposables };
+		return decoration;
 	}
 
 	private _createContextMenu(target: HTMLElement, command: ITerminalCommand): IDisposable {
@@ -176,17 +173,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				if (command.exitCode) {
 					hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
 				}
-				const hoverOptions = { content: new MarkdownString(hoverContent), target };
-				await this._hoverDelayer.trigger(() => {
-					this._hoverService.showHover(hoverOptions);
-				});
+				await this._hoverDelayer.trigger(() => { this._hoverService.showHover({ content: new MarkdownString(hoverContent), target }); });
 			}),
-			dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, async () => {
-				this._hoverService.hideHover();
-			}),
-			dom.addDisposableListener(target, dom.EventType.MOUSE_OUT, async () => {
-				this._hoverService.hideHover();
-			})];
+			dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, () => this._hoverService.hideHover()),
+			dom.addDisposableListener(target, dom.EventType.MOUSE_OUT, () => this._hoverService.hideHover())];
 	}
 
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
