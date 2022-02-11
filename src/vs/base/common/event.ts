@@ -10,6 +10,9 @@ import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposa
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
+let TRACE_LIKEY_SNAPSHOT_LEAKAGE = false;
+// TRACE_LIKEY_SNAPSHOT_LEAKAGE = Boolean("true"); // causes an ESLint warning so that this isn't pushed by accident
+
 /**
  * To an event a function with one or zero parameters
  * can be subscribed. The event is the subscriber function itself.
@@ -111,23 +114,29 @@ export namespace Event {
 	}
 
 	function snapshot<T>(event: Event<T>, disposable: DisposableStore | undefined): Event<T> {
-		let stack = Stacktrace.create();
-		let count = 0;
 		let listener: IDisposable;
-		const emitter = new Emitter<T>({
+
+		const options: EmitterOptions | undefined = {
 			onFirstListenerAdd() {
 				listener = event(emitter.fire, emitter);
-			},
-			onListenerDidAdd() {
-				if (++count === 2) {
-					console.warn('snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here');
-					stack.print();
-				}
 			},
 			onLastListenerRemove() {
 				listener.dispose();
 			}
-		});
+		};
+
+		if (TRACE_LIKEY_SNAPSHOT_LEAKAGE) {
+			let stack = Stacktrace.create();
+			let count = 0;
+			options.onListenerDidAdd = () => {
+				if (++count === 2) {
+					console.warn('snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here');
+					stack.print();
+				}
+			};
+		}
+
+		const emitter = new Emitter<T>(options);
 
 		if (disposable) {
 			disposable.add(emitter);
