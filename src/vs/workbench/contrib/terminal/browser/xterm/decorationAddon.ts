@@ -22,13 +22,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { fromNow } from 'vs/base/common/date';
 import { isWindows } from 'vs/base/common/platform';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
-	Error = 'error',
+	ErrorColor = 'error',
 	Codicon = 'codicon',
-	CodiconError = 'codicon-x',
-	CodiconDefault = 'codicon-triangle-right'
 }
 
 const enum DecorationStyles {
@@ -124,10 +123,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				target.classList.add(DecorationSelector.CommandDecoration);
 				target.classList.add(DecorationSelector.Codicon);
 				if (command.exitCode) {
-					target.classList.add(DecorationSelector.Error);
-					target.classList.add(DecorationSelector.CodiconError);
+					target.classList.add(DecorationSelector.ErrorColor);
+					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIconError)}`);
 				} else {
-					target.classList.add(DecorationSelector.CodiconDefault);
+					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIcon)}`);
 				}
 				target.style.width = `${marginWidth}px`;
 				target.style.height = `${marginWidth}px`;
@@ -190,7 +189,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const commandDecorationDefaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
 	collector.addRule(`.${DecorationSelector.CommandDecoration} { color: ${commandDecorationDefaultColor ? commandDecorationDefaultColor.toString() : ''}; } `);
 	const commandDecorationErrorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
-	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.Error} { color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; } `);
+	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.ErrorColor} { color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; } `);
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 	if (toolbarHoverBackgroundColor) {
 		collector.addRule(`
