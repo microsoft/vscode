@@ -39,6 +39,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	protected _terminal: Terminal | undefined;
 	private _hoverDelayer: Delayer<void>;
 	private _commandListener: IDisposable | undefined;
+	private _contextMenuVisible: boolean = false;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<string>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -106,7 +107,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	registerCommandDecoration(command: ITerminalCommand): IDecoration | undefined {
 		if (!command.marker) {
-			throw new Error(`cannot add decoration for command: ${command}, and terminal: ${this._terminal}`);
+			throw new Error(`cannot add decoration for a command: ${JSON.stringify(command)} with no marker`);
 		}
 		if (!this._terminal || command.command.trim().length === 0) {
 			return undefined;
@@ -142,14 +143,22 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			const actions = await this._getCommandActions(command);
 			this._contextMenuService.showContextMenu({ getAnchor: () => target, getActions: () => actions });
 		});
+		this._contextMenuService.onDidShowContextMenu(() => {
+			this._contextMenuVisible = true;
+		});
+		this._contextMenuService.onDidHideContextMenu(() => {
+			this._contextMenuVisible = false;
+		});
 	}
 
 	private _createHover(target: HTMLElement, command: ITerminalCommand): void {
 		// When the xterm Decoration gets disposed of, its element gets removed from the dom
 		// along with its listeners
 		dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
-			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")} ` + ` ...${fromNow(command.timestamp, true)
-				} `;
+			if (this._contextMenuVisible) {
+				return;
+			}
+			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${fromNow(command.timestamp, true)}`;
 			if (command.exitCode) {
 				hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
 			}
@@ -191,11 +200,5 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const commandDecorationErrorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
 	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.ErrorColor} { color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; } `);
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-	.${DecorationSelector.CommandDecoration}:hover {
-	background - color: ${toolbarHoverBackgroundColor};
-}
-`);
-	}
+	collector.addRule(`.${DecorationSelector.CommandDecoration}:hover { background-color: ${toolbarHoverBackgroundColor ? toolbarHoverBackgroundColor.toString() : ''}; }`);
 });
