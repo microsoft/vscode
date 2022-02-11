@@ -186,9 +186,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}),
 			dom.addDisposableListener(target, dom.EventType.MOUSE_OUT, async () => {
 				this._hoverService.hideHover();
-			}),
-			dom.addDisposableListener(target.parentElement?.parentElement!, 'click', async () => {
-				this._hoverService.hideHover();
 			})];
 	}
 
