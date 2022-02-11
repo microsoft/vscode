@@ -73,7 +73,7 @@ export class CodeCellExecutionIcon extends Disposable {
 				text: `$(${errorStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.failed', "Failed"),
 			};
-		} else if (state === NotebookCellExecutionState.Pending) {
+		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
 			return <IExecutionItem>{
 				text: `$(${pendingStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.pending', "Pending"),

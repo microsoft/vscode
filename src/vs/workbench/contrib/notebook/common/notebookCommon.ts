@@ -83,8 +83,8 @@ export enum NotebookRunState {
 
 export type NotebookDocumentMetadata = Record<string, unknown>;
 
-// Aligns with the vscode.d.ts version
 export enum NotebookCellExecutionState {
+	Unconfirmed = 1,
 	Pending = 2,
 	Executing = 3
 }

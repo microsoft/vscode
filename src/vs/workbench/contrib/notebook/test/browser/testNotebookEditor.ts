@@ -44,7 +44,7 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, INotebookSearchOptions, IOutputDto, IResolvedNotebookEditorModel, NotebookCellExecutionState, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellExecuteUpdate, ICellExecutionComplete, ICellExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -52,6 +52,7 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { TestClipboardService, TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ResourceMap } from 'vs/base/common/map';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -378,8 +379,33 @@ export function valueBytesFromString(value: string): VSBuffer {
 	return VSBuffer.fromString(value);
 }
 
+class TestCellExecution implements INotebookCellExecution {
+	constructor(
+		readonly notebook: URI,
+		readonly cellHandle: number,
+		private onComplete: () => void,
+	) { }
+
+	readonly state: NotebookCellExecutionState = NotebookCellExecutionState.Unconfirmed;
+
+	readonly didPause: boolean = false;
+	readonly isPaused: boolean = false;
+
+	confirm(): void {
+	}
+
+	update(updates: ICellExecuteUpdate[]): void {
+	}
+
+	complete(complete: ICellExecutionComplete): void {
+		this.onComplete();
+	}
+}
+
 class TestNotebookExecutionStateService implements INotebookExecutionStateService {
 	_serviceBrand: undefined;
+
+	private _executions = new ResourceMap<INotebookCellExecution>();
 
 	onDidChangeCellExecution = new Emitter<ICellExecutionStateChangedEvent>().event;
 
@@ -391,16 +417,13 @@ class TestNotebookExecutionStateService implements INotebookExecutionStateServic
 	}
 
 	getCellExecution(cellUri: URI): INotebookCellExecution | undefined {
-		return undefined;
+		return this._executions.get(cellUri);
 	}
 
 	createCellExecution(controllerId: string, notebook: URI, cellHandle: number): INotebookCellExecution {
-		return undefined!;
-	}
-
-	updateNotebookCellExecution(notebook: URI, cellHandle: number, updates: ICellExecuteUpdate[]): void {
-	}
-
-	completeNotebookCellExecution(notebook: URI, cellHandle: number, complete: ICellExecutionComplete): void {
+		const onComplete = () => this._executions.delete(CellUri.generate(notebook, cellHandle));
+		const exe = new TestCellExecution(notebook, cellHandle, onComplete);
+		this._executions.set(CellUri.generate(notebook, cellHandle), exe);
+		return exe;
 	}
 }

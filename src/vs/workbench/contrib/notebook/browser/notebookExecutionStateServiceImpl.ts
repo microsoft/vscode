@@ -260,7 +260,7 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 	private readonly _onDidComplete = this._register(new Emitter<void>());
 	readonly onDidComplete = this._onDidComplete.event;
 
-	private _state: NotebookCellExecutionState = NotebookCellExecutionState.Pending;
+	private _state: NotebookCellExecutionState = NotebookCellExecutionState.Unconfirmed;
 	get state() {
 		return this._state;
 	}
@@ -306,6 +306,12 @@ class CellExecution extends Disposable implements INotebookCellExecution {
 	private logUpdates(updates: ICellExecuteUpdate[]): void {
 		const updateTypes = updates.map(u => CellExecutionUpdateType[u.editType]).join(', ');
 		this._logService.debug(`CellExecution#updateExecution ${this.getCellLog()}, [${updateTypes}]`);
+	}
+
+	confirm() {
+		this._logService.debug(`CellExecution#confirm ${this.getCellLog()}`);
+		this._state = NotebookCellExecutionState.Pending;
+		this._onDidUpdate.fire();
 	}
 
 	update(updates: ICellExecuteUpdate[]): void {

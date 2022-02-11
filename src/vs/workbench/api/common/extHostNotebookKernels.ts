@@ -341,7 +341,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (cell) {
 			this._onDidChangeCellExecutionState.fire({
 				cell: cell.apiCell,
-				state: state ?? ExtHostNotebookCellExecutionState.Idle
+				state: state ? extHostTypeConverters.NotebookCellExecutionState.to(state) : ExtHostNotebookCellExecutionState.Idle
 			});
 		}
 	}
