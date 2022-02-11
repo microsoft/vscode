@@ -429,7 +429,7 @@ export class CodeCell extends Disposable {
 		});
 	}
 
-	private _updateOutputInnertContainer(hide: boolean) {
+	private _updateOutputInnerContainer(hide: boolean) {
 		const children = this.templateData.outputContainer.domNode.children;
 		for (let i = 0; i < children.length; i++) {
 			if (children[i].classList.contains('output-inner-container')) {
@@ -445,14 +445,14 @@ export class CodeCell extends Disposable {
 	private _collapseOutput() {
 		this.templateData.container.classList.toggle('output-collapsed', true);
 		DOM.show(this.templateData.cellOutputCollapsedContainer);
-		this._updateOutputInnertContainer(true);
+		this._updateOutputInnerContainer(true);
 		this._outputContainerRenderer.viewUpdateHideOuputs();
 	}
 
 	private _showOutput(initRendering: boolean) {
 		this.templateData.container.classList.toggle('output-collapsed', false);
 		DOM.hide(this.templateData.cellOutputCollapsedContainer);
-		this._updateOutputInnertContainer(false);
+		this._updateOutputInnerContainer(false);
 		this._outputContainerRenderer.viewUpdateShowOutputs(initRendering);
 	}
 
