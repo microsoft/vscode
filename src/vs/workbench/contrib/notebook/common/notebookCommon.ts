@@ -72,7 +72,6 @@ export const RENDERER_EQUIVALENT_EXTENSIONS: ReadonlyMap<string, ReadonlySet<str
 	['ms-toolsai.jupyter-renderers', new Set(['jupyter-notebook', 'interactive'])],
 ]);
 
-export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
 export type NotebookRendererEntrypoint = string | { extends: string; path: string };
@@ -535,27 +534,26 @@ export namespace CellUri {
 		};
 	}
 
-	export function generateCellOutputUri(notebook: URI, handle: number, outputId?: string) {
+	export function generateCellOutputUri(notebook: URI, outputId?: string) {
 		return notebook.with({
 			scheme: Schemas.vscodeNotebookCellOutput,
-			fragment: `ch${handle.toString().padStart(7, '0')},${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fragment: `op${outputId ?? ''},${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
-	export function parseCellOutputUri(uri: URI): { notebook: URI; handle: number; outputId?: string } | undefined {
+	export function parseCellOutputUri(uri: URI): { notebook: URI; outputId?: string } | undefined {
 		if (uri.scheme !== Schemas.vscodeNotebookCellOutput) {
 			return;
 		}
 
-		const match = /^ch(\d{7,})\,([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\,(.*)$/i.exec(uri.fragment);
+		const match = /^op([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\,(.*)$/i.exec(uri.fragment);
 		if (!match) {
 			return undefined;
 		}
-		const handle = Number(match[1]);
-		const outputId = (match[2] && match[2] !== '') ? match[2] : undefined;
-		const scheme = match[3];
+
+		const outputId = (match[1] && match[1] !== '') ? match[1] : undefined;
+		const scheme = match[2];
 		return {
-			handle,
 			outputId,
 			notebook: uri.with({
 				scheme: scheme || Schemas.file,
@@ -588,33 +586,6 @@ export namespace CellUri {
 			})
 		};
 	}
-}
-
-type MimeTypeInfo = {
-	alwaysSecure?: boolean;
-	supportedByCore?: boolean;
-	mergeable?: boolean;
-};
-
-const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
-	['image/git', { alwaysSecure: true, supportedByCore: true }],
-	['application/json', { alwaysSecure: true, supportedByCore: true }],
-	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
-	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
-	['application/vnd.code.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
-	['application/vnd.code.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
-]);
-
-export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
-	return _mimeTypeInfo.get(mimeType)?.alwaysSecure ?? false;
-}
-
-export function mimeTypeSupportedByCore(mimeType: string) {
-	return _mimeTypeInfo.get(mimeType)?.supportedByCore ?? false;
-}
-
-export function mimeTypeIsMergeable(mimeType: string): boolean {
-	return _mimeTypeInfo.get(mimeType)?.mergeable ?? false;
 }
 
 const normalizeSlashes = (str: string) => isWindows ? str.replace(/\//g, '\\') : str;

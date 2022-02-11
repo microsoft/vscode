@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { LanguageFeatureRegistry, NotebooTypeResolver } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -12,8 +12,6 @@ export const ILanguageFeaturesService = createDecorator<ILanguageFeaturesService
 export interface ILanguageFeaturesService {
 
 	readonly _serviceBrand: undefined;
-
-	// --- navigation
 
 	readonly referenceProvider: LanguageFeatureRegistry<ReferenceProvider>;
 
@@ -25,8 +23,6 @@ export interface ILanguageFeaturesService {
 
 	readonly implementationProvider: LanguageFeatureRegistry<ImplementationProvider>;
 
-	// --- code actions
-
 	readonly codeActionProvider: LanguageFeatureRegistry<CodeActionProvider>;
 
 	readonly renameProvider: LanguageFeatureRegistry<RenameProvider>;
@@ -36,8 +32,6 @@ export interface ILanguageFeaturesService {
 	readonly documentRangeFormattingEditProvider: LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>;
 
 	readonly onTypeFormattingEditProvider: LanguageFeatureRegistry<OnTypeFormattingEditProvider>;
-
-	// --- insights
 
 	readonly documentSymbolProvider: LanguageFeatureRegistry<DocumentSymbolProvider>;
 
@@ -53,8 +47,6 @@ export interface ILanguageFeaturesService {
 
 	readonly documentHighlightProvider: LanguageFeatureRegistry<DocumentHighlightProvider>;
 
-	// ---
-
 	readonly documentRangeSemanticTokensProvider: LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>;
 
 	readonly documentSemanticTokensProvider: LanguageFeatureRegistry<DocumentSemanticTokensProvider>;
@@ -65,17 +57,17 @@ export interface ILanguageFeaturesService {
 
 	readonly linkProvider: LanguageFeatureRegistry<LinkProvider>;
 
-	// --- completions
-
 	readonly inlineCompletionsProvider: LanguageFeatureRegistry<InlineCompletionsProvider>;
 
 	readonly completionProvider: LanguageFeatureRegistry<CompletionItemProvider>;
 
 	readonly linkedEditingRangeProvider: LanguageFeatureRegistry<LinkedEditingRangeProvider>;
 
-	// --- debug
-
 	readonly inlineValuesProvider: LanguageFeatureRegistry<InlineValuesProvider>;
 
 	readonly evaluatableExpressionProvider: LanguageFeatureRegistry<EvaluatableExpressionProvider>;
+
+	// --
+
+	setNotebookTypeResolver(resolver: NotebooTypeResolver | undefined): void;
 }

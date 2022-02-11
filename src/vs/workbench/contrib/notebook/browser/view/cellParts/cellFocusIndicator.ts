@@ -13,8 +13,8 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellFocusIndicator extends CellPart {
-	private codeFocusIndicator: FastDomNode<HTMLElement>;
-	private outputFocusIndicator: FastDomNode<HTMLElement>;
+	public codeFocusIndicator: FastDomNode<HTMLElement>;
+	public outputFocusIndicator: FastDomNode<HTMLElement>;
 
 	private currentElement: ICellViewModel | undefined;
 
@@ -27,8 +27,20 @@ export class CellFocusIndicator extends CellPart {
 	) {
 		super();
 
-		this.codeFocusIndicator = new FastDomNode(DOM.append(this.left.domNode, DOM.$('.codeOutput-focus-indicator.code-focus-indicator')));
-		this.outputFocusIndicator = new FastDomNode(DOM.append(this.left.domNode, DOM.$('.codeOutput-focus-indicator.output-focus-indicator')));
+		this.codeFocusIndicator = new FastDomNode(DOM.append(
+			this.left.domNode,
+			DOM.$(
+				'.codeOutput-focus-indicator-container',
+				undefined,
+				DOM.$('.codeOutput-focus-indicator.code-focus-indicator'))));
+
+		this.outputFocusIndicator = new FastDomNode(DOM.append(
+			this.left.domNode,
+			DOM.$(
+				'.codeOutput-focus-indicator-container',
+				undefined,
+				DOM.$('.codeOutput-focus-indicator.output-focus-indicator'))));
+
 		this._register(DOM.addDisposableListener(this.codeFocusIndicator.domNode, DOM.EventType.CLICK, () => {
 			if (this.currentElement) {
 				this.currentElement.isInputCollapsed = !this.currentElement.isInputCollapsed;

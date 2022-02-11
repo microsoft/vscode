@@ -412,3 +412,8 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-group > .monaco-split-view2.vertical .terminal-drop-overlay.drop-after {
 	top: 50%;
 }
+
+.terminal-command-decoration {
+	margin-left: -1%;
+	width: 50%;
+}

@@ -1273,13 +1273,14 @@ export class Repository implements Disposable {
 		const diffEditorTabsToClose: Tab[] = [];
 
 		// Index
-		diffEditorTabsToClose.push(...window.tabs
+		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
+		diffEditorTabsToClose.push(...tabs
 			.filter(t =>
 				t.resource && t.resource.scheme === 'git' && t.viewId === 'diff' &&
 				indexResources.some(r => pathEquals(r, t.resource!.fsPath))));
 
 		// Working Tree
-		diffEditorTabsToClose.push(...window.tabs
+		diffEditorTabsToClose.push(...tabs
 			.filter(t =>
 				t.resource && t.resource.scheme === 'file' && t.viewId === 'diff' &&
 				workingTreeResources.some(r => pathEquals(r, t.resource!.fsPath)) &&

@@ -10,8 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { EditorInputCapabilities, IEditorIdentifier, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { ITerminalInstance, ITerminalInstanceService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -52,7 +51,7 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override get editorId(): string | undefined {
-		return TerminalEditor.ID;
+		return terminalEditorId;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -233,7 +232,7 @@ export class TerminalEditorInput extends EditorInput {
 		return {
 			resource: this.resource,
 			options: {
-				override: TerminalEditor.ID,
+				override: terminalEditorId,
 				pinned: true,
 				forceReload: true
 			}

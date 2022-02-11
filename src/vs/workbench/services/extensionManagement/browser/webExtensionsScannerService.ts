@@ -207,6 +207,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			const index = extensions.findIndex(e => e.id === webExtension.identifier.id.toLowerCase() && e.preRelease === webExtension.metadata?.isPreReleaseVersion);
 			if (index !== -1) {
 				webExtensions.push(webExtension);
+				/* Update preRelease flag in the cache - https://github.com/microsoft/vscode/issues/142831 */
+				if (webExtension.metadata?.isPreReleaseVersion && !webExtension.metadata?.preRelease) {
+					webExtension.metadata.preRelease = true;
+				}
 				extensions.splice(index, 1);
 			}
 		}
@@ -221,7 +225,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 			await Promise.all(galleryExtensions.map(async gallery => {
 				try {
-					webExtensions.push(await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, isBuiltin: true }));
+					webExtensions.push(await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true }));
 				} catch (error) {
 					this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
 				}

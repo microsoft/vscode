@@ -223,10 +223,19 @@ export const enum EditorPaneSelectionChangeReason {
 	 * The selection was changed as a result of a navigation
 	 * action.
 	 *
-	 * For a text editor pane, this for example can be invoking
-	 * "Go to definition" on a symbol.
+	 * For a text editor pane, this for example can be a result
+	 * of selecting an entry from a text outline view.
 	 */
-	NAVIGATION
+	NAVIGATION,
+
+	/**
+	 * The selection was changed as a result of a jump action
+	 * from within the editor pane.
+	 *
+	 * For a text editor pane, this for example can be a result
+	 * of invoking "Go to definition" from a symbol.
+	 */
+	JUMP
 }
 
 export interface IEditorPaneSelection {
@@ -898,33 +907,7 @@ export interface IEditorWillMoveEvent extends IEditorIdentifier {
 	readonly target: GroupIdentifier;
 }
 
-export interface IEditorMoveEvent extends IEditorIdentifier {
-
-	/**
-	 * The target group of the move operation.
-	 */
-	readonly target: GroupIdentifier;
-
-	/**
-	 * The index of the editor before moving.
-	 */
-	readonly index: number;
-
-	/**
-	 * The index of the editor after moving.
-	 */
-	readonly newIndex: number;
-}
-
 export interface IEditorWillOpenEvent extends IEditorIdentifier { }
-
-export interface IEditorOpenEvent extends IEditorIdentifier {
-
-	/**
-	 * The index the editor opens in.
-	 */
-	readonly index: number;
-}
 
 export type GroupIdentifier = number;
 

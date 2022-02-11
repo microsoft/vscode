@@ -1683,8 +1683,6 @@
 		"tf": "_terraform",
 		"tf.json": "_terraform",
 		"tfvars": "_terraform",
-		"tex": "_tex",
-		"sty": "_tex_1",
 		"dtx": "_tex_2",
 		"ins": "_tex_3",
 		"toml": "_config",
@@ -1709,6 +1707,7 @@
 		"ttf": "_font",
 		"woff": "_font",
 		"woff2": "_font",
+		"avif": "_image",
 		"gif": "_image",
 		"jpg": "_image",
 		"jpeg": "_image",
@@ -1865,6 +1864,8 @@
 		"javascript": "_javascript",
 		"json": "_json",
 		"julia": "_julia",
+		"tex": "_tex_1",
+		"latex": "_tex",
 		"less": "_less",
 		"lua": "_lua",
 		"makefile": "_makefile",
@@ -2062,8 +2063,6 @@
 			"tf": "_terraform_light",
 			"tf.json": "_terraform_light",
 			"tfvars": "_terraform_light",
-			"tex": "_tex_light",
-			"sty": "_tex_1_light",
 			"dtx": "_tex_2_light",
 			"ins": "_tex_3_light",
 			"toml": "_config_light",
@@ -2088,6 +2087,7 @@
 			"ttf": "_font_light",
 			"woff": "_font_light",
 			"woff2": "_font_light",
+			"avif": "_image_light",
 			"gif": "_image_light",
 			"jpg": "_image_light",
 			"jpeg": "_image_light",
@@ -2178,6 +2178,8 @@
 			"javascript": "_javascript_light",
 			"json": "_json_light",
 			"julia": "_julia_light",
+			"tex": "_tex_1_light",
+			"latex": "_tex_light",
 			"less": "_less_light",
 			"lua": "_lua_light",
 			"makefile": "_makefile_light",
@@ -2294,5 +2296,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/bc194faed12b10692807f47b97f0ff963e4c9f24"
+	"version": "https://github.com/jesseweed/seti-ui/commit/529789dc4eee3e2fdc5985f082ee58adfb97696c"
 }

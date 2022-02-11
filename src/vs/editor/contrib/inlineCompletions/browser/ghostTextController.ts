@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { firstNonWhitespaceIndex } from 'vs/base/common/strings';
@@ -36,6 +37,9 @@ export class GhostTextController extends Disposable {
 	public get activeModel(): GhostTextModel | undefined {
 		return this.activeController.value?.model;
 	}
+
+	private readonly activeModelDidChangeEmitter = this._register(new Emitter<void>());
+	public readonly onActiveModelDidChange = this.activeModelDidChangeEmitter.event;
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -71,6 +75,7 @@ export class GhostTextController extends Disposable {
 					this.editor
 				)
 				: undefined;
+		this.activeModelDidChangeEmitter.fire();
 	}
 
 	public shouldShowHoverAt(hoverRange: Range): boolean {

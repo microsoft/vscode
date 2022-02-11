@@ -87,42 +87,27 @@ steps:
       set -e
       export npm_config_arch=$(NPM_ARCH)
 
-      # Download clang based on chromium revision used by vscode
-      curl -s https://raw.githubusercontent.com/chromium/chromium/96.0.4664.110/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
-      # Download libcxx headers and objects from upstream electron releases
-      DEBUG=libcxx-fetcher \
-      VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
-      VSCODE_LIBCXX_HEADERS_DIR=$PWD/.build/libcxx_headers  \
-      VSCODE_LIBCXXABI_HEADERS_DIR=$PWD/.build/libcxxabi_headers \
-      VSCODE_ARCH="$(NPM_ARCH)" \
-      node build/linux/libcxx-fetcher.js
-      # Set compiler toolchain
-      # Flags for the client build are based on
-      # https://source.chromium.org/chromium/chromium/src/+/refs/tags/96.0.4664.110:build/config/arm.gni
-      # https://source.chromium.org/chromium/chromium/src/+/refs/tags/96.0.4664.110:build/config/compiler/BUILD.gn
-      # https://source.chromium.org/chromium/chromium/src/+/refs/tags/96.0.4664.110:build/config/c++/BUILD.gn
-      export CC=$PWD/.build/CR_Clang/bin/clang
-      export CXX=$PWD/.build/CR_Clang/bin/clang++
-      export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
-      export CFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
-      export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -L$PWD/.build/libcxx-objects -lc++abi -Wl,--lto-O0"
-      export VSCODE_REMOTE_CC=$(which gcc)
-      export VSCODE_REMOTE_CXX=$(which g++)
-
-      if [ "$VSCODE_ARCH" == "arm64" ]; then
-        export CXXFLAGS="${CXXFLAGS} --target=aarch64-linux-gnu -fwhole-program-vtables"
-        export CFLAGS="${CFLAGS} --target=aarch64-linux-gnu -fwhole-program-vtables"
-        export LDFLAGS="${LDFLAGS} --target=aarch64-linux-gnu -march=arm64 -fwhole-program-vtables"
-        export VSCODE_REMOTE_CC=/usr/bin/aarch64-linux-gnu-gcc
-        export VSCODE_REMOTE_CXX=/usr/bin/aarch64-linux-gnu-g++
-      fi
-
-      if [ "$VSCODE_ARCH" == "armhf" ]; then
-        export CXXFLAGS="${CXXFLAGS} --target=arm-linux-gnueabihf -march=armv7-a -mthumb -mfloat-abi=hard -mfpu=neon -mtune=generic-armv7-a"
-        export CFLAGS="${CFLAGS} --target=arm-linux-gnueabihf -march=armv7-a -mthumb -mfloat-abi=hard -mfpu=neon -mtune=generic-armv7-a"
-        export LDFLAGS="${LDFLAGS} --target=arm-linux-gnueabihf -march=armv7-a"
-        export VSCODE_REMOTE_CC=/usr/bin/arm-linux-gnueabihf-gcc
-        export VSCODE_REMOTE_CXX=/usr/bin/arm-linux-gnueabihf-g++
+      if [ -z "$CC" ] || [ -z "$CXX" ]; then
+        # Download clang based on chromium revision used by vscode
+        curl -s https://raw.githubusercontent.com/chromium/chromium/96.0.4664.110/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+        # Download libcxx headers and objects from upstream electron releases
+        DEBUG=libcxx-fetcher \
+        VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
+        VSCODE_LIBCXX_HEADERS_DIR=$PWD/.build/libcxx_headers  \
+        VSCODE_LIBCXXABI_HEADERS_DIR=$PWD/.build/libcxxabi_headers \
+        VSCODE_ARCH="$(NPM_ARCH)" \
+        node build/linux/libcxx-fetcher.js
+        # Set compiler toolchain
+        # Flags for the client build are based on
+        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/96.0.4664.110:build/config/arm.gni
+        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/96.0.4664.110:build/config/compiler/BUILD.gn
+        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/96.0.4664.110:build/config/c++/BUILD.gn
+        export CC=$PWD/.build/CR_Clang/bin/clang
+        export CXX=$PWD/.build/CR_Clang/bin/clang++
+        export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
+        export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -L$PWD/.build/libcxx-objects -lc++abi -Wl,--lto-O0"
+        export VSCODE_REMOTE_CC=$(which gcc)
+        export VSCODE_REMOTE_CXX=$(which g++)
       fi
 
       for i in {1..3}; do # try 3 times, for Terrapin
