@@ -186,29 +186,28 @@ export class MainThreadEditorTabs {
 	}
 
 	// TODOD @lramos15 Remove this after done finishing the tab model code
-	private _eventToString(event: IEditorsChangeEvent): string {
-		let eventString = '';
-		switch (event.kind) {
-			case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
-			case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
-			case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
-			case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
-			case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
-			case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
-			case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
-			case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
-			case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
-			default: eventString += 'UNKNOWN'; break;
-		}
-		return eventString;
-	}
+	// private _eventToString(event: IEditorsChangeEvent): string {
+	// 	let eventString = '';
+	// 	switch (event.kind) {
+	// 		case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
+	// 		case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
+	// 		case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
+	// 		case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
+	// 		case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
+	// 		case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
+	// 		case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
+	// 		case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
+	// 		case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
+	// 		default: eventString += 'UNKNOWN'; break;
+	// 	}
+	// 	return eventString;
+	// }
 
 	/**
 	 * The main handler for the tab events
 	 * @param events The list of events to process
 	 */
 	private _updateTabsModel(event: IEditorsChangeEvent): void {
-		console.log(this._eventToString(event));
 		switch (event.kind) {
 			case GroupModelChangeKind.GROUP_ACTIVE:
 				if (event.groupId === this._editorGroupsService.activeGroup.id) {
