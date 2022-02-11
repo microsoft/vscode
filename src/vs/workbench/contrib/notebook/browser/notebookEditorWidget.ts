@@ -853,8 +853,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		// show more container
 		styleSheets.push(`.notebookOverlay .output-show-more-container { margin: 0px ${cellRightMargin}px 0px ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .output-show-more-container { width: calc(100% - ${codeCellLeftMargin + cellRunGutter + cellRightMargin}px); }`);
-		styleSheets.push(`.notebookOverlay .cell .run-button-container { width: 35px; left: ${codeCellLeftMargin + cellRunGutter - 35}px }`);
-		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .execution-count-label { left: ${codeCellLeftMargin}px; width: ${cellRunGutter}px; }`);
 
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell.markdown { padding-left: ${cellRunGutter}px; }`);
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator { left: ${(markdownCellGutter - 20) / 2 + markdownCellLeftMargin}px; }`);
@@ -1929,6 +1927,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			primary: cell.handle,
 			selections: [cell.handle]
 		});
+	}
+
+	get scrollTop() {
+		return this._list.scrollTop;
+	}
+
+	getAbsoluteTopOfElement(cell: ICellViewModel) {
+		return this._list.getAbsoluteTopOfElement(cell);
 	}
 
 	isScrolledToBottom() {
