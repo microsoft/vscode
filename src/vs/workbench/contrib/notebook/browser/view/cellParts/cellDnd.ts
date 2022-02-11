@@ -309,11 +309,13 @@ export class CellDragAndDropController extends Disposable {
 		this.setInsertIndicatorVisibility(false);
 	}
 
-	registerDragHandle(templateData: BaseCellRenderTemplate, cellRoot: HTMLElement, dragHandle: HTMLElement, dragImageProvider: DragImageProvider): void {
+	registerDragHandle(templateData: BaseCellRenderTemplate, cellRoot: HTMLElement, dragHandles: HTMLElement[], dragImageProvider: DragImageProvider): void {
 		const container = templateData.container;
-		dragHandle.setAttribute('draggable', 'true');
+		for (const dragHandle of dragHandles) {
+			dragHandle.setAttribute('draggable', 'true');
+		}
 
-		templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_END, () => {
+		const onDragEnd = () => {
 			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 				return;
 			}
@@ -321,9 +323,12 @@ export class CellDragAndDropController extends Disposable {
 			// Note, templateData may have a different element rendered into it by now
 			container.classList.remove(DRAGGING_CLASS);
 			this.dragCleanup();
-		}));
+		};
+		for (const dragHandle of dragHandles) {
+			templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_END, onDragEnd));
+		}
 
-		templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, event => {
+		const onDragStart = (event: DragEvent) => {
 			if (!event.dataTransfer) {
 				return;
 			}
@@ -341,7 +346,10 @@ export class CellDragAndDropController extends Disposable {
 			setTimeout(() => cellRoot.parentElement!.removeChild(dragImage!), 0); // Comment this out to debug drag image layout
 
 			container.classList.add(DRAGGING_CLASS);
-		}));
+		};
+		for (const dragHandle of dragHandles) {
+			templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, onDragStart));
+		}
 	}
 
 	public startExplicitDrag(cell: ICellViewModel, _dragOffsetY: number) {

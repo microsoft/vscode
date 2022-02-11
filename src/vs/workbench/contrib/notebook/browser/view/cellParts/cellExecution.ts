@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
@@ -11,6 +12,8 @@ import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/vi
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellExecutionPart extends CellPart {
+	private kernelDisposables = new DisposableStore();
+
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		private readonly _executionOrderLabel: HTMLElement
@@ -21,6 +24,16 @@ export class CellExecutionPart extends CellPart {
 	setup(templateData: BaseCellRenderTemplate): void {
 		this._register(this._notebookEditor.onDidChangeActiveKernel(() => {
 			if (templateData.currentRenderedCell) {
+				this.kernelDisposables.clear();
+
+				if (this._notebookEditor.activeKernel) {
+					this.kernelDisposables.add(this._notebookEditor.activeKernel.onDidChange(() => {
+						if (templateData.currentRenderedCell) {
+							this.updateExecutionOrder(templateData.currentRenderedCell.internalMetadata);
+						}
+					}));
+				}
+
 				this.updateExecutionOrder(templateData.currentRenderedCell.internalMetadata);
 			}
 		}));

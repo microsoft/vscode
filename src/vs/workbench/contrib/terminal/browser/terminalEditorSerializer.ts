@@ -5,10 +5,9 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IEditorSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ISerializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 export class TerminalInputSerializer implements IEditorSerializer {
@@ -34,7 +33,7 @@ export class TerminalInputSerializer implements IEditorSerializer {
 		return this._terminalEditorService.reviveInput(terminalInstance);
 	}
 
-	private _toJson(instance: ITerminalInstance): SerializedTerminalEditorInput {
+	private _toJson(instance: ITerminalInstance): ISerializedTerminalEditorInput {
 		return {
 			id: instance.persistentProcessId!,
 			pid: instance.processId || 0,
@@ -47,23 +46,4 @@ export class TerminalInputSerializer implements IEditorSerializer {
 			hasChildProcesses: instance.hasChildProcesses
 		};
 	}
-}
-
-interface TerminalEditorInputObject {
-	readonly id: number;
-	readonly pid: number;
-	readonly title: string;
-	readonly titleSource: TitleEventSource;
-	readonly cwd: string;
-	readonly icon: TerminalIcon | undefined;
-	readonly color: string | undefined;
-	readonly hasChildProcesses?: boolean;
-}
-
-export interface SerializedTerminalEditorInput extends TerminalEditorInputObject {
-	readonly resource: string;
-}
-
-export interface DeserializedTerminalEditorInput extends TerminalEditorInputObject {
-	readonly resource: URI;
 }

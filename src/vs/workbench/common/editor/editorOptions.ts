@@ -25,10 +25,11 @@ export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEdi
 			endColumn: options.selection.endColumn ?? options.selection.startColumn
 		};
 
-		// Apply selection and give it a `TextEditorSelectionSource`
-		// so that listeners can distinguish this selection change
-		// from others.
-		editor.setSelection(range, TextEditorSelectionSource.NAVIGATION);
+		// Apply selection with a source so that listeners can
+		// distinguish this selection change from others.
+		// If no source is provided, set a default source to
+		// signal this navigation.
+		editor.setSelection(range, options.selectionSource ?? TextEditorSelectionSource.NAVIGATION);
 
 		// Reveal selection
 		if (options.selectionRevealType === TextEditorSelectionRevealType.NearTop) {

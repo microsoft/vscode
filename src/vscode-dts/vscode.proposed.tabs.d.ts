@@ -17,11 +17,6 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The index of the tab within the column
-		 */
-		readonly index: number;
-
-		/**
 		 * The column which the tab belongs to
 		 */
 		readonly viewColumn: ViewColumn;
@@ -51,7 +46,7 @@ declare module 'vscode' {
 
 		/**
 		 * Whether or not the tab is currently active
-		 * Dictated by being the selected tab in the active group
+		 * Dictated by being the selected tab in the group
 		 */
 		readonly isActive: boolean;
 
@@ -73,28 +68,43 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * A list of all opened tabs
-		 * Ordered from left to right
+		 * Represents the grid widget within the main editor area
 		 */
-		export const tabs: readonly Tab[];
+		export const tabGroups: TabGroups;
+	}
+
+	interface TabGroups {
+		/**
+		 * All the groups within the group container
+		 */
+		all: TabGroup[];
 
 		/**
-		 * The currently active tab
-		 * Undefined if no tabs are currently opened
+	 * Fires when any of the groups have a change occured
 		 */
-		export const activeTab: Tab | undefined;
+		onDidChangeTabGroup: Event<void>;
+
+	}
+
+	interface TabGroup {
+		/**
+		 * Whether or not the group is currently active
+		 */
+		isActive: boolean;
 
 		/**
-		 * An {@link Event} which fires when the array of {@link window.tabs tabs}
-		 * has changed.
+		 * The view column of the groups
 		 */
-		export const onDidChangeTabs: Event<readonly Tab[]>;
+		viewColumn: ViewColumn;
 
 		/**
-		 * An {@link Event} which fires when the {@link window.activeTab activeTab}
-		 * has changed.
+		 * The active tab within the group
 		 */
-		export const onDidChangeActiveTab: Event<Tab | undefined>;
+		activeTab: Tab | undefined;
 
+		/**
+		 * The list of tabs contained within the group
+		 */
+		tabs: Tab[];
 	}
 }

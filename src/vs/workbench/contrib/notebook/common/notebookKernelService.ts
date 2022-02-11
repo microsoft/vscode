@@ -82,6 +82,11 @@ export interface INotebookKernelService {
 	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
 
 	/**
+	 * Set the kernel that a notebook should use when it starts up
+	 */
+	preselectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
+
+	/**
 	 * Bind a notebook type to a kernel.
 	 * @param viewType
 	 * @param kernel

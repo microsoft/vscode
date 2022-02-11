@@ -1915,59 +1915,44 @@ suite('EditorService', () => {
 		let otherInput = new TestFileEditorInput(URI.parse('my://resource2-active'), TEST_EDITOR_INPUT_ID);
 
 		let editorsChangeEventCounter = 0;
-		async function assertEditorsChangeEvent(expected: number) {
-			await Event.toPromise(service.onDidEditorsChange);
+		async function assertEditorsChangeEvent(fn: () => Promise<unknown>, expected: number) {
+			const p = Event.toPromise(service.onDidEditorsChange);
+			await fn();
+			await p;
 			editorsChangeEventCounter++;
 
 			assert.strictEqual(editorsChangeEventCounter, expected);
 		}
 
 		// open
-		let p: Promise<unknown> = service.openEditor(input, { pinned: true });
-		await assertEditorsChangeEvent(1);
-		await p;
+		await assertEditorsChangeEvent(() => service.openEditor(input, { pinned: true }), 1);
 
 		// open (other)
-		p = service.openEditor(otherInput, { pinned: true });
-		await assertEditorsChangeEvent(2);
-		await p;
+		await assertEditorsChangeEvent(() => service.openEditor(otherInput, { pinned: true }), 2);
 
 		// close (inactive)
-		p = rootGroup.closeEditor(input);
-		await assertEditorsChangeEvent(3);
-		await p;
+		await assertEditorsChangeEvent(() => rootGroup.closeEditor(input), 3);
 
 		// close (active)
-		p = rootGroup.closeEditor(otherInput);
-		await assertEditorsChangeEvent(4);
-		await p;
+		await assertEditorsChangeEvent(() => rootGroup.closeEditor(otherInput), 4);
 
 		input = new TestFileEditorInput(URI.parse('my://resource-active'), TEST_EDITOR_INPUT_ID);
 		otherInput = new TestFileEditorInput(URI.parse('my://resource2-active'), TEST_EDITOR_INPUT_ID);
 
 		// open editors
-		p = service.openEditors([{ editor: input, options: { pinned: true } }, { editor: otherInput, options: { pinned: true } }]);
-		await assertEditorsChangeEvent(5);
-		await p;
+		await assertEditorsChangeEvent(() => service.openEditors([{ editor: input, options: { pinned: true } }, { editor: otherInput, options: { pinned: true } }]), 5);
 
 		// active editor change
-		p = service.openEditor(otherInput);
-		await assertEditorsChangeEvent(6);
-		await p;
+		await assertEditorsChangeEvent(() => service.openEditor(otherInput), 6);
 
 		// move editor (in group)
-		p = service.openEditor(input, { pinned: true, index: 1 });
-		await assertEditorsChangeEvent(7);
-		await p;
+		await assertEditorsChangeEvent(() => service.openEditor(input, { pinned: true, index: 1 }), 7);
 
-		// move editor (across groups)
-		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
-		rootGroup.moveEditor(input, rightGroup);
-		await assertEditorsChangeEvent(8);
+		const rightGroup = part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+		await assertEditorsChangeEvent(async () => rootGroup.moveEditor(input, rightGroup), 8);
 
 		// move group
-		part.moveGroup(rightGroup, rootGroup, GroupDirection.LEFT);
-		await assertEditorsChangeEvent(9);
+		await assertEditorsChangeEvent(async () => part.moveGroup(rightGroup, rootGroup, GroupDirection.LEFT), 9);
 	});
 
 	test('two active editor change events when opening editor to the side', async function () {

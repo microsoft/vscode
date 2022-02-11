@@ -267,7 +267,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 								continue;
 							}
 
-							const messageUri = m.type === TestMessageType.Info ? undefined : buildTestUri({
+							const messageUri = buildTestUri({
 								type: TestUriType.ResultActualOutput,
 								messageIndex: i,
 								taskIndex: taskId,
@@ -894,7 +894,7 @@ class TestMessageDecoration implements ITestDecoration {
 
 		options.after = {
 			content: ' '.repeat(4) + inlineText,
-			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass}`
+			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass} ${messageUri ? 'test-message-inline-content-clickable' : ''}`
 		};
 		options.showIfCollapsed = true;
 
