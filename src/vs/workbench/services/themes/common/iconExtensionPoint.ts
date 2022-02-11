@@ -10,7 +10,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { CSSIcon } from 'vs/base/common/codicons';
 import * as resources from 'vs/base/common/resources';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { extname, posix } from 'vs/base/common/path';
 
 interface IIconExtensionPoint {
@@ -78,11 +77,6 @@ export class IconExtensionPoint {
 			for (const extension of delta.added) {
 				const extensionValue = <IIconExtensionPoint>extension.value;
 				const collector = extension.collector;
-
-				if (!isProposedApiEnabled(extension.description, 'contribIcons')) {
-					collector.error(nls.localize('invalid.icons.proposedAPI', "'configuration.icons is a proposed contribution point. It requires 'package.json#enabledApiProposals: [\"contribIcons\"]' and is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
-					return;
-				}
 
 				if (!extensionValue || typeof extensionValue !== 'object') {
 					collector.error(nls.localize('invalid.icons.configuration', "'configuration.icons' must be an object with the icon names as properties."));
