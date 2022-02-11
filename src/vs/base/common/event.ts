@@ -10,8 +10,23 @@ import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposa
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
-let TRACE_LIKEY_SNAPSHOT_LEAKAGE = false;
-// TRACE_LIKEY_SNAPSHOT_LEAKAGE = Boolean("true"); // causes an ESLint warning so that this isn't pushed by accident
+
+function _addLeakageTraceLogic(options: EmitterOptions) {
+	let enabled = false;
+	// enabled = Boolean("true"); // causes an ESLint warning so that this isn't pushed by accident
+	if (enabled) {
+		const { onListenerDidAdd: origListenerDidAdd } = options;
+		const stack = Stacktrace.create();
+		let count = 0;
+		options.onListenerDidAdd = () => {
+			if (++count === 2) {
+				console.warn('snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here');
+				stack.print();
+			}
+			origListenerDidAdd?.();
+		};
+	}
+}
 
 /**
  * To an event a function with one or zero parameters
@@ -125,15 +140,8 @@ export namespace Event {
 			}
 		};
 
-		if (TRACE_LIKEY_SNAPSHOT_LEAKAGE) {
-			let stack = Stacktrace.create();
-			let count = 0;
-			options.onListenerDidAdd = () => {
-				if (++count === 2) {
-					console.warn('snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here');
-					stack.print();
-				}
-			};
+		if (!disposable) {
+			_addLeakageTraceLogic(options);
 		}
 
 		const emitter = new Emitter<T>(options);
@@ -165,7 +173,7 @@ export namespace Event {
 		let handle: any = undefined;
 		let numDebouncedCalls = 0;
 
-		const emitter = new Emitter<O>({
+		const options: EmitterOptions | undefined = {
 			leakWarningThreshold,
 			onFirstListenerAdd() {
 				subscription = event(cur => {
@@ -193,7 +201,13 @@ export namespace Event {
 			onLastListenerRemove() {
 				subscription.dispose();
 			}
-		});
+		};
+
+		if (!disposable) {
+			_addLeakageTraceLogic(options);
+		}
+
+		const emitter = new Emitter<O>(options);
 
 		if (disposable) {
 			disposable.add(emitter);
