@@ -7,7 +7,6 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshalling';
-import { clamp } from 'vs/base/common/numbers';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
@@ -22,13 +21,14 @@ import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browse
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 export class RunToolbar extends CellPart {
 	private toolbar!: ToolBar;
 
-	private currentElement: ICellViewModel | undefined;
+	private cellDisposable = this._register(new DisposableStore());
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
@@ -42,8 +42,6 @@ export class RunToolbar extends CellPart {
 	) {
 		super();
 
-		this.notebookEditor.onDidScroll(() => this.updateForScroll());
-
 		const menu = this._register(menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecutePrimary!, contextKeyService));
 		this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService);
 		const updateActions = () => {
@@ -56,27 +54,10 @@ export class RunToolbar extends CellPart {
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(updateActions));
 	}
 
-	private updateForScroll() {
-		if (this.currentElement) {
-			if (this.currentElement.isInputCollapsed) {
-				this.runButtonContainer.style.top = '';
-			} else {
-				const scrollTop = this.notebookEditor.scrollTop;
-				const elementTop = this.notebookEditor.getAbsoluteTopOfElement(this.currentElement);
-				const scrollPadding = this.notebookEditor.notebookOptions.computeTopInsertToolbarHeight(this.notebookEditor.textModel?.viewType);
-				const diff = scrollTop - scrollPadding - elementTop;
-				const maxTop = this.currentElement.layoutInfo.editorHeight + this.currentElement.layoutInfo.statusBarHeight - 45; // subtract roughly the height of the execution order label plus padding
-				const top = maxTop > 20 ? // Don't move the run button if it can only move a very short distance
-					clamp(0, diff, maxTop) :
-					0;
-				this.runButtonContainer.style.top = `${top}px`;
-			}
-		}
-	}
-
 	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.currentElement = element;
-		this.updateForScroll();
+		this.cellDisposable.clear();
+		this.cellDisposable.add(registerStickyScroll(this.notebookEditor, element, this.runButtonContainer));
+
 		this.toolbar.context = <INotebookCellActionContext>{
 			ui: true,
 			cell: element,
