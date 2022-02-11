@@ -88,9 +88,6 @@ if (typeof env['EXTENSIONS_GALLERY'] !== 'undefined') {
 		console.error(error);
 		console.info('Check that your env var is valid JSON and conforms to `IProductConfiguration[\'extensionsGallery\']`>');
 	}
-
-	console.log(`Custom marketplace enabled.`);
-	console.log(JSON.stringify(product.extensionsGallery, null, 2));
 }
 
 
