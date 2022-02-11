@@ -3072,6 +3072,17 @@ registerThemingParticipant((theme, collector) => {
 	}
 	`);
 
+	const cellStatusIconSuccessColor = theme.getColor(cellStatusIconSuccess);
+	const cellStatusIconErrorColor = theme.getColor(cellStatusIconError);
+	const cellStatusIconRunningColor = theme.getColor(cellStatusIconRunning);
+	collector.addRule(`
+	:root {
+		--notebook-cell-status-icon-success: ${cellStatusIconSuccessColor};
+		--notebook-cell-status-icon-error: ${cellStatusIconErrorColor};
+		--notebook-cell-status-icon-running: ${cellStatusIconRunningColor};
+	}
+	`);
+
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.notebookOverlay .cell.markdown a,
