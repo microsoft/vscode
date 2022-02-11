@@ -29,7 +29,7 @@ const enum DecorationSelector {
 }
 
 const enum DecorationStyles {
-	ButtonSize = '18px',
+	ButtonMargin = 4
 }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
@@ -115,26 +115,23 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		decoration?.onRender(target => {
 			this._createContextMenu(target, command);
 			this._createHover(target, command);
-			const viewport = decoration.element?.parentElement?.parentElement?.previousElementSibling?.clientWidth || 0;
-			const screen = decoration.element?.parentElement?.parentElement?.clientWidth || 0;
-			const leftMarginWidth = (viewport - screen) * .5;
-			const offset = ((leftMarginWidth - 16) / 2) - leftMarginWidth;
-			target.style.marginLeft = `${offset}px`;
-			target.classList.add(DecorationSelector.CommandDecoration);
-			if (command.exitCode) {
-				target.classList.add(DecorationSelector.Error);
+			if (decoration.element?.clientWidth! > 0) {
+				const marginWidth = ((decoration.element?.parentElement?.parentElement?.previousElementSibling?.clientWidth || 0) - (decoration.element?.parentElement?.parentElement?.clientWidth || 0)) * .5;
+				target.style.marginLeft = `${((marginWidth - (decoration.element!.clientWidth + DecorationStyles.ButtonMargin)) / 2) - marginWidth}px`;
+				target.classList.add(DecorationSelector.CommandDecoration);
+				if (command.exitCode) {
+					target.classList.add(DecorationSelector.Error);
+				}
+				target.classList.add('codicon');
+				if (!command.exitCode) {
+					target.classList.add('codicon-triangle-right');
+				} else {
+					target.classList.add('codicon-x');
+				}
+				target.style.width = `${marginWidth}px`;
+				target.style.height = `${marginWidth}px`;
 			}
-			target.classList.add('codicon');
-			if (!command.exitCode) {
-				target.classList.add('codicon-triangle-right');
-			} else {
-				target.classList.add('codicon-x');
-			}
-			// to fit the 16px codicon plus padding
-			target.style.width = DecorationStyles.ButtonSize;
-			target.style.height = DecorationStyles.ButtonSize;
 		});
-
 		return decoration;
 	}
 
@@ -151,7 +148,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		// When the xterm Decoration gets disposed of, its element gets removed from the dom
 		// along with its listeners
 		dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
-			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${fromNow(command.timestamp, true)} `;
+			let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")} ` + ` ...${fromNow(command.timestamp, true)
+				} `;
 			if (command.exitCode) {
 				hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
 			}
@@ -189,15 +187,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const commandDecorationDefaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
-	collector.addRule(`.${DecorationSelector.CommandDecoration} { color: ${commandDecorationDefaultColor ? commandDecorationDefaultColor.toString() : ''}; }`);
+	collector.addRule(`.${DecorationSelector.CommandDecoration} { color: ${commandDecorationDefaultColor ? commandDecorationDefaultColor.toString() : ''}; } `);
 	const commandDecorationErrorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
-	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.Error} { color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; }`);
+	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.Error} { color: ${commandDecorationErrorColor ? commandDecorationErrorColor.toString() : ''}; } `);
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 	if (toolbarHoverBackgroundColor) {
 		collector.addRule(`
-		.${DecorationSelector.CommandDecoration}:hover {
-			background-color: ${toolbarHoverBackgroundColor};
-		}
-	`);
+	.${DecorationSelector.CommandDecoration}:hover {
+	background - color: ${toolbarHoverBackgroundColor};
+}
+`);
 	}
 });
