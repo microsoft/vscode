@@ -395,7 +395,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, data: INotebookEditorAddData) {
 
 		if (this._editors.has(editorId)) {
-			throw new Error(`editor with id ALREADY EXIST: ${editorId}`);
+			throw new Error(`editor with id ALREADY EXISTS: ${editorId}`);
 		}
 
 		const editor = new ExtHostNotebookEditor(
