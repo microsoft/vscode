@@ -195,8 +195,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
-				'description': localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
+				'description': localize('mouseBackForwardToNavigate', "Enables the use of mouse buttons four and five in history navigation of editors for commands such as 'Go Back' and 'Go Forward'."),
 				'default': true
+			},
+			'workbench.editor.navigationScope': {
+				'type': 'string',
+				'enum': ['default', 'editorGroup'],
+				'default': 'default',
+				'markdownDescription': localize('navigationScope', "Controls the scope of history navigation in editors for commands such as 'Go Back' and 'Go Forward'."),
+				'enumDescriptions': [
+					localize('workbench.editor.navigationScopeDefault', "Navigate across all opened editors and editor groups."),
+					localize('workbench.editor.navigationScopeEditorGroup', "Navigate only in the active editor group.")
+				],
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
@@ -217,7 +227,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enumDescriptions': [
 					localize('workbench.editor.splitInGroupLayoutVertical', "Editors are positioned from top to bottom."),
 					localize('workbench.editor.splitInGroupLayoutHorizontal', "Editors are positioned from left to right.")
-				],
+				]
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
