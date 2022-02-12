@@ -144,14 +144,15 @@ suite('Workbench - Test Results Service', () => {
 
 		test('updateState', () => {
 			changed.clear();
-			r.updateState(new TestId(['ctrlId', 'id-a', 'id-aa']).toString(), 't', TestResultState.Running);
+			const testId = new TestId(['ctrlId', 'id-a', 'id-aa']).toString();
+			r.updateState(testId, 't', TestResultState.Running);
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestResultState.Unset]: 2,
 				[TestResultState.Running]: 1,
 				[TestResultState.Queued]: 1,
 			});
-			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())?.ownComputedState, TestResultState.Running);
+			assert.deepStrictEqual(r.getStateById(testId)?.ownComputedState, TestResultState.Running);
 			// update computed state:
 			assert.deepStrictEqual(r.getStateById(tests.root.id)?.computedState, TestResultState.Running);
 			assert.deepStrictEqual(getChangeSummary(), [
@@ -159,6 +160,15 @@ suite('Workbench - Test Results Service', () => {
 				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
 				{ label: 'root', reason: TestResultItemChangeReason.ComputedStateChange },
 			]);
+
+			r.updateState(testId, 't', TestResultState.Passed);
+			assert.deepStrictEqual(r.getStateById(testId)?.ownComputedState, TestResultState.Passed);
+
+			r.updateState(testId, 't', TestResultState.Errored);
+			assert.deepStrictEqual(r.getStateById(testId)?.ownComputedState, TestResultState.Errored);
+
+			r.updateState(testId, 't', TestResultState.Passed);
+			assert.deepStrictEqual(r.getStateById(testId)?.ownComputedState, TestResultState.Errored);
 		});
 
 		test('retire', () => {
