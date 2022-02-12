@@ -8,7 +8,7 @@ import { Application, Quality, StatusBarElement, Logger } from '../../../../auto
 import { installAllHandlers } from '../../utils';
 
 export function setup(isWeb: boolean, logger: Logger) {
-	describe.only('Statusbar', () => {
+	describe('Statusbar', () => {
 
 		// Shared before/after handling
 		installAllHandlers(logger);
