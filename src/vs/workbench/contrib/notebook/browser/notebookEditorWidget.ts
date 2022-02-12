@@ -2540,6 +2540,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		if (!this.viewModel) {
+			return;
+		}
+
+		const modelIndex = this.viewModel.getCellIndex(cell);
+		const foldedRanges = this.viewModel.getHiddenRanges();
+		const isVisible = !foldedRanges.some(range => modelIndex >= range.start && modelIndex < range.end);
+		if (!isVisible) {
+			return;
+		}
+
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		await this._webview.showMarkupPreview({
 			mime: cell.mime,
