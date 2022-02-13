@@ -380,7 +380,7 @@ exports.update = function () {
 				for (let i1 = 0; i1 < exts.length && !preferredDef; i1++) {
 					preferredDef = ext2Def[exts[i1]];
 				}
-				// use the first file name association for the preferred definition, if not availbale
+				// use the first file name association for the preferred definition, if not available
 				for (let i1 = 0; i1 < fileNames.length && !preferredDef; i1++) {
 					preferredDef = fileName2Def[fileNames[i1]];
 				}
