@@ -195,17 +195,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
-				'description': localize('mouseBackForwardToNavigate', "Enables the use of mouse buttons four and five in history navigation of editors for commands such as 'Go Back' and 'Go Forward'."),
+				'description': localize('mouseBackForwardToNavigate', "Enables the use of mouse buttons four and five for commands 'Go Back' and 'Go Forward'."),
 				'default': true
 			},
 			'workbench.editor.navigationScope': {
 				'type': 'string',
-				'enum': ['default', 'editorGroup'],
+				'enum': ['default', 'editorGroup', 'editor'],
 				'default': 'default',
 				'markdownDescription': localize('navigationScope', "Controls the scope of history navigation in editors for commands such as 'Go Back' and 'Go Forward'."),
 				'enumDescriptions': [
 					localize('workbench.editor.navigationScopeDefault', "Navigate across all opened editors and editor groups."),
-					localize('workbench.editor.navigationScopeEditorGroup', "Navigate only in the active editor group.")
+					localize('workbench.editor.navigationScopeEditorGroup', "Navigate only in editors of the active editor group."),
+					localize('workbench.editor.navigationScopeEditor', "Navigate only in the active editor.")
 				],
 			},
 			'workbench.editor.restoreViewState': {

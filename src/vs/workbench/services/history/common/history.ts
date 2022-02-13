@@ -47,9 +47,14 @@ export const enum GoScope {
 	DEFAULT,
 
 	/**
-	 * Navigate only in the active editor group.
+	 * Navigate only in editors of the active editor group.
 	 */
-	EDITOR_GROUP
+	EDITOR_GROUP,
+
+	/**
+	 * Navigate only in the active editor.
+	 */
+	EDITOR
 }
 
 export interface IHistoryService {
