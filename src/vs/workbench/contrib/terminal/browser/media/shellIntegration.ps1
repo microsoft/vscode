@@ -45,7 +45,7 @@ function Global:Prompt() {
 	$Result += "`e]633;A`a"
 	# Current working directory
 	# OSC 633 ; <Property>=<Value> ST
-	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"`e]633;Cwd=$($pwd.ProviderPath)`a"}
+	$Result += if($pwd.Provider.Name -eq 'FileSystem'){"`e]633;P;Cwd=$($pwd.ProviderPath)`a"}
 	# Write original prompt
 	$Result += $Global:__VSCodeOriginalPrompt.Invoke()
 	# Write command started

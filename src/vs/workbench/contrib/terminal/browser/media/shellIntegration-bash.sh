@@ -24,7 +24,7 @@ prompt_end() {
 }
 
 update_cwd() {
-	printf "\033]633;Cwd=%s\007" "$PWD"
+	printf "\033]633;P;Cwd=%s\007" "$PWD"
 }
 
 command_output_start() {
