@@ -50,6 +50,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.lineHasFoldedArea', "Plays an audio cue when the active line has a folded area that can be unfolded."),
 			...audioCueFeatureBase,
 		},
+		'audioCues.lineHasWarning': {
+			'description': localize('audioCues.lineHasWarning', "Plays an audio cue when the active line has a warning."),
+			...audioCueFeatureBase,
+			default: 'off',
+		},
 	}
 });
 

@@ -110,7 +110,6 @@ export class AudioCue {
 
 	private static register(options: {
 		name: string;
-		description: string;
 		sound: Sound;
 		settingsKey: string;
 	}): AudioCue {
@@ -124,26 +123,27 @@ export class AudioCue {
 	}
 
 	public static readonly error = AudioCue.register({
-		name: 'Error On Line',
-		description: '',
+		name: 'Line has Error',
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasError',
 	});
+	public static readonly warning = AudioCue.register({
+		name: 'Line has Warning',
+		sound: Sound.error,
+		settingsKey: 'audioCues.lineHasWarning',
+	});
 	public static readonly foldedArea = AudioCue.register({
-		name: 'Folded Area On Line',
-		description: '',
+		name: 'Line has Folded Area',
 		sound: Sound.foldedArea,
 		settingsKey: 'audioCues.lineHasFoldedArea',
 	});
 	public static readonly break = AudioCue.register({
-		name: 'Breakpoint On Line',
-		description: '',
+		name: 'Line has Breakpoint',
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasBreakpoint',
 	});
 	public static readonly inlineSuggestion = AudioCue.register({
-		name: 'Inline Suggestion Available On Line',
-		description: '',
+		name: 'Line has Inline Suggestion Available',
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});

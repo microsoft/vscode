@@ -22,11 +22,12 @@ export class AudioCueContribution
 	implements IWorkbenchContribution {
 	private readonly store = this._register(new DisposableStore());
 
-	private readonly features: Feature[] = [
-		this.instantiationService.createInstance(ErrorFeature),
-		this.instantiationService.createInstance(FoldedAreaFeature),
-		this.instantiationService.createInstance(BreakpointFeature),
-		this.instantiationService.createInstance(InlineCompletionFeature),
+	private readonly features: LineFeature[] = [
+		this.instantiationService.createInstance(MarkerLineFeature, AudioCue.error, MarkerSeverity.Error),
+		this.instantiationService.createInstance(MarkerLineFeature, AudioCue.warning, MarkerSeverity.Warning),
+		this.instantiationService.createInstance(FoldedAreaLineFeature),
+		this.instantiationService.createInstance(BreakpointLineFeature),
+		this.instantiationService.createInstance(InlineCompletionLineFeature),
 	];
 
 	constructor(
@@ -163,26 +164,30 @@ export class AudioCueContribution
 	}
 }
 
-interface Feature {
+interface LineFeature {
 	audioCue: AudioCue;
 	debounceWhileTyping?: boolean;
 	getObservableState(
 		editor: ICodeEditor,
 		model: ITextModel
-	): IObservable<FeatureState>;
+	): IObservable<LineFeatureState>;
 }
 
-interface FeatureState {
+interface LineFeatureState {
 	isActive(lineNumber: number): boolean;
 }
 
-class ErrorFeature implements Feature {
-	public readonly audioCue = AudioCue.error;
+class MarkerLineFeature implements LineFeature {
 	public readonly debounceWhileTyping = true;
 
-	constructor(@IMarkerService private readonly markerService: IMarkerService) { }
+	constructor(
+		public readonly audioCue: AudioCue,
+		private readonly severity: MarkerSeverity,
+		@IMarkerService private readonly markerService: IMarkerService,
 
-	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<FeatureState> {
+	) { }
+
+	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		return fromEvent(
 			Event.filter(this.markerService.onMarkerChanged, (changedUris) =>
 				changedUris.some((u) => u.toString() === model.uri.toString())
@@ -193,7 +198,7 @@ class ErrorFeature implements Feature {
 						.read({ resource: model.uri })
 						.some(
 							(m) =>
-								m.severity === MarkerSeverity.Error &&
+								m.severity === this.severity &&
 								m.startLineNumber <= lineNumber &&
 								lineNumber <= m.endLineNumber
 						);
@@ -204,10 +209,10 @@ class ErrorFeature implements Feature {
 	}
 }
 
-class FoldedAreaFeature implements Feature {
+class FoldedAreaLineFeature implements LineFeature {
 	public readonly audioCue = AudioCue.foldedArea;
 
-	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<FeatureState> {
+	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
 			return constObservable({
@@ -231,12 +236,12 @@ class FoldedAreaFeature implements Feature {
 	}
 }
 
-class BreakpointFeature implements Feature {
+class BreakpointLineFeature implements LineFeature {
 	public readonly audioCue = AudioCue.break;
 
 	constructor(@IDebugService private readonly debugService: IDebugService) { }
 
-	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<FeatureState> {
+	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
 		return fromEvent(
 			this.debugService.getModel().onDidChangeBreakpoints,
 			() => ({
@@ -252,10 +257,10 @@ class BreakpointFeature implements Feature {
 	}
 }
 
-class InlineCompletionFeature implements Feature {
+class InlineCompletionLineFeature implements LineFeature {
 	public readonly audioCue = AudioCue.inlineSuggestion;
 
-	getObservableState(editor: ICodeEditor, _model: ITextModel): IObservable<FeatureState> {
+	getObservableState(editor: ICodeEditor, _model: ITextModel): IObservable<LineFeatureState> {
 		const ghostTextController = GhostTextController.get(editor);
 		if (!ghostTextController) {
 			return constObservable({
