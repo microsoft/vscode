@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { fromNow } from 'vs/base/common/date';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -10,12 +11,16 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 
 const USE_RELATIVE_TIME_CONFIGURATION = 'comments.useRelativeTime';
 
+export enum TimestampAdditionalText {
+	LastReply = 1
+}
+
 export class TimestampWidget extends Disposable {
 	private _date: HTMLElement;
 	private _timestamp: Date | undefined;
 	private _useRelativeTime: boolean;
 
-	constructor(private configurationService: IConfigurationService, container: HTMLElement, timeStamp?: Date) {
+	constructor(private configurationService: IConfigurationService, container: HTMLElement, timeStamp?: Date, private additionalText?: TimestampAdditionalText) {
 		super();
 		this._date = dom.append(container, dom.$('span.timestamp'));
 		this._date.style.display = 'none';
@@ -51,10 +56,18 @@ export class TimestampWidget extends Disposable {
 				textContent = this.getDateString(timestamp);
 			}
 
-			this._date.textContent = textContent;
+			this._date.textContent = this.addAdditionalText(textContent);
 			if (tooltip) {
 				this._date.title = tooltip;
 			}
+		}
+	}
+
+	private addAdditionalText(timestamp: string) {
+		switch (this.additionalText) {
+			case TimestampAdditionalText.LastReply:
+				return nls.localize('timestamp.lastReply', "Last reply {0}", timestamp);
+			default: return timestamp;
 		}
 	}
 

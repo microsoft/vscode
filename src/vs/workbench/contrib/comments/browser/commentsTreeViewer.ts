@@ -21,7 +21,7 @@ import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } 
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
-import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
+import { TimestampAdditionalText, TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
@@ -54,14 +54,13 @@ interface ICommentThreadTemplateData {
 		userNames: HTMLSpanElement;
 		timestamp: TimestampWidget;
 		separator: HTMLElement;
-		count: HTMLSpanElement;
+		commentPreview: HTMLSpanElement;
 	};
-	displayedComment: {
+	repliesMetadata: {
 		container: HTMLElement;
-		userName: HTMLSpanElement;
+		icon: HTMLElement;
+		count: HTMLSpanElement;
 		timestamp: TimestampWidget;
-		separator: HTMLElement;
-		commentText: HTMLElement;
 	};
 	disposables: IDisposable[];
 }
@@ -72,7 +71,7 @@ export class CommentsModelVirualDelegate implements IListVirtualDelegate<any> {
 
 
 	getHeight(element: any): number {
-		if (element instanceof CommentNode) {
+		if ((element instanceof CommentNode) && element.hasReply()) {
 			return 44;
 		}
 		return 22;
@@ -133,20 +132,19 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			userNames: dom.append(metadataContainer, dom.$('.user')),
 			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp'))),
 			separator: dom.append(metadataContainer, dom.$('.separator')),
-			count: dom.append(metadataContainer, dom.$('.count'))
+			commentPreview: dom.append(metadataContainer, dom.$('.text'))
 		};
 		data.threadMetadata.separator.innerText = '\u00b7';
 
 		const snippetContainer = dom.append(threadContainer, dom.$('.comment-snippet-container'));
-		data.displayedComment = {
+		data.repliesMetadata = {
 			container: snippetContainer,
-			userName: dom.append(snippetContainer, dom.$('.user')),
-			timestamp: new TimestampWidget(this.configurationService, dom.append(snippetContainer, dom.$('.timestamp'))),
-			separator: dom.append(snippetContainer, dom.$('.separator')),
-			commentText: dom.append(snippetContainer, dom.$('.text'))
+			icon: dom.append(snippetContainer, dom.$('.icon')),
+			count: dom.append(snippetContainer, dom.$('.count')),
+			timestamp: new TimestampWidget(this.configurationService, dom.append(snippetContainer, dom.$('.timestamp')), undefined, TimestampAdditionalText.LastReply),
 		};
-		data.displayedComment.separator.innerText = '\u00b7';
-		data.disposables = [data.threadMetadata.timestamp, data.displayedComment.timestamp];
+		data.repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowSmallRight));
+		data.disposables = [data.threadMetadata.timestamp, data.repliesMetadata.timestamp];
 
 		return data;
 	}
@@ -184,23 +182,29 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		templateData.threadMetadata.icon?.classList.add(...ThemeIcon.asClassNameArray((commentCount === 1) ? Codicon.comment : Codicon.commentDiscussion));
 		templateData.threadMetadata.userNames.textContent = node.element.comment.userName;
 		templateData.threadMetadata.timestamp.setTimestamp(node.element.comment.timestamp ? new Date(node.element.comment.timestamp) : undefined);
-		templateData.threadMetadata.count.textContent = this.getCountString(commentCount);
+		const originalComment = node.element;
 
-		templateData.displayedComment.container.style.display = '';
-		const recentReply = node.element.hasReply() ? node.element.replies[node.element.replies.length - 1] : node.element;
-		templateData.displayedComment.userName.textContent = recentReply.comment.userName;
-		templateData.displayedComment.timestamp.setTimestamp(recentReply.comment.timestamp ? new Date(recentReply.comment.timestamp) : undefined);
-		templateData.displayedComment.commentText.innerText = '';
-		if (typeof recentReply.comment.body === 'string') {
-			templateData.displayedComment.commentText.innerText = recentReply.comment.body;
+		templateData.threadMetadata.commentPreview.innerText = '';
+		if (typeof originalComment.comment.body === 'string') {
+			templateData.threadMetadata.commentPreview.innerText = originalComment.comment.body;
 		} else {
 			const disposables = new DisposableStore();
 			templateData.disposables.push(disposables);
-			const renderedComment = this.getRenderedComment(recentReply.comment.body, disposables);
+			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
-			templateData.displayedComment.commentText.appendChild(renderedComment.element);
-			templateData.displayedComment.commentText.title = renderedComment.element.textContent ?? '';
+			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element);
+			templateData.threadMetadata.commentPreview.title = renderedComment.element.textContent ?? '';
 		}
+
+		if (!node.element.hasReply()) {
+			templateData.repliesMetadata.container.style.display = 'none';
+			return;
+		}
+
+		templateData.repliesMetadata.container.style.display = '';
+		templateData.repliesMetadata.count.textContent = this.getCountString(commentCount);
+		templateData.repliesMetadata.timestamp.setTimestamp(originalComment.comment.timestamp ? new Date(originalComment.comment.timestamp) : undefined);
+
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {

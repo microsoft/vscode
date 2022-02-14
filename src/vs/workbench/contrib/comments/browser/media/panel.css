@@ -30,6 +30,7 @@
 	display: flex;
 }
 
+.comments-panel .count,
 .comments-panel .user {
 	padding-right: 5px;
 }
@@ -39,7 +40,7 @@
 	opacity: 0.8;
 }
 
-.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .icon {
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .icon {
 	padding-top: 4px;
 	padding-right: 5px;
 }
@@ -51,12 +52,12 @@
 	min-width: 0;
 }
 
-.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .count,
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .timestamp {
+	display:flex;
 	font-size: 0.9em;
 }
 
-.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text * {
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .text * {
 	margin: 0;
 	text-overflow: ellipsis;
 	max-width: 500px;
@@ -89,5 +90,5 @@
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container {
-	padding-left: 29px;
+	padding-left: 16px;
 }
