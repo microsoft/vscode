@@ -15,7 +15,8 @@ import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'v
 import { isLinux, isWindows, OS } from 'vs/base/common/platform';
 import 'vs/css!./menuEntryActionViewItem';
 import { localize } from 'vs/nls';
-import { ICommandAction, Icon, IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuActionOptions, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandAction, Icon } from 'vs/platform/action/common/action';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

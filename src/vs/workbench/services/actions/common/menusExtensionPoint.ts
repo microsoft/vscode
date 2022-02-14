@@ -10,7 +10,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { forEach } from 'vs/base/common/collections';
 import { IExtensionPointUser, ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MenuId, MenuRegistry, ILocalizedString, IMenuItem, ICommandAction, ISubmenuItem } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, IMenuItem, ISubmenuItem } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -18,6 +18,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { ILocalizedString, ICommandAction } from 'vs/platform/action/common/action';
 
 interface IAPIMenu {
 	readonly key: string;
