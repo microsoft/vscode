@@ -21,6 +21,7 @@ function Global:__VSCode-Get-LastExitCode {
 }
 
 function Global:Prompt() {
+	$LastExitCode = $(__VSCode-Get-LastExitCode);
 	$LastHistoryEntry = $(Get-History -Count 1)
 	if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
 		# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
@@ -38,7 +39,7 @@ function Global:Prompt() {
 		$Result += "`a"
 		# Command finished exit code
 		# OSC 633 ; D [; <ExitCode>] ST
-		$Result += "`e]633;D;$(__VSCode-Get-LastExitCode)`a"
+		$Result += "`e]633;D;$LastExitCode`a"
 	}
 	# Prompt started
 	# OSC 633 ; A ST
