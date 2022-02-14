@@ -34,7 +34,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
@@ -68,6 +68,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { ITerminalCommand, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { TerminalPersistedCommands } from 'vs/workbench/contrib/terminal/common/history/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -136,6 +137,17 @@ class TerminalOutputProvider implements ITextModelContentProvider {
 
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
+}
+
+const commandHistory: Map<string, TerminalPersistedCommands> = new Map();
+function getCommandHistory(accessor: ServicesAccessor, shellType: TerminalShellType): TerminalPersistedCommands {
+	const shellKey = shellType ?? 'undefined';
+	let history = commandHistory.get(shellKey);
+	if (!history) {
+		history = accessor.get(IInstantiationService).createInstance(TerminalPersistedCommands, shellKey);
+		commandHistory.set(shellKey, history);
+	}
+	return history;
 }
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {
@@ -399,10 +411,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
 			if (e === TerminalCapability.CwdDetection) {
-				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd((e) => {
+				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
 					this._cwd = e;
 					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Config);
+				});
+			} else if (e === TerminalCapability.CommandDetection) {
+				this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
+					this._instantiationService.invokeFunction(getCommandHistory, this.shellType)?.add(e.command);
 				});
 			}
 		}));
@@ -761,28 +777,30 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		type Item = IQuickPickItem & { command?: ITerminalCommand };
-		const items: Item[] = [];
+		let items: (Item | IQuickPickItem | IQuickPickSeparator)[] = [];
 		if (type === 'command') {
+			items.push({ type: 'separator', label: 'current session' });
 			for (const entry of commands) {
 				// trim off any whitespace and/or line endings
 				const label = entry.command.trim();
 				if (label.length === 0) {
 					continue;
 				}
-				let detail = '';
+				let description = fromNow(entry.timestamp, true);
 				if (entry.cwd) {
-					detail += `cwd: ${entry.cwd} `;
+					// TODO: Shorten cwd relative to the workspace
+					description += ` @ ${entry.cwd}`;
 				}
 				if (entry.exitCode) {
 					// Since you cannot get the last command's exit code on pwsh, just whether it failed
 					// or not, -1 is treated specially as simply failed
 					if (entry.exitCode === -1) {
-						detail += 'failed';
+						description += ' failed';
 					} else {
-						detail += `exitCode: ${entry.exitCode}`;
+						description += ` exitCode: ${entry.exitCode}`;
 					}
 				}
-				detail = detail.trim();
+				description = description.trim();
 				const iconClass = ThemeIcon.asClassName(Codicon.output);
 				const buttons: IQuickInputButton[] = [{
 					iconClass,
@@ -790,31 +808,40 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					alwaysVisible: true
 				}];
 				// Merge consecutive commands
-				if (items.length > 0 && items[items.length - 1].label === label) {
-					items[items.length - 1].id = entry.timestamp.toString();
-					items[items.length - 1].detail = detail;
+				const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
+				if (lastItem?.type !== 'separator' && lastItem?.label === label) {
+					lastItem.id = entry.timestamp.toString();
+					lastItem.description = description;
 					continue;
 				}
 				items.push({
 					label,
-					description: fromNow(entry.timestamp, true),
-					detail,
+					description,
 					id: entry.timestamp.toString(),
 					command: entry,
 					buttons: (!entry.endMarker?.isDisposed && !entry.marker?.isDisposed && (entry.endMarker!.line - entry.marker!.line > 0)) ? buttons : undefined
 				});
+			}
+			items = items.reverse();
+			// Gather history
+			const history = this._instantiationService.invokeFunction(getCommandHistory, this.shellType);
+			items.push({ type: 'separator', label: 'previous sessions' });
+			for (const label of history.entries) {
+				items.push({ label });
 			}
 		} else {
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 			for (const label of cwds) {
 				items.push({ label });
 			}
+			items = items.reverse();
 		}
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const quickPick = this._quickInputService.createQuickPick();
-		quickPick.items = items.reverse();
+		quickPick.items = items;
 		return new Promise<void>(r => {
 			quickPick.onDidTriggerItemButton(async e => {
+				// TODO: Handle history
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
 				if (output && selectedCommand?.command) {
