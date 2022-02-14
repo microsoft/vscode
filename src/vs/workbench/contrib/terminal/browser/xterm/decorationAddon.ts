@@ -147,7 +147,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _createHover(target: HTMLElement, command: ITerminalCommand): IDisposable[] {
 		return [
-			dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, async () => {
+			dom.addDisposableListener(target, dom.EventType.MOUSE_ENTER, () => {
 				if (this._contextMenuVisible) {
 					return;
 				}
@@ -155,10 +155,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				if (command.exitCode) {
 					hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
 				}
-				await this._hoverDelayer.trigger(() => { this._hoverService.showHover({ content: new MarkdownString(hoverContent), target }); });
+				this._hoverDelayer.trigger(() => { this._hoverService.showHover({ content: new MarkdownString(hoverContent), target }); });
 			}),
-			dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, () => this._hoverService.hideHover()),
-			dom.addDisposableListener(target, dom.EventType.MOUSE_OUT, () => this._hoverService.hideHover())];
+			dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, () => this._hideHover()),
+			dom.addDisposableListener(target, dom.EventType.MOUSE_OUT, () => this._hideHover())
+		];
+	}
+
+	private _hideHover() {
+		this._hoverDelayer.cancel();
+		this._hoverService.hideHover();
 	}
 
 	private async _getCommandActions(command: ITerminalCommand): Promise<IAction[]> {
