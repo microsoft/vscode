@@ -37,7 +37,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogger } from 'vs/platform/log/common/fileLog';
 import { toLocalISOString } from 'vs/base/common/date';
-import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/window/common/window';
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';

@@ -18,7 +18,7 @@ import { IEncodingSupport, ILanguageSupport } from 'vs/workbench/services/textfi
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { FileType, IFileService } from 'vs/platform/files/common/files';
-import { IPathData } from 'vs/platform/windows/common/windows';
+import { IPathData } from 'vs/platform/window/common/window';
 import { coalesce } from 'vs/base/common/arrays';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';

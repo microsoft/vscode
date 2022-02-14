@@ -33,10 +33,11 @@ import { IGlobalStorageMainService } from 'vs/platform/storage/electron-main/sto
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { defaultWindowState, ICodeWindow, ILoadEvent, IWindowsMainService, IWindowState, LoadReason, OpenContext, WindowError, WindowMode } from 'vs/platform/windows/electron-main/windows';
+import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;

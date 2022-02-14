@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import product from 'vs/platform/product/common/product';
-import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';

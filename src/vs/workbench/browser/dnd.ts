@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileAccess, Schemas } from 'vs/base/common/network';

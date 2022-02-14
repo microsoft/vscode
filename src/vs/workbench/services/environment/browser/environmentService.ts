@@ -7,7 +7,7 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IPath } from 'vs/platform/windows/common/windows';
+import { IPath } from 'vs/platform/window/common/window';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
