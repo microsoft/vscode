@@ -68,10 +68,10 @@ export class GenericButton extends Disposable {
 
 	protected buttonBorder: Color | undefined;
 
-	private focusTracker: IFocusTracker;
-
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
+
+	private focusTracker: IFocusTracker;
 
 	constructor(container: HTMLElement, options?: IButtonOptions) {
 		super();
@@ -230,15 +230,21 @@ export class Button extends GenericButton implements IButton {
 
 	set label(value: string) {
 		this.element.classList.add('monaco-text-button');
-		if (this.options.supportIcons) {
-			reset(this.element, ...renderLabelWithIcons(value));
-		} else {
-			this.element.textContent = value;
-		}
+
+		this.updateIcon(value);
+
 		if (typeof this.options.title === 'string') {
 			this.element.title = this.options.title;
 		} else if (this.options.title) {
 			this.element.title = value;
+		}
+	}
+
+	protected updateIcon(value: string) {
+		if (this.options.supportIcons) {
+			reset(this.element, ...renderLabelWithIcons(value));
+		} else {
+			this.element.textContent = value;
 		}
 	}
 }
@@ -316,7 +322,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 	}
 }
 
-export class ButtonWithDescription extends GenericButton implements IButtonWithDescription {
+export class ButtonWithDescription extends Button implements IButtonWithDescription {
 
 	private _labelElement: HTMLElement;
 	private _descriptionElement: HTMLElement;
@@ -324,10 +330,7 @@ export class ButtonWithDescription extends GenericButton implements IButtonWithD
 	constructor(container: HTMLElement, options?: IButtonOptions) {
 		super(container, options);
 
-		this.element.classList.add('monaco-button');
-		this.element.classList.add('monaco-description-button');
 		this.element.tabIndex = 0;
-		this.element.setAttribute('role', 'button');
 
 		this._labelElement = document.createElement('div');
 		this._labelElement.classList.add('monaco-button-label');
@@ -340,17 +343,11 @@ export class ButtonWithDescription extends GenericButton implements IButtonWithD
 		this.element.appendChild(this._descriptionElement);
 	}
 
-	set label(value: string) {
-		this._element.classList.add('monaco-text-button');
+	protected override updateIcon(value: string) {
 		if (this.options.supportIcons) {
 			reset(this._labelElement, ...renderLabelWithIcons(value));
 		} else {
 			this._labelElement.textContent = value;
-		}
-		if (typeof this.options.title === 'string') {
-			this.element.title = this.options.title;
-		} else if (this.options.title) {
-			this.element.title = value;
 		}
 	}
 

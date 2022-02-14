@@ -22,7 +22,8 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';

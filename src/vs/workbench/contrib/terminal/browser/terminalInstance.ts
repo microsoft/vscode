@@ -1085,6 +1085,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _shouldPasteText(text: string): Promise<boolean> {
+		// Ignore check if the shell is in bracketed paste mode (ie. the shell can handle multi-line
+		// text).
+		if (this.xterm?.raw.modes.bracketedPasteMode) {
+			return true;
+		}
+
 		const textForLines = text.split(/\r?\n/);
 		// Ignore check when a command is copied with a trailing new line
 		if (textForLines.length === 2 && textForLines[1].trim().length === 0) {
