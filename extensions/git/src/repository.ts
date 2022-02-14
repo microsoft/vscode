@@ -1636,7 +1636,15 @@ export class Repository implements Disposable {
 	}
 
 	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.createStash(message, includeUntracked));
+		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const workingGroupResources = [
+			...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...includeUntracked ? this.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath) : []];
+
+		return await this.run(Operation.Stash, async () => {
+			this.repository.createStash(message, includeUntracked);
+			this.closeDiffEditors(indexResources, workingGroupResources);
+		});
 	}
 
 	async popStash(index?: number): Promise<void> {
