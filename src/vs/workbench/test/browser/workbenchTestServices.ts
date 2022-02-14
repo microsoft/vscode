@@ -119,7 +119,7 @@ import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textF
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
-import { IEnterWorkspaceResult, IFolderBackupInfo, IRecent, IRecentlyOpened, IWorkspaceBackupInfo, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IExtensionTerminalProfile, IShellLaunchConfig, ITerminalProfile, TerminalLocation, TerminalShellType } from 'vs/platform/terminal/common/terminal';
@@ -154,6 +154,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { TextEditorPaneSelection } from 'vs/workbench/browser/parts/editor/textEditor';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);

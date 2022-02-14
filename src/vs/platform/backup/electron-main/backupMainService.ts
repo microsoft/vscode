@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { HotExitConfiguration, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/workspaces/common/workspaces';
+import { IFolderBackupInfo, isFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export class BackupMainService implements IBackupMainService {
