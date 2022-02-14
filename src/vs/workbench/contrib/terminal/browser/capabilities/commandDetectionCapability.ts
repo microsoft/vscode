@@ -145,7 +145,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
-				hasOutput: (this._currentCommand.commandExecutedMarker!.line < this._currentCommand.commandFinishedMarker!.line),
+				hasOutput: !!(this._currentCommand.commandExecutedMarker && this._currentCommand.commandFinishedMarker && this._currentCommand.commandExecutedMarker?.line < this._currentCommand.commandFinishedMarker!.line),
 				getOutput: () => getOutputForCommand(clonedPartialCommand, buffer)
 			};
 			this._commands.push(newCommand);
