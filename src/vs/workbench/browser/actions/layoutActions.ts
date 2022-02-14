@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import Severity from 'vs/base/common/severity';
-import { MenuId, MenuRegistry, registerAction2, Action2, ICommandActionTitle } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
@@ -27,6 +27,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ICommandActionTitle } from 'vs/platform/action/common/action';
 
 // --- Close Side Bar
 

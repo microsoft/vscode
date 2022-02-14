@@ -13,6 +13,7 @@ import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { IWorkspaceBackupInfo, IFolderBackupInfo } from 'vs/platform/backup/common/backup';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
@@ -23,7 +24,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
-import { IFolderBackupInfo, IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceBackupInfo, IWorkspaceFolderCreationData, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
+import { IStoredWorkspace, IStoredWorkspaceFolder, IWorkspaceFolderCreationData, rewriteWorkspaceFileForNewLocation } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 flakySuite('WorkspacesManagementMainService', () => {

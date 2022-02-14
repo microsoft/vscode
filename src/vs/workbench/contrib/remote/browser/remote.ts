@@ -328,14 +328,15 @@ abstract class HelpItemBase implements IHelpItem {
 				};
 			}))).filter(item => item.description);
 
-			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
-
-			if (action) {
-				await this.takeAction(action.extensionDescription, action.description);
+			if (actions.length) {
+				const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
+				if (action) {
+					await this.takeAction(action.extensionDescription, action.description);
+				}
 			}
-		} else {
-			await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 		}
+		await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
+
 	}
 
 	protected abstract takeAction(extensionDescription: IExtensionDescription, url?: string): Promise<void>;

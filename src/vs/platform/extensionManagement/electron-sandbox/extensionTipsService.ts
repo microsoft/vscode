@@ -14,8 +14,10 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExecutableBasedExtensionTip, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
@@ -32,7 +34,7 @@ type ExeExtensionRecommendationsClassification = {
 type IExeBasedExtensionTips = {
 	readonly exeFriendlyName: string;
 	readonly windowsPath?: string;
-	readonly recommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean }[];
+	readonly recommendations: { extensionId: string; extensionName: string; isExtensionPack: boolean; whenNotInstalled?: string[] }[];
 };
 
 const promptedExecutableTipsStorageKey = 'extensionTips/promptedExecutableTips';
@@ -242,8 +244,11 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			});
 	}
 
-	private promptExeRecommendations(tips: IExecutableBasedExtensionTip[]): Promise<RecommendationsNotificationResult> {
-		const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
+	private async promptExeRecommendations(tips: IExecutableBasedExtensionTip[]): Promise<RecommendationsNotificationResult> {
+		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const extensionIds = tips
+			.filter(tip => !tip.whenNotInstalled || tip.whenNotInstalled.every(id => installed.every(local => !areSameExtensions(local.identifier, { id }))))
+			.map(({ extensionId }) => extensionId.toLowerCase());
 		const message = localize({ key: 'exeRecommended', comment: ['Placeholder string is the name of the software that is installed.'] }, "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
 		return this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`, RecommendationSource.EXE);
 	}
@@ -316,7 +321,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 					checkedExecutables.set(exePath, exists);
 				}
 				if (exists) {
-					for (const { extensionId, extensionName, isExtensionPack } of extensionTip.recommendations) {
+					for (const { extensionId, extensionName, isExtensionPack, whenNotInstalled } of extensionTip.recommendations) {
 						result.push({
 							extensionId,
 							extensionName,
@@ -324,6 +329,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 							exeName,
 							exeFriendlyName: extensionTip.exeFriendlyName,
 							windowsPath: extensionTip.windowsPath,
+							whenNotInstalled: whenNotInstalled
 						});
 					}
 				}

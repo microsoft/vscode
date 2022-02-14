@@ -86,7 +86,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo'
 import 'vs/workbench/contrib/notebook/browser/contrib/cellCommands/cellCommands';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
-import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
 import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/execution';
@@ -95,7 +94,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/execute/execution';
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
-import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionStateServiceImpl';
 import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';
@@ -106,7 +104,6 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { LanguageFilter, LanguageSelector } from 'vs/editor/common/languageSelector';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -397,7 +394,6 @@ class CellInfoContentProvider {
 
 	private _getResult(data: {
 		notebook: URI;
-		handle: number;
 		outputId?: string | undefined;
 	}, cell: NotebookCellTextModel) {
 		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
@@ -439,7 +435,7 @@ class CellInfoContentProvider {
 		}
 
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
-		const cell = ref.object.notebook.cells.find(cell => cell.handle === data.handle);
+		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId));
 
 		if (!cell) {
 			return null;
@@ -511,12 +507,11 @@ class NotebookEditorManager implements IWorkbenchContribution {
 
 		// OPEN notebook editor for models that have turned dirty without being visible in an editor
 		type E = IResolvedNotebookEditorModel;
-		this._disposables.add(Event.debouncedListener<E, E[]>(
+		this._disposables.add(Event.debounce<E, E[]>(
 			this._notebookEditorModelService.onDidChangeDirty,
-			this._openMissingDirtyNotebookEditors.bind(this),
 			(last, current) => !last ? [current] : [...last, current],
 			100
-		));
+		)(this._openMissingDirtyNotebookEditors, this));
 
 		// CLOSE notebook editor for models that have no more serializer
 		this._disposables.add(notebookService.onWillRemoveViewType(e => {
@@ -623,46 +618,7 @@ class NotebookLanguageSelectorScoreRefine {
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		languageFeaturesService.setScoreRefineFunction(this._scoreNotebook.bind(this));
-	}
-
-	private _scoreNotebook(baseScore: number, selector: LanguageSelector, candidateUri: URI): number {
-
-		if (Array.isArray(selector)) {
-			// array -> take max individual value
-			let ret = 0;
-			for (const filter of selector) {
-				const value = this._scoreNotebook(baseScore, filter, candidateUri);
-				if (value === 10) {
-					return value; // already at the highest
-				}
-				if (value > ret) {
-					ret = value;
-				}
-			}
-			return ret;
-
-		} else if (typeof selector === 'string') {
-			//  string defaults to { languageId} -> no possibility to express notebook type
-			return baseScore;
-
-		} else {
-			// check for notebookType-selector -> makes this more strict
-			const { notebookType } = selector as LanguageFilter;
-			if (notebookType === undefined) {
-				return baseScore;
-			}
-			const candidateType = this._getNotebookType(candidateUri);
-			if (!candidateType) {
-				return 0; // wanted notebook but isn't notebook...
-			} else if (notebookType === '*') {
-				return 5; // any notebook type
-			} else if (notebookType === candidateType) {
-				return 10;
-			} else {
-				return 0;
-			}
-		}
+		languageFeaturesService.setNotebookTypeResolver(this._getNotebookType.bind(this));
 	}
 
 	private _getNotebookType(uri: URI): string | undefined {

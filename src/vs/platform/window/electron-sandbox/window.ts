@@ -5,7 +5,7 @@
 
 import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
 import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 
 /**
  * Apply a zoom level to the window. Also sets it in our in-memory

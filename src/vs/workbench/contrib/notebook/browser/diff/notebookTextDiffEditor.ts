@@ -32,7 +32,6 @@ import { CellUri, INotebookDiffEditorModel, INotebookDiffResult, NOTEBOOK_DIFF_E
 import { URI } from 'vs/base/common/uri';
 import { IDiffChange, IDiffResult } from 'vs/base/common/diff/diff';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { SequencerByKey } from 'vs/base/common/async';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -66,7 +65,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
 	private readonly _modifiedResourceDisposableStore = this._register(new DisposableStore());
-	private _outputRenderer: OutputRenderer;
 
 	get textModel() {
 		return this._model?.modified.notebook;
@@ -108,7 +106,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
 		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
 		this._revealFirst = true;
-		this._outputRenderer = this.instantiationService.createInstance(OutputRenderer, this);
 	}
 
 	toggleNotebookCellSelection(cell: IGenericCellViewModel) {
@@ -791,10 +788,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._list?.splice(0, this._list?.length || 0);
 		this._model = null;
 		this._diffElementViewModels = [];
-	}
-
-	getOutputRenderer(): OutputRenderer {
-		return this._outputRenderer;
 	}
 
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]) {

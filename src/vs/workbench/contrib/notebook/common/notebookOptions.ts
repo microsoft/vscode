@@ -144,7 +144,7 @@ export class NotebookOptions extends Disposable {
 			cellBottomMargin: 6,
 			cellRightMargin: 16,
 			cellStatusBarHeight: 22,
-			cellOutputPadding: 12,
+			cellOutputPadding: 8,
 			markdownPreviewPadding: 8,
 			// bottomToolbarHeight: bottomToolbarHeight,
 			// bottomToolbarGap: bottomToolbarGap,

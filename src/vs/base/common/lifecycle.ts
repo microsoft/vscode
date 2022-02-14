@@ -242,7 +242,7 @@ export abstract class Disposable implements IDisposable {
 
 	static readonly None = Object.freeze<IDisposable>({ dispose() { } });
 
-	private readonly _store = new DisposableStore();
+	protected readonly _store = new DisposableStore();
 
 	constructor() {
 		trackDisposable(this);
@@ -335,6 +335,35 @@ export class RefCountedDisposable {
 		if (--this._counter === 0) {
 			this._disposable.dispose();
 		}
+		return this;
+	}
+}
+
+/**
+ * A safe disposable can be `unset` so that a leaked reference (listener)
+ * can be cut-off.
+ */
+export class SafeDisposable implements IDisposable {
+
+	dispose: () => void = () => { };
+	unset: () => void = () => { };
+	isset: () => boolean = () => false;
+
+	constructor() {
+		trackDisposable(this);
+	}
+
+	set(fn: Function) {
+		let callback: Function | undefined = fn;
+		this.unset = () => callback = undefined;
+		this.isset = () => callback !== undefined;
+		this.dispose = () => {
+			if (callback) {
+				callback();
+				callback = undefined;
+				markAsDisposed(this);
+			}
+		};
 		return this;
 	}
 }

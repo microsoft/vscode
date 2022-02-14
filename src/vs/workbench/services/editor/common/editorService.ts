@@ -114,7 +114,7 @@ export interface IEditorService {
 	 * An aggregated event for any change to any editor across
 	 * all groups.
 	 */
-	readonly onDidEditorsChange: Event<IEditorsChangeEvent[]>;
+	readonly onDidEditorsChange: Event<IEditorsChangeEvent>;
 
 	/**
 	 * Emitted when an editor is closed.

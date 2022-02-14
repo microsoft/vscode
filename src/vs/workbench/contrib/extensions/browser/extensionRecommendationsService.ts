@@ -25,6 +25,8 @@ import { IExtensionRecommendationNotificationService } from 'vs/platform/extensi
 import { timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { WebRecommendations } from 'vs/workbench/contrib/extensions/browser/webRecommendations';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 type IgnoreRecommendationClassification = {
 	recommendationReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
@@ -61,6 +63,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
 
@@ -260,7 +263,12 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	}
 
 	private async promptWorkspaceRecommendations(): Promise<void> {
-		const allowedRecommendations = [...this.workspaceRecommendations.recommendations, ...this.configBasedRecommendations.importantRecommendations]
+		const installed = await this.extensionsWorkbenchService.queryLocal();
+		const allowedRecommendations = [
+			...this.workspaceRecommendations.recommendations,
+			...this.configBasedRecommendations.importantRecommendations.filter(
+				recommendation => !recommendation.whenNotInstalled || recommendation.whenNotInstalled.every(id => installed.every(local => !areSameExtensions(local.identifier, { id }))))
+		]
 			.map(({ extensionId }) => extensionId)
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 
