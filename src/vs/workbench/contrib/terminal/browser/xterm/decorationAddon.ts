@@ -151,11 +151,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				if (this._contextMenuVisible) {
 					return;
 				}
-				let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}` + ` ...${fromNow(command.timestamp, true)}`;
-				if (command.exitCode) {
-					hoverContent += `\n\n\n\nExit Code: ${command.exitCode} `;
-				}
-				this._hoverDelayer.trigger(() => { this._hoverService.showHover({ content: new MarkdownString(hoverContent), target }); });
+				this._hoverDelayer.trigger(() => {
+					let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}...\n\n---\n\n- Executed: ${fromNow(command.timestamp, true)}`;
+					if (command.exitCode) {
+						hoverContent += `\n- Exit code: ${command.exitCode} `;
+					}
+					this._hoverService.showHover({ content: new MarkdownString(hoverContent), target });
+				});
 			}),
 			dom.addDisposableListener(target, dom.EventType.MOUSE_LEAVE, () => this._hideHover()),
 			dom.addDisposableListener(target, dom.EventType.MOUSE_OUT, () => this._hideHover())
