@@ -101,6 +101,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateContextKeys()));
 	}
 
+	private onDidCloseEditor(e: IEditorCloseEvent): void {
+		this.handleEditorCloseEventInHistory(e);
+		this.handleEditorCloseEventInReopen(e);
+	}
+
 	private registerMouseNavigationListener(): void {
 		const mouseBackForwardSupportListener = this._register(new DisposableStore());
 		const handleMouseBackForwardSupport = () => {
@@ -160,6 +165,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (isEditorPaneWithSelection(activeEditorPane)) {
 			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e)));
 		}
+
+		// Context keys
+		this.updateContextKeys();
 	}
 
 	private onDidFilesChange(event: FileChangesEvent | FileOperationEvent): void {
@@ -333,16 +341,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 					const disposable = new DisposableStore();
 
 					stack = disposable.add(this.instantiationService.createInstance(EditorNavigationStacks, GoScope.EDITOR));
-
 					disposable.add(stack.onDidChange(() => this._onDidChangeEditorNavigationStack.fire()));
-					disposable.add(editor.onWillDispose(() => {
-						disposable.dispose();
-						stacksForGroup?.delete(editor);
-
-						if (stacksForGroup?.size === 0) {
-							this.editorScopedNavigationStacks.delete(group.id);
-						}
-					}));
 
 					stacksForGroup.set(editor, { stack, disposable });
 				}
@@ -402,15 +401,30 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.getStack(group, editorPane.input).handleActiveEditorSelectionChange(editorPane, event);
 	}
 
+	private handleEditorCloseEventInHistory(e: IEditorCloseEvent): void {
+		const editors = this.editorScopedNavigationStacks.get(e.groupId);
+		if (editors) {
+			const editorStack = editors.get(e.editor);
+			if (editorStack) {
+				editorStack.disposable.dispose();
+				editors.delete(e.editor);
+			}
+
+			if (editors.size === 0) {
+				this.editorScopedNavigationStacks.delete(e.groupId);
+			}
+		}
+	}
+
 	private handleEditorGroupRemoveInNavigationStacks(group: IEditorGroup): void {
 
 		// Global
 		this.defaultScopedEditorNavigationStack?.remove(group.id);
 
 		// Editor groups
-		const stackDisposable = this.editorGroupScopedNavigationStacks.get(group.id)?.disposable;
-		if (stackDisposable) {
-			stackDisposable.dispose();
+		const editorGroupStack = this.editorGroupScopedNavigationStacks.get(group.id);
+		if (editorGroupStack) {
+			editorGroupStack.disposable.dispose();
 			this.editorGroupScopedNavigationStacks.delete(group.id);
 		}
 	}
@@ -454,15 +468,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.defaultScopedEditorNavigationStack = undefined;
 
 		// Per Editor group
-		for (const [, entry] of this.editorGroupScopedNavigationStacks) {
-			entry.disposable.dispose();
+		for (const [, stack] of this.editorGroupScopedNavigationStacks) {
+			stack.disposable.dispose();
 		}
 		this.editorGroupScopedNavigationStacks.clear();
 
 		// Per Editor
-		for (const [, entries] of this.editorScopedNavigationStacks) {
-			for (const [, entry] of entries) {
-				entry.disposable.dispose();
+		for (const [, stacks] of this.editorScopedNavigationStacks) {
+			for (const [, stack] of stacks) {
+				stack.disposable.dispose();
 			}
 		}
 		this.editorScopedNavigationStacks.clear();
@@ -578,7 +592,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private recentlyClosedEditors: IRecentlyClosedEditor[] = [];
 	private ignoreEditorCloseEvent = false;
 
-	private onDidCloseEditor(event: IEditorCloseEvent): void {
+	private handleEditorCloseEventInReopen(event: IEditorCloseEvent): void {
 		if (this.ignoreEditorCloseEvent) {
 			return; // blocked
 		}
@@ -1252,20 +1266,20 @@ class EditorNavigationStacks extends Disposable implements IEditorNavigationStac
 class NoOpEditorNavigationStacks implements IEditorNavigationStacks {
 	onDidChange = Event.None;
 
-	canGoForward(filter?: GoFilter): boolean { return false; }
-	async goForward(filter?: GoFilter): Promise<void> { }
-	canGoBack(filter?: GoFilter): boolean { return false; }
-	async goBack(filter?: GoFilter): Promise<void> { }
-	async goPrevious(filter?: GoFilter): Promise<void> { }
-	canGoLast(filter?: GoFilter): boolean { return false; }
-	async goLast(filter?: GoFilter): Promise<void> { }
+	canGoForward(): boolean { return false; }
+	async goForward(): Promise<void> { }
+	canGoBack(): boolean { return false; }
+	async goBack(): Promise<void> { }
+	async goPrevious(): Promise<void> { }
+	canGoLast(): boolean { return false; }
+	async goLast(): Promise<void> { }
 
-	handleActiveEditorChange(editorPane?: IEditorPane): void { }
-	handleActiveEditorSelectionChange(editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void { }
+	handleActiveEditorChange(): void { }
+	handleActiveEditorSelectionChange(): void { }
 
 	clear(): void { }
-	remove(arg1: number | EditorInput | FileChangesEvent | FileOperationEvent): void { }
-	move(event: FileOperationEvent): void { }
+	remove(): void { }
+	move(): void { }
 
 	dispose(): void { }
 }
