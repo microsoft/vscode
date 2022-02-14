@@ -1506,6 +1506,20 @@ export namespace NotebookCellExecutionSummary {
 	}
 }
 
+export namespace NotebookCellExecutionState {
+	export function to(state: notebooks.NotebookCellExecutionState): vscode.NotebookCellExecutionState {
+		if (state === notebooks.NotebookCellExecutionState.Executing) {
+			return types.NotebookCellExecutionState.Executing;
+		} else if (state === notebooks.NotebookCellExecutionState.Pending) {
+			return types.NotebookCellExecutionState.Pending;
+		} else if (state === notebooks.NotebookCellExecutionState.Unconfirmed) {
+			return types.NotebookCellExecutionState.Pending;
+		} else {
+			throw new Error(`Unknown state: ${state}`);
+		}
+	}
+}
+
 export namespace NotebookCellKind {
 	export function from(data: vscode.NotebookCellKind): notebooks.CellKind {
 		switch (data) {

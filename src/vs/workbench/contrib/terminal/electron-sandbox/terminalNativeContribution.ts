@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { INativeOpenFileRequest } from 'vs/platform/window/common/window';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

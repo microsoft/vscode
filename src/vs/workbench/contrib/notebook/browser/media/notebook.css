@@ -192,6 +192,7 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell {
 	display: flex;
+	position: relative;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:not(.selected) .monaco-editor .lines-content .selected-text,
@@ -340,9 +341,24 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container {
+	display: flex;
+	align-items: center;
 	position: relative;
 	box-sizing: border-box;
 	width: 100%;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .collapsed-execution-icon {
+	line-height: normal;
+	margin-left: 6px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .collapsed-execution-icon .codicon-notebook-state-success {
+	color: var(--notebook-cell-status-icon-success);
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .collapsed-execution-icon .codicon-notebook-state-error {
+	color: var(--notebook-cell-status-icon-error);
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapse-container .cell-collapse-preview {
@@ -423,10 +439,6 @@
 	font-size: 12px;
 	line-height: 16px;
 	vertical-align: bottom;
-}
-
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .input-collapsed .notebook-folding-indicator {
-	display: none;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
@@ -574,6 +586,8 @@
 	position: absolute;
 	flex-shrink: 0;
 	z-index: var(--z-index-run-button-container);
+	width: 35px;
+	left: -35px;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar {
@@ -603,9 +617,8 @@
 	white-space: pre;
 	box-sizing: border-box;
 	opacity: .7;
-
-	/* Sizing hacks */
-	bottom: 0px;
+	width: 35px;
+	right: 0px;
 	text-align: center;
 }
 

@@ -76,7 +76,7 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 
 	const exe = () => {
 		return gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**/*.node']))
+			.pipe(filter(['**/*.node', '!**/prebuild/**/*.node']))
 			.pipe(gulp.dest(destinationExe));
 	};
 

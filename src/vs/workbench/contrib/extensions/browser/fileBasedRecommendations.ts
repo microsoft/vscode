@@ -34,6 +34,7 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 type FileExtensionSuggestionClassification = {
 	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -197,7 +198,15 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private async promptRecommendations(uri: URI, language: string, fileExtension: string): Promise<void> {
-		const importantRecommendations: string[] = (this.fileBasedRecommendationsByLanguage.get(language) || []).filter(extensionId => this.importantExtensionTips.has(extensionId));
+		const installed = await this.extensionsWorkbenchService.queryLocal();
+		const importantRecommendations: string[] = (this.fileBasedRecommendationsByLanguage.get(language) || [])
+			.filter(extensionId => {
+				const importantTip = this.importantExtensionTips.get(extensionId);
+				if (importantTip) {
+					return !importantTip.whenNotInstalled || importantTip.whenNotInstalled.every(id => installed.every(local => !areSameExtensions(local.identifier, { id })));
+				}
+				return false;
+			});
 		let languageName: string | null = importantRecommendations.length ? this.languageService.getLanguageName(language) : null;
 
 		const fileBasedRecommendations: string[] = [...importantRecommendations];
@@ -231,7 +240,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const installed = await this.extensionsWorkbenchService.queryLocal();
 		if (importantRecommendations.length &&
 			await this.promptRecommendedExtensionForFileType(languageName || basename(uri), language, importantRecommendations, installed)) {
 			return;

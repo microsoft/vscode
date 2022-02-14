@@ -2351,7 +2351,7 @@ export enum TreeItemCollapsibleState {
 @es5ClassCompat
 export class TreeDataTransferItem {
 	async asString(): Promise<string> {
-		return JSON.stringify(this.value);
+		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
 	}
 
 	constructor(public readonly value: any) { }

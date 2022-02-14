@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { ByteSize, IFileService } from 'vs/platform/files/common/files';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -157,12 +157,13 @@ function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string |
 
 export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
-	const resourcesKey = DataTransfers.RESOURCES.toLowerCase();
+	const resourcesKey = Mimes.uriList.toLowerCase();
 
 	// Data Transfer: Resources
 	if (dataTransfer.has(resourcesKey)) {
 		try {
-			const rawResourcesData = await dataTransfer.get(resourcesKey)?.asString();
+			const asString = await dataTransfer.get(resourcesKey)?.asString();
+			const rawResourcesData = JSON.stringify(asString?.split('\\n').filter(value => !value.startsWith('#')));
 			editors.push(...createDraggedEditorInputFromRawResourcesData(rawResourcesData));
 		} catch (error) {
 			// Invalid transfer

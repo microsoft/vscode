@@ -136,7 +136,7 @@ export class CellContextKeyManager extends Disposable {
 		} else if (exeState?.state === NotebookCellExecutionState.Executing) {
 			this.cellRunState.set('executing');
 			this.cellExecuting.set(true);
-		} else if (exeState?.state === NotebookCellExecutionState.Pending) {
+		} else if (exeState?.state === NotebookCellExecutionState.Pending || exeState?.state === NotebookCellExecutionState.Unconfirmed) {
 			this.cellRunState.set('pending');
 			this.cellExecuting.set(true);
 		} else if (internalMetadata.lastRunSuccess === true) {

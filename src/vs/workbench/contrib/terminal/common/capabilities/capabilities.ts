@@ -108,7 +108,9 @@ export interface ITerminalCommand {
 	cwd?: string;
 	exitCode?: number;
 	marker?: IXtermMarker;
+	endMarker?: IXtermMarker;
 	getOutput(): string | undefined;
+	hasOutput: boolean;
 }
 
 /**

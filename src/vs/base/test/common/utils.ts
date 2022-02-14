@@ -47,7 +47,7 @@ interface DisposableData {
 	isSingleton: boolean;
 }
 
-class DisposableTracker implements IDisposableTracker {
+export class DisposableTracker implements IDisposableTracker {
 	private readonly livingDisposables = new Map<IDisposable, DisposableData>();
 
 	private getDisposableData(d: IDisposable) {
@@ -90,6 +90,17 @@ class DisposableTracker implements IDisposableTracker {
 		return result;
 	}
 
+	getTrackedDisposables() {
+		const rootParentCache = new Map<DisposableData, DisposableData>();
+
+		const leaking = [...this.livingDisposables.entries()]
+			.filter(([, v]) => v.source !== null && !this.getRootParent(v, rootParentCache).isSingleton)
+			.map(([k]) => k)
+			.flat();
+
+		return leaking;
+	}
+
 	ensureNoLeakingDisposables() {
 		const rootParentCache = new Map<DisposableData, DisposableData>();
 		const leaking = [...this.livingDisposables.values()]
@@ -109,6 +120,7 @@ class DisposableTracker implements IDisposableTracker {
 			throw new Error(`These disposables were not disposed:\n${s}`);
 		}
 	}
+
 }
 
 /**
@@ -148,4 +160,3 @@ export async function throwIfDisposablesAreLeakedAsync(body: () => Promise<void>
 	setDisposableTracker(null);
 	tracker.ensureNoLeakingDisposables();
 }
-

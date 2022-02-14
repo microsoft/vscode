@@ -41,8 +41,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	constructor(
 		private readonly _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService
-	) {
-	}
+	) { }
 
 	setCwd(value: string) {
 		this._cwd = value;
@@ -131,19 +130,23 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		const command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
 		this._exitCode = exitCode;
+
 		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
 			return;
 		}
 		if (command !== undefined && !command.startsWith('\\')) {
 			const buffer = this._terminal.buffer.active;
 			const clonedPartialCommand = { ...this._currentCommand };
+			const timestamp = Date.now();
 			const newCommand = {
 				command,
-				timestamp: Date.now(),
+				marker: this._currentCommand.commandStartMarker,
+				endMarker: this._currentCommand.commandFinishedMarker,
+				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
-				getOutput: () => getOutputForCommand(clonedPartialCommand, buffer),
-				marker: this._currentCommand.commandStartMarker
+				hasOutput: (this._currentCommand.commandExecutedMarker!.line < this._currentCommand.commandFinishedMarker!.line),
+				getOutput: () => getOutputForCommand(clonedPartialCommand, buffer)
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -164,6 +167,9 @@ function getOutputForCommand(command: ICurrentPartialCommand, buffer: IBuffer): 
 	const startLine = command.commandExecutedMarker!.line;
 	const endLine = command.commandFinishedMarker!.line;
 
+	if (startLine === endLine) {
+		return undefined;
+	}
 	let output = '';
 	for (let i = startLine; i < endLine; i++) {
 		output += buffer.getLine(i)?.translateToString() + '\n';

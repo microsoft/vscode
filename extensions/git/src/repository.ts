@@ -1273,13 +1273,14 @@ export class Repository implements Disposable {
 		const diffEditorTabsToClose: Tab[] = [];
 
 		// Index
-		diffEditorTabsToClose.push(...window.tabs
+		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
+		diffEditorTabsToClose.push(...tabs
 			.filter(t =>
 				t.resource && t.resource.scheme === 'git' && t.viewId === 'diff' &&
 				indexResources.some(r => pathEquals(r, t.resource!.fsPath))));
 
 		// Working Tree
-		diffEditorTabsToClose.push(...window.tabs
+		diffEditorTabsToClose.push(...tabs
 			.filter(t =>
 				t.resource && t.resource.scheme === 'file' && t.viewId === 'diff' &&
 				workingTreeResources.some(r => pathEquals(r, t.resource!.fsPath)) &&
@@ -1635,7 +1636,15 @@ export class Repository implements Disposable {
 	}
 
 	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.createStash(message, includeUntracked));
+		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const workingGroupResources = [
+			...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...includeUntracked ? this.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath) : []];
+
+		return await this.run(Operation.Stash, async () => {
+			this.repository.createStash(message, includeUntracked);
+			this.closeDiffEditors(indexResources, workingGroupResources);
+		});
 	}
 
 	async popStash(index?: number): Promise<void> {

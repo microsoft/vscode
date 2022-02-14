@@ -111,8 +111,8 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		}
 
 		/* Removes bottom margin when only one item exists in markdown cell */
-		*:only-child,
-		*:last-child {
+		#preview > *:only-child,
+		#preview > *:last-child {
 			margin-bottom: 0;
 			padding-bottom: 0;
 		}

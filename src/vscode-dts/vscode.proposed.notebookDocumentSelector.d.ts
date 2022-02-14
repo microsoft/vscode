@@ -10,7 +10,12 @@ declare module 'vscode' {
 	export interface DocumentFilter {
 
 		/**
-		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter`
+		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter`. This allows
+		 * to narrow down on the type of a notebook that a {@link NotebookCell.document cell document} belongs to.
+		 *
+		 * *Note* that combining `notebookType` and {@link DocumentFilter.scheme `scheme`} with a value
+		 * different than `"vscode-notebook-cell"` or `undefined` is invalid and will not match
+		 * any document.
 		 */
 		readonly notebookType?: string;
 	}

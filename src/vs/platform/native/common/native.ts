@@ -9,7 +9,7 @@ import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevTools
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export interface ICPUProperties {
 	model: string;

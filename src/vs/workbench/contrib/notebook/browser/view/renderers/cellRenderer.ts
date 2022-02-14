@@ -381,6 +381,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		const focusIndicatorTop = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top')));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
+
+		// This is also the drag handle
 		const focusIndicatorLeft = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
@@ -388,7 +390,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const cellInputCollapsedContainer = DOM.append(cellContainer, $('.input-collapse-container'));
 
 		const runToolbar = templateDisposables.add(this.instantiationService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer));
-		const executionOrderLabel = DOM.append(cellContainer, $('div.execution-count-label'));
+		const executionOrderLabel = DOM.append(focusIndicatorLeft.domNode, $('div.execution-count-label'));
 		executionOrderLabel.title = localize('cellExecutionOrderCountLabel', 'Execution Order');
 
 		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));

@@ -637,6 +637,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this.updateAccessibilitySupport();
+		this.xterm.onDidRequestRunCommand(command => this.sendText(command, true));
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
@@ -762,23 +763,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		type Item = IQuickPickItem & { command?: ITerminalCommand };
 		const items: Item[] = [];
 		if (type === 'command') {
-			for (const { command, timestamp, cwd, exitCode, getOutput } of commands) {
+			for (const entry of commands) {
 				// trim off any whitespace and/or line endings
-				const label = command.trim();
+				const label = entry.command.trim();
 				if (label.length === 0) {
 					continue;
 				}
 				let detail = '';
-				if (cwd) {
-					detail += `cwd: ${cwd} `;
+				if (entry.cwd) {
+					detail += `cwd: ${entry.cwd} `;
 				}
-				if (exitCode) {
+				if (entry.exitCode) {
 					// Since you cannot get the last command's exit code on pwsh, just whether it failed
 					// or not, -1 is treated specially as simply failed
-					if (exitCode === -1) {
+					if (entry.exitCode === -1) {
 						detail += 'failed';
 					} else {
-						detail += `exitCode: ${exitCode}`;
+						detail += `exitCode: ${entry.exitCode}`;
 					}
 				}
 				detail = detail.trim();
@@ -790,17 +791,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}];
 				// Merge consecutive commands
 				if (items.length > 0 && items[items.length - 1].label === label) {
-					items[items.length - 1].id = timestamp.toString();
+					items[items.length - 1].id = entry.timestamp.toString();
 					items[items.length - 1].detail = detail;
 					continue;
 				}
 				items.push({
 					label,
-					description: fromNow(timestamp, true),
+					description: fromNow(entry.timestamp, true),
 					detail,
-					id: timestamp.toString(),
-					command: { command, timestamp, cwd, exitCode, getOutput },
-					buttons
+					id: entry.timestamp.toString(),
+					command: entry,
+					buttons: (!entry.endMarker?.isDisposed && !entry.marker?.isDisposed && (entry.endMarker!.line - entry.marker!.line > 0)) ? buttons : undefined
 				});
 			}
 		} else {

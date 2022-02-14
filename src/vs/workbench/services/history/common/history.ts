@@ -20,20 +20,41 @@ export const enum GoFilter {
 	 * Navigate between editor navigation history
 	 * entries from any kind of navigation source.
 	 */
-	NONE = 0,
+	NONE,
 
 	/**
 	 * Only navigate between editor navigation history
 	 * entries that were resulting from edits.
 	 */
-	EDITS = 1,
+	EDITS,
 
 	/**
 	 * Only navigate between editor navigation history
 	 * entries that were resulting from navigations, such
 	 * as "Go to definition".
 	 */
-	NAVIGATION = 2
+	NAVIGATION
+}
+
+/**
+ * Limit editor navigation to certain scopes.
+ */
+export const enum GoScope {
+
+	/**
+	 * Navigate across all editors and editor groups.
+	 */
+	DEFAULT,
+
+	/**
+	 * Navigate only in editors of the active editor group.
+	 */
+	EDITOR_GROUP,
+
+	/**
+	 * Navigate only in the active editor.
+	 */
+	EDITOR
 }
 
 export interface IHistoryService {

@@ -6,9 +6,27 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, SafeDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { StopWatch } from 'vs/base/common/stopwatch';
+
+
+function _addLeakageTraceLogic(options: EmitterOptions) {
+	let enabled = false;
+	// enabled = Boolean("true"); // causes an ESLint warning so that this isn't pushed by accident
+	if (enabled) {
+		const { onListenerDidAdd: origListenerDidAdd } = options;
+		const stack = Stacktrace.create();
+		let count = 0;
+		options.onListenerDidAdd = () => {
+			if (++count === 2) {
+				console.warn('snapshotted emitter LIKELY used public and SHOULD HAVE BEEN created with DisposableStore. snapshotted here');
+				stack.print();
+			}
+			origListenerDidAdd?.();
+		};
+	}
+}
 
 /**
  * To an event a function with one or zero parameters
@@ -50,27 +68,33 @@ export namespace Event {
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function map<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables));
+	export function map<I, O>(event: Event<I>, map: (i: I) => O, disposable?: DisposableStore): Event<O> {
+		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables), disposable);
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables));
+	export function forEach<I>(event: Event<I>, each: (i: I) => void, disposable?: DisposableStore): Event<I> {
+		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables), disposable);
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T): Event<T>;
-	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
-	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
-	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
-		return snapshot((listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables));
+	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T, disposable?: DisposableStore): Event<T>;
+	export function filter<T>(event: Event<T>, filter: (e: T) => boolean, disposable?: DisposableStore): Event<T>;
+	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R, disposable?: DisposableStore): Event<R>;
+	export function filter<T>(event: Event<T>, filter: (e: T) => boolean, disposable?: DisposableStore): Event<T> {
+		return snapshot((listener, thisArgs = null, disposables?) => event(e => filter(e) && listener.call(thisArgs, e), null, disposables), disposable);
 	}
 
 	/**
@@ -91,82 +115,65 @@ export namespace Event {
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O): Event<O> {
+	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O, disposable?: DisposableStore): Event<O> {
 		let output: O | undefined = initial;
 
 		return map<I, O>(event, e => {
 			output = merge(output, e);
 			return output;
-		});
+		}, disposable);
 	}
 
-	/**
-	 * @deprecated DO NOT use, this leaks memory
-	 */
-	function snapshot<T>(event: Event<T>): Event<T> {
+	function snapshot<T>(event: Event<T>, disposable: DisposableStore | undefined): Event<T> {
 		let listener: IDisposable;
-		const emitter = new Emitter<T>({
+
+		const options: EmitterOptions | undefined = {
 			onFirstListenerAdd() {
 				listener = event(emitter.fire, emitter);
 			},
 			onLastListenerRemove() {
 				listener.dispose();
 			}
-		});
+		};
+
+		if (!disposable) {
+			_addLeakageTraceLogic(options);
+		}
+
+		const emitter = new Emitter<T>(options);
+
+		if (disposable) {
+			disposable.add(emitter);
+		}
 
 		return emitter.event;
 	}
 
-	export function debouncedListener<T, O = T>(event: Event<T>, listener: (data: O) => any, merge: (last: O | undefined, event: T) => O, delay: number = 100, leading: boolean = false): IDisposable {
-
-		let output: O | undefined = undefined;
-		let handle: any = undefined;
-		let numDebouncedCalls = 0;
-
-		return event(cur => {
-			numDebouncedCalls++;
-			output = merge(output, cur);
-
-			if (leading && !handle) {
-				listener(output);
-				output = undefined;
-			}
-
-			clearTimeout(handle);
-			handle = setTimeout(() => {
-				const _output = output;
-				output = undefined;
-				handle = undefined;
-				if (!leading || numDebouncedCalls > 1) {
-					listener(_output!);
-				}
-
-				numDebouncedCalls = 0;
-			}, delay);
-		});
-	}
-
 	/**
-	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
+	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<T>;
 	/**
-	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
-	/**
-	 * @deprecated this leaks memory, {@link debouncedListener} or {@link DebounceEmitter} instead
-	 */
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O>;
+
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
 
 		let subscription: IDisposable;
 		let output: O | undefined = undefined;
 		let handle: any = undefined;
 		let numDebouncedCalls = 0;
 
-		const emitter = new Emitter<O>({
+		const options: EmitterOptions | undefined = {
 			leakWarningThreshold,
 			onFirstListenerAdd() {
 				subscription = event(cur => {
@@ -194,15 +201,27 @@ export namespace Event {
 			onLastListenerRemove() {
 				subscription.dispose();
 			}
-		});
+		};
+
+		if (!disposable) {
+			_addLeakageTraceLogic(options);
+		}
+
+		const emitter = new Emitter<O>(options);
+
+		if (disposable) {
+			disposable.add(emitter);
+		}
 
 		return emitter.event;
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): Event<T> {
+	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b, disposable?: DisposableStore): Event<T> {
 		let firstCall = true;
 		let cache: T;
 
@@ -211,21 +230,25 @@ export namespace Event {
 			firstCall = false;
 			cache = value;
 			return shouldEmit;
-		});
+		}, disposable);
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T): [Event<T>, Event<U>] {
+	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T, disposable?: DisposableStore): [Event<T>, Event<U>] {
 		return [
-			Event.filter(event, isT),
-			Event.filter(event, e => !isT(e)) as Event<U>,
+			Event.filter(event, isT, disposable),
+			Event.filter(event, e => !isT(e), disposable) as Event<U>,
 		];
 	}
 
 	/**
-	 * @deprecated DO NOT use, this leaks memory
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
 	 */
 	export function buffer<T>(event: Event<T>, flushAfterTimeout = false, _buffer: T[] = []): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
@@ -274,6 +297,7 @@ export namespace Event {
 	}
 
 	export interface IChainableEvent<T> {
+
 		event: Event<T>;
 		map<O>(fn: (i: T) => O): IChainableEvent<O>;
 		forEach(fn: (i: T) => void): IChainableEvent<T>;
@@ -522,28 +546,6 @@ class Stacktrace {
 	}
 }
 
-export class SafeDisposable implements IDisposable {
-
-	private static _noop = () => { };
-
-	dispose: () => void = SafeDisposable._noop;
-	unset: () => void = SafeDisposable._noop;
-	isset: () => boolean = () => false;
-
-	set(disposable: IDisposable) {
-		let actual: IDisposable | undefined = disposable;
-		this.unset = () => actual = undefined;
-		this.isset = () => actual !== undefined;
-		this.dispose = () => {
-			if (actual) {
-				actual.dispose();
-				actual = undefined;
-			}
-		};
-		return this;
-	}
-}
-
 class Listener<T> {
 
 	readonly subscription = new SafeDisposable();
@@ -631,7 +633,7 @@ export class Emitter<T> {
 					this._options.onListenerDidAdd(this, callback, thisArgs);
 				}
 
-				const result = listener.subscription.set(toDisposable(() => {
+				const result = listener.subscription.set(() => {
 					if (removeMonitor) {
 						removeMonitor();
 					}
@@ -644,7 +646,7 @@ export class Emitter<T> {
 							}
 						}
 					}
-				}));
+				});
 
 				if (disposables instanceof DisposableStore) {
 					disposables.add(result);
