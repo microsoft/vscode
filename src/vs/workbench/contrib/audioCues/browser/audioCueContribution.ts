@@ -9,95 +9,79 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Event } from 'vs/base/common/event';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { raceTimeout } from 'vs/base/common/async';
-import { FileAccess } from 'vs/base/common/network';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { autorunDelta, constObservable, debouncedObservable, fromEvent, fromPromise, IObservable, LazyDerived, wasEventTriggeredRecently } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { autorun, autorunDelta, constObservable, debouncedObservable, fromEvent, fromPromise, IObservable, LazyDerived, wasEventTriggeredRecently } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { ITextModel } from 'vs/editor/common/model';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
-export class AudioCueContribution extends Disposable implements IWorkbenchContribution {
-	private audioCuesEnabled = false;
+export class AudioCueContribution
+	extends Disposable
+	implements IWorkbenchContribution {
 	private readonly store = this._register(new DisposableStore());
+
+	private readonly features: Feature[] = [
+		this.instantiationService.createInstance(ErrorFeature),
+		this.instantiationService.createInstance(FoldedAreaFeature),
+		this.instantiationService.createInstance(BreakpointFeature),
+		this.instantiationService.createInstance(InlineCompletionFeature),
+	];
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAudioCueService private readonly audioCueService: IAudioCueService
 	) {
 		super();
 
-		this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
-			this.updateAudioCuesEnabled();
-		});
+		const someAudioCueFeatureIsEnabled = new LazyDerived(
+			(reader) =>
+				this.features.some((feature) =>
+					this.audioCueService.isEnabled(feature.audioCue).read(reader)
+				),
+			'someAudioCueFeatureIsEnabled'
+		);
+
+		const activeEditorObservable = fromEvent(
+			this.editorService.onDidActiveEditorChange,
+			(_) => {
+				const activeTextEditorControl =
+					this.editorService.activeTextEditorControl;
+
+				const editor = isDiffEditor(activeTextEditorControl)
+					? activeTextEditorControl.getOriginalEditor()
+					: isCodeEditor(activeTextEditorControl)
+						? activeTextEditorControl
+						: undefined;
+
+				return editor && editor.hasModel() ? { editor, model: editor.getModel() } : undefined;
+			}
+		);
 
 		this._register(
-			configurationService.onDidChangeConfiguration((e) => {
-				if (e.affectsConfiguration('audioCues.enabled')) {
-					this.updateAudioCuesEnabled();
+			autorun((reader) => {
+				this.store.clear();
+
+				if (!someAudioCueFeatureIsEnabled.read(reader)) {
+					return;
 				}
-			})
-		);
 
-		this.updateAudioCuesEnabled();
-	}
-
-	private getAudioCuesEnabled(): boolean {
-		const value = this.configurationService.getValue<'auto' | 'on' | 'off'>('audioCues.enabled');
-		if (value === 'on') {
-			return true;
-		} else if (value === 'auto') {
-			return this.accessibilityService.isScreenReaderOptimized();
-		} else {
-			return false;
-		}
-	}
-
-	private updateAudioCuesEnabled() {
-		const newValue = this.getAudioCuesEnabled();
-		if (newValue === this.audioCuesEnabled) {
-			return;
-		}
-		this.audioCuesEnabled = newValue;
-		if (!this.audioCuesEnabled) {
-			this.store.clear();
-			return;
-		}
-
-		this.store.add(
-			Event.runAndSubscribeWithStore(
-				this.editorService.onDidActiveEditorChange,
-				(_, store) => {
-					const activeTextEditorControl =
-						this.editorService.activeTextEditorControl;
-
-					const editor = isDiffEditor(activeTextEditorControl)
-						? activeTextEditorControl.getOriginalEditor()
-						: isCodeEditor(activeTextEditorControl)
-							? activeTextEditorControl
-							: undefined;
-
-					if (editor && editor.hasModel()) {
-						this.handleCurrentEditor(editor, editor.getModel(), store);
-					}
+				const activeEditor = activeEditorObservable.read(reader);
+				if (activeEditor) {
+					this.registerAudioCuesForEditor(activeEditor.editor, activeEditor.model, this.store);
 				}
-			)
+			}, 'updateAudioCuesEnabled')
 		);
 	}
 
-	private handleCurrentEditor(editor: ICodeEditor, editorModel: ITextModel, store: DisposableStore): void {
-		const features: Feature[] = [
-			this.instantiationService.createInstance(ErrorFeature),
-			this.instantiationService.createInstance(FoldedAreaFeature),
-			this.instantiationService.createInstance(BreakpointFeature),
-			this.instantiationService.createInstance(InlineCompletionFeature),
-		];
-		const observableFeatureStates = features.map((feature) =>
+	private registerAudioCuesForEditor(
+		editor: ICodeEditor,
+		editorModel: ITextModel,
+		store: DisposableStore
+	): void {
+		const observableFeatureStates = this.features.map((feature) =>
 			feature.getObservableState(editor, editorModel)
 		);
 
@@ -108,17 +92,24 @@ export class AudioCueContribution extends Disposable implements IWorkbenchContri
 		const debouncedLineNumber = debouncedObservable(curLineNumber, 100, store);
 
 		const lineNumberWithObservableFeatures = debouncedLineNumber.map(
-			(lineNumber) => lineNumber === undefined ? undefined : {
-				lineNumber,
-				featureStatesForLine: observableFeatureStates.map(
-					(featureResult) =>
-						// This caches the feature state for the active line
-						new LazyDerived(
-							(reader) => featureResult.read(reader).isActive(lineNumber),
-							'isActiveForLine'
-						)
-				),
-			}
+			(lineNumber) =>
+				lineNumber === undefined
+					? undefined
+					: {
+						lineNumber,
+						featureStatesForLine: observableFeatureStates.map(
+							(featureResult, idx) =>
+								// This caches the feature state for the active line
+								new LazyDerived(
+									(reader) =>
+										this.audioCueService
+											.isEnabled(this.features[idx].audioCue)
+											.read(reader) &&
+										featureResult.read(reader).isActive(lineNumber),
+									'isActiveForLine'
+								)
+						),
+					}
 		);
 
 		const isTyping = wasEventTriggeredRecently(
@@ -126,17 +117,20 @@ export class AudioCueContribution extends Disposable implements IWorkbenchContri
 			1000,
 			store
 		);
-		const featureStatesBeforeTyping = isTyping.map((isTyping) =>
-			(!isTyping
-				? undefined
-				: lineNumberWithObservableFeatures
-					.get()
-					?.featureStatesForLine?.map((featureState, idx) =>
-						features[idx].debounceWhileTyping ? featureState.get() : undefined
-					)) ?? []
+		const featureStatesBeforeTyping = isTyping.map(
+			(isTyping) =>
+				(!isTyping
+					? undefined
+					: lineNumberWithObservableFeatures
+						.get()
+						?.featureStatesForLine?.map((featureState, idx) =>
+							this.features[idx].debounceWhileTyping
+								? featureState.get()
+								: undefined
+						)) ?? []
 		);
 
-		const state = new LazyDerived(reader => {
+		const state = new LazyDerived((reader) => {
 			const lineInfo = lineNumberWithObservableFeatures.read(reader);
 			if (lineInfo === undefined) {
 				return undefined;
@@ -145,7 +139,7 @@ export class AudioCueContribution extends Disposable implements IWorkbenchContri
 				lineNumber: lineInfo.lineNumber,
 				featureStates: new Map(
 					lineInfo.featureStatesForLine.map((featureState, idx) => [
-						features[idx],
+						this.features[idx],
 						featureStatesBeforeTyping.read(reader)[idx] ??
 						featureState.read(reader),
 					])
@@ -155,43 +149,22 @@ export class AudioCueContribution extends Disposable implements IWorkbenchContri
 
 		store.add(
 			autorunDelta(state, ({ lastValue, newValue }) => {
-				for (const feature of features) {
+				for (const feature of this.features) {
 					if (
 						newValue?.featureStates.get(feature) &&
 						(!lastValue?.featureStates?.get(feature) ||
 							newValue.lineNumber !== lastValue.lineNumber)
 					) {
-						this.playSound(feature.audioCueFilename);
+						this.audioCueService.playAudioCue(feature.audioCue);
 					}
 				}
 			})
 		);
 	}
-
-	private async playSound(fileName: string) {
-		if (!this.audioCuesEnabled) {
-			return;
-		}
-
-		const url = FileAccess.asBrowserUri(`vs/workbench/contrib/audioCues/browser/media/${fileName}.opus`, require).toString();
-		const audio = new Audio(url);
-
-		try {
-			try {
-				// Don't play when loading takes more than 1s, due to loading, decoding or playing issues.
-				// Delayed sounds are very confusing.
-				await raceTimeout(audio.play(), 1000);
-			} catch (e) {
-				console.error('Error while playing sound', e);
-			}
-		} finally {
-			audio.remove();
-		}
-	}
 }
 
 interface Feature {
-	audioCueFilename: string;
+	audioCue: AudioCue;
 	debounceWhileTyping?: boolean;
 	getObservableState(
 		editor: ICodeEditor,
@@ -204,7 +177,7 @@ interface FeatureState {
 }
 
 class ErrorFeature implements Feature {
-	public readonly audioCueFilename = 'error';
+	public readonly audioCue = AudioCue.error;
 	public readonly debounceWhileTyping = true;
 
 	constructor(@IMarkerService private readonly markerService: IMarkerService) { }
@@ -232,7 +205,7 @@ class ErrorFeature implements Feature {
 }
 
 class FoldedAreaFeature implements Feature {
-	public readonly audioCueFilename = 'foldedAreas';
+	public readonly audioCue = AudioCue.foldedArea;
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<FeatureState> {
 		const foldingController = FoldingController.get(editor);
@@ -259,7 +232,7 @@ class FoldedAreaFeature implements Feature {
 }
 
 class BreakpointFeature implements Feature {
-	public readonly audioCueFilename = 'break';
+	public readonly audioCue = AudioCue.break;
 
 	constructor(@IDebugService private readonly debugService: IDebugService) { }
 
@@ -280,9 +253,9 @@ class BreakpointFeature implements Feature {
 }
 
 class InlineCompletionFeature implements Feature {
-	public readonly audioCueFilename = 'break';
+	public readonly audioCue = AudioCue.inlineSuggestion;
 
-	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<FeatureState> {
+	getObservableState(editor: ICodeEditor, _model: ITextModel): IObservable<FeatureState> {
 		const ghostTextController = GhostTextController.get(editor);
 		if (!ghostTextController) {
 			return constObservable({
