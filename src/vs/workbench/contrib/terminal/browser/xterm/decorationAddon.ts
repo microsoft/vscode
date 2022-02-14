@@ -158,9 +158,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					return;
 				}
 				this._hoverDelayer.trigger(() => {
-					let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}...\n\n---\n\n- Executed: ${fromNow(command.timestamp, true)}`;
+					let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}...\n\n---\n\n- ${localize('terminal-prompt-command-executed-time', 'Executed: {0}', fromNow(command.timestamp, true))}`;
 					if (command.exitCode) {
-						hoverContent += `\n- Exit code: ${command.exitCode} `;
+						hoverContent += `\n- ${command.exitCode === -1 ? localize('terminal-prompt-command-failed', 'Failed') : localize('terminal-prompt-command-exit-code', 'Exit code: {0}', command.exitCode)}`;
 					}
 					this._hoverService.showHover({ content: new MarkdownString(hoverContent), target });
 				});
