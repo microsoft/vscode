@@ -119,22 +119,34 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	async resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, config: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
+		// activate debuggers early for the provided type in case any '*' typed debug configuration providers are activated
+		// based on the provided type.
 		await this.activateDebuggers('onDebugResolve', type);
-		// pipe the config through the promises sequentially. Append at the end the '*' types
-		const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
-			.concat(this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration));
+		const anyTypeProviders = this.configProviders.filter(p => p.type === '*' && p.resolveDebugConfiguration);
 
-		let result: IConfig | null | undefined = config;
-		await sequence(providers.map(provider => async () => {
-			// If any provider returned undefined or null make sure to respect that and do not pass the result to more resolver
-			if (result) {
-				result = await provider.resolveDebugConfiguration!(folderUri, result, token);
-			}
-		}));
+		let resolveDebugConfigurationForType = async (type: string | undefined, config: IConfig | null | undefined) => {
+			await this.activateDebuggers('onDebugResolve', type);
+			// pipe the config through the promises sequentially. Append at the end the '*' types
+			const providers = this.configProviders.filter(p => p.type === type && p.resolveDebugConfiguration)
+				.concat(anyTypeProviders);
 
-		// The resolver can change the type, ensure activation happens, #135090
-		if (result?.type && result.type !== config.type) {
-			await this.activateDebuggers('onDebugResolve', result.type);
+			let result: IConfig | null | undefined = config;
+			await sequence(providers.map(provider => async () => {
+				// If any provider returned undefined or null make sure to respect that and do not pass the result to more resolver
+				if (result) {
+					result = await provider.resolveDebugConfiguration!(folderUri, result, token);
+				}
+			}));
+			return result;
+		};
+
+		let result = await resolveDebugConfigurationForType(type, config);
+		let seenTypes = new Set<string | undefined>().add(type);
+
+		while (result && !seenTypes.has(result.type)) {
+			seenTypes.add(result.type);
+
+			result = await resolveDebugConfigurationForType(result.type, result);
 		}
 
 		return result;
