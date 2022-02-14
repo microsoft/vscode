@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IBuffer, IMarker, Terminal } from 'xterm';
+import { IBuffer, IDisposable, IMarker, Terminal } from 'xterm';
 
 interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -15,6 +15,8 @@ interface ICurrentPartialCommand {
 
 	commandStartMarker?: IMarker;
 	commandStartX?: number;
+
+	commandLines?: IMarker;
 
 	commandExecutedMarker?: IMarker;
 	commandExecutedX?: number;
@@ -32,6 +34,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
 	private _isWindowsPty: boolean = false;
+	private _onDataListener?: IDisposable;
+	private _commandMarkers: IMarker[] = [];
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
@@ -66,62 +70,58 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	handleCommandStart(): void {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+		// On Windows track all cursor movements after the command start sequence
+		if (this._isWindowsPty) {
+			this._onDataListener = this._terminal.onCursorMove(() => {
+				if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
+					const marker = this._terminal.registerMarker(0);
+					if (marker) {
+						this._commandMarkers.push(marker);
+					}
+				}
+			});
+		}
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
 	handleCommandExecuted(): void {
+		// On Windows, use the gathered cursor move markers to correct the command start and
+		// executed markers
+		if (this._isWindowsPty && this._commandMarkers.length > 0) {
+			this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
+			this._currentCommand.commandStartMarker = this._commandMarkers[0];
+			this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
+			this._onDataListener?.dispose();
+			this._onDataListener = undefined;
+			this._commandMarkers.length = 0;
+		}
+
 		this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
-		// TODO: Make sure this only runs on Windows backends (not frontends)
-		if (!this._isWindowsPty && this._currentCommand.commandStartMarker && this._currentCommand.commandExecutedMarker && this._currentCommand.commandStartX) {
-			this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX);
-			let y = this._currentCommand.commandStartMarker.line + 1;
-			const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
-			for (; y < commandExecutedLine; y++) {
-				const line = this._terminal.buffer.active.getLine(y);
-				if (line) {
-					this._currentCommand.command += line.translateToString(true);
-				}
-			}
-			if (y === commandExecutedLine) {
-				this._currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, this._currentCommand.commandExecutedX) || '';
-			}
+
+		// Don't get the command on Windows, rely on the command line sequence for this
+		if (this._isWindowsPty) {
 			return;
 		}
 
-		// TODO: Leverage key events on Windows between CommandStart and Executed to ensure we have the correct line
-
-		// TODO: Only do this on Windows backends
-		// Check if the command line is the same as the previous command line or if the
-		// start Y differs from the executed Y. This is to catch the conpty case where the
-		// "rendering" of the shell integration sequences doesn't occur on the correct cell
-		// due to https://github.com/microsoft/terminal/issues/11220
-		if (this._currentCommand.previousCommandMarker?.line === this._currentCommand.commandStartMarker?.line ||
-			this._currentCommand.commandStartMarker?.line === this._currentCommand.commandExecutedMarker?.line) {
-			this._currentCommand.commandStartMarker = this._terminal?.registerMarker(0);
-			this._currentCommand.commandStartX = 0;
+		// Sanity check optional props
+		if (!this._currentCommand.commandStartMarker || !this._currentCommand.commandExecutedMarker || !this._currentCommand.commandStartX) {
+			return;
 		}
 
-		// TODO: This does not yet work when the prompt line is wrapped
-		this._currentCommand.command = this._terminal!.buffer.active.getLine(this._currentCommand.commandExecutedMarker!.line)?.translateToString(true, this._currentCommand.commandStartX || 0);
-
-		// TODO: Only do this on Windows backends
-		// Something went wrong, try predict the prompt based on the shell.
-		if (this._currentCommand.commandStartX === 0) {
-			// TODO: Only do this on pwsh
-			const promptPredictions = [
-				`PS ${this._cwd}> `,
-				`PS>`,
-			];
-			for (const promptPrediction of promptPredictions) {
-				if (this._currentCommand.command?.startsWith(promptPrediction)) {
-					// TODO: Consider cell vs string positioning; test CJK
-					this._currentCommand.commandStartX = promptPrediction.length;
-					this._currentCommand.command = this._currentCommand.command.substring(this._currentCommand.commandStartX);
-					break;
-				}
+		// Calculate the command
+		this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX);
+		let y = this._currentCommand.commandStartMarker.line + 1;
+		const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
+		for (; y < commandExecutedLine; y++) {
+			const line = this._terminal.buffer.active.getLine(y);
+			if (line) {
+				this._currentCommand.command += line.translateToString(true);
 			}
+		}
+		if (y === commandExecutedLine) {
+			this._currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, this._currentCommand.commandExecutedX) || '';
 		}
 	}
 
