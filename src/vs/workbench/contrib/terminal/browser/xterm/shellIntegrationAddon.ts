@@ -36,7 +36,8 @@ const enum ShellIntegrationOscPs {
 	 */
 	FinalTerm = 133,
 	/**
-	 * Sequences pioneered by VS Code.
+	 * Sequences pioneered by VS Code. The number is derived from the least significant digit of
+	 * "VSC" when encoded in hex ("VSC" = 0x56, 0x53, 0x43).
 	 */
 	VSCode = 633,
 	/**
@@ -46,46 +47,49 @@ const enum ShellIntegrationOscPs {
 }
 
 /**
- * The identifier for the textural parameter (`Pt`) for FinalTerm OSC commands.
+ * VS Code-specific shell integration sequences. Some of these are based on common alternatives like
+ * those pioneered in FinalTerm. The decision to move to entirely custom sequences was to try to
+ * improve reliability and prevent the possibility of applications confusing the terminal.
  */
-const enum FinalTermOscPt {
+const enum VSCodeOscPt {
 	/**
 	 * The start of the prompt, this is expected to always appear at the start of a line.
+	 * Based on FinalTerm's `OSC 133 ; A ST`.
 	 */
 	PromptStart = 'A',
+
 	/**
 	 * The start of a command, ie. where the user inputs their command.
+	 * Based on FinalTerm's `OSC 133 ; B ST`.
 	 */
 	CommandStart = 'B',
+
 	/**
 	 * Sent just before the command output begins.
+	 * Based on FinalTerm's `OSC 133 ; C ST`.
 	 */
 	CommandExecuted = 'C',
-	// TODO: Understand this sequence better and add docs
-	CommandFinished = 'D',
-}
 
-const enum VSCodeOscPt {
+	/**
+	 * Sent just after a command has finished. The exit code is optional, when not specified it
+	 * means no command was run (ie. enter on empty prompt or ctrl+c).
+	 * Based on FinalTerm's `OSC 133 ; D [; <ExitCode>] ST`.
+	 */
+	CommandFinished = 'D',
+
 	/**
 	 * Explicitly set the command line. This helps workaround problems with conpty not having a
 	 * passthrough mode by providing an option on Windows to send the command that was run. With
 	 * this sequence there's no need for the guessing based on the unreliable cursor positions that
 	 * would otherwise be required.
 	 */
-	CommandLine = 'A',
+	CommandLine = 'E',
 
+	/**
+	 * Set an arbitrary property: `OSC 633 ; P ; <Property>=<Value> ST`, only known properties will
+	 * be handled.
+	 */
 	Property = 'P'
-}
-
-export const enum ShellIntegrationInfo {
-	CurrentDir = 'CurrentDir',
-}
-
-export const enum ShellIntegrationInteraction {
-	PromptStart = 'PROMPT_START',
-	CommandStart = 'COMMAND_START',
-	CommandExecuted = 'COMMAND_EXECUTED',
-	CommandFinished = 'COMMAND_FINISHED'
 }
 
 /**
@@ -106,37 +110,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
 		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleFinalTermSequence(data)));
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._handleITermSequence(data)));
 		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
-	}
-
-	private _handleFinalTermSequence(data: string): boolean {
-		if (!this._terminal) {
-			return false;
-		}
-
-		// Pass the sequence along to the capability
-		const [command, ...args] = data.split(';');
-		switch (command) {
-			case FinalTermOscPt.PromptStart:
-				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
-				return true;
-			case FinalTermOscPt.CommandStart:
-				this._createOrGetCommandDetection(this._terminal).handleCommandStart();
-				return true;
-			case FinalTermOscPt.CommandExecuted:
-				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
-				return true;
-			case FinalTermOscPt.CommandFinished: {
-				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
-				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
-				return true;
-			}
-		}
-
-		// Unrecognized sequence
-		return false;
 	}
 
 	private _handleVSCodeSequence(data: string): boolean {
@@ -147,6 +121,20 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		// Pass the sequence along to the capability
 		const [command, ...args] = data.split(';');
 		switch (command) {
+			case VSCodeOscPt.PromptStart:
+				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
+				return true;
+			case VSCodeOscPt.CommandStart:
+				this._createOrGetCommandDetection(this._terminal).handleCommandStart();
+				return true;
+			case VSCodeOscPt.CommandExecuted:
+				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
+				return true;
+			case VSCodeOscPt.CommandFinished: {
+				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
+				return true;
+			}
 			case VSCodeOscPt.CommandLine: {
 				let commandLine: string;
 				if (args.length === 1) {
@@ -162,28 +150,19 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			case VSCodeOscPt.Property: {
 				const [key, value] = args[0].split('=');
 				switch (key) {
+					case 'Cwd': {
+						this._createOrGetCwdDetection().updateCwd(value);
+						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+						if (commandDetection) {
+							commandDetection.setCwd(value);
+						}
+						return true;
+					}
 					case 'IsWindows': {
 						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
+						return true;
 					}
 				}
-			}
-		}
-
-		// Unrecognized sequence
-		return false;
-	}
-
-	private _handleITermSequence(data: string): boolean {
-		// Pass the sequence along to the capability
-		const [type, value] = data.split('=');
-		switch (type) {
-			case ShellIntegrationInfo.CurrentDir: {
-				this._createOrGetCwdDetection().updateCwd(value);
-				const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
-				if (commandDetection) {
-					commandDetection.setCwd(value);
-				}
-				return true;
 			}
 		}
 
