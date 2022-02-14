@@ -250,12 +250,20 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							if (!remoteEnv) {
 								this._logService.warn('Could not fetch remote environment');
 							} else {
-								// Resolve the arguments manually using the remote server install directory
-								const appRoot = remoteEnv.appRoot;
 								// TODO: Don't support string arg types when injecting
 								if (Array.isArray(shellIntegration.args)) {
+									// Resolve the arguments manually using the remote server install directory
+									const appRoot = remoteEnv.appRoot;
+									let appRootOsPath = remoteEnv.appRoot.fsPath;
+									if (OS === OperatingSystem.Windows && remoteEnv.os !== OperatingSystem.Windows) {
+										// Local Windows, remote POSIX
+										appRootOsPath = appRoot.path.replace(/\\/g, '/');
+									} else if (OS !== OperatingSystem.Windows && remoteEnv.os === OperatingSystem.Windows) {
+										// Local POSIX, remote Windows
+										appRootOsPath = appRoot.path.replace(/\//g, '\\');
+									}
 									for (let i = 0; i < shellIntegration.args.length; i++) {
-										shellIntegration.args[i] = shellIntegration.args[i].replace('${execInstallFolder}', appRoot.fsPath);
+										shellIntegration.args[i] = shellIntegration.args[i].replace('${execInstallFolder}', appRootOsPath);
 									}
 								}
 								shellLaunchConfig.args = shellIntegration.args;
