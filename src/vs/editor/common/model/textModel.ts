@@ -434,6 +434,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const emptyDisposedTextBuffer = new PieceTreeTextBuffer([], '', '\n', false, false, true, true);
 		emptyDisposedTextBuffer.dispose();
 		this._buffer = emptyDisposedTextBuffer;
+		this._bufferDisposable = Disposable.None;
 	}
 
 	private _assertNotDisposed(): void {
