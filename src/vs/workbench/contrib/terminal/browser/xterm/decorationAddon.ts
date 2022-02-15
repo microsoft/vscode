@@ -32,7 +32,7 @@ const enum DecorationSelector {
 }
 
 const enum DecorationStyles {
-	CodiconHeight = 16
+	CodiconDimension = 10
 }
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[] }
@@ -140,8 +140,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIcon)}`);
 				}
 				// the left gutter of the terminal is a mininum of 10px, so use that for uniformity
-				target.style.width = `10px`;
-				target.style.height = `10px`;
+				target.style.width = `${DecorationStyles.CodiconDimension}px`;
+				target.style.height = `${DecorationStyles.CodiconDimension}px`;
 			}
 		});
 		return decoration;
