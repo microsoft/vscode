@@ -250,7 +250,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							if (!remoteEnv) {
 								this._logService.warn('Could not fetch remote environment');
 							} else {
-								// TODO: Don't support string arg types when injecting
 								if (Array.isArray(shellIntegration.args)) {
 									// Resolve the arguments manually using the remote server install directory
 									const appRoot = remoteEnv.appRoot;
