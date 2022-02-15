@@ -532,6 +532,11 @@
         "category": "Git"
       },
       {
+        "command": "git.closeAllDiffEditors",
+        "title": "%command.closeAllDiffEditors%",
+        "category": "Git"
+      },
+      {
         "command": "git.api.getRepositories",
         "title": "%command.api.getRepositories%",
         "category": "Git API"
@@ -932,6 +937,10 @@
         {
           "command": "git.timeline.compareWithSelected",
           "when": "false"
+        },
+        {
+          "command": "git.closeAllDiffEditors",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.api.getRepositories",
@@ -2231,7 +2240,9 @@
             "default",
             "download"
           ],
-          "tags": ["experimental"],
+          "tags": [
+            "experimental"
+          ],
           "scope": "machine",
           "description": "%config.experimental.installGuide%",
           "default": "default"

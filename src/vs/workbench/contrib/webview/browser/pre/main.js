@@ -869,7 +869,7 @@ onDomReady(() => {
 		}
 
 		if (!options.allowScripts && isSafari) {
-			// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
+			// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired: https://bugs.webkit.org/show_bug.cgi?id=33604
 			// Use polling instead.
 			const interval = setInterval(() => {
 				// If the frame is no longer mounted, loading has stopped
@@ -881,7 +881,8 @@ onDomReady(() => {
 				const contentDocument = assertIsDefined(newFrame.contentDocument);
 				if (contentDocument.readyState !== 'loading') {
 					clearInterval(interval);
-					onFrameLoaded(contentDocument);
+					// Workaround for https://bugs.webkit.org/show_bug.cgi?id=236624
+					setTimeout(() => onFrameLoaded(contentDocument), 50);
 				}
 			}, 10);
 		} else {

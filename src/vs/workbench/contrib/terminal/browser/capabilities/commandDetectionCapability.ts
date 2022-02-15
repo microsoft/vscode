@@ -34,7 +34,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
 	private _isWindowsPty: boolean = false;
-	private _onDataListener?: IDisposable;
+	private _onCursorMoveListener?: IDisposable;
 	private _commandMarkers: IMarker[] = [];
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
@@ -72,7 +72,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
 		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
-			this._onDataListener = this._terminal.onCursorMove(() => {
+			this._commandMarkers.length = 0;
+			this._onCursorMoveListener = this._terminal.onCursorMove(() => {
 				if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
 					const marker = this._terminal.registerMarker(0);
 					if (marker) {
@@ -87,13 +88,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	handleCommandExecuted(): void {
 		// On Windows, use the gathered cursor move markers to correct the command start and
 		// executed markers
-		if (this._isWindowsPty && this._commandMarkers.length > 0) {
-			this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
-			this._currentCommand.commandStartMarker = this._commandMarkers[0];
-			this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
-			this._onDataListener?.dispose();
-			this._onDataListener = undefined;
-			this._commandMarkers.length = 0;
+		if (this._isWindowsPty) {
+			this._onCursorMoveListener?.dispose();
+			this._onCursorMoveListener = undefined;
 		}
 
 		this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
@@ -126,6 +123,15 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	handleCommandFinished(exitCode: number | undefined): void {
+		// On Windows, use the gathered cursor move markers to correct the command start and
+		// executed markers. This is done on command finished just in case command executed never
+		// happens (for example PSReadLine tab completion)
+		if (this._isWindowsPty) {
+			this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
+			this._currentCommand.commandStartMarker = this._commandMarkers[0];
+			this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
+		}
+
 		this._currentCommand.commandFinishedMarker = this._terminal.registerMarker(0);
 		const command = this._currentCommand.command;
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
@@ -145,7 +151,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
-				hasOutput: (this._currentCommand.commandExecutedMarker!.line < this._currentCommand.commandFinishedMarker!.line),
+				hasOutput: !!(this._currentCommand.commandExecutedMarker && this._currentCommand.commandFinishedMarker && this._currentCommand.commandExecutedMarker?.line < this._currentCommand.commandFinishedMarker!.line),
 				getOutput: () => getOutputForCommand(clonedPartialCommand, buffer)
 			};
 			this._commands.push(newCommand);

@@ -29,6 +29,7 @@
 	"command.cleanAll": "Discard All Changes",
 	"command.cleanAllTracked": "Discard All Tracked Changes",
 	"command.cleanAllUntracked": "Discard All Untracked Changes",
+	"command.closeAllDiffEditors": "Close All Diff Editors",
 	"command.commit": "Commit",
 	"command.commitStaged": "Commit Staged",
 	"command.commitEmpty": "Commit Empty",
