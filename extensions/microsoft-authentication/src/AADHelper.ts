@@ -435,7 +435,7 @@ export class AzureActiveDirectoryService {
 			scope: scopeData.scopeStr,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
 			account: {
-				label: `${claims.name} - ${claims.email}` || claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
+				label: `${claims.name !== undefined ? `${claims.name} - ${claims.email}` : `${claims.email}`}` || claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
 				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
 			}
 		};
