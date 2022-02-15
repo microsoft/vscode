@@ -46,8 +46,7 @@ export function asWebviewUri(
 	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
 		const token = RemoteAuthorities.getConnectionToken(resource.authority);
 		if (token && !resource.query) {
-			const tokenQuerySegment = connectionTokenQueryName + '=' + token
-			resource = resource.with({ query: resource.query ? resource.query + '&' + tokenQuerySegment : tokenQuerySegment })
+			resource = resource.with({ query: `${connectionTokenQueryName}=${token}` });
 		}
 		return resource;
 	}
