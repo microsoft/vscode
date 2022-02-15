@@ -204,5 +204,5 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const commandDecorationSkippedColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SKIPPED_BACKGROUND_COLOR);
 	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.SkippedColor} { color: ${commandDecorationSkippedColor ? commandDecorationSkippedColor.toString() : ''}; } `);
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	collector.addRule(`.${DecorationSelector.CommandDecoration}:not(.${DecorationSelector.SkippedColor}):hover { background-color: ${toolbarHoverBackgroundColor ? toolbarHoverBackgroundColor.toString() : ''}; }`);
+	collector.addRule(`.${DecorationSelector.CommandDecoration}:not(.${DecorationSelector.SkippedColor}):hover { background-color: ${toolbarHoverBackgroundColor ? toolbarHoverBackgroundColor.toString() : ''}; border-radius: 5px; }`);
 });
