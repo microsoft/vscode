@@ -5,7 +5,7 @@
 
 import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
-import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler, runWhenIdle, timeout } from 'vs/base/common/async';
 import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
@@ -133,7 +133,9 @@ export class Workbench extends Layout {
 		try {
 
 			// Configure emitter leak warning threshold
-			setGlobalLeakWarningThreshold(175);
+			// TODO@jrieken: This is temporarily commented out
+			// due to https://github.com/microsoft/vscode/issues/143111
+			// setGlobalLeakWarningThreshold(175);
 
 			// Services
 			const instantiationService = this.initServices(this.serviceCollection);
