@@ -31,10 +31,6 @@ const enum DecorationSelector {
 	XtermScreen = 'xterm-screen'
 }
 
-const enum DecorationStyles {
-	CodiconDimension = 10
-}
-
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[] }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
@@ -139,9 +135,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				} else {
 					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIcon)}`);
 				}
-				// the left gutter of the terminal is a mininum of 10px, so use that for uniformity
-				target.style.width = `${DecorationStyles.CodiconDimension}px`;
-				target.style.height = `${DecorationStyles.CodiconDimension}px`;
 			}
 		});
 		return decoration;

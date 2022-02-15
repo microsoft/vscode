@@ -419,3 +419,8 @@
 .terminal-command-decoration.skipped {
 	pointer-events: none;
 }
+
+.terminal-command-decoration:not(.skipped) {
+	width: 10px;
+	height: 10px;
+}
