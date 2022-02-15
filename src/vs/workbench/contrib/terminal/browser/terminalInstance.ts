@@ -1638,16 +1638,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	@debounce(2000)
-	private async _updateProcessCwd(): Promise<string> {
+	private async _updateProcessCwd(): Promise<void> {
 		if (this._isDisposed) {
-			return this.cwd || this._initialCwd || '';
+			return;
 		}
 		// reset cwd if it has changed, so file based url paths can be resolved
-		const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
-		if (typeof cwd !== 'string') {
-			throw new Error('cwd is not a string');
+		try {
+			const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
+			if (typeof cwd !== 'string') {
+				throw new Error('cwd is not a string');
+			}
+		} catch (e: unknown) {
+			// Swallow this as it means the process has been killed
+			if (e instanceof Error && e.message === 'Cannot refresh property when process is not set') {
+				return;
+			}
+			throw e;
 		}
-		return cwd;
 	}
 
 	updateConfig(): void {
