@@ -9,48 +9,13 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
 import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
 import { BrandedService, createDecorator, IConstructorSignature, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingRule, IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-
-export interface ILocalizedString {
-	/**
-	 * The localized value of the string.
-	 */
-	value: string;
-	/**
-	 * The original (non localized value of the string)
-	 */
-	original: string;
-}
-
-export interface ICommandActionTitle extends ILocalizedString {
-	/**
-	 * The title with a mnemonic designation. && precedes the mnemonic.
-	 */
-	mnemonicTitle?: string;
-}
-
-export type Icon = { dark?: URI; light?: URI } | ThemeIcon;
-
-export interface ICommandAction {
-	id: string;
-	title: string | ICommandActionTitle;
-	shortTitle?: string | ICommandActionTitle;
-	category?: string | ILocalizedString;
-	tooltip?: string | ILocalizedString;
-	icon?: Icon;
-	source?: string;
-	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression | { condition: ContextKeyExpression; icon?: Icon; tooltip?: string; title?: string | ILocalizedString };
-}
-
-export type ISerializableCommandAction = UriDto<ICommandAction>;
 
 export interface IMenuItem {
 	command: ICommandAction;

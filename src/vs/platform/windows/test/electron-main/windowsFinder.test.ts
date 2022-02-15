@@ -11,7 +11,7 @@ import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { UriDto } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import { ICodeWindow, ILoadEvent, IWindowState } from 'vs/platform/window/electron-main/window';

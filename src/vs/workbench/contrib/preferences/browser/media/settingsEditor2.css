@@ -202,7 +202,6 @@
 	pointer-events: none;
 	z-index: 10;
 	position: absolute;
-	top: 1px; /* Leave room for the settings list focus outline above */
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list {

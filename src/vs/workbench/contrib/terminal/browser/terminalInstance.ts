@@ -1112,6 +1112,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _shouldPasteText(text: string): Promise<boolean> {
+		// Ignore check if the shell is in bracketed paste mode (ie. the shell can handle multi-line
+		// text).
+		if (this.xterm?.raw.modes.bracketedPasteMode) {
+			return true;
+		}
+
 		const textForLines = text.split(/\r?\n/);
 		// Ignore check when a command is copied with a trailing new line
 		if (textForLines.length === 2 && textForLines[1].trim().length === 0) {
@@ -1659,16 +1665,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	@debounce(2000)
-	private async _updateProcessCwd(): Promise<string> {
+	private async _updateProcessCwd(): Promise<void> {
 		if (this._isDisposed) {
-			return this.cwd || this._initialCwd || '';
+			return;
 		}
 		// reset cwd if it has changed, so file based url paths can be resolved
-		const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
-		if (typeof cwd !== 'string') {
-			throw new Error('cwd is not a string');
+		try {
+			const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
+			if (typeof cwd !== 'string') {
+				throw new Error('cwd is not a string');
+			}
+		} catch (e: unknown) {
+			// Swallow this as it means the process has been killed
+			if (e instanceof Error && e.message === 'Cannot refresh property when process is not set') {
+				return;
+			}
+			throw e;
 		}
-		return cwd;
 	}
 
 	updateConfig(): void {

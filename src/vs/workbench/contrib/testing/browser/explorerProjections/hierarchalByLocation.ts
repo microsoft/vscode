@@ -241,8 +241,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		return {
 			element: node,
 			collapsible: node.test.expand !== TestItemExpandState.NotExpandable,
-			collapsed: this.lastState.expanded[node.treeId] !== undefined
-				? !this.lastState.expanded[node.treeId]
+			collapsed: this.lastState.expanded[node.test.item.extId] !== undefined
+				? !this.lastState.expanded[node.test.item.extId]
 				: node.depth > 0,
 			children: recurse(node.children),
 		};
@@ -265,8 +265,8 @@ export class HierarchicalByLocationProjection extends Disposable implements ITes
 		this.changes.addedOrRemoved(treeElement);
 
 		const reveal = this.getRevealDepth(treeElement);
-		if (reveal !== undefined) {
-			this.expandElement(treeElement, reveal);
+		if (reveal !== undefined || this.lastState.expanded[treeElement.test.item.extId]) {
+			this.expandElement(treeElement, reveal || 0);
 		}
 
 		const prevState = this.results.getStateById(treeElement.test.item.extId)?.[1];
