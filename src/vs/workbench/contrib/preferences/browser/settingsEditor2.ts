@@ -259,7 +259,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.modelDisposables = this._register(new DisposableStore());
 	}
 
-	override get minimumWidth(): number { return 375; }
+	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
 	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane
