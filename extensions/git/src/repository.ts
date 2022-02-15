@@ -1266,9 +1266,9 @@ export class Repository implements Disposable {
 		});
 	}
 
-	private closeDiffEditors(indexResources: string[], workingTreeResources: string[]): void {
+	closeDiffEditors(indexResources: string[], workingTreeResources: string[], ignoreSetting: boolean = false): void {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		if (!config.get<boolean>('closeDiffOnOperation', false)) { return; }
+		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
 
 		const diffEditorTabsToClose: Tab[] = [];
 
