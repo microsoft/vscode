@@ -32,7 +32,6 @@ const enum DecorationSelector {
 }
 
 const enum DecorationStyles {
-	ButtonMargin = 4,
 	CodiconHeight = 16
 }
 
@@ -127,7 +126,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (decoration.element?.clientWidth! > 0) {
 				// if this is the leftmost terminal, there is extra room
 				const marginWidth = document.querySelectorAll(`.${DecorationSelector.XtermScreen}`)[0] === decoration.element?.parentElement?.parentElement ? 15 : 10;
-				target.style.marginLeft = `${((marginWidth - (decoration.element!.clientWidth + DecorationStyles.ButtonMargin)) * .5) - marginWidth}px`;
+				target.style.marginLeft = `${-marginWidth - 2}px`;
 				target.classList.add(DecorationSelector.CommandDecoration);
 				target.classList.add(DecorationSelector.Codicon);
 				if (command.exitCode === undefined) {
