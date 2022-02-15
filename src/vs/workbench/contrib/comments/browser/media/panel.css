@@ -35,11 +35,6 @@
 	padding-right: 5px;
 }
 
-.comments-panel div.timestamp {
-	padding-right: 5px;
-	opacity: 0.8;
-}
-
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .icon {
 	padding-top: 4px;
 	padding-right: 5px;
@@ -52,9 +47,12 @@
 	min-width: 0;
 }
 
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .reply-detail,
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .timestamp {
 	display:flex;
 	font-size: 0.9em;
+	padding-right: 5px;
+	opacity: 0.8;
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .text * {

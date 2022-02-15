@@ -21,7 +21,7 @@ import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } 
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
-import { TimestampAdditionalText, TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
+import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
@@ -60,6 +60,8 @@ interface ICommentThreadTemplateData {
 		container: HTMLElement;
 		icon: HTMLElement;
 		count: HTMLSpanElement;
+		lastReplyDetail: HTMLSpanElement;
+		separator: HTMLElement;
 		timestamp: TimestampWidget;
 	};
 	disposables: IDisposable[];
@@ -130,7 +132,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 		data.threadMetadata = {
 			icon: dom.append(metadataContainer, dom.$('.icon')),
 			userNames: dom.append(metadataContainer, dom.$('.user')),
-			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp'))),
+			timestamp: new TimestampWidget(this.configurationService, dom.append(metadataContainer, dom.$('.timestamp-container'))),
 			separator: dom.append(metadataContainer, dom.$('.separator')),
 			commentPreview: dom.append(metadataContainer, dom.$('.text'))
 		};
@@ -141,9 +143,12 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			container: snippetContainer,
 			icon: dom.append(snippetContainer, dom.$('.icon')),
 			count: dom.append(snippetContainer, dom.$('.count')),
-			timestamp: new TimestampWidget(this.configurationService, dom.append(snippetContainer, dom.$('.timestamp')), undefined, TimestampAdditionalText.LastReply),
+			lastReplyDetail: dom.append(snippetContainer, dom.$('.reply-detail')),
+			separator: dom.append(snippetContainer, dom.$('.separator')),
+			timestamp: new TimestampWidget(this.configurationService, dom.append(snippetContainer, dom.$('.timestamp-container'))),
 		};
-		data.repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowSmallRight));
+		data.repliesMetadata.separator.innerText = '\u00b7';
+		data.repliesMetadata.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.indent));
 		data.disposables = [data.threadMetadata.timestamp, data.repliesMetadata.timestamp];
 
 		return data;
@@ -203,6 +208,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 		templateData.repliesMetadata.container.style.display = '';
 		templateData.repliesMetadata.count.textContent = this.getCountString(commentCount);
+		templateData.repliesMetadata.lastReplyDetail.textContent = nls.localize('lastReplyFrom', "Last reply from {0}", node.element.replies[node.element.replies.length - 1].comment.userName);
 		templateData.repliesMetadata.timestamp.setTimestamp(originalComment.comment.timestamp ? new Date(originalComment.comment.timestamp) : undefined);
 
 	}
