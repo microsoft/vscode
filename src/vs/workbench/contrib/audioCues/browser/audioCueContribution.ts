@@ -16,6 +16,7 @@ import { autorun, autorunDelta, constObservable, debouncedObservable, fromEvent,
 import { ITextModel } from 'vs/editor/common/model';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
+import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 
 export class AudioCueContribution
 	extends Disposable
@@ -88,7 +89,13 @@ export class AudioCueContribution
 
 		const curLineNumber = fromEvent(
 			editor.onDidChangeCursorPosition,
-			() => editor.getPosition()?.lineNumber
+			(args) => {
+				if (args && args.reason !== CursorChangeReason.Explicit) {
+					// Ignore cursor changes caused by navigation (e.g. which happens when execution is paused).
+					return undefined;
+				}
+				return editor.getPosition()?.lineNumber;
+			}
 		);
 		const debouncedLineNumber = debouncedObservable(curLineNumber, 100, store);
 
