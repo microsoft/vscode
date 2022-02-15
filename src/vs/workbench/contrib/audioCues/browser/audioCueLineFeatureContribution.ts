@@ -18,7 +18,7 @@ import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 
-export class AudioCueContribution
+export class AudioCueLineFeatureContribution
 	extends Disposable
 	implements IWorkbenchContribution {
 	private readonly store = this._register(new DisposableStore());

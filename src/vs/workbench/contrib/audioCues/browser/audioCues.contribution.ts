@@ -9,14 +9,16 @@ import { Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IC
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { AudioCueContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueContribution';
+import { AudioCueLineDebuggerContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueDebuggerContribution';
+import { AudioCueLineFeatureContribution } from 'vs/workbench/contrib/audioCues/browser/audioCueLineFeatureContribution';
 import { AudioCueService, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 import { ShowAudioCueHelp } from 'vs/workbench/contrib/audioCues/browser/commands';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 registerSingleton(IAudioCueService, AudioCueService);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineFeatureContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AudioCueLineDebuggerContribution, LifecyclePhase.Restored);
 
 const audioCueFeatureBase: IConfigurationPropertySchema = {
 	'type': 'string',
@@ -54,6 +56,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.lineHasWarning', "Plays an audio cue when the active line has a warning."),
 			...audioCueFeatureBase,
 			default: 'off',
+		},
+		'audioCues.debuggerExecutionPaused': {
+			'description': localize('audioCues.debuggerExecutionPaused', "Plays an audio cue when the debugger paused."),
+			...audioCueFeatureBase,
 		},
 	}
 });

@@ -148,6 +148,12 @@ export class AudioCue {
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
 
+	public static readonly executionStopped = AudioCue.register({
+		name: 'Debugger Execution Paused',
+		sound: Sound.break,
+		settingsKey: 'audioCues.debuggerExecutionPaused',
+	});
+
 	private constructor(
 		public readonly sound: Sound,
 		public readonly name: string,
