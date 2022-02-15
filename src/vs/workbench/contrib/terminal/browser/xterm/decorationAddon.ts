@@ -28,9 +28,8 @@ const enum DecorationSelector {
 	ErrorColor = 'error',
 	SkippedColor = 'skipped',
 	Codicon = 'codicon',
+	XtermScreen = 'xterm-screen'
 }
-
-const enum DecorationStyles { ButtonMargin = 4 }
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[] }
 
@@ -121,8 +120,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._decorations.set(decoration.marker.id, { decoration, disposables });
 			}
 			if (decoration.element?.clientWidth! > 0) {
-				const marginWidth = ((decoration.element?.parentElement?.parentElement?.previousElementSibling?.clientWidth || 0) - (decoration.element?.parentElement?.parentElement?.clientWidth || 0)) * .5;
-				target.style.marginLeft = `${((marginWidth - (decoration.element!.clientWidth + DecorationStyles.ButtonMargin)) * .5) - marginWidth}px`;
 				target.classList.add(DecorationSelector.CommandDecoration);
 				target.classList.add(DecorationSelector.Codicon);
 				if (command.exitCode === undefined) {
@@ -135,8 +132,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				} else {
 					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIcon)}`);
 				}
-				target.style.width = `${marginWidth}px`;
-				target.style.height = `${marginWidth}px`;
 			}
 		});
 		return decoration;
@@ -199,5 +194,5 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const commandDecorationSkippedColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SKIPPED_BACKGROUND_COLOR);
 	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.SkippedColor} { color: ${commandDecorationSkippedColor ? commandDecorationSkippedColor.toString() : ''}; } `);
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	collector.addRule(`.${DecorationSelector.CommandDecoration}:not(.${DecorationSelector.SkippedColor}):hover { background-color: ${toolbarHoverBackgroundColor ? toolbarHoverBackgroundColor.toString() : ''}; }`);
+	collector.addRule(`.${DecorationSelector.CommandDecoration}:not(.${DecorationSelector.SkippedColor}):hover { background-color: ${toolbarHoverBackgroundColor ? toolbarHoverBackgroundColor.toString() : ''}; border-radius: 5px; }`);
 });

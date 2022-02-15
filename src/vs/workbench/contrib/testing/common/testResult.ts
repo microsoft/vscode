@@ -14,7 +14,7 @@ import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contr
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
+import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**
@@ -379,6 +379,17 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		const index = this.mustGetTaskIndex(taskId);
+
+		const oldTerminalStatePrio = terminalStatePriorities[entry.tasks[index].state];
+		const newTerminalStatePrio = terminalStatePriorities[state];
+
+		// Ignore requests to set the state from one terminal state back to a
+		// "lower" one, e.g. from failed back to passed:
+		if (oldTerminalStatePrio !== undefined &&
+			(newTerminalStatePrio === undefined || newTerminalStatePrio < oldTerminalStatePrio)) {
+			return;
+		}
+
 		this.fireUpdateAndRefresh(entry, index, state, duration);
 	}
 
