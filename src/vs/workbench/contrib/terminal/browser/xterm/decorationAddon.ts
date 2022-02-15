@@ -120,9 +120,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._decorations.set(decoration.marker.id, { decoration, disposables });
 			}
 			if (decoration.element?.clientWidth! > 0) {
-				// if this is the leftmost terminal, there is extra room
-				const marginWidth = document.querySelectorAll(`.${DecorationSelector.XtermScreen}`)[0] === decoration.element?.parentElement?.parentElement ? 15 : 10;
-				target.style.marginLeft = `${-marginWidth - 2}px`;
 				target.classList.add(DecorationSelector.CommandDecoration);
 				target.classList.add(DecorationSelector.Codicon);
 				if (command.exitCode === undefined) {
