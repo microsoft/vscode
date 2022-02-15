@@ -32,6 +32,7 @@ const optimist = require('optimist')
 	.describe('wait-server', 'port to connect to and wait before running tests')
 	.describe('timeout', 'timeout for tests')
 	.describe('crash-reporter-directory', 'crash reporter directory').string('crash-reporter-directory')
+	.describe('disableCrashReporter', 'disable crash reporter').boolean('disableCrashReporter')
 	.describe('tfs').string('tfs')
 	.describe('help', 'show the help').alias('help', 'h');
 
@@ -43,7 +44,7 @@ if (argv.help) {
 }
 
 let crashReporterDirectory = argv['crash-reporter-directory'];
-if (crashReporterDirectory) {
+if (crashReporterDirectory && !argv.disableCrashReporter) {
 	crashReporterDirectory = path.normalize(crashReporterDirectory);
 
 	if (!path.isAbsolute(crashReporterDirectory)) {

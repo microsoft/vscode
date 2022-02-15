@@ -8,7 +8,8 @@ else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
 	# --disable-dev-shm-usage --use-gl=swiftshader: when run on docker containers where size of /dev/shm
 	# partition < 64MB which causes OOM failure for chromium compositor that uses the partition for shared memory
-	LINUX_EXTRA_ARGS="--disable-dev-shm-usage --use-gl=swiftshader"
+	# --disable-crash-reporter: TODO@electron this needs Electron 17 to work (https://github.com/microsoft/vscode/issues/142572)
+	LINUX_EXTRA_ARGS="--disable-dev-shm-usage --use-gl=swiftshader --disable-crash-reporter"
 fi
 
 VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`

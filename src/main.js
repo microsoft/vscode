@@ -45,16 +45,14 @@ const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Configure crash reporter
 perf.mark('code/willStartCrashReporter');
-// If a crash-reporter-directory is specified we store the crash reports
+// Disables crash reporting if `disable-crash-reporter` is set.
+//
+// If a `crash-reporter-directory` is specified we store the crash reports
 // in the specified directory and don't upload them to the crash server.
 //
 // Appcenter crash reporting is enabled if
-// * enable-crash-reporter runtime argument is set to 'true'
-// * --disable-crash-reporter command line parameter is not set
-//
-// Disable crash reporting in all other cases.
-if (args['crash-reporter-directory'] ||
-	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
+// * `enable-crash-reporter` runtime argument is set to `true`
+if (!args['disable-crash-reporter'] && (args['crash-reporter-directory'] || argvConfig['enable-crash-reporter'])) {
 	configureCrashReporter();
 }
 perf.mark('code/didStartCrashReporter');
