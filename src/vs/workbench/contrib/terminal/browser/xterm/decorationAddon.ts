@@ -139,8 +139,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				} else {
 					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIcon)}`);
 				}
-				target.style.width = `${marginWidth}px`;
-				target.style.height = `${DecorationStyles.CodiconHeight}`;
+				// the left gutter of the terminal is a mininum of 10px, so use that for uniformity
+				target.style.width = `10px`;
+				target.style.height = `10px`;
 			}
 		});
 		return decoration;
