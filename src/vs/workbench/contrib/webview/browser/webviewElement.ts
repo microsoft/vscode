@@ -447,6 +447,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			parentOrigin: window.origin,
 		};
 
+		if (this._environmentService.remoteAuthority) {
+			params.remoteAuthority = this._environmentService.remoteAuthority;
+		}
+
 		if (options.purpose) {
 			params.purpose = options.purpose;
 		}
