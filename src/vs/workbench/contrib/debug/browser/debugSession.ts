@@ -1300,8 +1300,4 @@ export class DebugSession implements IDebugSession {
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {
 		this.repl.appendToRepl(this, data, severity, source);
 	}
-
-	logToRepl(sev: severity, args: any[], frame?: { uri: URI; line: number; column: number }) {
-		this.repl.logToRepl(this, sev, args, frame);
-	}
 }
