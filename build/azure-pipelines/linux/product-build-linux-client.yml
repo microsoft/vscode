@@ -25,6 +25,16 @@ steps:
 
   - script: |
       set -e
+      # Start X server
+      /etc/init.d/xvfb start
+      # Start dbus session
+      DBUS_LAUNCH_RESULT=$(sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address)
+      echo "##vso[task.setvariable variable=DBUS_SESSION_BUS_ADDRESS]$DBUS_LAUNCH_RESULT"
+    displayName: Setup system services
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - script: |
+      set -e
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
 
