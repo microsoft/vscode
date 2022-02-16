@@ -780,8 +780,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		type Item = IQuickPickItem & { command?: ITerminalCommand };
 		let items: (Item | IQuickPickItem | IQuickPickSeparator)[] = [];
+		const commandMap: Set<string> = new Set();
 		if (type === 'command') {
-			items.push({ type: 'separator', label: 'current session' });
+			// Current session history
 			for (const entry of commands) {
 				// trim off any whitespace and/or line endings
 				const label = entry.command.trim();
@@ -823,13 +824,19 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					command: entry,
 					buttons: (!entry.endMarker?.isDisposed && !entry.marker?.isDisposed && (entry.endMarker!.line - entry.marker!.line > 0)) ? buttons : undefined
 				});
+				commandMap.add(label);
 			}
 			items = items.reverse();
-			// Gather history
+			items.unshift({ type: 'separator', label: 'current session' });
+
+			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getCommandHistory, this.shellType);
 			items.push({ type: 'separator', label: 'previous sessions' });
 			for (const label of history.entries) {
-				items.push({ label });
+				// Only add previous session item if it's not in this session
+				if (!commandMap.has(label)) {
+					items.push({ label });
+				}
 			}
 		} else {
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
