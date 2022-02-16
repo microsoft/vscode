@@ -10,14 +10,14 @@ import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/
 import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
+import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { dispose, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getExcludes, ISearchConfiguration, SEARCH_EXCLUDE_CONFIG } from 'vs/workbench/services/search/common/search';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
@@ -34,12 +34,14 @@ import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export class HistoryService extends Disposable implements IHistoryService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly MOUSE_NAVIGATION_SETTING = 'workbench.editor.mouseBackForwardToNavigate';
+	private static readonly NAVIGATION_SCOPE_SETTING = 'workbench.editor.navigationScope';
 
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private lastActiveEditor: IEditorIdentifier | undefined = undefined;
@@ -81,12 +83,27 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidCloseEditor(event => this.onDidCloseEditor(event)));
 		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
 
+		// Editor group changes
+		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e)));
+
 		// File changes
 		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
 		this._register(this.fileService.onDidRunOperation(event => this.onDidFilesChange(event)));
 
 		// Storage
 		this._register(this.storageService.onWillSaveState(() => this.saveState()));
+
+		// Configuration
+		this.registerEditorNavigationScopeChangeListener();
+
+		// Context keys
+		this._register(this.onDidChangeEditorNavigationStack(() => this.updateContextKeys()));
+		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateContextKeys()));
+	}
+
+	private onDidCloseEditor(e: IEditorCloseEvent): void {
+		this.handleEditorCloseEventInHistory(e);
+		this.handleEditorCloseEventInReopen(e);
 	}
 
 	private registerMouseNavigationListener(): void {
@@ -123,8 +140,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
+	private onDidRemoveGroup(group: IEditorGroup): void {
+		this.handleEditorGroupRemoveInNavigationStacks(group);
+	}
+
 	private onDidActiveEditorChange(): void {
-		const activeEditorPane = this.editorService.activeEditorPane;
+		const activeEditorGroup = this.editorGroupService.activeGroup;
+		const activeEditorPane = activeEditorGroup.activeEditorPane;
 		if (this.lastActiveEditor && this.editorHelper.matchesEditorIdentifier(this.lastActiveEditor, activeEditorPane)) {
 			return; // return if the active editor is still the same
 		}
@@ -136,36 +158,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.activeEditorListeners.clear();
 
 		// Handle editor change
-		this.handleActiveEditorChange(activeEditorPane);
+		this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
 
 		// Listen to selection changes if the editor pane
 		// is having a selection concept.
 		if (isEditorPaneWithSelection(activeEditorPane)) {
-
-			// Debounce the selection event with a timeout of 0ms so that
-			// multiple selection change events are folded into one.
-
-			this.activeEditorListeners.add(Event.debouncedListener<IEditorPaneSelectionChangeEvent>(activeEditorPane.onDidChangeSelection, mergedEvent => {
-
-				// Handle in editor navigation stack
-				this.handleActiveEditorSelectionChangeEvent(activeEditorPane, mergedEvent);
-
-			}, (last, current) => {
-
-				// Since we are aggregating over potentially multiple events
-				// with a debounce delay, try to preserve the most significant
-				// selection change reason that is not `USER` or `API`.
-
-				let reason: EditorPaneSelectionChangeReason;
-				if (last?.reason === EditorPaneSelectionChangeReason.EDIT || last?.reason === EditorPaneSelectionChangeReason.NAVIGATION) {
-					reason = last.reason;
-				} else {
-					reason = current.reason;
-				}
-
-				return { reason };
-			}, 0));
+			this.activeEditorListeners.add(activeEditorPane.onDidChangeSelection(e => this.handleActiveEditorSelectionChangeEvent(activeEditorGroup, activeEditorPane, e)));
 		}
+
+		// Context keys
+		this.updateContextKeys();
 	}
 
 	private onDidFilesChange(event: FileChangesEvent | FileOperationEvent): void {
@@ -192,13 +194,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private handleActiveEditorChange(editorPane?: IEditorPane): void {
+	private handleActiveEditorChange(group: IEditorGroup, editorPane?: IEditorPane): void {
 		this.handleActiveEditorChangeInHistory(editorPane);
-		this.handleActiveEditorChangeInNavigationStacks(editorPane);
+		this.handleActiveEditorChangeInNavigationStacks(group, editorPane);
 	}
 
-	private handleActiveEditorSelectionChangeEvent(editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
-		this.handleActiveEditorSelectionChangeEventInNavigationStacks(editorPane, event);
+	private handleActiveEditorSelectionChangeEvent(group: IEditorGroup, editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
+		this.handleActiveEditorSelectionChangeInNavigationStacks(group, editorPane, event);
 	}
 
 	private move(event: FileOperationEvent): void {
@@ -250,15 +252,31 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private readonly canNavigateBackContextKey = (new RawContextKey<boolean>('canNavigateBack', false, localize('canNavigateBack', "Whether it is possible to navigate back in editor history"))).bindTo(this.contextKeyService);
 	private readonly canNavigateForwardContextKey = (new RawContextKey<boolean>('canNavigateForward', false, localize('canNavigateForward', "Whether it is possible to navigate forward in editor history"))).bindTo(this.contextKeyService);
-	private readonly canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last edit location"))).bindTo(this.contextKeyService);
+
+	private readonly canNavigateBackInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateBackInNavigationLocations', false, localize('canNavigateBackInNavigationLocations', "Whether it is possible to navigate back in editor navigation locations history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateForwardInNavigationsContextKey = (new RawContextKey<boolean>('canNavigateForwardInNavigationLocations', false, localize('canNavigateForwardInNavigationLocations', "Whether it is possible to navigate forward in editor navigation locations history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateToLastNavigationLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastNavigationLocation', false, localize('canNavigateToLastNavigationLocation', "Whether it is possible to navigate to the last editor navigation location"))).bindTo(this.contextKeyService);
+
+	private readonly canNavigateBackInEditsContextKey = (new RawContextKey<boolean>('canNavigateBackInEditLocations', false, localize('canNavigateBackInEditLocations', "Whether it is possible to navigate back in editor edit locations history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateForwardInEditsContextKey = (new RawContextKey<boolean>('canNavigateForwardInEditLocations', false, localize('canNavigateForwardInEditLocations', "Whether it is possible to navigate forward in editor edit locations history"))).bindTo(this.contextKeyService);
+	private readonly canNavigateToLastEditLocationContextKey = (new RawContextKey<boolean>('canNavigateToLastEditLocation', false, localize('canNavigateToLastEditLocation', "Whether it is possible to navigate to the last editor edit location"))).bindTo(this.contextKeyService);
+
 	private readonly canReopenClosedEditorContextKey = (new RawContextKey<boolean>('canReopenClosedEditor', false, localize('canReopenClosedEditor', "Whether it is possible to reopen the last closed editor"))).bindTo(this.contextKeyService);
 
 	updateContextKeys(): void {
 		this.contextKeyService.bufferChangeEvents(() => {
-			this.canNavigateBackContextKey.set(this.globalDefaultEditorNavigationStack.canGoBack());
-			this.canNavigateForwardContextKey.set(this.globalDefaultEditorNavigationStack.canGoForward());
+			const activeStack = this.getStack();
 
-			this.canNavigateToLastEditLocationContextKey.set(this.globalModificationsEditorNavigationStack.canGoLast());
+			this.canNavigateBackContextKey.set(activeStack.canGoBack(GoFilter.NONE));
+			this.canNavigateForwardContextKey.set(activeStack.canGoForward(GoFilter.NONE));
+
+			this.canNavigateBackInNavigationsContextKey.set(activeStack.canGoBack(GoFilter.NAVIGATION));
+			this.canNavigateForwardInNavigationsContextKey.set(activeStack.canGoForward(GoFilter.NAVIGATION));
+			this.canNavigateToLastNavigationLocationContextKey.set(activeStack.canGoLast(GoFilter.NAVIGATION));
+
+			this.canNavigateBackInEditsContextKey.set(activeStack.canGoBack(GoFilter.EDITS));
+			this.canNavigateForwardInEditsContextKey.set(activeStack.canGoForward(GoFilter.EDITS));
+			this.canNavigateToLastEditLocationContextKey.set(activeStack.canGoLast(GoFilter.EDITS));
 
 			this.canReopenClosedEditorContextKey.set(this.recentlyClosedEditors.length > 0);
 		});
@@ -268,101 +286,200 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#region Editor History Navigation (limit: 50)
 
-	private readonly globalDefaultEditorNavigationStack = this.createEditorNavigationStack();
-	private readonly globalModificationsEditorNavigationStack = this.createEditorNavigationStack();
-	private readonly globalNavigationsEditorNavigationStack = this.createEditorNavigationStack();
+	private readonly _onDidChangeEditorNavigationStack = this._register(new Emitter<void>());
+	readonly onDidChangeEditorNavigationStack = this._onDidChangeEditorNavigationStack.event;
 
-	private readonly editorNavigationStacks: EditorNavigationStack[] = [
-		this.globalDefaultEditorNavigationStack,
-		this.globalModificationsEditorNavigationStack,
-		this.globalNavigationsEditorNavigationStack
-	];
+	private defaultScopedEditorNavigationStack: IEditorNavigationStacks | undefined = undefined;
+	private readonly editorGroupScopedNavigationStacks = new Map<GroupIdentifier, { stack: IEditorNavigationStacks; disposable: IDisposable }>();
+	private readonly editorScopedNavigationStacks = new Map<GroupIdentifier, Map<EditorInput, { stack: IEditorNavigationStacks; disposable: IDisposable }>>();
 
-	readonly onDidChangeEditorNavigationStack = Event.any(
-		this.globalDefaultEditorNavigationStack.onDidChange,
-		this.globalModificationsEditorNavigationStack.onDidChange,
-		this.globalNavigationsEditorNavigationStack.onDidChange
-	);
+	private editorNavigationScope = GoScope.DEFAULT;
 
-	private createEditorNavigationStack(): EditorNavigationStack {
-		const editorNavigationStack = this._register(this.instantiationService.createInstance(EditorNavigationStack));
+	private registerEditorNavigationScopeChangeListener(): void {
+		const handleEditorNavigationScopeChange = () => {
 
-		// Update context keys on changes
-		this._register(editorNavigationStack.onDidChange(() => this.updateContextKeys()));
+			// Ensure to start fresh when setting changes
+			this.disposeEditorNavigationStacks();
 
-		return editorNavigationStack;
+			// Update scope
+			const configuredScope = this.configurationService.getValue(HistoryService.NAVIGATION_SCOPE_SETTING);
+			if (configuredScope === 'editorGroup') {
+				this.editorNavigationScope = GoScope.EDITOR_GROUP;
+			} else if (configuredScope === 'editor') {
+				this.editorNavigationScope = GoScope.EDITOR;
+			} else {
+				this.editorNavigationScope = GoScope.DEFAULT;
+			}
+		};
+
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(HistoryService.NAVIGATION_SCOPE_SETTING)) {
+				handleEditorNavigationScopeChange();
+			}
+		}));
+
+		handleEditorNavigationScopeChange();
 	}
 
-	goForward(filter?: GoFilter): Promise<void> {
-		return this.getStack(filter).goForward();
-	}
+	private getStack(group = this.editorGroupService.activeGroup, editor = group.activeEditor): IEditorNavigationStacks {
+		switch (this.editorNavigationScope) {
 
-	goBack(filter?: GoFilter): Promise<void> {
-		return this.getStack(filter).goBack();
-	}
-
-	goPrevious(filter?: GoFilter): Promise<void> {
-		return this.getStack(filter).goPrevious();
-	}
-
-	goLast(filter?: GoFilter): Promise<void> {
-		return this.getStack(filter).goLast();
-	}
-
-	private handleActiveEditorChangeInNavigationStacks(editorPane?: IEditorPane): void {
-		this.globalDefaultEditorNavigationStack.notifyNavigation(editorPane);
-	}
-
-	private handleActiveEditorSelectionChangeEventInNavigationStacks(editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
-
-		// Always send to global navigation stack
-		this.globalDefaultEditorNavigationStack.notifyNavigation(editorPane, event);
-
-		// Send to specific navigation stack based on reason
-		switch (event.reason) {
-			case EditorPaneSelectionChangeReason.EDIT:
-				this.globalModificationsEditorNavigationStack.notifyNavigation(editorPane, event);
-				break;
-			case EditorPaneSelectionChangeReason.NAVIGATION: {
-
-				// A navigation selection change always has a source and target
-				// As such, we add the previous entry of the global navigation
-				// stack so that our navigation stack receives both entries.
-
-				const previous = this.globalDefaultEditorNavigationStack.previous;
-				if (previous) {
-					this.globalNavigationsEditorNavigationStack.addOrReplace(previous.groupId, previous.editor, previous.selection);
+			// Per Editor
+			case GoScope.EDITOR: {
+				if (!editor) {
+					return new NoOpEditorNavigationStacks();
 				}
-				this.globalNavigationsEditorNavigationStack.notifyNavigation(editorPane, event);
-				break;
+
+				let stacksForGroup = this.editorScopedNavigationStacks.get(group.id);
+				if (!stacksForGroup) {
+					stacksForGroup = new Map<EditorInput, { stack: IEditorNavigationStacks; disposable: IDisposable }>();
+					this.editorScopedNavigationStacks.set(group.id, stacksForGroup);
+				}
+
+				let stack = stacksForGroup.get(editor)?.stack;
+				if (!stack) {
+					const disposable = new DisposableStore();
+
+					stack = disposable.add(this.instantiationService.createInstance(EditorNavigationStacks, GoScope.EDITOR));
+					disposable.add(stack.onDidChange(() => this._onDidChangeEditorNavigationStack.fire()));
+
+					stacksForGroup.set(editor, { stack, disposable });
+				}
+
+				return stack;
+			}
+
+			// Per Editor Group
+			case GoScope.EDITOR_GROUP: {
+				let stack = this.editorGroupScopedNavigationStacks.get(group.id)?.stack;
+				if (!stack) {
+					const disposable = new DisposableStore();
+
+					stack = disposable.add(this.instantiationService.createInstance(EditorNavigationStacks, GoScope.EDITOR_GROUP));
+					disposable.add(stack.onDidChange(() => this._onDidChangeEditorNavigationStack.fire()));
+
+					this.editorGroupScopedNavigationStacks.set(group.id, { stack, disposable });
+				}
+
+				return stack;
+			}
+
+			// Global
+			case GoScope.DEFAULT: {
+				if (!this.defaultScopedEditorNavigationStack) {
+					this.defaultScopedEditorNavigationStack = this._register(this.instantiationService.createInstance(EditorNavigationStacks, GoScope.DEFAULT));
+
+					this._register(this.defaultScopedEditorNavigationStack.onDidChange(() => this._onDidChangeEditorNavigationStack.fire()));
+				}
+
+				return this.defaultScopedEditorNavigationStack;
 			}
 		}
 	}
 
-	private getStack(filter = GoFilter.NONE): EditorNavigationStack {
-		switch (filter) {
-			case GoFilter.NONE: return this.globalDefaultEditorNavigationStack;
-			case GoFilter.EDITS: return this.globalModificationsEditorNavigationStack;
-			case GoFilter.NAVIGATION: return this.globalNavigationsEditorNavigationStack;
+	goForward(filter?: GoFilter): Promise<void> {
+		return this.getStack().goForward(filter);
+	}
+
+	goBack(filter?: GoFilter): Promise<void> {
+		return this.getStack().goBack(filter);
+	}
+
+	goPrevious(filter?: GoFilter): Promise<void> {
+		return this.getStack().goPrevious(filter);
+	}
+
+	goLast(filter?: GoFilter): Promise<void> {
+		return this.getStack().goLast(filter);
+	}
+
+	private handleActiveEditorChangeInNavigationStacks(group: IEditorGroup, editorPane?: IEditorPane): void {
+		this.getStack(group, editorPane?.input).handleActiveEditorChange(editorPane);
+	}
+
+	private handleActiveEditorSelectionChangeInNavigationStacks(group: IEditorGroup, editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
+		this.getStack(group, editorPane.input).handleActiveEditorSelectionChange(editorPane, event);
+	}
+
+	private handleEditorCloseEventInHistory(e: IEditorCloseEvent): void {
+		const editors = this.editorScopedNavigationStacks.get(e.groupId);
+		if (editors) {
+			const editorStack = editors.get(e.editor);
+			if (editorStack) {
+				editorStack.disposable.dispose();
+				editors.delete(e.editor);
+			}
+
+			if (editors.size === 0) {
+				this.editorScopedNavigationStacks.delete(e.groupId);
+			}
+		}
+	}
+
+	private handleEditorGroupRemoveInNavigationStacks(group: IEditorGroup): void {
+
+		// Global
+		this.defaultScopedEditorNavigationStack?.remove(group.id);
+
+		// Editor groups
+		const editorGroupStack = this.editorGroupScopedNavigationStacks.get(group.id);
+		if (editorGroupStack) {
+			editorGroupStack.disposable.dispose();
+			this.editorGroupScopedNavigationStacks.delete(group.id);
 		}
 	}
 
 	private clearEditorNavigationStacks(): void {
-		for (const editorNavigationStack of this.editorNavigationStacks) {
-			editorNavigationStack.clear();
-		}
+		this.withEachEditorNavigationStack(stack => stack.clear());
 	}
 
 	private removeFromEditorNavigationStacks(arg1: EditorInput | FileChangesEvent | FileOperationEvent): void {
-		for (const editorNavigationStack of this.editorNavigationStacks) {
-			editorNavigationStack.remove(arg1);
-		}
+		this.withEachEditorNavigationStack(stack => stack.remove(arg1));
 	}
 
 	private moveInEditorNavigationStacks(event: FileOperationEvent): void {
-		for (const editorNavigationStack of this.editorNavigationStacks) {
-			editorNavigationStack.move(event);
+		this.withEachEditorNavigationStack(stack => stack.move(event));
+	}
+
+	private withEachEditorNavigationStack(fn: (stack: IEditorNavigationStacks) => void): void {
+
+		// Global
+		if (this.defaultScopedEditorNavigationStack) {
+			fn(this.defaultScopedEditorNavigationStack);
 		}
+
+		// Per editor group
+		for (const [, entry] of this.editorGroupScopedNavigationStacks) {
+			fn(entry.stack);
+		}
+
+		// Per editor
+		for (const [, entries] of this.editorScopedNavigationStacks) {
+			for (const [, entry] of entries) {
+				fn(entry.stack);
+			}
+		}
+	}
+
+	private disposeEditorNavigationStacks(): void {
+
+		// Global
+		this.defaultScopedEditorNavigationStack?.dispose();
+		this.defaultScopedEditorNavigationStack = undefined;
+
+		// Per Editor group
+		for (const [, stack] of this.editorGroupScopedNavigationStacks) {
+			stack.disposable.dispose();
+		}
+		this.editorGroupScopedNavigationStacks.clear();
+
+		// Per Editor
+		for (const [, stacks] of this.editorScopedNavigationStacks) {
+			for (const [, stack] of stacks) {
+				stack.disposable.dispose();
+			}
+		}
+		this.editorScopedNavigationStacks.clear();
 	}
 
 	//#endregion
@@ -475,7 +592,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private recentlyClosedEditors: IRecentlyClosedEditor[] = [];
 	private ignoreEditorCloseEvent = false;
 
-	private onDidCloseEditor(event: IEditorCloseEvent): void {
+	private handleEditorCloseEventInReopen(event: IEditorCloseEvent): void {
 		if (this.ignoreEditorCloseEvent) {
 			return; // blocked
 		}
@@ -1005,6 +1122,168 @@ class EditorSelectionState {
 	}
 }
 
+interface IEditorNavigationStacks extends IDisposable {
+	readonly onDidChange: Event<void>;
+
+	canGoForward(filter?: GoFilter): boolean;
+	goForward(filter?: GoFilter): Promise<void>;
+	canGoBack(filter?: GoFilter): boolean;
+	goBack(filter?: GoFilter): Promise<void>;
+	goPrevious(filter?: GoFilter): Promise<void>;
+	canGoLast(filter?: GoFilter): boolean;
+	goLast(filter?: GoFilter): Promise<void>;
+
+	handleActiveEditorChange(editorPane?: IEditorPane): void;
+	handleActiveEditorSelectionChange(editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void;
+
+	clear(): void;
+	remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent | GroupIdentifier): void;
+	move(event: FileOperationEvent): void;
+}
+
+class EditorNavigationStacks extends Disposable implements IEditorNavigationStacks {
+
+	private readonly selectionsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NONE, this.scope));
+	private readonly editsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.EDITS, this.scope));
+	private readonly navigationsStack = this._register(this.instantiationService.createInstance(EditorNavigationStack, GoFilter.NAVIGATION, this.scope));
+
+	private readonly stacks: EditorNavigationStack[] = [
+		this.selectionsStack,
+		this.editsStack,
+		this.navigationsStack
+	];
+
+	readonly onDidChange = Event.any(
+		this.selectionsStack.onDidChange,
+		this.editsStack.onDidChange,
+		this.navigationsStack.onDidChange
+	);
+
+	constructor(
+		private readonly scope: GoScope,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+	}
+
+	canGoForward(filter?: GoFilter): boolean {
+		return this.getStack(filter).canGoForward();
+	}
+
+	goForward(filter?: GoFilter): Promise<void> {
+		return this.getStack(filter).goForward();
+	}
+
+	canGoBack(filter?: GoFilter): boolean {
+		return this.getStack(filter).canGoBack();
+	}
+
+	goBack(filter?: GoFilter): Promise<void> {
+		return this.getStack(filter).goBack();
+	}
+
+	goPrevious(filter?: GoFilter): Promise<void> {
+		return this.getStack(filter).goPrevious();
+	}
+
+	canGoLast(filter?: GoFilter): boolean {
+		return this.getStack(filter).canGoLast();
+	}
+
+	goLast(filter?: GoFilter): Promise<void> {
+		return this.getStack(filter).goLast();
+	}
+
+	private getStack(filter = GoFilter.NONE): EditorNavigationStack {
+		switch (filter) {
+			case GoFilter.NONE: return this.selectionsStack;
+			case GoFilter.EDITS: return this.editsStack;
+			case GoFilter.NAVIGATION: return this.navigationsStack;
+		}
+	}
+
+	handleActiveEditorChange(editorPane?: IEditorPane): void {
+
+		// Always send to selections navigation stack
+		this.selectionsStack.notifyNavigation(editorPane);
+	}
+
+	handleActiveEditorSelectionChange(editorPane: IEditorPaneWithSelection, event: IEditorPaneSelectionChangeEvent): void {
+		const previous = this.selectionsStack.current;
+
+		// Always send to selections navigation stack
+		this.selectionsStack.notifyNavigation(editorPane, event);
+
+		// Check for edits
+		if (event.reason === EditorPaneSelectionChangeReason.EDIT) {
+			this.editsStack.notifyNavigation(editorPane, event);
+		}
+
+		// Check for navigations
+		//
+		// Note: ignore if selections navigation stack is navigating because
+		// in that case we do not want to receive repeated entries in
+		// the navigation stack.
+		else if (
+			(event.reason === EditorPaneSelectionChangeReason.NAVIGATION || event.reason === EditorPaneSelectionChangeReason.JUMP) &&
+			!this.selectionsStack.isNavigating()
+		) {
+
+			// A "JUMP" navigation selection change always has a source and
+			// target. As such, we add the previous entry of the selections
+			// navigation stack so that our navigation stack receives both
+			// entries unless the user is currently navigating.
+
+			if (event.reason === EditorPaneSelectionChangeReason.JUMP && !this.navigationsStack.isNavigating()) {
+				if (previous) {
+					this.navigationsStack.addOrReplace(previous.groupId, previous.editor, previous.selection);
+				}
+			}
+
+			this.navigationsStack.notifyNavigation(editorPane, event);
+		}
+	}
+
+	clear(): void {
+		for (const stack of this.stacks) {
+			stack.clear();
+		}
+	}
+
+	remove(arg1: EditorInput | FileChangesEvent | FileOperationEvent | GroupIdentifier): void {
+		for (const stack of this.stacks) {
+			stack.remove(arg1);
+		}
+	}
+
+	move(event: FileOperationEvent): void {
+		for (const stack of this.stacks) {
+			stack.move(event);
+		}
+	}
+}
+
+class NoOpEditorNavigationStacks implements IEditorNavigationStacks {
+	onDidChange = Event.None;
+
+	canGoForward(): boolean { return false; }
+	async goForward(): Promise<void> { }
+	canGoBack(): boolean { return false; }
+	async goBack(): Promise<void> { }
+	async goPrevious(): Promise<void> { }
+	canGoLast(): boolean { return false; }
+	async goLast(): Promise<void> { }
+
+	handleActiveEditorChange(): void { }
+	handleActiveEditorSelectionChange(): void { }
+
+	clear(): void { }
+	remove(): void { }
+	move(): void { }
+
+	dispose(): void { }
+}
+
 interface IEditorNavigationStackEntry {
 	groupId: GroupIdentifier;
 	editor: EditorInput | IResourceEditorInput;
@@ -1032,7 +1311,7 @@ export class EditorNavigationStack extends Disposable {
 
 	private currentSelectionState: EditorSelectionState | undefined = undefined;
 
-	private get current(): IEditorNavigationStackEntry | undefined {
+	get current(): IEditorNavigationStackEntry | undefined {
 		return this.stack[this.index];
 	}
 
@@ -1042,14 +1321,13 @@ export class EditorNavigationStack extends Disposable {
 		}
 	}
 
-	get previous(): IEditorNavigationStackEntry | undefined {
-		return this.stack[this.index - 1];
-	}
-
 	constructor(
+		private readonly filter: GoFilter,
+		private readonly scope: GoScope,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -1057,7 +1335,77 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.editorGroupService.onDidRemoveGroup(e => this.onDidRemoveGroup(e.id)));
+		this._register(this.onDidChange(() => this.traceStack()));
+		this._register(this.logService.onDidChangeLogLevel(() => this.traceStack()));
+	}
+
+	private traceStack(): void {
+		if (this.logService.getLevel() !== LogLevel.Trace) {
+			return;
+		}
+
+		let entryLabels: string[] = [];
+		for (const entry of this.stack) {
+			if (typeof entry.selection?.log === 'function') {
+				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: ${entry.selection.log()}`);
+			} else {
+				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: <none>`);
+			}
+		}
+
+		if (entryLabels.length === 0) {
+			this.trace(`index: ${this.index}, navigating: ${this.isNavigating()}: <empty>`);
+		} else {
+			this.trace(`index: ${this.index}, navigating: ${this.isNavigating()}
+${entryLabels.join('\n')}
+			`);
+		}
+	}
+
+	private trace(msg: string, editor: EditorInput | IResourceEditorInput | undefined | null = null, event?: IEditorPaneSelectionChangeEvent): void {
+		if (this.logService.getLevel() !== LogLevel.Trace) {
+			return;
+		}
+
+		let filterLabel: string;
+		switch (this.filter) {
+			case GoFilter.NONE: filterLabel = 'global';
+				break;
+			case GoFilter.EDITS: filterLabel = 'edits';
+				break;
+			case GoFilter.NAVIGATION: filterLabel = 'navigation';
+				break;
+		}
+
+		let scopeLabel: string;
+		switch (this.scope) {
+			case GoScope.DEFAULT: scopeLabel = 'default';
+				break;
+			case GoScope.EDITOR_GROUP: scopeLabel = 'editorGroup';
+				break;
+			case GoScope.EDITOR: scopeLabel = 'editor';
+				break;
+		}
+
+		if (editor !== null) {
+			this.logService.trace(`[History stack ${filterLabel}-${scopeLabel}]: ${msg} (editor: ${editor?.resource?.toString(true)}, event: ${this.traceEvent(event)})`);
+		} else {
+			this.logService.trace(`[History stack ${filterLabel}-${scopeLabel}]: ${msg}`);
+		}
+	}
+
+	private traceEvent(event?: IEditorPaneSelectionChangeEvent): string {
+		if (!event) {
+			return '<none>';
+		}
+
+		switch (event.reason) {
+			case EditorPaneSelectionChangeReason.EDIT: return 'edit';
+			case EditorPaneSelectionChangeReason.NAVIGATION: return 'navigation';
+			case EditorPaneSelectionChangeReason.JUMP: return 'jump';
+			case EditorPaneSelectionChangeReason.PROGRAMMATIC: return 'programmatic';
+			case EditorPaneSelectionChangeReason.USER: return 'user';
+		}
 	}
 
 	private registerGroupListeners(groupId: GroupIdentifier): void {
@@ -1069,17 +1417,13 @@ export class EditorNavigationStack extends Disposable {
 		}
 	}
 
-	private onDidRemoveGroup(groupId: GroupIdentifier): void {
-
-		// Remove from stack
-		this.remove(groupId);
-
-		// Clear group listener
-		this.mapGroupToDisposable.get(groupId)?.dispose();
-		this.mapGroupToDisposable.delete(groupId);
-	}
-
 	private onWillMoveEditor(e: IEditorWillMoveEvent): void {
+		this.trace('onWillMoveEditor()', e.editor);
+
+		if (this.scope === GoScope.EDITOR_GROUP) {
+			return; // ignore move events if our scope is group based
+		}
+
 		for (const entry of this.stack) {
 			if (entry.groupId !== e.groupId) {
 				continue; // not in the group that reported the event
@@ -1097,6 +1441,8 @@ export class EditorNavigationStack extends Disposable {
 	//#region Stack Mutation
 
 	notifyNavigation(editorPane: IEditorPane | undefined, event?: IEditorPaneSelectionChangeEvent): void {
+		this.trace('notifyNavigation()', editorPane?.input, event);
+
 		const isSelectionAwareEditorPane = isEditorPaneWithSelection(editorPane);
 		const hasValidEditor = editorPane?.group && editorPane.input && !editorPane.input.isDisposed();
 
@@ -1105,15 +1451,22 @@ export class EditorNavigationStack extends Disposable {
 		// stack but we need to keep our currentEditorSelectionState up to date
 		// with the navigtion that occurs.
 		if (this.navigating) {
+			this.trace(`notifyNavigation() ignoring (navigating)`, editorPane?.input, event);
+
 			if (isSelectionAwareEditorPane && hasValidEditor) {
+				this.trace('notifyNavigation() updating current selection state', editorPane?.input, event);
+
 				this.currentSelectionState = new EditorSelectionState({ groupId: editorPane.group.id, editor: editorPane.input }, editorPane.getSelection(), event?.reason);
 			} else {
+				this.trace('notifyNavigation() dropping current selection state', editorPane?.input, event);
+
 				this.currentSelectionState = undefined; // we navigated to a non-selection aware or disposed editor
 			}
 		}
 
 		// Normal navigation not part of stack navigation
 		else {
+			this.trace(`notifyNavigation() not ignoring`, editorPane?.input, event);
 
 			// Navigation inside selection aware editor
 			if (isSelectionAwareEditorPane && hasValidEditor) {
@@ -1136,6 +1489,8 @@ export class EditorNavigationStack extends Disposable {
 			return; // do not push same editor input again of same group if we have no valid selection
 		}
 
+		this.trace('onSelectionAwareEditorNavigation()', editor, event);
+
 		const stateCandidate = new EditorSelectionState({ groupId, editor }, selection, event?.reason);
 
 		// Add to stack if we dont have a current state or this new state justifies a push
@@ -1156,6 +1511,8 @@ export class EditorNavigationStack extends Disposable {
 		if (this.current?.groupId === groupId && this.editorHelper.matchesEditor(this.current.editor, editor)) {
 			return; // do not push same editor input again of same group
 		}
+
+		this.trace('onNonSelectionAwareEditorNavigation()', editor);
 
 		this.doAdd(groupId, editor);
 	}
@@ -1190,6 +1547,12 @@ export class EditorNavigationStack extends Disposable {
 		const editor = this.editorHelper.preferResourceEditorInput(editorCandidate);
 		if (!editor) {
 			return;
+		}
+
+		if (replace) {
+			this.trace('replace()', editor);
+		} else {
+			this.trace('add()', editor);
 		}
 
 		const newStackEntry: IEditorNavigationStackEntry = { groupId, editor, selection };
@@ -1298,6 +1661,12 @@ export class EditorNavigationStack extends Disposable {
 		this.index = this.stack.length - 1;
 		this.previousIndex = -1;
 
+		// Clear group listener
+		if (typeof arg1 === 'number') {
+			this.mapGroupToDisposable.get(arg1)?.dispose();
+			this.mapGroupToDisposable.delete(arg1);
+		}
+
 		// Event
 		this._onDidChange.fire();
 	}
@@ -1349,6 +1718,11 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	async goForward(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
+
 		if (!this.canGoForward()) {
 			return;
 		}
@@ -1362,6 +1736,11 @@ export class EditorNavigationStack extends Disposable {
 	}
 
 	async goBack(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
+
 		if (!this.canGoBack()) {
 			return;
 		}
@@ -1370,7 +1749,11 @@ export class EditorNavigationStack extends Disposable {
 		return this.navigate();
 	}
 
-	goPrevious(): Promise<void> {
+	async goPrevious(): Promise<void> {
+		const navigated = await this.maybeGoCurrent();
+		if (navigated) {
+			return;
+		}
 
 		// If we never navigated, just go back
 		if (this.previousIndex === -1) {
@@ -1393,6 +1776,54 @@ export class EditorNavigationStack extends Disposable {
 
 		this.setIndex(this.stack.length - 1);
 		return this.navigate();
+	}
+
+	private async maybeGoCurrent(): Promise<boolean> {
+
+		// When this navigation stack works with a specific
+		// filter where not every selection change is added
+		// to the stack, we want to first reveal the current
+		// selection before attempting to navigate in the
+		// stack.
+
+		if (this.filter === GoFilter.NONE) {
+			return false; // only applies when  we are a filterd stack
+		}
+
+		if (this.isCurrentSelectionActive()) {
+			return false; // we are at the current navigation stop
+		}
+
+		// Go to current selection
+		await this.navigate();
+
+		return true;
+	}
+
+	private isCurrentSelectionActive(): boolean {
+		if (!this.current?.selection) {
+			return false; // we need a current selection
+		}
+
+		const pane = this.editorService.activeEditorPane;
+		if (!isEditorPaneWithSelection(pane)) {
+			return false; // we need an active editor pane with selection support
+		}
+
+		if (pane.group?.id !== this.current.groupId) {
+			return false; // we need matching groups
+		}
+
+		if (!pane.input || !this.editorHelper.matchesEditor(pane.input, this.current.editor)) {
+			return false; // we need matching editors
+		}
+
+		const paneSelection = pane.getSelection();
+		if (!paneSelection) {
+			return false; // we need a selection to compare with
+		}
+
+		return paneSelection.compare(this.current.selection) === EditorPaneSelectionCompareResult.IDENTICAL;
 	}
 
 	private setIndex(newIndex: number, skipEvent?: boolean): void {
@@ -1436,6 +1867,10 @@ export class EditorNavigationStack extends Disposable {
 				...options
 			}
 		}, location.groupId);
+	}
+
+	isNavigating(): boolean {
+		return this.navigating;
 	}
 
 	//#endregion

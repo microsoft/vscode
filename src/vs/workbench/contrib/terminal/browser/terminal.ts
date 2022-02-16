@@ -13,12 +13,11 @@ import { INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRe
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
-import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -234,8 +233,29 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 	revealActiveEditor(preserveFocus?: boolean): void;
 	resolveResource(instance: ITerminalInstance | URI): URI;
-	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput;
-	getInputFromResource(resource: URI): TerminalEditorInput;
+	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput;
+	getInputFromResource(resource: URI): EditorInput;
+}
+
+export const terminalEditorId = 'terminalEditor';
+
+interface ITerminalEditorInputObject {
+	readonly id: number;
+	readonly pid: number;
+	readonly title: string;
+	readonly titleSource: TitleEventSource;
+	readonly cwd: string;
+	readonly icon: TerminalIcon | undefined;
+	readonly color: string | undefined;
+	readonly hasChildProcesses?: boolean;
+}
+
+export interface ISerializedTerminalEditorInput extends ITerminalEditorInputObject {
+	readonly resource: string;
+}
+
+export interface IDeserializedTerminalEditorInput extends ITerminalEditorInputObject {
+	readonly resource: URI;
 }
 
 export type ITerminalLocationOptions = TerminalLocation | TerminalEditorLocation | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean };

@@ -203,7 +203,7 @@ export abstract class SymbolNavigationAction extends EditorAction {
 			options: {
 				selection: Range.collapseToStart(range),
 				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
-				selectionSource: TextEditorSelectionSource.NAVIGATION
+				selectionSource: TextEditorSelectionSource.JUMP
 			}
 		}, editor, sideBySide);
 

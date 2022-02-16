@@ -18,7 +18,7 @@ import { IMarkerNavigationService, MarkerList } from 'vs/editor/contrib/gotoErro
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IMarker } from 'vs/platform/markers/common/markers';
@@ -150,7 +150,7 @@ export class MarkerController implements IEditorContribution {
 				this._cleanUp();
 				const otherEditor = await this._editorService.openCodeEditor({
 					resource: model.selected.marker.resource,
-					options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker, selectionSource: TextEditorSelectionSource.NAVIGATION }
+					options: { pinned: false, revealIfOpened: true, selectionRevealType: TextEditorSelectionRevealType.NearTop, selection: model.selected.marker }
 				}, this._editor);
 
 				if (otherEditor) {

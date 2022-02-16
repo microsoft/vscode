@@ -85,7 +85,7 @@ suite('linked editing', () => {
 			editor.updateOptions({ linkedEditing: true });
 			const linkedEditingContribution = editor.registerAndInstantiateContribution(
 				LinkedEditingContribution.ID,
-				LinkedEditingContribution
+				LinkedEditingContribution,
 			);
 			linkedEditingContribution.setDebounceDuration(0);
 

@@ -5,14 +5,14 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/130882
+	// https://github.com/microsoft/vscode/issues/127473
 
-	export interface TestItem {
-		/**
-		 * A string that should be used when comparing this item
-		 * with other items. When `falsy` the {@link TestItem.label label}
-		 * is used.
-		 */
-		sortText: string | undefined;
+	export enum CommentThreadState {
+		Unresolved = 0,
+		Resolved = 1
+	}
+
+	export interface CommentThread {
+		state?: CommentThreadState;
 	}
 }

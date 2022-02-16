@@ -27,6 +27,7 @@
 	"exclude": [
 		"node_modules/*",
 		"vs/platform/files/browser/htmlFileSystemProvider.ts",
+		"vs/platform/files/browser/webFileSystemAccess.ts",
 		"vs/platform/assignment/*"
 	]
 }

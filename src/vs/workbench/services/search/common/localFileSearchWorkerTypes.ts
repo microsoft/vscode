@@ -16,21 +16,26 @@ export interface IWorkerFileSearchComplete {
 	limitHit?: boolean;
 }
 
-export type SearchWorkerFileSystemHandle = ISearchWorkerFileSystemDirectoryHandle | ISearchWorkerFileSystemFileHandle;
+// Copied from lib.dom.ts, which is not available in this layer.
+type IWorkerFileSystemHandleKind = 'directory' | 'file';
 
-// Minimal interface needed from DOM's FileSystemFileHandle, which is not available in this scope
-export interface ISearchWorkerFileSystemFileHandle {
-	name: string;
-	kind: 'file';
-	getFile(): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
+export interface IWorkerFileSystemHandle {
+	readonly kind: IWorkerFileSystemHandleKind;
+	readonly name: string;
+	isSameEntry(other: IWorkerFileSystemHandle): Promise<boolean>;
 }
 
-// Minimal interface needed from DOM's FileSystemDirectoryHandle, which is not available in this scope
-export interface ISearchWorkerFileSystemDirectoryHandle {
-	name: string;
-	kind: 'directory';
-	getFileHandle(name: string): Promise<ISearchWorkerFileSystemFileHandle>;
-	entries(): AsyncIterable<[string, SearchWorkerFileSystemHandle]>;
+export interface IWorkerFileSystemDirectoryHandle extends IWorkerFileSystemHandle {
+	readonly kind: 'directory';
+	getDirectoryHandle(name: string): Promise<IWorkerFileSystemDirectoryHandle>;
+	getFileHandle(name: string): Promise<IWorkerFileSystemFileHandle>;
+	resolve(possibleDescendant: IWorkerFileSystemHandle): Promise<string[] | null>;
+	entries(): AsyncIterableIterator<[string, IWorkerFileSystemDirectoryHandle | IWorkerFileSystemFileHandle]>;
+}
+
+export interface IWorkerFileSystemFileHandle extends IWorkerFileSystemHandle {
+	readonly kind: 'file';
+	getFile(): Promise<{ arrayBuffer(): Promise<ArrayBuffer> }>;
 }
 
 export interface ILocalFileSearchSimpleWorker {
@@ -38,8 +43,8 @@ export interface ILocalFileSearchSimpleWorker {
 
 	cancelQuery(queryId: number): void;
 
-	listDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete>;
-	searchDirectory(handle: ISearchWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete>;
+	listDirectory(handle: IWorkerFileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete>;
+	searchDirectory(handle: IWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete>;
 }
 
 export interface ILocalFileSearchSimpleWorkerHost {

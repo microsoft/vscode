@@ -594,7 +594,9 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this._register(this.storageService.onWillSaveState(({ reason }) => {
 			if (reason === WillSaveStateReason.SHUTDOWN) {
-				this.lastViewState.store(this.tree.getViewState());
+				this.lastViewState.store(this.tree.getViewState({
+					getId: e => e instanceof TestItemTreeElement ? e.test.item.extId : '',
+				}));
 			}
 		}));
 

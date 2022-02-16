@@ -10,6 +10,8 @@ import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRe
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Emitter } from 'vs/base/common/event';
 
+export type ConfigBasedExtensionRecommendation = ExtensionRecommendation & { whenNotInstalled: string[] | undefined };
+
 export class ConfigBasedRecommendations extends ExtensionRecommendations {
 
 	private importantTips: IConfigBasedExtensionTip[] = [];
@@ -18,13 +20,13 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 	private _onDidChangeRecommendations = this._register(new Emitter<void>());
 	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
 
-	private _otherRecommendations: ExtensionRecommendation[] = [];
-	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherRecommendations; }
+	private _otherRecommendations: ConfigBasedExtensionRecommendation[] = [];
+	get otherRecommendations(): ReadonlyArray<ConfigBasedExtensionRecommendation> { return this._otherRecommendations; }
 
-	private _importantRecommendations: ExtensionRecommendation[] = [];
-	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._importantRecommendations; }
+	private _importantRecommendations: ConfigBasedExtensionRecommendation[] = [];
+	get importantRecommendations(): ReadonlyArray<ConfigBasedExtensionRecommendation> { return this._importantRecommendations; }
 
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
+	get recommendations(): ReadonlyArray<ConfigBasedExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
 
 	constructor(
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
@@ -69,13 +71,14 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 		}
 	}
 
-	private toExtensionRecommendation(tip: IConfigBasedExtensionTip): ExtensionRecommendation {
+	private toExtensionRecommendation(tip: IConfigBasedExtensionTip): ConfigBasedExtensionRecommendation {
 		return {
 			extensionId: tip.extensionId,
 			reason: {
 				reasonId: ExtensionRecommendationReason.WorkspaceConfig,
 				reasonText: localize('exeBasedRecommendation', "This extension is recommended because of the current workspace configuration")
-			}
+			},
+			whenNotInstalled: tip.whenNotInstalled
 		};
 	}
 

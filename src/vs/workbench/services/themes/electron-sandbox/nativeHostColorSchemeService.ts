@@ -11,7 +11,7 @@ import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hos
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isBoolean, isObject } from 'vs/base/common/types';
-import { IColorScheme } from 'vs/platform/windows/common/windows';
+import { IColorScheme } from 'vs/platform/window/common/window';
 
 export class NativeHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 

@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { mixin } from 'vs/base/common/objects';
 import type * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, InlayHintKind, Location } from 'vs/workbench/api/common/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import * as languages from 'vs/editor/common/languages';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -1061,14 +1061,14 @@ class InlineCompletionAdapter {
 			return undefined;
 		}
 
-		const normalizedResult: vscode.InlineCompletionList = isArray(result) ? { items: result } : result;
+		const normalizedResult = isArray(result) ? result : result.items;
 
-		const pid = this._cache.add(normalizedResult.items);
+		const pid = this._cache.add(normalizedResult);
 		let disposableStore: DisposableStore | undefined = undefined;
 
 		return {
 			pid,
-			items: normalizedResult.items.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
+			items: normalizedResult.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
 				let command: languages.Command | undefined = undefined;
 				if (item.command) {
 					if (!disposableStore) {
@@ -1078,8 +1078,12 @@ class InlineCompletionAdapter {
 					command = this._commands.toInternal(item.command, disposableStore);
 				}
 
+				const insertText = item.insertText ?? item.text;
+				if (insertText === undefined) {
+					throw new Error('text or insertText must be defined');
+				}
 				return ({
-					text: item.text,
+					text: insertText,
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,
@@ -1260,7 +1264,7 @@ class InlayHintsAdapter {
 			tooltip: typeConvert.MarkdownString.fromStrict(hint.tooltip),
 			command: hint.command && this._commands.toInternal(hint.command, disposables),
 			position: typeConvert.Position.from(hint.position),
-			kind: typeConvert.InlayHintKind.from(hint.kind ?? InlayHintKind.Other),
+			kind: hint.kind && typeConvert.InlayHintKind.from(hint.kind),
 			paddingLeft: hint.paddingLeft,
 			paddingRight: hint.paddingRight,
 		};

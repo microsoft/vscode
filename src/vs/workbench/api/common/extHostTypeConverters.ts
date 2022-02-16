@@ -148,7 +148,8 @@ export namespace DocumentSelector {
 				language: selector.language,
 				scheme: _transformScheme(selector.scheme, uriTransformer),
 				pattern: GlobPattern.from(selector.pattern) ?? undefined,
-				exclusive: selector.exclusive
+				exclusive: selector.exclusive,
+				notebookType: selector.notebookType
 			};
 		}
 
@@ -1167,7 +1168,7 @@ export namespace InlayHint {
 		const res = new types.InlayHint(
 			Position.to(hint.position),
 			typeof hint.label === 'string' ? hint.label : hint.label.map(InlayHintLabelPart.to.bind(undefined, converter)),
-			InlayHintKind.to(hint.kind)
+			hint.kind && InlayHintKind.to(hint.kind)
 		);
 		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
 		res.command = hint.command && converter.fromInternal(hint.command);
@@ -1502,6 +1503,20 @@ export namespace NotebookCellExecutionSummary {
 			runEndTime: data.timing?.endTime,
 			executionOrder: data.executionOrder
 		};
+	}
+}
+
+export namespace NotebookCellExecutionState {
+	export function to(state: notebooks.NotebookCellExecutionState): vscode.NotebookCellExecutionState {
+		if (state === notebooks.NotebookCellExecutionState.Executing) {
+			return types.NotebookCellExecutionState.Executing;
+		} else if (state === notebooks.NotebookCellExecutionState.Pending) {
+			return types.NotebookCellExecutionState.Pending;
+		} else if (state === notebooks.NotebookCellExecutionState.Unconfirmed) {
+			return types.NotebookCellExecutionState.Pending;
+		} else {
+			throw new Error(`Unknown state: ${state}`);
+		}
 	}
 }
 

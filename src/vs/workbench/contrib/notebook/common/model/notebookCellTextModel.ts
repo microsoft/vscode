@@ -20,22 +20,22 @@ import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutput
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
-	onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
+	readonly onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
 	private readonly _onDidChangeOutputItems = this._register(new Emitter<void>());
-	onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
+	readonly onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime'>());
-	onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
+	readonly onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
-	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
+	readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
 
 	private readonly _onDidChangeInternalMetadata = this._register(new Emitter<CellInternalMetadataChangedEvent>());
-	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent> = this._onDidChangeInternalMetadata.event;
+	readonly onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent> = this._onDidChangeInternalMetadata.event;
 
 	private readonly _onDidChangeLanguage = this._register(new Emitter<string>());
-	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
+	readonly onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 
 	private _outputs: NotebookCellOutputTextModel[];
 
@@ -193,7 +193,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	constructor(
 		readonly uri: URI,
 		public readonly handle: number,
-		private _source: string,
+		private readonly _source: string,
 		private _language: string,
 		private _mime: string | undefined,
 		public readonly cellKind: CellKind,

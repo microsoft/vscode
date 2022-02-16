@@ -6,7 +6,7 @@
 import 'vs/css!./media/actions';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
+import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';

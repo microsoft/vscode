@@ -542,6 +542,7 @@ export class Codicon implements CSSIcon {
 	public static readonly layoutMenubar = new Codicon('layout-menubar', { fontCharacter: '\\ebf6' });
 	public static readonly layoutCentered = new Codicon('layout-centered', { fontCharacter: '\\ebf7' });
 	public static readonly target = new Codicon('target', { fontCharacter: '\\ebf8' });
+	public static readonly indent = new Codicon('indent', { fontCharacter: '\\ebf9' });
 
 	// derived icons, that could become separate icons
 

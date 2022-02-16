@@ -195,8 +195,19 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
-				'description': localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
+				'description': localize('mouseBackForwardToNavigate', "Enables the use of mouse buttons four and five for commands 'Go Back' and 'Go Forward'."),
 				'default': true
+			},
+			'workbench.editor.navigationScope': {
+				'type': 'string',
+				'enum': ['default', 'editorGroup', 'editor'],
+				'default': 'default',
+				'markdownDescription': localize('navigationScope', "Controls the scope of history navigation in editors for commands such as 'Go Back' and 'Go Forward'."),
+				'enumDescriptions': [
+					localize('workbench.editor.navigationScopeDefault', "Navigate across all opened editors and editor groups."),
+					localize('workbench.editor.navigationScopeEditorGroup', "Navigate only in editors of the active editor group."),
+					localize('workbench.editor.navigationScopeEditor', "Navigate only in the active editor.")
+				],
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
@@ -217,7 +228,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enumDescriptions': [
 					localize('workbench.editor.splitInGroupLayoutVertical', "Editors are positioned from top to bottom."),
 					localize('workbench.editor.splitInGroupLayoutHorizontal', "Editors are positioned from left to right.")
-				],
+				]
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
@@ -285,8 +296,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
-				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench."),
-				'deprecationMessage': localize('panelDefaultLocationDeprecated', "This setting has been deprecated with the addition of the new side panel. Instead of setting the location for the panel, you now use the \"Move Views\" commands to set the location of the individual view containers within the panels.")
+				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems) in a new workspace. It can either show at the bottom, right, or left of the editor area."),
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',

@@ -38,7 +38,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: localize('miGetStarted', "Get Started"),
+			title: { value: localize('miGetStarted', "Get Started"), original: 'Get Started' },
 			category: localize('help', "Help"),
 			f1: true,
 			menu: {
@@ -106,7 +106,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.goBack',
-			title: localize('welcome.goBack', "Go Back"),
+			title: { value: localize('welcome.goBack', "Go Back"), original: 'Go Back' },
 			category,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
@@ -176,7 +176,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'welcome.showAllWalkthroughs',
-			title: localize('welcome.showAllWalkthroughs', "Open Walkthrough..."),
+			title: { value: localize('welcome.showAllWalkthroughs', "Open Walkthrough..."), original: 'Open Walkthrough...' },
 			category,
 			f1: true,
 		});
