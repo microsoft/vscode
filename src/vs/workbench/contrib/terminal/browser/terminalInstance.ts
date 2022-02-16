@@ -418,7 +418,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			} else if (e === TerminalCapability.CommandDetection) {
 				this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
-					this._instantiationService.invokeFunction(getCommandHistory, this.shellType)?.add(e.command);
+					if (e.command.trim().length > 0) {
+						this._instantiationService.invokeFunction(getCommandHistory, this.shellType)?.add(e.command);
+					}
 				});
 			}
 		}));
