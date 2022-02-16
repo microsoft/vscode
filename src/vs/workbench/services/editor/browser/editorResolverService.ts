@@ -28,7 +28,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { PreferredGroup } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter } from 'vs/base/common/event';
-import { IFileService } from 'vs/platform/files/common/files';
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern;
@@ -66,8 +65,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService,
-		@IFileService private readonly fileService: IFileService
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		// Read in the cache on statup
@@ -159,10 +157,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (untypedEditor.options?.override === EditorResolution.DISABLED) {
 			throw new Error(`Calling resolve editor when resolution is explicitly disabled!`);
 		}
-
-		// We ask the file service to activate a provider for the scheme in case
-		// anyone depends on that provider being available
-		await this.fileService.activateProvider(resource.scheme);
 
 		if (untypedEditor.options?.override === EditorResolution.PICK) {
 			const picked = await this.doPickEditor(untypedEditor);
