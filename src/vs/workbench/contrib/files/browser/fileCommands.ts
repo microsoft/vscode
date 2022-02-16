@@ -28,7 +28,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { CONTEXT_FIND_WIDGET_VISIBLE } from 'vs/editor/contrib/find/findModel';
+import { CONTEXT_FIND_WIDGET_VISIBLE } from 'vs/editor/contrib/find/browser/findModel';
 import { IEditorService, SIDE_GROUP, ISaveEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILabelService } from 'vs/platform/label/common/label';
