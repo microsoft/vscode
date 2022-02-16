@@ -34,7 +34,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
@@ -68,7 +68,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { ITerminalCommand, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { TerminalPersistedCommands } from 'vs/workbench/contrib/terminal/common/history/history';
+import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -137,17 +137,6 @@ class TerminalOutputProvider implements ITextModelContentProvider {
 
 		return this._modelService.createModel(resource.fragment, null, resource, false);
 	}
-}
-
-const commandHistory: Map<string, TerminalPersistedCommands> = new Map();
-function getCommandHistory(accessor: ServicesAccessor, shellType: TerminalShellType): TerminalPersistedCommands {
-	const shellKey = shellType ?? 'undefined';
-	let history = commandHistory.get(shellKey);
-	if (!history) {
-		history = accessor.get(IInstantiationService).createInstance(TerminalPersistedCommands, shellKey);
-		commandHistory.set(shellKey, history);
-	}
-	return history;
 }
 
 export class TerminalInstance extends Disposable implements ITerminalInstance {

@@ -5,7 +5,9 @@
 
 import { runWhenIdle } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 /**
@@ -31,9 +33,29 @@ export interface ITerminalPersistedHistory<T> {
 	isEqual(a: T, b: T): boolean;
 }
 
-// TODO: Store per shell
+const enum Constants {
+	HistoryKeysStorageKey = 'terminal.history.keys'
+}
 
-// Frontend vs backend?
+export function clearCommandHistory(accessor: ServicesAccessor) {
+	const storageService = accessor.get(IStorageService);
+	for (const h of commandHistory.values()) {
+		h.clear();
+	}
+	commandHistory.clear();
+	storageService.remove(Constants.HistoryKeysStorageKey, StorageScope.GLOBAL);
+}
+
+const commandHistory: Map<string, TerminalPersistedCommands> = new Map();
+export function getCommandHistory(accessor: ServicesAccessor, shellType: TerminalShellType): TerminalPersistedCommands {
+	const shellKey = shellType ?? 'undefined';
+	let history = commandHistory.get(shellKey);
+	if (!history) {
+		history = accessor.get(IInstantiationService).createInstance(TerminalPersistedCommands, shellKey);
+		commandHistory.set(shellKey, history);
+	}
+	return history;
+}
 
 abstract class BaseTerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
 	private _entries: Set<T> = new Set();
@@ -54,7 +76,7 @@ abstract class BaseTerminalPersistedHistory<T> extends Disposable implements ITe
 	) {
 		super();
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
-		this._workspaceStorageKey = `${this._workspaceContextService.getWorkspace().id}:${this._shell}:${this._getDataKey()}`;
+		this._workspaceStorageKey = `terminal.history.entry.${this._workspaceContextService.getWorkspace().id}:${this._shell}:${this._getDataKey()}`;
 		console.log('created');
 		runWhenIdle(() => this._ensureLoadedState());
 	}
@@ -62,7 +84,7 @@ abstract class BaseTerminalPersistedHistory<T> extends Disposable implements ITe
 	protected abstract _getDataKey(): string;
 	abstract isEqual(a: T, b: T): boolean;
 
-	add(entry: T): void {
+	add(entry: T) {
 		this._ensureLoadedState();
 		if (typeof entry === 'object') {
 			for (const e of this._entries) {
@@ -76,7 +98,7 @@ abstract class BaseTerminalPersistedHistory<T> extends Disposable implements ITe
 		this._isDirty = true;
 	}
 
-	remove(entry: T): void {
+	remove(entry: T) {
 		this._ensureLoadedState();
 		if (typeof entry === 'object') {
 			for (const e of this._entries) {
@@ -88,6 +110,11 @@ abstract class BaseTerminalPersistedHistory<T> extends Disposable implements ITe
 		}
 		this._entries.delete(entry);
 		this._isDirty = true;
+	}
+
+	clear() {
+		this._entries.clear();
+		this._storageService.remove(this._workspaceStorageKey, StorageScope.GLOBAL);
 	}
 
 	private _ensureLoadedState() {
@@ -114,12 +141,27 @@ abstract class BaseTerminalPersistedHistory<T> extends Disposable implements ITe
 	}
 
 	private _saveState() {
-		console.log('save state');
 		if (!this._isDirty) {
 			return;
 		}
+		// Store the shell and workspace-specific entry
 		const data = JSON.stringify(Array.from(this._entries.values()));
 		this._storageService.store(this._workspaceStorageKey, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		// Store the key in the global list of keys
+		const keysJson = this._storageService.get(Constants.HistoryKeysStorageKey, StorageScope.GLOBAL);
+		let keys: string[] | undefined;
+		try {
+			if (keysJson !== undefined) {
+				keys = JSON.parse(keysJson);
+			}
+		} catch {
+			// Swallow as keys get set to default after
+		}
+		if (keys === undefined) {
+			keys = [];
+		}
+		keys.push(this._workspaceStorageKey);
+		this._storageService.store(Constants.HistoryKeysStorageKey, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
 
