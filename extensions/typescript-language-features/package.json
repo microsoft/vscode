@@ -878,7 +878,7 @@
             "none"
           ],
           "markdownEnumDescriptions": [
-            "%typescript.preferences.jsxAttributeCompletionStyle.auto%",
+            "%javascript.preferences.jsxAttributeCompletionStyle.auto%",
             "%typescript.preferences.jsxAttributeCompletionStyle.braces%",
             "%typescript.preferences.jsxAttributeCompletionStyle.none%"
           ],
