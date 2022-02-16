@@ -144,6 +144,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		// When the xterm Decoration gets disposed of, its element gets removed from the dom
 		// along with its listeners
 		return dom.addDisposableListener(target, dom.EventType.CLICK, async () => {
+			this._hideHover();
 			const actions = await this._getCommandActions(command);
 			this._contextMenuService.showContextMenu({ getAnchor: () => target, getActions: () => actions });
 		});
