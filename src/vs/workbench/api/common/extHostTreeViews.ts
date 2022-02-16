@@ -90,7 +90,8 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		const dropMimeTypes = options.dragAndDropController?.dropMimeTypes ?? [];
 		const dragMimeTypes = options.dragAndDropController?.dragMimeTypes ?? [];
 		const hasHandleDrag = !!options.dragAndDropController?.handleDrag;
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag: hasHandleDrag });
+		const hasHandleDrop = !!options.dragAndDropController?.handleDrop;
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -454,10 +455,12 @@ class ExtHostTreeView<T> extends Disposable {
 
 	async onDrop(treeDataTransfer: vscode.TreeDataTransfer, targetHandleOrNode: TreeItemHandle, token: CancellationToken): Promise<void> {
 		const target = this.getExtensionElement(targetHandleOrNode);
-		if (!target) {
+		if (!target || !this.dndController?.handleDrop) {
 			return;
 		}
-		return asPromise(() => this.dndController?.handleDrop(target, treeDataTransfer, token));
+		return asPromise(() => this.dndController?.handleDrop
+			? this.dndController.handleDrop(target, treeDataTransfer, token)
+			: undefined);
 	}
 
 	get hasResolve(): boolean {
