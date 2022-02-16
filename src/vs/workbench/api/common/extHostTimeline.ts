@@ -15,7 +15,6 @@ import { ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/ap
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { MarshalledId } from 'vs/base/common/marshalling';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isString } from 'vs/base/common/types';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
@@ -146,11 +145,11 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					}
 				}
 
-				let detail: IMarkdownString | string | undefined;
+				let detail;
 				if (MarkdownStringType.isMarkdownString(props.detail)) {
 					detail = MarkdownString.from(props.detail);
 				}
-				else if (isString(detail)) {
+				else if (isString(props.detail)) {
 					detail = props.detail;
 				}
 
