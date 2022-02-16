@@ -836,6 +836,28 @@ var requirejs = (function() {
 						}
 						break;
 					}
+				case 'renderedCellOutput':
+					{
+						for (const { id, value, lang } of data.codeBlocks) {
+							// The language id may be a language aliases (e.g.js instead of javascript)
+							const languageId = this.languageService.getLanguageIdByLanguageName(lang);
+							if (!languageId) {
+								continue;
+							}
+
+							tokenizeToString(this.languageService, value, languageId).then((html) => {
+								if (this._disposed) {
+									return;
+								}
+								this._sendMessageToWebview({
+									type: 'tokenizedCodeBlock',
+									html,
+									codeBlockId: id
+								});
+							});
+						}
+						break;
+					}
 			}
 		}));
 	}

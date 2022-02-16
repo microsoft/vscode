@@ -150,6 +150,15 @@ export interface IRenderedMarkupMessage extends BaseToWebviewMessage {
 	}>;
 }
 
+export interface IRenderedCellOutputMessage extends BaseToWebviewMessage {
+	readonly type: 'renderedCellOutput';
+	readonly codeBlocks: ReadonlyArray<{
+		readonly id: string;
+		readonly value: string;
+		readonly lang: string;
+	}>;
+}
+
 export interface IClearMessage {
 	readonly type: 'clear';
 }
@@ -418,6 +427,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	ICellDragEndMessage |
 	IInitializedMarkupMessage |
 	IRenderedMarkupMessage |
+	IRenderedCellOutputMessage |
 	IDidFindMessage |
 	IDidFindHighlightMessage;
 

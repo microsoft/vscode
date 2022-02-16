@@ -1146,6 +1146,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'tokenizedCodeBlock': {
 				const { codeBlockId, html } = event.data;
 				MarkupCell.highlightCodeBlock(codeBlockId, html);
+				OutputElement.highlightCodeBlock(codeBlockId, html);
 				break;
 			}
 			case 'tokenizedStylesChanged': {
@@ -1925,6 +1926,19 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	class OutputElement {
+		private static pendingCodeBlocksToHighlight = new Map<string, HTMLElement>();
+
+		public static highlightCodeBlock(id: string, html: string) {
+			const el = OutputElement.pendingCodeBlocksToHighlight.get(id);
+			if (!el) {
+				return;
+			}
+			const trustedHtml = ttPolicy?.createHTML(html) ?? html;
+			el.innerHTML = trustedHtml as string;
+			if (tokenizationStyleElement) {
+				el.insertAdjacentElement('beforebegin', tokenizationStyleElement.cloneNode(true) as HTMLElement);
+			}
+		}
 
 		public readonly element: HTMLElement;
 
@@ -1985,6 +1999,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
 					isOutput: true,
 					init: true,
+				});
+			}
+
+			const codeBlocks: Array<{ value: string; lang: string; id: string }> = [];
+			let i = 0;
+			const root = this.element.shadowRoot ?? this.element;
+			for (const el of root.querySelectorAll('.vscode-code-block')) {
+				const lang = el.getAttribute('data-vscode-code-block-lang');
+				if (el.textContent && lang) {
+					const id = `${Date.now()}-${i++}`;
+					codeBlocks.push({ value: el.textContent, lang: lang, id });
+					OutputElement.pendingCodeBlocksToHighlight.set(id, el as HTMLElement);
+				}
+			}
+
+			if (codeBlocks.length > 0) {
+				postNotebookMessage<webviewMessages.IRenderedCellOutputMessage>('renderedCellOutput', {
+					codeBlocks
 				});
 			}
 		}
