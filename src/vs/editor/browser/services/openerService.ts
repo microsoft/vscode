@@ -14,7 +14,7 @@ import { normalizePath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorOpenContext } from 'vs/platform/editor/common/editor';
+import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, matchesSomeScheme, OpenOptions, ResolveExternalUriOptions, selectionFragment } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
@@ -76,7 +76,7 @@ class EditorOpener implements IOpener {
 				resource: target,
 				options: {
 					selection,
-					context: options?.fromUserGesture ? EditorOpenContext.USER : EditorOpenContext.API,
+					source: options?.fromUserGesture ? EditorOpenSource.USER : EditorOpenSource.API,
 					...options?.editorOptions
 				}
 			},

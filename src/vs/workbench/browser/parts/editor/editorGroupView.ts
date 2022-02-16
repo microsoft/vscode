@@ -48,7 +48,7 @@ import { hash } from 'vs/base/common/hash';
 import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { EditorActivation, EditorOpenContext, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -1124,7 +1124,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 
 				// If the context is USER, we try to show a modal dialog instead of a background notification
-				if (options?.context === EditorOpenContext.USER) {
+				if (options?.source === EditorOpenSource.USER) {
 					const buttons: string[] = [];
 					if (Array.isArray(errorActions) && errorActions.length > 0) {
 						for (const errorAction of errorActions) {

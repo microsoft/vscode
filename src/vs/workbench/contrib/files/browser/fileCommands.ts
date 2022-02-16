@@ -42,7 +42,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isCancellationError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
-import { EditorOpenContext, EditorResolution } from 'vs/platform/editor/common/editor';
+import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/editor';
 import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -365,7 +365,7 @@ CommandsRegistry.registerCommand({
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
-			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK, context: EditorOpenContext.USER } });
+			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK, source: EditorOpenSource.USER } });
 		}
 
 		return undefined;
