@@ -55,7 +55,8 @@ export class MainThreadEditorTabs {
 			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 			editorId,
 			additionalResourcesAndViewIds: [],
-			isActive: group.isActive(editor)
+			isActive: group.isActive(editor),
+			isDirty: editor.isDirty()
 		};
 		tab.additionalResourcesAndViewIds.push({ resource: tab.resource, viewId: tab.editorId });
 		if (editor instanceof SideBySideEditorInput) {
@@ -173,6 +174,14 @@ export class MainThreadEditorTabs {
 		this._groupModel.get(groupId)!.activeTab = activeTab;
 	}
 
+	private _onDidTabDirty(groupId: number, editorIndex: number, editor: EditorInput) {
+		const tab = this._groupModel.get(groupId)?.tabs[editorIndex];
+		if (!tab) {
+			return;
+		}
+		tab.isDirty = editor.isDirty();
+	}
+
 	/**
 	 * Builds the model from scratch based on the current state of the editor service.
 	 */
@@ -252,6 +261,11 @@ export class MainThreadEditorTabs {
 			case GroupModelChangeKind.EDITOR_ACTIVE:
 				if (event.editorIndex) {
 					this._onDidTabActiveChange(event.groupId, event.editorIndex);
+					break;
+				}
+			case GroupModelChangeKind.EDITOR_DIRTY:
+				if (event.editorIndex && event.editor) {
+					this._onDidTabDirty(event.groupId, event.editorIndex, event.editor);
 					break;
 				}
 			default:
