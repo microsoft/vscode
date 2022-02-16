@@ -11,9 +11,11 @@ import { Timeline, TimelineItem, TimelineOptions, TimelineProvider, InternalTime
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
+import { ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
+import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { MarshalledId } from 'vs/base/common/marshalling';
+import { isString } from 'vs/base/common/types';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
 	readonly _serviceBrand: undefined;
@@ -143,6 +145,14 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					}
 				}
 
+				let detail;
+				if (MarkdownStringType.isMarkdownString(props.detail)) {
+					detail = MarkdownString.from(props.detail);
+				}
+				else if (isString(props.detail)) {
+					detail = props.detail;
+				}
+
 				return {
 					...props,
 					id: props.id ?? undefined,
@@ -152,6 +162,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					icon: icon,
 					iconDark: iconDark,
 					themeIcon: themeIcon,
+					detail,
 					accessibilityInformation: item.accessibilityInformation
 				};
 			};

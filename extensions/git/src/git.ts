@@ -2043,7 +2043,6 @@ export class Repository {
 
 			if (branchName.startsWith('refs/heads/')) {
 				branchName = branchName.substring(11);
-				const index = upstream.indexOf('/');
 
 				let ahead;
 				let behind;
@@ -2056,8 +2055,8 @@ export class Repository {
 					type: RefType.Head,
 					name: branchName,
 					upstream: upstream ? {
-						name: upstream.substring(index + 1),
-						remote: upstream.substring(0, index)
+						name: upstream.substring(upstream.length - branchName.length),
+						remote: upstream.substring(0, upstream.length - branchName.length - 1)
 					} : undefined,
 					commit: ref || undefined,
 					ahead: Number(ahead) || 0,

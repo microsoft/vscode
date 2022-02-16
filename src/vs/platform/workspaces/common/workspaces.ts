@@ -14,6 +14,7 @@ import { isAbsolute } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { IExtUri, isEqualAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { IWorkspaceBackupInfo, IFolderBackupInfo } from 'vs/platform/backup/common/backup';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
@@ -79,28 +80,6 @@ export function isRecentFolder(curr: IRecent): curr is IRecentFolder {
 
 export function isRecentFile(curr: IRecent): curr is IRecentFile {
 	return curr.hasOwnProperty('fileUri');
-}
-
-//#endregion
-
-//#region Backups
-
-export interface IWorkspaceBackupInfo {
-	readonly workspace: IWorkspaceIdentifier;
-	readonly remoteAuthority?: string;
-}
-
-export interface IFolderBackupInfo {
-	readonly folderUri: URI;
-	readonly remoteAuthority?: string;
-}
-
-export function isFolderBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IFolderBackupInfo {
-	return curr && curr.hasOwnProperty('folderUri');
-}
-
-export function isWorkspaceBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IWorkspaceBackupInfo {
-	return curr && curr.hasOwnProperty('workspace');
 }
 
 //#endregion

@@ -20,7 +20,7 @@ import { IEditorPane } from 'vs/workbench/common/editor';
 import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, IOutputItemDto, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -52,16 +52,8 @@ export const KERNEL_EXTENSIONS = new Map<string, string>([
 
 //#region  Output related types
 export const enum RenderOutputType {
-	Mainframe,
 	Html,
 	Extension
-}
-
-export interface IRenderMainframeOutput {
-	type: RenderOutputType.Mainframe;
-	supportAppend?: boolean;
-	initHeight?: number;
-	disposable?: IDisposable;
 }
 
 export interface IRenderPlainHtmlOutput {
@@ -78,28 +70,6 @@ export interface IRenderOutputViaExtension {
 }
 
 export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
-export type IRenderOutput = IRenderMainframeOutput | IInsetRenderOutput;
-
-export interface IOutputTransformContribution {
-	getType(): RenderOutputType;
-	getMimetypes(): string[];
-	/**
-	 * Dispose this contribution.
-	 */
-	dispose(): void;
-
-	/**
-	 * Returns contents to place in the webview inset, or the {@link IRenderNoOutput}.
-	 * This call is allowed to have side effects, such as placing output
-	 * directly into the container element.
-	 */
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput;
-}
-
-export interface IOutputRenderer {
-	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput;
-	getContribution(preferredMimeType: string): IOutputTransformContribution | undefined;
-}
 
 export interface ICellOutputViewModel extends IDisposable {
 	cellViewModel: IGenericCellViewModel;
@@ -109,7 +79,6 @@ export interface ICellOutputViewModel extends IDisposable {
 	model: ICellOutput;
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: IOrderedMimeType | undefined;
-	supportAppend(): boolean;
 	hasMultiMimeType(): boolean;
 	toRawJSON(): any;
 }
@@ -149,12 +118,6 @@ export interface ICommonCellInfo {
 	cellUri: URI;
 }
 
-export interface INotebookCellOutputLayoutInfo {
-	width: number;
-	height: number;
-	fontInfo: FontInfo;
-}
-
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 }
@@ -172,6 +135,7 @@ export interface CodeCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorHeight: number;
 	readonly editorWidth: number;
+	readonly statusBarHeight: number;
 	readonly totalHeight: number;
 	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
@@ -197,6 +161,7 @@ export interface MarkdownCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
+	readonly statusBarHeight: number;
 	readonly previewHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
@@ -226,7 +191,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
-	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number };
+	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; editorHeight: number; statusBarHeight: number };
 	readonly onDidChangeLayout: Event<ICommonCellViewModelLayoutChangeInfo>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
 	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>;
@@ -421,6 +386,7 @@ export interface INotebookEditor {
 	readonly notebookOptions: NotebookOptions;
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;
+	readonly scrollTop: number;
 	//#endregion
 
 	getLength(): number;
@@ -466,11 +432,6 @@ export interface INotebookEditor {
 	getLayoutInfo(): NotebookLayoutInfo;
 
 	getVisibleRangesPlusViewportBelow(): ICellRange[];
-
-	/**
-	 * Fetch the output renderers for notebook outputs.
-	 */
-	getOutputRenderer(): IOutputRenderer;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
@@ -642,6 +603,8 @@ export interface INotebookEditor {
 	findStop(): void;
 	showProgress(): void;
 	hideProgress(): void;
+
+	getAbsoluteTopOfElement(cell: ICellViewModel): number;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {

@@ -46,6 +46,10 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { MarshalledId } from 'vs/base/common/marshalling';
+import { isString } from 'vs/base/common/types';
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 const ItemHeight = 22;
 
@@ -1018,12 +1022,14 @@ export class TimelineElementTemplate implements IDisposable {
 
 	constructor(
 		readonly container: HTMLElement,
-		actionViewItemProvider: IActionViewItemProvider
+		actionViewItemProvider: IActionViewItemProvider,
+		private hoverDelegate: IHoverDelegate,
+
 	) {
 		container.classList.add('custom-view-tree-node-item');
 		this.icon = DOM.append(container, DOM.$('.custom-view-tree-node-item-icon'));
 
-		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true });
+		this.iconLabel = new IconLabel(container, { supportHighlights: true, supportIcons: true, hoverDelegate: this.hoverDelegate });
 
 		const timestampContainer = DOM.append(this.iconLabel.element, DOM.$('.timeline-timestamp-container'));
 		this.timestamp = DOM.append(timestampContainer, DOM.$('span.timeline-timestamp'));
@@ -1094,14 +1100,22 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 	readonly templateId: string = TimelineElementTemplate.id;
 
+	private _hoverDelegate: IHoverDelegate;
+
 	private actionViewItemProvider: IActionViewItemProvider;
 
 	constructor(
 		private readonly commands: TimelinePaneCommands,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
+		this._hoverDelegate = {
+			showHover: (options: IHoverDelegateOptions) => this.hoverService.showHover(options),
+			delay: <number>this.configurationService.getValue('workbench.hover.delay')
+		};
 	}
 
 	private uri: URI | undefined;
@@ -1110,7 +1124,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 	}
 
 	renderTemplate(container: HTMLElement): TimelineElementTemplate {
-		return new TimelineElementTemplate(container, this.actionViewItemProvider);
+		return new TimelineElementTemplate(container, this.actionViewItemProvider, this._hoverDelegate);
 	}
 
 	renderElement(
@@ -1142,9 +1156,14 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 			template.icon.style.backgroundImage = '';
 			template.icon.style.color = '';
 		}
+		const detail = item.detail
+			? isString(item.detail)
+				? item.detail
+				: { markdown: item.detail, markdownNotSupportedFallback: renderMarkdownAsPlaintext(item.detail) }
+			: undefined;
 
 		template.iconLabel.setLabel(item.label, item.description, {
-			title: item.detail,
+			title: detail,
 			matches: createMatches(node.filterData)
 		});
 

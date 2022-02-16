@@ -259,7 +259,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.modelDisposables = this._register(new DisposableStore());
 	}
 
-	override get minimumWidth(): number { return 375; }
+	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
 	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane
@@ -1520,16 +1520,24 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTree.layout(tocTreeHeight);
 
 		this.splitView.el.style.height = `${settingsTreeHeight}px`;
-		const firstViewVisible = dimension.width >= SettingsEditor2.NARROW_TOTAL_WIDTH;
 
 		// We call layout first so the splitView has an idea of how much
 		// space it has, otherwise setViewVisible results in the first panel
 		// showing up at the minimum size whenever the Settings editor
 		// opens for the first time.
 		this.splitView.layout(this.bodyContainer.clientWidth);
+
+		const firstViewWasVisible = this.splitView.isViewVisible(0);
+		const firstViewVisible = this.bodyContainer.clientWidth >= SettingsEditor2.NARROW_TOTAL_WIDTH;
+
 		this.splitView.setViewVisible(0, firstViewVisible);
+		// If the first view is again visible, and we have enough space, immediately set the
+		// editor to use the reset width rather than the cached min width
+		if (!firstViewWasVisible && firstViewVisible && this.bodyContainer.clientWidth >= SettingsEditor2.EDITOR_MIN_WIDTH + SettingsEditor2.TOC_RESET_WIDTH) {
+			this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
+		}
 		this.splitView.style({
-			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder)! : Color.transparent
+			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder) ?? Color.transparent : Color.transparent
 		});
 	}
 

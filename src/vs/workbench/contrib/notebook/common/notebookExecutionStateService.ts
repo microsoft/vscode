@@ -60,6 +60,7 @@ export interface INotebookCellExecution {
 	readonly didPause: boolean;
 	readonly isPaused: boolean;
 
+	confirm(): void;
 	update(updates: ICellExecuteUpdate[]): void;
 	complete(complete: ICellExecutionComplete): void;
 }

@@ -119,9 +119,9 @@ const RULES = [
 		]
 	},
 
-	// Common: vs/platform/windows/common/windows.ts
+	// Common: vs/platform/window/common/window.ts
 	{
-		target: '**/vs/platform/windows/common/windows.ts',
+		target: '**/vs/platform/window/common/window.ts',
 		allowedTypes: CORE_TYPES,
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 		disallowedDefinitions: [

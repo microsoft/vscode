@@ -121,7 +121,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					getOutput() { return undefined; },
 					marker: {
 						line: 0
-					} as Partial<IXtermMarker> as any
+					} as Partial<IXtermMarker> as any,
+					hasOutput: true
 				}]);
 				await opener.open({
 					text: 'file.txt',
@@ -169,7 +170,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					getOutput() { return undefined; },
 					marker: {
 						line: 0
-					} as Partial<IXtermMarker> as any
+					} as Partial<IXtermMarker> as any,
+					hasOutput: true
 				}]);
 				await opener.open({
 					text: 'file.txt',

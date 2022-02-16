@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspace/common/workspace';
@@ -42,7 +42,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isCancellationError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/editor';
 import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -365,7 +365,7 @@ CommandsRegistry.registerCommand({
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
-			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK } });
+			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK, source: EditorOpenSource.USER } });
 		}
 
 		return undefined;

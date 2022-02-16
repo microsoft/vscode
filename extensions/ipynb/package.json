@@ -28,27 +28,6 @@
 		}
 	},
 	"contributes": {
-		"languages": [
-			{
-				"id": "jupyter",
-				"aliases": [
-					"Jupyter (JSON)"
-				],
-				"extensions": [
-					".ipynb"
-				]
-			}
-		],
-		"grammars": [
-			{
-				"language": "jupyter",
-				"scopeName": "source.jupyter",
-				"path": "./syntaxes/jupyter.tmLanguage.json",
-				"embeddedLanguages": {
-					"source.json": "json"
-				}
-			}
-		],
 		"notebooks": [
 			{
 				"type": "jupyter-notebook",
