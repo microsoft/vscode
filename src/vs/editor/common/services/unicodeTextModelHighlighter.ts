@@ -159,7 +159,9 @@ class CodePointHighlighter {
 
 		if (this.options.invisibleCharacters) {
 			for (const cp of strings.InvisibleCharacters.codePoints) {
-				set.add(cp);
+				if (!isAllowedInvisibleCharacter(String.fromCodePoint(cp))) {
+					set.add(cp);
+				}
 			}
 		}
 
@@ -188,9 +190,8 @@ class CodePointHighlighter {
 		}
 
 		if (this.options.invisibleCharacters) {
-			const isAllowedInvisibleCharacter = character === ' ' || character === '\n' || character === '\t';
 			// TODO check for emojis
-			if (!isAllowedInvisibleCharacter && strings.InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+			if (!isAllowedInvisibleCharacter(character) && strings.InvisibleCharacters.isInvisibleCharacter(codePoint)) {
 				return SimpleHighlightReason.Invisible;
 			}
 		}
@@ -203,6 +204,10 @@ class CodePointHighlighter {
 
 		return SimpleHighlightReason.None;
 	}
+}
+
+function isAllowedInvisibleCharacter(character: string): boolean {
+	return character === ' ' || character === '\n' || character === '\t';
 }
 
 const enum SimpleHighlightReason {
