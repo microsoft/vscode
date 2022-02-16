@@ -70,17 +70,13 @@ preexec() {
 }
 
 update_prompt
-export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
 
 prompt_cmd() {
 	precmd
 }
-original_prompt_cmd() {
-	${ORIGINAL_PROMPT_COMMAND}
-	prompt_cmd
-}
-if [ -n "$ORIGINAL_PROMPT_COMMAND" ]; then
-	export PROMPT_COMMAND=original_prompt_cmd
+
+if [$PROMPT_COMMAND != prompt_cmd]; then
+	export PROMPT_COMMAND=$PROMPT_COMMAND;prompt_cmd
 else
 	export PROMPT_COMMAND=prompt_cmd
 fi
