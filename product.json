@@ -27,7 +27,7 @@
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
 	"urlProtocol": "code-oss",
-	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/insider/50089c3f92c17584a4aca179f51f220b56c22020/out/vs/workbench/contrib/webview/browser/pre/",
+	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/insider/93a2a2fa12dd3ae0629eec01c05a28cb60ac1c4b/out/vs/workbench/contrib/webview/browser/pre/",
 	"extensionAllowedProposedApi": [
 		"ms-vscode.vscode-js-profile-flame",
 		"ms-vscode.vscode-js-profile-table",

@@ -19,7 +19,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
-import { EditorOpenContext, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
@@ -179,7 +179,7 @@ abstract class AbstractErrorEditor extends EditorPlaceholderPane {
 				label: localize('retry', "Try Again"),
 				href: ''
 			}, {
-				opener: () => group.openEditor(input, { ...this.options, context: EditorOpenContext.USER /* explicit user gesture */ })
+				opener: () => group.openEditor(input, { ...this.options, source: EditorOpenSource.USER /* explicit user gesture */ })
 			}));
 		}
 	}

@@ -10,7 +10,7 @@ import { Color } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { listenStream } from 'vs/base/common/stream';
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
@@ -23,7 +23,6 @@ import * as model from 'vs/editor/common/model';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { BracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsImpl';
 import { ColorizedBracketPairsDecorationProvider } from 'vs/editor/common/model/bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider';
-import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { EditStack } from 'vs/editor/common/model/editStack';
 import { GuidesTextModelPart } from 'vs/editor/common/model/guidesTextModelPart';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
@@ -243,8 +242,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _onDidChangeAttached: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeAttached: Event<void> = this._onDidChangeAttached.event;
 
-	private readonly _onDidChangeContentOrInjectedText: Emitter<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent> = this._register(new Emitter<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent>());
-	public readonly onDidChangeContentOrInjectedText: Event<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent> = this._onDidChangeContentOrInjectedText.event;
+	private readonly _onDidChangeInjectedText: Emitter<ModelInjectedTextChangedEvent> = this._register(new Emitter<ModelInjectedTextChangedEvent>());
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
@@ -255,6 +253,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
 		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+	}
+	public onDidChangeContentOrInjectedText(listener: (e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent) => void): IDisposable {
+		return combinedDisposable(
+			this._eventEmitter.fastEvent(e => listener(e.rawContentChangedEvent)),
+			this._onDidChangeInjectedText.event(e => listener(e))
+		);
 	}
 	//#endregion
 
@@ -293,7 +297,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _lastDecorationId: number;
 	private _decorations: { [decorationId: string]: IntervalNode };
 	private _decorationsTree: DecorationsTrees;
-	private readonly _decorationProvider: DecorationProvider;
+	private readonly _decorationProvider: ColorizedBracketPairsDecorationProvider;
 	//#endregion
 
 	//#region Tokenization
@@ -322,6 +326,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const newState = completed ? BackgroundTokenizationState.Completed : BackgroundTokenizationState.InProgress;
 		if (this._backgroundTokenizationState !== newState) {
 			this._backgroundTokenizationState = newState;
+			this._bracketPairColorizer.handleDidChangeBackgroundTokenizationState();
 			this._onBackgroundTokenizationStateChanged.fire();
 		}
 	}
@@ -339,10 +344,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super();
-
-		this._register(this._eventEmitter.fastEvent((e: InternalModelContentChangeEvent) => {
-			this._onDidChangeContentOrInjectedText.fire(e.rawContentChangedEvent);
-		}));
 
 		// Generate a new unique model id
 		MODEL_ID++;
@@ -437,6 +438,21 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._bufferDisposable = Disposable.None;
 	}
 
+	_hasListeners(): boolean {
+		return (
+			this._onWillDispose.hasListeners()
+			|| this._onDidChangeDecorations.hasListeners()
+			|| this._onDidChangeLanguage.hasListeners()
+			|| this._onDidChangeLanguageConfiguration.hasListeners()
+			|| this._onDidChangeTokens.hasListeners()
+			|| this._onDidChangeOptions.hasListeners()
+			|| this._onDidChangeAttached.hasListeners()
+			|| this._onDidChangeInjectedText.hasListeners()
+			|| this._eventEmitter.hasListeners()
+			|| this._onBackgroundTokenizationStateChanged.hasListeners()
+		);
+	}
+
 	private _assertNotDisposed(): void {
 		if (this._isDisposed) {
 			throw new Error('Model is disposed!');
@@ -454,11 +470,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
-		this._bracketPairColorizer.handleContentChanged(change);
 		if (this._isDisposing) {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
 		}
+		this._bracketPairColorizer.handleDidChangeContent(change);
+		this._tokenization.handleDidChangeContent(change);
 		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
@@ -589,6 +606,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public onBeforeAttached(): void {
 		this._attachedEditorCount++;
 		if (this._attachedEditorCount === 1) {
+			this._tokenization.handleDidChangeAttached();
 			this._onDidChangeAttached.fire(undefined);
 		}
 	}
@@ -596,6 +614,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public onBeforeDetached(): void {
 		this._attachedEditorCount--;
 		if (this._attachedEditorCount === 0) {
+			this._tokenization.handleDidChangeAttached();
 			this._onDidChangeAttached.fire(undefined);
 		}
 	}
@@ -684,6 +703,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const e = this._options.createChangeEvent(newOpts);
 		this._options = newOpts;
 
+		this._bracketPairColorizer.handleDidChangeOptions(e);
+		this._decorationProvider.handleDidChangeOptions(e);
 		this._onDidChangeOptions.fire(e);
 	}
 
@@ -1588,7 +1609,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const affectedLines = [...affectedInjectedTextLines];
 		const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
 
-		this._onDidChangeContentOrInjectedText.fire(new ModelInjectedTextChangedEvent(lineChangeEvents));
+		this._onDidChangeInjectedText.fire(new ModelInjectedTextChangedEvent(lineChangeEvents));
 	}
 
 	public changeDecorations<T>(callback: (changeAccessor: model.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T | null {
@@ -2036,6 +2057,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
 		if (!this._isDisposing) {
+			this._bracketPairColorizer.handleDidChangeTokens(e);
 			this._onDidChangeTokens.fire(e);
 		}
 	}
@@ -2093,6 +2115,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		this._languageId = languageId;
 
+		this._bracketPairColorizer.handleDidChangeLanguage(e);
+		this._tokenization.handleDidChangeLanguage(e);
 		this._onDidChangeLanguage.fire(e);
 		this._onDidChangeLanguageConfiguration.fire({});
 	}
@@ -2584,6 +2608,10 @@ export class DidChangeDecorationsEmitter extends Disposable {
 		this._affectsOverviewRuler = false;
 	}
 
+	hasListeners(): boolean {
+		return this._actual.hasListeners();
+	}
+
 	public beginDeferredEmit(): void {
 		this._deferredCnt++;
 	}
@@ -2652,6 +2680,13 @@ export class DidChangeContentEmitter extends Disposable {
 		super();
 		this._deferredCnt = 0;
 		this._deferredEvent = null;
+	}
+
+	public hasListeners(): boolean {
+		return (
+			this._fastEmitter.hasListeners()
+			|| this._slowEmitter.hasListeners()
+		);
 	}
 
 	public beginDeferredEmit(): void {

@@ -116,6 +116,6 @@ declare module 'vscode' {
 		 * @param target The target tree element that the drop is occurring on.
 		 * @param token A cancellation token indicating that the drop has been cancelled.
 		 */
-		handleDrop(target: T, source: TreeDataTransfer, token: CancellationToken): Thenable<void> | void;
+		handleDrop?(target: T, source: TreeDataTransfer, token: CancellationToken): Thenable<void> | void;
 	}
 }

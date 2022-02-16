@@ -694,6 +694,13 @@ export class Emitter<T> {
 		}
 	}
 
+	hasListeners(): boolean {
+		if (!this._listeners) {
+			return false;
+		}
+		return (!this._listeners.isEmpty());
+	}
+
 	dispose() {
 		if (!this._disposed) {
 			this._disposed = true;

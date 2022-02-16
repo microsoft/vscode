@@ -17,6 +17,8 @@ const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
 const searchParams = new URL(location.toString()).searchParams;
 
+const remoteAuthority = searchParams.get('remoteAuthority');
+
 /**
  * Origin used for resources
  */
@@ -170,8 +172,34 @@ sw.addEventListener('fetch', (event) => {
 	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
 		switch (event.request.method) {
 			case 'GET':
+			case 'HEAD': {
+				const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
+				const scheme = firstHostSegment.split('+', 1)[0];
+				const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
+				return event.respondWith(processResourceRequest(event, {
+					scheme,
+					authority,
+					path: requestUrl.pathname,
+					query: requestUrl.search.replace(/^\?/, ''),
+				}));
+			}
+			default:
+				return event.respondWith(methodNotAllowed());
+		}
+	}
+
+	// If we're making a request against the remote authority, we want to go
+	// back through VS Code itself so that we are authenticated properly
+	if (requestUrl.host === remoteAuthority) {
+		switch (event.request.method) {
+			case 'GET':
 			case 'HEAD':
-				return event.respondWith(processResourceRequest(event, requestUrl));
+				return event.respondWith(processResourceRequest(event, {
+					path: requestUrl.pathname,
+					scheme: requestUrl.protocol.slice(0, requestUrl.protocol.length - 1),
+					authority: requestUrl.host,
+					query: requestUrl.search.replace(/^\?/, ''),
+				}));
 
 			default:
 				return event.respondWith(methodNotAllowed());
@@ -194,9 +222,14 @@ sw.addEventListener('activate', (event) => {
 
 /**
  * @param {FetchEvent} event
- * @param {URL} requestUrl
+ * @param {{
+ * 		scheme: string;
+ * 		authority: string;
+ * 		path: string;
+ * 		query: string;
+ * }} requestUrlComponents
  */
-async function processResourceRequest(event, requestUrl) {
+async function processResourceRequest(event, requestUrlComponents) {
 	const client = await sw.clients.get(event.clientId);
 	if (!client) {
 		console.error('Could not find inner client for request');
@@ -273,18 +306,14 @@ async function processResourceRequest(event, requestUrl) {
 
 	const { requestId, promise } = resourceRequestStore.create();
 
-	const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
-	const scheme = firstHostSegment.split('+', 1)[0];
-	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
-
 	for (const parentClient of parentClients) {
 		parentClient.postMessage({
 			channel: 'load-resource',
 			id: requestId,
-			path: requestUrl.pathname,
-			scheme,
-			authority,
-			query: requestUrl.search.replace(/^\?/, ''),
+			scheme: requestUrlComponents.scheme,
+			authority: requestUrlComponents.authority,
+			path: requestUrlComponents.path,
+			query: requestUrlComponents.query,
 			ifNoneMatch: cached?.headers.get('ETag'),
 		});
 	}

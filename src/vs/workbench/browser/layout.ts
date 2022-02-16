@@ -97,7 +97,10 @@ enum WorkbenchLayoutClasses {
 	WINDOW_BORDER = 'border'
 }
 
-interface IInitialFilesToOpen { filesToOpenOrCreate?: IPath[]; filesToDiff?: IPath[] }
+interface IInitialFilesToOpen {
+	filesToOpenOrCreate?: IPath[];
+	filesToDiff?: IPath[];
+}
 
 export abstract class Layout extends Disposable implements IWorkbenchLayoutService {
 
@@ -240,8 +243,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
-		// Wait to register these listeners after the editor group service is ready to avoid conflicts on startup
+		// Wait to register these listeners after the editor group service
+		// is ready to avoid conflicts on startup
 		this.editorGroupService.whenRestored.then(() => {
+
 			// Restore editor part on any editor change
 			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
 			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
@@ -285,6 +290,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (isWeb && menuBarVisibility === 'toggle') {
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
 			}
+
 			// The menu bar toggles the title bar in full screen for toggle and classic settings
 			else if (this.windowState.runtime.fullscreen && (menuBarVisibility === 'toggle' || menuBarVisibility === 'classic')) {
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
@@ -318,6 +324,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
+
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, this.shouldShowTitleBar());
 
@@ -481,6 +488,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Sidebar View Container To Restore
 		if (this.isVisible(Parts.SIDEBAR_PART)) {
+
 			// Only restore last viewlet if window was reloaded or we are in development mode
 			let viewContainerToRestore: string | undefined;
 			if (!this.environmentService.isBuilt || lifecycleService.startupKind === StartupKind.ReloadedWindow || isWeb) {
@@ -541,16 +549,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private shouldRestoreEditors(contextService: IWorkspaceContextService, initialFilesToOpen: IInitialFilesToOpen | undefined): boolean {
+
 		// Restore editors based on a set of rules:
 		// - never when running in web on `tmp` scheme
 		// - not when we have files to open, unless:
 		// - always when `window.restoreWindows: preserve`
+
 		if (isWeb && getVirtualWorkspaceScheme(contextService.getWorkspace()) === Schemas.tmp) {
 			return false;
-		} else {
-			const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
-			return !!forceRestoreEditors || initialFilesToOpen === undefined;
 		}
+
+		const forceRestoreEditors = this.configurationService.getValue<string>('window.restoreWindows') === 'preserve';
+		return !!forceRestoreEditors || initialFilesToOpen === undefined;
 	}
 
 	protected willRestoreEditors(): boolean {
@@ -558,6 +568,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private resolveEditorsToOpen(fileService: IFileService, contextService: IWorkspaceContextService, initialFilesToOpen: IInitialFilesToOpen | undefined): Promise<IUntypedEditorInput[]> | IUntypedEditorInput[] {
+
 		// Files to open, diff or create
 		if (initialFilesToOpen) {
 
@@ -958,6 +969,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private shouldShowTitleBar(): boolean {
+
 		// Using the native title bar, don't ever show the custom one
 		if (getTitleBarStyle(this.configurationService) === 'native') {
 			return false;
@@ -1023,6 +1035,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const setLineNumbers = (lineNumbers?: LineNumbersType) => {
 			const setEditorLineNumbers = (editor: IEditor) => {
+
 				// To properly reset line numbers we need to read the configuration for each editor respecting it's uri.
 				if (!lineNumbers && isCodeEditor(editor) && editor.hasModel()) {
 					const model = editor.getModel();
@@ -1466,6 +1479,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private adjustPartPositions(sideBarPosition: Position, panelAlignment: PanelAlignment, panelPosition: Position): void {
+
 		// Move activity bar, side bar, and side panel
 		const sideBarSiblingToEditor = panelPosition !== Position.BOTTOM || !(panelAlignment === 'center' || (sideBarPosition === Position.LEFT && panelAlignment === 'right') || (sideBarPosition === Position.RIGHT && panelAlignment === 'left'));
 		const auxiliaryBarSiblingToEditor = panelPosition !== Position.BOTTOM || !(panelAlignment === 'center' || (sideBarPosition === Position.RIGHT && panelAlignment === 'right') || (sideBarPosition === Position.LEFT && panelAlignment === 'left'));
@@ -1520,6 +1534,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	setPanelAlignment(alignment: PanelAlignment, skipLayout?: boolean): void {
+
 		// Panel alignment only applies to a panel in the bottom position
 		if (this.getPanelPosition() !== Position.BOTTOM) {
 			this.setPanelPosition(Position.BOTTOM);
@@ -1538,6 +1553,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
+
 		// Return if not initialized fully #105480
 		if (!this.workbenchGrid) {
 			return;
@@ -1639,7 +1655,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	 * Returns whether or not the panel opens maximized
 	 */
 	private panelOpensMaximized(): boolean {
-		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
+
+		// The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 		if (this.getPanelAlignment() !== 'center' && this.getPanelPosition() === Position.BOTTOM) {
 			return false;
 		}
@@ -1725,6 +1742,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isPanelMaximized(): boolean {
+
 		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
 		return (this.getPanelAlignment() === 'center' || this.getPanelPosition() !== Position.BOTTOM) && !this.isVisible(Parts.EDITOR_PART);
 	}

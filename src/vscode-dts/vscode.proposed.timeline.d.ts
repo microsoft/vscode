@@ -38,7 +38,7 @@ declare module 'vscode' {
 		/**
 		 * The tooltip text when you hover over the timeline item.
 		 */
-		detail?: string;
+		detail?: string | MarkdownString | undefined;
 
 		/**
 		 * The {@link Command} that should be executed when the timeline item is selected.

@@ -22,7 +22,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		} catch {
 		}
 
-		let json = contents ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+		let json = contents && /\S/.test(contents) ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
 
 		if (json.__webview_backup) {
 			const backupId = json.__webview_backup;
