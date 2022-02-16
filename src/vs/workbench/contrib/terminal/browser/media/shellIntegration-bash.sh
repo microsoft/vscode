@@ -52,7 +52,6 @@ update_prompt() {
 }
 
 precmd() {
-	local STATUS="$?"
 	command_complete "$STATUS"
 
 	# in command execution
@@ -70,15 +69,20 @@ preexec() {
 }
 
 update_prompt
-
-prompt_cmd() {
+prompt_cmd_original() {
+	STATUS="$?"
+	$ORIGINAL_PROMPT_COMMAND
 	precmd
 }
-
-if [$PROMPT_COMMAND != prompt_cmd]; then
-	export PROMPT_COMMAND=$PROMPT_COMMAND;prompt_cmd
+prompt_cmd() {
+	STATUS="$?"
+	precmd
+}
+ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
+if [[ -n "$ORIGINAL_PROMPT_COMMAND" && "$ORIGINAL_PROMPT_COMMAND" != "prompt_cmd" ]]; then
+	PROMPT_COMMAND=prompt_cmd_original
 else
-	export PROMPT_COMMAND=prompt_cmd
+	PROMPT_COMMAND=prompt_cmd
 fi
 
 trap 'preexec' DEBUG
