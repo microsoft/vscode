@@ -132,6 +132,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				} else {
 					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIcon)}`);
 				}
+				// must be inlined to override the inlined styles from xterm
+				decoration.element!.style.width = '16px';
+				decoration.element!.style.height = '16px';
 			}
 		});
 		return decoration;
@@ -194,5 +197,5 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const commandDecorationSkippedColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SKIPPED_BACKGROUND_COLOR);
 	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.SkippedColor} { color: ${commandDecorationSkippedColor ? commandDecorationSkippedColor.toString() : ''}; } `);
 	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	collector.addRule(`.${DecorationSelector.CommandDecoration}:not(.${DecorationSelector.SkippedColor}):hover { background-color: ${toolbarHoverBackgroundColor ? toolbarHoverBackgroundColor.toString() : ''}; border-radius: 5px; }`);
+	collector.addRule(`.${DecorationSelector.CommandDecoration}:not(.${DecorationSelector.SkippedColor}):hover { background-color: ${toolbarHoverBackgroundColor ? toolbarHoverBackgroundColor.toString() : ''}; }`);
 });
