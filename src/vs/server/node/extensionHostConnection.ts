@@ -54,7 +54,7 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 	const binFolder = environmentService.isBuilt ? join(environmentService.appRoot, 'bin') : join(environmentService.appRoot, 'resources', 'server', 'bin-dev');
 	const remoteCliBinFolder = join(binFolder, 'remote-cli'); // contains the `code` command that can talk to the remote server
 
-	let PATH = env.PATH;
+	let PATH = readCaseInsensitive(env, 'PATH');
 	if (PATH) {
 		PATH = remoteCliBinFolder + delimiter + PATH;
 	} else {
@@ -253,6 +253,12 @@ export class ExtensionHostConnection {
 			}
 		}
 	}
+}
+
+function readCaseInsensitive(env: { [key: string]: string | undefined }, key: string): string | undefined {
+	const pathKeys = Object.keys(env).filter(k => k.toLowerCase() === key.toLowerCase());
+	const pathKey = pathKeys.length > 0 ? pathKeys[0] : key;
+	return env[pathKey];
 }
 
 function setCaseInsensitive(env: { [key: string]: unknown }, key: string, value: string): void {
