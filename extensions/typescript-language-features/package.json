@@ -785,6 +785,11 @@
           ],
           "default": "auto",
           "markdownDescription": "%typescript.preferences.quoteStyle%",
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.quoteStyle.auto%",
+            "%typescript.preferences.quoteStyle.single%",
+            "%typescript.preferences.quoteStyle.double%"
+          ],
           "scope": "language-overridable"
         },
         "typescript.preferences.quoteStyle": {
@@ -796,6 +801,11 @@
           ],
           "default": "auto",
           "markdownDescription": "%typescript.preferences.quoteStyle%",
+          "markdownEnumDescriptions": [
+            "%typescript.preferences.quoteStyle.auto%",
+            "%typescript.preferences.quoteStyle.single%",
+            "%typescript.preferences.quoteStyle.double%"
+          ],
           "scope": "language-overridable"
         },
         "javascript.preferences.importModuleSpecifier": {
