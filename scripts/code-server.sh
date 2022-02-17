@@ -10,8 +10,10 @@ fi
 function code() {
 	cd $ROOT
 
-	# Sync built-in extensions
-	yarn download-builtin-extensions
+	# Get electron, compile, built-in extensions
+	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
+		node build/lib/preLaunch.js
+	fi
 
 	NODE=$(node build/lib/node.js)
 	if [ ! -e $NODE ];then
