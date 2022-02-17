@@ -57,8 +57,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 			default: 'off',
 		},
-		'audioCues.debuggerExecutionPaused': {
-			'description': localize('audioCues.debuggerExecutionPaused', "Plays an audio cue when the debugger paused."),
+		'audioCues.debuggerStoppedOnBreakpoint': {
+			'description': localize('audioCues.debuggerStoppedOnBreakpoint', "Plays an audio cue when the debugger stopped on a breakpoint."),
 			...audioCueFeatureBase,
 		},
 	}

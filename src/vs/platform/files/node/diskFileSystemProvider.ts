@@ -155,10 +155,9 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	private async createResourceLock(resource: URI): Promise<IDisposable> {
 		this.logService.trace(`[Disk FileSystemProvider]: request to acquire resource lock (${this.toFilePath(resource)})`);
 
-		// Await pending locks for resource
-		// It is possible for a new lock being
-		// added right after opening, so we have
-		// to loop over locks until no lock remains
+		// Await pending locks for resource. It is possible for a new lock being
+		// added right after opening, so we have to loop over locks until no lock
+		// remains.
 		let existingLock: Barrier | undefined = undefined;
 		while (existingLock = this.resourceLocks.get(resource)) {
 			this.logService.trace(`[Disk FileSystemProvider]: waiting for resource lock to be released (${this.toFilePath(resource)})`);
@@ -175,8 +174,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return toDisposable(() => {
 			this.logService.trace(`[Disk FileSystemProvider]: resource lock disposed (${this.toFilePath(resource)})`);
 
-			// Delete and open lock
-			this.resourceLocks.delete(resource);
+			// Delete lock if it is still ours
+			if (this.resourceLocks.get(resource) === newLock) {
+				this.resourceLocks.delete(resource);
+			}
+
+			// Open lock
 			newLock.open();
 		});
 	}
@@ -284,6 +287,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			if (isFileOpenForWriteOptions(opts)) {
 				if (isWindows) {
 					try {
+
 						// On Windows and if the file exists, we use a different strategy of saving the file
 						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
 						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
@@ -299,14 +303,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 					}
 				}
 
-				// we take opts.create as a hint that the file is opened for writing
+				// We take opts.create as a hint that the file is opened for writing
 				// as such we use 'w' to truncate an existing or create the
 				// file otherwise. we do not allow reading.
 				if (!flags) {
 					flags = 'w';
 				}
 			} else {
-				// otherwise we assume the file is opened for reading
+
+				// Otherwise we assume the file is opened for reading
 				// as such we use 'r' to neither truncate, nor create
 				// the file.
 				flags = 'r';
@@ -329,7 +334,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 		}
 
-		// remember this handle to track file position of the handle
+		// Remember this handle to track file position of the handle
 		// we init the position to 0 since the file descriptor was
 		// just created and the position was not moved so far (see
 		// also http://man7.org/linux/man-pages/man2/open.2.html -
@@ -341,21 +346,42 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			this.writeHandles.set(handle, resource);
 		}
 
-		// remember that this handle has an associated lock
 		if (lock) {
+			const previousLock = this.mapHandleToLock.get(handle);
+
+			// Remember that this handle has an associated lock
 			this.mapHandleToLock.set(handle, lock);
+
+			// There is a slight chance that a resource lock for a
+			// handle was not yet disposed when we acquire a new
+			// lock, so we must ensure to dispose the previous lock
+			// before storing a new one for the same handle, other
+			// wise we end up in a deadlock situation
+			// https://github.com/microsoft/vscode/issues/142462
+			if (previousLock) {
+				previousLock.dispose();
+			}
 		}
 
 		return handle;
 	}
 
 	async close(fd: number): Promise<void> {
+
+		// It is very important that we keep any associated lock
+		// for the file handle before attempting to call `fs.close(fd)`
+		// because of a possible race condition: as soon as a file
+		// handle is released, the OS may assign the same handle to
+		// the next `fs.open` call and as such it is possible that our
+		// lock is getting overwritten
+		const lockForHandle = this.mapHandleToLock.get(fd);
+
 		try {
 
-			// remove this handle from map of positions
+			// Remove this handle from map of positions
 			this.mapHandleToPos.delete(fd);
 
-			// if a handle is closed that was used for writing, ensure
+			// If a handle is closed that was used for writing, ensure
 			// to flush the contents to disk if possible.
 			if (this.writeHandles.delete(fd) && this.canFlush) {
 				try {
@@ -372,9 +398,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
-			const lockForHandle = this.mapHandleToLock.get(fd);
 			if (lockForHandle) {
-				this.mapHandleToLock.delete(fd);
+				if (this.mapHandleToLock.get(fd) === lockForHandle) {
+					this.mapHandleToLock.delete(fd); // only delete from map if this is still our lock!
+				}
 				lockForHandle.dispose();
 			}
 		}
@@ -397,7 +424,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	private normalizePos(fd: number, pos: number): number | null {
 
-		// when calling fs.read/write we try to avoid passing in the "pos" argument and
+		// When calling fs.read/write we try to avoid passing in the "pos" argument and
 		// rather prefer to pass in "null" because this avoids an extra seek(pos)
 		// call that in some cases can even fail (e.g. when opening a file over FTP -
 		// see https://github.com/microsoft/vscode/issues/73884).
@@ -454,7 +481,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	async write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> {
-		// we know at this point that the file to write to is truncated and thus empty
+
+		// We know at this point that the file to write to is truncated and thus empty
 		// if the write now fails, the file remains empty. as such we really try hard
 		// to ensure the write succeeds by retrying up to three times.
 		return retry(() => this.doWrite(fd, pos, data, offset, length), 100 /* ms delay */, 3 /* retries */);
@@ -518,7 +546,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			await Promises.move(fromFilePath, toFilePath);
 		} catch (error) {
 
-			// rewrite some typical errors that can happen especially around symlinks
+			// Rewrite some typical errors that can happen especially around symlinks
 			// to something the user can better understand
 			if (error.code === 'EINVAL' || error.code === 'EBUSY' || error.code === 'ENAMETOOLONG') {
 				error = new Error(localize('moveError', "Unable to move '{0}' into '{1}' ({2}).", basename(fromFilePath), basename(dirname(toFilePath)), error.toString()));
@@ -545,7 +573,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			await Promises.copy(fromFilePath, toFilePath, { preserveSymlinks: true });
 		} catch (error) {
 
-			// rewrite some typical errors that can happen especially around symlinks
+			// Rewrite some typical errors that can happen especially around symlinks
 			// to something the user can better understand
 			if (error.code === 'EINVAL' || error.code === 'EBUSY' || error.code === 'ENAMETOOLONG') {
 				error = new Error(localize('copyError', "Unable to copy '{0}' into '{1}' ({2}).", basename(fromFilePath), basename(dirname(toFilePath)), error.toString()));
@@ -569,7 +597,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			throw createFileSystemProviderError(localize('fileCopyErrorPathCase', "'File cannot be copied to same path with different path case"), FileSystemProviderErrorCode.FileExists);
 		}
 
-		// handle existing target (unless this is a case change)
+		// Handle existing target (unless this is a case change)
 		if (!isSameResourceWithDifferentPathCase && await Promises.exists(toFilePath)) {
 			if (!overwrite) {
 				throw createFileSystemProviderError(localize('fileCopyErrorExists', "File at target already exists"), FileSystemProviderErrorCode.FileExists);

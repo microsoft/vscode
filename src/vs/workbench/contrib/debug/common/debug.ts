@@ -312,8 +312,7 @@ export interface IDebugSession extends ITreeElement {
 	hasSeparateRepl(): boolean;
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
-	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
-	logToRepl(sev: severity, args: any[], frame?: { uri: uri; line: number; column: number }): void;
+	appendToRepl(data: string | IExpression, severity: severity, isImportant?: boolean, source?: IReplElementSource): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;

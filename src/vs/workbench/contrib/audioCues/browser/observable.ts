@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export interface IObservable<T> {
 	/**
@@ -213,6 +213,24 @@ export function autorun(
 	name: string
 ): IDisposable {
 	return new AutorunObserver(fn, name);
+}
+
+export function autorunWithStore(
+	fn: (reader: IReader, store: DisposableStore) => void,
+	name: string
+): IDisposable {
+	let store = new DisposableStore();
+	const disposable = autorun(
+		reader => {
+			store.clear();
+			fn(reader, store);
+		},
+		name
+	);
+	return toDisposable(() => {
+		disposable.dispose();
+		store.dispose();
+	});
 }
 
 export class AutorunObserver implements IObserver, IReader, IDisposable {
@@ -475,7 +493,7 @@ export function fromPromise<T>(promise: Promise<T>): IObservable<{ value?: T }> 
 	return observable;
 }
 
-export function fromEvent<TArgs, T>(
+export function fromEvent<T, TArgs = unknown>(
 	event: Event<TArgs>,
 	getValue: (args: TArgs | undefined) => T
 ): IObservable<T> {

@@ -598,7 +598,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	async kill(code?: number): Promise<void> {
 		this.logService.trace('Lifecycle#kill()');
 
-		// Give main process participants a chance to oderly shutdown
+		// Give main process participants a chance to orderly shutdown
 		await this.fireOnWillShutdown();
 
 		// From extension tests we have seen issues where calling app.exit()

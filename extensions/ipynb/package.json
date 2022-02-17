@@ -13,7 +13,7 @@
 		"notebookEditorEdit"
 	],
 	"activationEvents": [
-		"onNotebook:jupyter-notebook"
+		"*"
 	],
 	"extensionKind": [
 		"workspace",
@@ -28,6 +28,12 @@
 		}
 	},
 	"contributes": {
+		"commands": [
+			{
+				"command": "ipynb.newUntitledIpynb",
+				"title": "Jupyter Notebook"
+			}
+		],
 		"notebooks": [
 			{
 				"type": "jupyter-notebook",
@@ -39,7 +45,15 @@
 				],
 				"priority": "default"
 			}
-		]
+		],
+		"menus": {
+			"file/newFile": [
+				{
+					"command": "ipynb.newUntitledIpynb",
+					"when": "!jupyterEnabled"
+				}
+			]
+		}
 	},
 	"scripts": {
 		"compile": "npx gulp compile-extension:ipynb",

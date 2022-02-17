@@ -22,7 +22,10 @@ export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 		(metadata?.kernelspec as any)?.language;
 
 	// Default to python language only if the Python extension is installed.
-	const defaultLanguage = extensions.getExtension('ms-python.python') ? 'python' : 'plaintext';
+	const defaultLanguage =
+		extensions.getExtension('ms-python.python')
+			? 'python'
+			: (extensions.getExtension('ms-dotnettools.dotnet-interactive-vscode') ? 'csharp' : 'python');
 
 	// Note, whatever language is returned here, when the user selects a kernel, the cells (of blank documents) get updated based on that kernel selection.
 	return translateKernelLanguageToMonaco(jupyterLanguage || defaultLanguage);
