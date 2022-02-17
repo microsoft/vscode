@@ -90,7 +90,10 @@ suite('Workbench - TerminalProcessManager', () => {
 		await configurationService.setUserConfiguration('terminal', {
 			integrated: {
 				fontFamily: 'bar',
-				enablePersistentSessions: true
+				enablePersistentSessions: true,
+				shellIntegration: {
+					enabled: false
+				}
 			}
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
