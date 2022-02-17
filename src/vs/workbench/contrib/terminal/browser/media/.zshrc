@@ -1,3 +1,4 @@
+
 IN_COMMAND_EXECUTION="1"
 prompt_start() {
 	printf "\033]633;A\007"
