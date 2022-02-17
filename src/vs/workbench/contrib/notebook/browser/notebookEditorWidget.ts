@@ -998,13 +998,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._webviewTransparentCover = DOM.append(this._list.rowsContainer, $('.webview-cover'));
 		this._webviewTransparentCover.style.display = 'none';
 
-		this._register(DOM.addStandardDisposableGenericMouseDownListner(this._overlayContainer, (e: StandardMouseEvent) => {
+		this._register(DOM.addStandardDisposableGenericMouseDownListener(this._overlayContainer, (e: StandardMouseEvent) => {
 			if (e.target.classList.contains('slider') && this._webviewTransparentCover) {
 				this._webviewTransparentCover.style.display = 'block';
 			}
 		}));
 
-		this._register(DOM.addStandardDisposableGenericMouseUpListner(this._overlayContainer, () => {
+		this._register(DOM.addStandardDisposableGenericMouseUpListener(this._overlayContainer, () => {
 			if (this._webviewTransparentCover) {
 				// no matter when
 				this._webviewTransparentCover.style.display = 'none';
