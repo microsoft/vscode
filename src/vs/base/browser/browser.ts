@@ -144,7 +144,7 @@ class PixelRatioFacade {
 	}
 }
 
-export function addMatchMediaChangeListener(query: string|MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => any): void {
+export function addMatchMediaChangeListener(query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => any): void {
 	if (typeof query === 'string') {
 		query = window.matchMedia(query);
 	}
