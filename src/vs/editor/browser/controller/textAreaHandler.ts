@@ -299,7 +299,8 @@ export class TextAreaHandler extends ViewPart {
 			// the selection.
 			//
 			// However, the text on the current line needs to be made visible because
-			// some IME methods allow to glyphs on the current line (by pressing arrow keys).
+			// some IME methods allow to move to other glyphs on the current line
+			// (by pressing arrow keys).
 			//
 			// (1) The textarea might contain only some parts of the current line,
 			// like the word before the selection. Also, the content inside the textarea
@@ -308,7 +309,7 @@ export class TextAreaHandler extends ViewPart {
 			//
 			// (2) Also, we should not make \t characters visible, because their rendering
 			// inside the <textarea> will not align nicely with our rendering. We therefore
-			// can hide some of the leading text on the current line.
+			// will hide (if necessary) some of the leading text on the current line.
 
 			const ta = this.textArea.domNode;
 			const modelSelection = this._modelSelections[0];
@@ -346,7 +347,7 @@ export class TextAreaHandler extends ViewPart {
 				return { distanceToModelLineEnd };
 			})();
 
-			// Scroll to reveal the location in the editor
+			// Scroll to reveal the location in the editor where composition occurs
 			this._context.viewModel.revealRange(
 				'keyboard',
 				true,
