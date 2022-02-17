@@ -491,8 +491,10 @@ export function injectShellIntegrationArgs(
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
 				} else if (areZshBashLoginArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
+				} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
+					newArgs = originalArgs;
 				}
-				env['ZDOTDIR'] = '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/';
+				env['ZDOTDIR'] = '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media';
 				const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
 				if (!showWelcome) {
 					env['VSCODE_SHELL_HIDE_WELCOME'] = '1';

@@ -455,8 +455,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration.enabled, shellLaunchConfig, OS);
 		if (shellIntegration.enableShellIntegration) {
 			shellLaunchConfig.args = shellIntegration.args;
-			if (env?.['ZDOTDIR'] && env?.['PWD']) {
-				env['ZDOTDIR'] = env['ZDOTDIR'].replace('${execInstallFolder}', env?.['PWD']);
+			if (env?.['ZDOTDIR']) {
+				shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
+				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const resolved = await this._configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, env['ZDOTDIR']);
+				env['ZDOTDIR'] = resolved;
 			}
 			// Always resolve the injected arguments on local processes
 			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
