@@ -280,7 +280,6 @@ export class MainThreadEditorTabs {
 				// If it's not an optimized case we rebuild the tabs model from scratch
 				this._createTabsModel();
 		}
-		console.log(this._tabGroupModel.length);
 		// notify the ext host of the new model
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
