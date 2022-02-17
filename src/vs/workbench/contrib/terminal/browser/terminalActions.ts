@@ -51,7 +51,7 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history/history';
+import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");

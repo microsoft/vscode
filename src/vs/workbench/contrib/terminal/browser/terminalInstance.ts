@@ -68,7 +68,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { ITerminalCommand, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history/history';
+import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -787,7 +787,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					}
 					let description = fromNow(entry.timestamp, true);
 					if (entry.cwd) {
-						// TODO: Shorten cwd relative to the workspace
 						description += ` @ ${entry.cwd}`;
 					}
 					if (entry.exitCode) {
@@ -860,10 +859,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return new Promise<void>(r => {
 			quickPick.onDidTriggerItemButton(async e => {
 				if (e.button === removeFromCommandHistoryButton) {
-					console.log('button', e.button);
 					this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
 				}
-				// TODO: Handle history
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
 				if (output && selectedCommand?.command) {
