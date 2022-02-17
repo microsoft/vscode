@@ -114,7 +114,11 @@ export class MainThreadEditorTabs {
 	 */
 	private _onDidTabOpen(groupId: number, editorInput: EditorInput, editorIndex: number) {
 		const group = this._editorGroupsService.getGroup(groupId);
-		if (!group) {
+		// Even if the editor service knows about the group the group might not exist yet in our model
+		const groupInModel = this._groupModel.get(groupId) !== undefined;
+		// Means a new group was likely created so we rebuild the model
+		if (!group || !groupInModel) {
+			this._createTabsModel();
 			return;
 		}
 		const tabs = this._groupModel.get(groupId)?.tabs;
@@ -132,7 +136,9 @@ export class MainThreadEditorTabs {
 	private _onDidTabClose(groupId: number, editorIndex: number) {
 		const group = this._editorGroupsService.getGroup(groupId);
 		const tabs = this._groupModel.get(groupId)?.tabs;
+		// Something is wrong with the model state so we rebuild
 		if (!group || !tabs) {
+			this._createTabsModel();
 			return;
 		}
 		// Splice tab into group at index editorIndex
@@ -176,7 +182,9 @@ export class MainThreadEditorTabs {
 
 	private _onDidTabDirty(groupId: number, editorIndex: number, editor: EditorInput) {
 		const tab = this._groupModel.get(groupId)?.tabs[editorIndex];
+		// Something wrong with the model staate so we rebuild
 		if (!tab) {
+			this._createTabsModel();
 			return;
 		}
 		tab.isDirty = editor.isDirty();
@@ -272,6 +280,7 @@ export class MainThreadEditorTabs {
 				// If it's not an optimized case we rebuild the tabs model from scratch
 				this._createTabsModel();
 		}
+		console.log(this._tabGroupModel.length);
 		// notify the ext host of the new model
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
