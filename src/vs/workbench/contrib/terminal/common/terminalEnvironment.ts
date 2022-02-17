@@ -416,8 +416,8 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{0}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ["-i"]);
-shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ["-il"]);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
 const loginArgs = ['-login', '-l'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
@@ -492,7 +492,7 @@ export function injectShellIntegrationArgs(
 				} else if (areZshBashLoginArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
 				}
-				env['ZDOTDIR'] = "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/";
+				env['ZDOTDIR'] = '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/';
 				const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
 				if (!showWelcome) {
 					env['VSCODE_SHELL_HIDE_WELCOME'] = '1';

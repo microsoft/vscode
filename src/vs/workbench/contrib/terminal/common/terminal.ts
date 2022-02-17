@@ -291,8 +291,8 @@ export interface ITerminalConfiguration {
 	ignoreProcessNames: string[];
 	autoReplies: { [key: string]: string };
 	shellIntegration: {
-		enabled: boolean
-	}
+		enabled: boolean;
+	};
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
