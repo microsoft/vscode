@@ -42,7 +42,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -816,30 +816,38 @@ var requirejs = (function() {
 							cell.renderedHtml = data.html;
 						}
 
-						for (const { id, value, lang } of data.codeBlocks) {
-							// The language id may be a language aliases (e.g.js instead of javascript)
-							const languageId = this.languageService.getLanguageIdByLanguageName(lang);
-							if (!languageId) {
-								continue;
-							}
-
-							tokenizeToString(this.languageService, value, languageId).then((html) => {
-								if (this._disposed) {
-									return;
-								}
-								this._sendMessageToWebview({
-									type: 'tokenizedCodeBlock',
-									html,
-									codeBlockId: id
-								});
-							});
-						}
+						this._handleHighlightCodeBlock(data.codeBlocks);
+						break;
+					}
+				case 'renderedCellOutput':
+					{
+						this._handleHighlightCodeBlock(data.codeBlocks);
 						break;
 					}
 			}
 		}));
 	}
 
+	private _handleHighlightCodeBlock(codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>) {
+		for (const { id, value, lang } of codeBlocks) {
+			// The language id may be a language aliases (e.g.js instead of javascript)
+			const languageId = this.languageService.getLanguageIdByLanguageName(lang);
+			if (!languageId) {
+				continue;
+			}
+
+			tokenizeToString(this.languageService, value, languageId).then((html) => {
+				if (this._disposed) {
+					return;
+				}
+				this._sendMessageToWebview({
+					type: 'tokenizedCodeBlock',
+					html,
+					codeBlockId: id
+				});
+			});
+		}
+	}
 	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
 		if (typeof event.data !== 'string') {
 			return;
