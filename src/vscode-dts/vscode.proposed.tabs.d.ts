@@ -51,6 +51,11 @@ declare module 'vscode' {
 		readonly isActive: boolean;
 
 		/**
+		 * Whether or not the dirty indicator is present on the tab
+		 */
+		readonly isDirty: boolean;
+
+		/**
 		 * Moves a tab to the given index within the column.
 		 * If the index is out of range, the tab will be moved to the end of the column.
 		 * If the column is out of range, a new one will be created after the last existing column.
@@ -77,7 +82,7 @@ declare module 'vscode' {
 		/**
 		 * All the groups within the group container
 		 */
-		all: TabGroup[];
+		readonly all: TabGroup[];
 
 		/**
 		 * An {@link Event} which fires when a group changes.
@@ -90,21 +95,21 @@ declare module 'vscode' {
 		/**
 		 * Whether or not the group is currently active
 		 */
-		isActive: boolean;
+		readonly isActive: boolean;
 
 		/**
 		 * The view column of the groups
 		 */
-		viewColumn: ViewColumn;
+		readonly viewColumn: ViewColumn;
 
 		/**
 		 * The active tab within the group
 		 */
-		activeTab: Tab | undefined;
+		readonly activeTab: Tab | undefined;
 
 		/**
 		 * The list of tabs contained within the group
 		 */
-		tabs: Tab[];
+		readonly tabs: Tab[];
 	}
 }

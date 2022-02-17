@@ -543,6 +543,13 @@ export class Codicon implements CSSIcon {
 	public static readonly layoutCentered = new Codicon('layout-centered', { fontCharacter: '\\ebf7' });
 	public static readonly target = new Codicon('target', { fontCharacter: '\\ebf8' });
 	public static readonly indent = new Codicon('indent', { fontCharacter: '\\ebf9' });
+	public static readonly recordSmall = new Codicon('record-small', { fontCharacter: '\\ebfa' });
+	public static readonly errorSmall = new Codicon('error-small', { fontCharacter: '\\ebfb' });
+	public static readonly arrowCircleDown = new Codicon('arrow-circle-down', { fontCharacter: '\\ebfc' });
+	public static readonly arrowCircleLeft = new Codicon('arrow-circle-left', { fontCharacter: '\\ebfd' });
+	public static readonly arrowCircleRight = new Codicon('arrow-circle-right', { fontCharacter: '\\ebfe' });
+	public static readonly arrowCircleUp = new Codicon('arrow-circle-up', { fontCharacter: '\\ebff' });
+
 
 	// derived icons, that could become separate icons
 

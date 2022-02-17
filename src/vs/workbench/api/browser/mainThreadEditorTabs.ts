@@ -21,7 +21,7 @@ export class MainThreadEditorTabs {
 	private readonly _dispoables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private _tabGroupModel: IEditorTabGroupDto[] = [];
-	private readonly _tabModel: Map<number, IEditorTabDto[]> = new Map();
+	private readonly _groupModel: Map<number, IEditorTabGroupDto> = new Map();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -55,7 +55,8 @@ export class MainThreadEditorTabs {
 			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 			editorId,
 			additionalResourcesAndViewIds: [],
-			isActive: group.isActive(editor)
+			isActive: group.isActive(editor),
+			isDirty: editor.isDirty()
 		};
 		tab.additionalResourcesAndViewIds.push({ resource: tab.resource, viewId: tab.editorId });
 		if (editor instanceof SideBySideEditorInput) {
@@ -99,7 +100,10 @@ export class MainThreadEditorTabs {
 	 * @param editorIndex The index of the editor within that group
 	 */
 	private _onDidTabLabelChange(groupId: number, editorInput: EditorInput, editorIndex: number) {
-		this._tabGroupModel[groupId].tabs[editorIndex].label = editorInput.getName();
+		const tabs = this._groupModel.get(groupId)?.tabs;
+		if (tabs) {
+			tabs[editorIndex].label = editorInput.getName();
+		}
 	}
 
 	/**
@@ -113,8 +117,11 @@ export class MainThreadEditorTabs {
 		if (!group) {
 			return;
 		}
-		// Splice tab into group at index editorIndex
-		this._tabGroupModel[groupId].tabs.splice(editorIndex, 0, this._buildTabObject(editorInput, group));
+		const tabs = this._groupModel.get(groupId)?.tabs;
+		if (tabs) {
+			// Splice tab into group at index editorIndex
+			tabs.splice(editorIndex, 0, this._buildTabObject(editorInput, group));
+		}
 	}
 
 	/**
@@ -124,15 +131,22 @@ export class MainThreadEditorTabs {
  */
 	private _onDidTabClose(groupId: number, editorIndex: number) {
 		const group = this._editorGroupsService.getGroup(groupId);
-		if (!group) {
+		const tabs = this._groupModel.get(groupId)?.tabs;
+		if (!group || !tabs) {
 			return;
 		}
 		// Splice tab into group at index editorIndex
-		this._tabGroupModel[groupId].tabs.splice(editorIndex, 1);
+		tabs.splice(editorIndex, 1);
+
 		// If no tabs it's an empty group and gets deleted from the model
 		// In the future we may want to support empty groups
-		if (this._tabGroupModel[groupId].tabs.length === 0) {
-			this._tabGroupModel.splice(groupId, 1);
+		if (tabs.length === 0) {
+			for (let i = 0; i < this._tabGroupModel.length; i++) {
+				if (this._tabGroupModel[i].groupId === group.id) {
+					this._tabGroupModel.splice(i, 1);
+					return;
+				}
+			}
 		}
 	}
 
@@ -142,7 +156,10 @@ export class MainThreadEditorTabs {
 	 * @param editorIndex The index of the tab
 	 */
 	private _onDidTabActiveChange(groupId: number, editorIndex: number) {
-		const tabs = this._tabGroupModel[groupId].tabs;
+		const tabs = this._groupModel.get(groupId)?.tabs;
+		if (!tabs) {
+			return;
+		}
 		let activeTab: IEditorTabDto | undefined;
 		for (let i = 0; i < tabs.length; i++) {
 			if (i === editorIndex) {
@@ -152,7 +169,17 @@ export class MainThreadEditorTabs {
 				tabs[i].isActive = false;
 			}
 		}
-		this._tabGroupModel[groupId].activeTab = activeTab;
+		// null assertion is ok here because if tabs is undefined then we would've returned above.
+		// Therefore there must be a group here.
+		this._groupModel.get(groupId)!.activeTab = activeTab;
+	}
+
+	private _onDidTabDirty(groupId: number, editorIndex: number, editor: EditorInput) {
+		const tab = this._groupModel.get(groupId)?.tabs[editorIndex];
+		if (!tab) {
+			return;
+		}
+		tab.isDirty = editor.isDirty();
 	}
 
 	/**
@@ -160,7 +187,7 @@ export class MainThreadEditorTabs {
 	 */
 	private _createTabsModel(): void {
 		this._tabGroupModel = [];
-		this._tabModel.clear();
+		this._groupModel.clear();
 		let tabs: IEditorTabDto[] = [];
 		for (const group of this._editorGroupsService.groups) {
 			const currentTabGroupModel: IEditorTabGroupDto = {
@@ -180,7 +207,7 @@ export class MainThreadEditorTabs {
 			}
 			currentTabGroupModel.tabs = tabs;
 			this._tabGroupModel.push(currentTabGroupModel);
-			this._tabModel.set(group.id, tabs);
+			this._groupModel.set(group.id, currentTabGroupModel);
 			tabs = [];
 		}
 	}
@@ -236,6 +263,11 @@ export class MainThreadEditorTabs {
 					this._onDidTabActiveChange(event.groupId, event.editorIndex);
 					break;
 				}
+			case GroupModelChangeKind.EDITOR_DIRTY:
+				if (event.editorIndex && event.editor) {
+					this._onDidTabDirty(event.groupId, event.editorIndex, event.editor);
+					break;
+				}
 			default:
 				// If it's not an optimized case we rebuild the tabs model from scratch
 				this._createTabsModel();
@@ -252,7 +284,7 @@ export class MainThreadEditorTabs {
 			return;
 		}
 		// If group index is out of bounds then we make a new one that's to the right of the last group
-		if (this._tabModel.get(groupId) === undefined) {
+		if (this._groupModel.get(groupId) === undefined) {
 			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], GroupDirection.RIGHT, undefined);
 		} else {
 			targetGroup = this._editorGroupsService.getGroup(groupId);

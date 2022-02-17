@@ -1145,7 +1145,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 			case 'tokenizedCodeBlock': {
 				const { codeBlockId, html } = event.data;
-				MarkupCell.highlightCodeBlock(codeBlockId, html);
+				MarkdownCodeBlock.highlightCodeBlock(codeBlockId, html);
 				break;
 			}
 			case 'tokenizedStylesChanged': {
@@ -1562,12 +1562,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	}();
 
-	class MarkupCell {
-
+	class MarkdownCodeBlock {
 		private static pendingCodeBlocksToHighlight = new Map<string, HTMLElement>();
 
 		public static highlightCodeBlock(id: string, html: string) {
-			const el = MarkupCell.pendingCodeBlocksToHighlight.get(id);
+			const el = MarkdownCodeBlock.pendingCodeBlocksToHighlight.get(id);
 			if (!el) {
 				return;
 			}
@@ -1577,6 +1576,24 @@ async function webviewPreloads(ctx: PreloadContext) {
 				el.insertAdjacentElement('beforebegin', tokenizationStyleElement.cloneNode(true) as HTMLElement);
 			}
 		}
+
+		public static requestHighlightCodeBlock(root: HTMLElement | ShadowRoot) {
+			const codeBlocks: Array<{ value: string; lang: string; id: string }> = [];
+			let i = 0;
+			for (const el of root.querySelectorAll('.vscode-code-block')) {
+				const lang = el.getAttribute('data-vscode-code-block-lang');
+				if (el.textContent && lang) {
+					const id = `${Date.now()}-${i++}`;
+					codeBlocks.push({ value: el.textContent, lang: lang, id });
+					MarkdownCodeBlock.pendingCodeBlocksToHighlight.set(id, el as HTMLElement);
+				}
+			}
+
+			return codeBlocks;
+		}
+	}
+
+	class MarkupCell {
 
 		public readonly ready: Promise<void>;
 
@@ -1712,16 +1729,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 			}
 
-			const codeBlocks: Array<{ value: string; lang: string; id: string }> = [];
-			let i = 0;
-			for (const el of root.querySelectorAll('.vscode-code-block')) {
-				const lang = el.getAttribute('data-vscode-code-block-lang');
-				if (el.textContent && lang) {
-					const id = `${Date.now()}-${i++}`;
-					codeBlocks.push({ value: el.textContent, lang: lang, id });
-					MarkupCell.pendingCodeBlocksToHighlight.set(id, el as HTMLElement);
-				}
-			}
+			const codeBlocks: Array<{ value: string; lang: string; id: string }> = MarkdownCodeBlock.requestHighlightCodeBlock(root);
 
 			postNotebookMessage<webviewMessages.IRenderedMarkupMessage>('renderedMarkup', {
 				cellId: this.id,
@@ -1925,7 +1933,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	class OutputElement {
-
 		public readonly element: HTMLElement;
 
 		private _content?: { content: webviewMessages.ICreationContent; preloadsAndErrors: unknown[] };
@@ -1985,6 +1992,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
 					isOutput: true,
 					init: true,
+				});
+			}
+
+			const root = this.element.shadowRoot ?? this.element;
+			const codeBlocks: Array<{ value: string; lang: string; id: string }> = MarkdownCodeBlock.requestHighlightCodeBlock(root);
+
+			if (codeBlocks.length > 0) {
+				postNotebookMessage<webviewMessages.IRenderedCellOutputMessage>('renderedCellOutput', {
+					codeBlocks
 				});
 			}
 		}

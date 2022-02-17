@@ -152,7 +152,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 
 					stackFrames.forEach(candidateStackFrame => {
 						if (candidateStackFrame && this.uriIdentityService.extUri.isEqual(candidateStackFrame.source.uri, editor.getModel()?.uri)) {
-							if (candidateStackFrame.range.startLineNumber > editor.getModel()?.getLineCount()) {
+							if (candidateStackFrame.range.startLineNumber > editor.getModel()?.getLineCount() || candidateStackFrame.range.startLineNumber < 1) {
 								this.logService.warn(`CallStackEditorContribution: invalid stack frame line number: ${candidateStackFrame.range.startLineNumber}`);
 								return;
 							}

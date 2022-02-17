@@ -204,8 +204,8 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				previewNode.classList.add('emptyMarkdownCell');
 			} else {
 				previewNode.classList.remove('emptyMarkdownCell');
-
-				const unsanitizedRenderedMarkdown = markdownIt.render(text);
+				const markdownText = outputInfo.mime.startsWith('text/x-') ? `\`\`\`${outputInfo.mime.substr(7)}\n${text}\n\`\`\`` : text;
+				const unsanitizedRenderedMarkdown = markdownIt.render(markdownText);
 				previewNode.innerHTML = (ctx.workspace.isTrusted
 					? unsanitizedRenderedMarkdown
 					: DOMPurify.sanitize(unsanitizedRenderedMarkdown, sanitizerOptions)) as string;

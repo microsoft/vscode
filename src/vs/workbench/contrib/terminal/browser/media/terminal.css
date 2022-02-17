@@ -425,12 +425,9 @@
 
 .terminal-command-decoration:not(.skipped):hover {
 	cursor: pointer;
-}
-.terminal-command-decoration.skipped {
-	pointer-events: none;
+	border-radius: 5px;
 }
 
-.terminal-command-decoration {
-	width: 10px;
-	height: 10px;
+.terminal-command-decoration.skipped {
+	pointer-events: none;
 }

@@ -6,7 +6,7 @@
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalCommandIcon, TerminalCommandIconError, TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -105,23 +105,12 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.CommandIcon]: {
 			type: 'string',
-			enum: [TerminalCommandIcon.ChevronRight, TerminalCommandIcon.TriangleRight],
-			enumDescriptions: [
-				localize('terminal.integrated.commandIcon.chevronRight', "A chevron pointed to the right"),
-				localize('terminal.integrated.commandIcon.triangleRight', "A triangle pointed to the right")
-			],
-			default: 'triangle-right',
+			default: 'primitive-dot',
 			description: localize('terminal.integrated.commandIcon', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code.")
 		},
 		[TerminalSettingId.CommandIconError]: {
 			type: 'string',
-			enum: [TerminalCommandIconError.ChevronRight, TerminalCommandIconError.TriangleRight, TerminalCommandIconError.X],
-			enumDescriptions: [
-				localize('terminal.integrated.commandIconError.chevronRight', "A chevron pointed to the right"),
-				localize('terminal.integrated.commandIconError.triangleRight', "A triangle pointed to the right"),
-				localize('terminal.integrated.commandIconError.x', "An X"),
-			],
-			default: 'x',
+			default: 'error-small',
 			description: localize('terminal.integrated.commandIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code.")
 		},
 		[TerminalSettingId.TabsFocusMode]: {

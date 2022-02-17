@@ -17,6 +17,7 @@ export interface IEditorTab {
 	resource: vscode.Uri | undefined;
 	viewId: string | undefined;
 	isActive: boolean;
+	isDirty: boolean;
 	additionalResourcesAndViewIds: { resource: vscode.Uri | undefined; viewId: string | undefined }[];
 	move(index: number, viewColumn: ViewColumn): Promise<void>;
 	close(): Promise<void>;
@@ -91,6 +92,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			additionalResourcesAndViewIds: tabDto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
 			viewId: tabDto.editorId,
 			isActive: tabDto.isActive,
+			isDirty: tabDto.isDirty,
 			move: async (index: number, viewColumn: ViewColumn) => {
 				this._proxy.$moveTab(tabDto, index, typeConverters.ViewColumn.from(viewColumn));
 				// TODO: Need an on did change tab event at the group level

@@ -20,7 +20,9 @@ export class AudioCueLineDebuggerContribution
 
 		this._register(debugService.onDidChangeState(e => {
 			if (e === State.Stopped) {
-				audioCueService.playAudioCue(AudioCue.executionStopped);
+				if (audioCueService.isEnabled(AudioCue.executionStopped).get()) {
+					audioCueService.playAudioCue(AudioCue.executionStopped);
+				}
 			}
 		}));
 	}
