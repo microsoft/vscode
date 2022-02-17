@@ -105,12 +105,12 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.CommandIcon]: {
 			type: 'string',
-			default: 'triangle-right',
+			default: 'primitive-dot',
 			description: localize('terminal.integrated.commandIcon', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code.")
 		},
 		[TerminalSettingId.CommandIconError]: {
 			type: 'string',
-			default: 'x',
+			default: 'error-small',
 			description: localize('terminal.integrated.commandIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code.")
 		},
 		[TerminalSettingId.TabsFocusMode]: {
