@@ -18,8 +18,8 @@ export class ShowAudioCueHelp extends Action2 {
 		super({
 			id: ShowAudioCueHelp.ID,
 			title: {
-				value: localize('closeWindow', "Audio Cues Help"),
-				original: 'Audio Cues Help'
+				value: localize('audioCues.help', "Help: Audio Cues"),
+				original: 'Help: Audio Cues'
 			},
 			f1: true,
 		});
@@ -36,7 +36,7 @@ export class ShowAudioCueHelp extends Action2 {
 				audioCue: cue,
 				buttons: [{
 					iconClass: Codicon.settingsGear.classNames,
-					tooltip: localize('showAudioCueHelp.settings', 'Enable/Disable Audio Cue'),
+					tooltip: localize('audioCues.help.settings', 'Enable/Disable Audio Cue'),
 				}],
 			})),
 			{
@@ -46,7 +46,7 @@ export class ShowAudioCueHelp extends Action2 {
 				onDidTriggerItemButton: (context) => {
 					preferencesService.openSettings({ query: context.item.audioCue.settingsKey });
 				},
-				placeHolder: localize('showAudioCueHelp.placeholder', 'Select an audio cue to play'),
+				placeHolder: localize('audioCues.help.placeholder', 'Select an audio cue to play'),
 			}
 		);
 
