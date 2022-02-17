@@ -147,7 +147,7 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 function renderText(outputInfo: OutputItem, container: HTMLElement, ctx: RendererContext<void> & { readonly settings: { readonly lineLimit: number } }): void {
 	const contentNode = document.createElement('div');
-	contentNode.classList.add('.output-plaintext');
+	contentNode.classList.add('output-plaintext');
 	const text = outputInfo.text();
 	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, contentNode);
 	container.appendChild(contentNode);
@@ -160,6 +160,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 	const style = document.createElement('style');
 	style.textContent = `
+	.output-plaintext,
 	.output-stream {
 		line-height: 22px;
 		font-family: var(--notebook-cell-output-font-family);
