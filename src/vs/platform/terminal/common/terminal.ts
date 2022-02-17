@@ -108,7 +108,7 @@ export const enum TerminalSettingId {
 	CommandIconError = 'terminal.integrated.commandIconError'
 }
 
-export enum WindowsShellType {
+export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
 	Wsl = 'wsl',

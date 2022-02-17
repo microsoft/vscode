@@ -3,182 +3,134 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { runWhenIdle } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { LRUCache } from 'vs/base/common/map';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 /**
  * Tracks a list of generic entries.
  */
 export interface ITerminalPersistedHistory<T> {
 	/**
-	 * The persisted entries
+	 * The persisted entries.
 	 */
-	readonly entries: IterableIterator<T>;
+	readonly entries: IterableIterator<[string, T]>;
 	/**
 	 * Adds an entry.
 	 */
-	add(entry: T): void;
+	add(key: string, value: T): void;
 	/**
 	 * Removes an entry.
 	 */
-	remove(entry: T): void;
+	remove(key: string): void;
 	/**
-	 * A function that returns whether two entries are the same. This is required to correctly add
-	 * and remove entries when T is not a primitive.
+	 * Clears all entries.
 	 */
-	isEqual(a: T, b: T): boolean;
+	clear(): void;
 }
 
-const enum Constants {
-	HistoryKeysStorageKey = 'terminal.history.keys'
+interface ISerializedCache<T> {
+	entries: { key: string; value: T }[];
 }
 
-export function clearCommandHistory(accessor: ServicesAccessor) {
-	const storageService = accessor.get(IStorageService);
-	for (const h of commandHistory.values()) {
-		h.clear();
+const enum StorageKeys {
+	Keys = 'terminal.history.keys',
+	Entries = 'terminal.history.entries',
+	Timestamp = 'terminal.history.timestamp'
+}
+
+let commandHistory: ITerminalPersistedHistory<{ shellType: TerminalShellType }> | undefined = undefined;
+export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ shellType: TerminalShellType }> {
+	if (!commandHistory) {
+		commandHistory = accessor.get(IInstantiationService).createInstance(TerminalPersistedHistory, 'commands') as TerminalPersistedHistory<{ shellType: TerminalShellType }>;
 	}
-	commandHistory.clear();
-	storageService.remove(Constants.HistoryKeysStorageKey, StorageScope.GLOBAL);
+	return commandHistory;
 }
 
-const commandHistory: Map<string, TerminalPersistedCommands> = new Map();
-export function getCommandHistory(accessor: ServicesAccessor, shellType: TerminalShellType): TerminalPersistedCommands {
-	const shellKey = shellType ?? 'undefined';
-	let history = commandHistory.get(shellKey);
-	if (!history) {
-		history = accessor.get(IInstantiationService).createInstance(TerminalPersistedCommands, shellKey);
-		commandHistory.set(shellKey, history);
-	}
-	return history;
-}
-
-abstract class BaseTerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
-	private _entries: Set<T> = new Set();
-
-	get entries(): IterableIterator<T> {
-		this._ensureLoadedState();
-		return this._entries.values();
-	}
-
+class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
+	// TODO: Configure amount
+	private readonly _entries = new LRUCache<string, T>(5);
+	private _timestamp: number = 0;
 	private _isReady = false;
-	private _isDirty = false;
-	private _workspaceStorageKey: string;
+	private _isStale = true;
+
+	get entries(): IterableIterator<[string, T]> {
+		this._ensureUpToDate();
+		return this._entries.entries();
+	}
 
 	constructor(
-		private readonly _shell: string,
-		private readonly _storageService: IStorageService,
-		private readonly _workspaceContextService: IWorkspaceContextService
+		private readonly _storageDataKey: string,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
-		this._register(this._storageService.onWillSaveState(() => this._saveState()));
-		this._workspaceStorageKey = `terminal.history.entry.${this._workspaceContextService.getWorkspace().id}:${this._shell}:${this._getDataKey()}`;
-		console.log('created');
-		runWhenIdle(() => this._ensureLoadedState());
-	}
-
-	protected abstract _getDataKey(): string;
-	abstract isEqual(a: T, b: T): boolean;
-
-	add(entry: T) {
-		this._ensureLoadedState();
-		if (typeof entry === 'object') {
-			for (const e of this._entries) {
-				if (this.isEqual(e, entry)) {
-					return;
-				}
+		this._storageService.onDidChangeValue(e => {
+			if (e.key !== StorageKeys.Timestamp) {
+				this._isStale = true;
 			}
-		}
-		console.log('add', entry);
-		this._entries.add(entry);
-		this._isDirty = true;
+		});
 	}
 
-	remove(entry: T) {
-		this._ensureLoadedState();
-		if (typeof entry === 'object') {
-			for (const e of this._entries) {
-				if (this.isEqual(e, entry)) {
-					this._entries.delete(e);
-					return;
-				}
-			}
-		}
-		this._entries.delete(entry);
-		this._isDirty = true;
+	add(key: string, value: T): void {
+		this._ensureUpToDate();
+		this._entries.set(key, value);
+		this._saveState();
 	}
 
-	clear() {
+	remove(key: string): void {
+		this._ensureUpToDate();
+		this._entries.delete(key);
+		this._saveState();
+	}
+
+	clear(): void {
+		this._ensureUpToDate();
 		this._entries.clear();
-		this._storageService.remove(this._workspaceStorageKey, StorageScope.GLOBAL);
+		this._saveState();
 	}
 
-	private _ensureLoadedState() {
-		if (this._isReady) {
-			return;
+	private _ensureUpToDate() {
+		// Initial load
+		if (!this._isReady) {
+			this._loadState();
+			this._isReady = true;
 		}
-		this._loadState();
-		this._isReady = true;
+
+		// TODO: Resolve stale cache
+		if (this._isStale) {
+			this._isStale = false;
+		}
 	}
 
 	private _loadState() {
+		this._timestamp = this._storageService.getNumber(`${StorageKeys.Timestamp}.${this._storageDataKey}`, StorageScope.GLOBAL, 0);
+
 		// Load global entries plus
-		const text = this._storageService.get(this._workspaceStorageKey, StorageScope.GLOBAL);
-		if (text === undefined || text.length === 0) {
+		const raw = this._storageService.get(`${StorageKeys.Entries}.${this._storageDataKey}`, StorageScope.GLOBAL);
+		if (raw === undefined || raw.length === 0) {
 			return;
 		}
-		const list = JSON.parse(text);
-		console.log('imported', list);
-		if (Array.isArray(list)) {
-			for (const entry of list) {
-				this._entries.add(entry);
+		let serialized: ISerializedCache<T> | undefined = undefined;
+		try {
+			serialized = JSON.parse(raw);
+		} catch {
+			// Invalid data
+			return;
+		}
+		if (serialized) {
+			for (const entry of serialized.entries) {
+				this._entries.set(entry.key, entry.value);
 			}
 		}
 	}
 
 	private _saveState() {
-		if (!this._isDirty) {
-			return;
-		}
-		// Store the shell and workspace-specific entry
-		const data = JSON.stringify(Array.from(this._entries.values()));
-		this._storageService.store(this._workspaceStorageKey, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
-		// Store the key in the global list of keys
-		const keysJson = this._storageService.get(Constants.HistoryKeysStorageKey, StorageScope.GLOBAL);
-		let keys: string[] | undefined;
-		try {
-			if (keysJson !== undefined) {
-				keys = JSON.parse(keysJson);
-			}
-		} catch {
-			// Swallow as keys get set to default after
-		}
-		if (keys === undefined) {
-			keys = [];
-		}
-		keys.push(this._workspaceStorageKey);
-		this._storageService.store(Constants.HistoryKeysStorageKey, data, StorageScope.GLOBAL, StorageTarget.MACHINE);
-	}
-}
-
-export class TerminalPersistedCommands extends BaseTerminalPersistedHistory<string> {
-	constructor(
-		shell: string,
-		@IStorageService storageService: IStorageService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
-	) {
-		super(shell, storageService, workspaceContextService);
-	}
-
-	protected _getDataKey(): string {
-		return 'commands';
-	}
-
-	isEqual(a: string, b: string): boolean {
-		return a === b;
+		const serialized: ISerializedCache<T> = { entries: [] };
+		this._entries.forEach((value, key) => serialized.entries.push({ key, value }));
+		this._storageService.store(`${StorageKeys.Entries}.${this._storageDataKey}`, JSON.stringify(serialized), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._timestamp = Date.now();
+		this._storageService.store(`${StorageKeys.Timestamp}.${this._storageDataKey}`, this._timestamp, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }

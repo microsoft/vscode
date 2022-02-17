@@ -408,7 +408,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			} else if (e === TerminalCapability.CommandDetection) {
 				this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
 					if (e.command.trim().length > 0) {
-						this._instantiationService.invokeFunction(getCommandHistory, this.shellType)?.add(e.command);
+						this._instantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: this._shellType });
 					}
 				});
 			}
@@ -821,11 +821,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 
 			// Gather previous session history
-			const history = this._instantiationService.invokeFunction(getCommandHistory, this.shellType);
+			const history = this._instantiationService.invokeFunction(getCommandHistory);
 			const previousSessionItems: IQuickPickItem[] = [];
-			for (const label of history.entries) {
+			for (const [label, info] of history.entries) {
 				// Only add previous session item if it's not in this session
-				if (!commandMap.has(label)) {
+				if (!commandMap.has(label) && info.shellType === this.shellType) {
 					previousSessionItems.push({ label });
 				}
 			}
