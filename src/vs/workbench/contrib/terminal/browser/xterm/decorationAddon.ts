@@ -125,12 +125,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				target.classList.add(DecorationSelector.Codicon);
 				if (command.exitCode === undefined) {
 					target.classList.add(DecorationSelector.SkippedColor);
-					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIcon)}`);
+					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconSkipped)}`);
 				} else if (command.exitCode) {
 					target.classList.add(DecorationSelector.ErrorColor);
-					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIconError)}`);
+					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconError)}`);
 				} else {
-					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.CommandIcon)}`);
+					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIcon)}`);
 				}
 				// must be inlined to override the inlined styles from xterm
 				decoration.element!.style.width = '16px';

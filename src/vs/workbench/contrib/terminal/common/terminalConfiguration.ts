@@ -103,15 +103,20 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'view',
 			description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 		},
-		[TerminalSettingId.CommandIcon]: {
+		[TerminalSettingId.ShellIntegrationCommandIcon]: {
 			type: 'string',
 			default: 'primitive-dot',
-			description: localize('terminal.integrated.commandIcon', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code.")
+			description: localize('terminal.integrated.shellIntegration.commandIcon', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to '' to hide the icon.")
 		},
-		[TerminalSettingId.CommandIconError]: {
+		[TerminalSettingId.ShellIntegrationCommandIconError]: {
 			type: 'string',
 			default: 'error-small',
-			description: localize('terminal.integrated.commandIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code.")
+			description: localize('terminal.integrated.shellIntegration.commandIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to '' to hide the icon.")
+		},
+		[TerminalSettingId.ShellIntegrationCommandIconSkipped]: {
+			type: 'string',
+			default: 'circle-outline',
+			description: localize('terminal.integrated.shellIntegration.commandIconSkipped', "Controls the icon that will be used for skipped/empty commands. Set to '' to hide the icon.")
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',

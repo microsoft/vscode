@@ -104,8 +104,9 @@ export const enum TerminalSettingId {
 	AutoReplies = 'terminal.integrated.autoReplies',
 	EnableShellIntegration = 'terminal.integrated.enableShellIntegration',
 	ShowShellIntegrationWelcome = 'terminal.integrated.showShellIntegrationWelcome',
-	CommandIcon = 'terminal.integrated.commandIcon',
-	CommandIconError = 'terminal.integrated.commandIconError'
+	ShellIntegrationCommandIcon = 'terminal.integrated.shellIntegration.commandIcon',
+	ShellIntegrationCommandIconError = 'terminal.integrated.shellIntegration.commandIconError',
+	ShellIntegrationCommandIconSkipped = 'terminal.integrated.shellIntegration.commandIconSkipped'
 }
 
 export enum WindowsShellType {
