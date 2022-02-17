@@ -244,27 +244,27 @@ export class MainThreadEditorTabs {
 					return;
 				}
 			case GroupModelChangeKind.EDITOR_LABEL:
-				if (event.editor && event.editorIndex) {
+				if (event.editor !== undefined && event.editorIndex !== undefined) {
 					this._onDidTabLabelChange(event.groupId, event.editor, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_OPEN:
-				if (event.editor && event.editorIndex) {
+				if (event.editor !== undefined && event.editorIndex !== undefined) {
 					this._onDidTabOpen(event.groupId, event.editor, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_CLOSE:
-				if (event.editorIndex) {
+				if (event.editorIndex !== undefined) {
 					this._onDidTabClose(event.groupId, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_ACTIVE:
-				if (event.editorIndex) {
+				if (event.editorIndex !== undefined) {
 					this._onDidTabActiveChange(event.groupId, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_DIRTY:
-				if (event.editorIndex && event.editor) {
+				if (event.editorIndex !== undefined && event.editor !== undefined) {
 					this._onDidTabDirty(event.groupId, event.editorIndex, event.editor);
 					break;
 				}
