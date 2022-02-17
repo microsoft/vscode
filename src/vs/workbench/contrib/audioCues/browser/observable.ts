@@ -493,7 +493,7 @@ export function fromPromise<T>(promise: Promise<T>): IObservable<{ value?: T }> 
 	return observable;
 }
 
-export function fromEvent<TArgs, T>(
+export function fromEvent<T, TArgs = unknown>(
 	event: Event<TArgs>,
 	getValue: (args: TArgs | undefined) => T
 ): IObservable<T> {
