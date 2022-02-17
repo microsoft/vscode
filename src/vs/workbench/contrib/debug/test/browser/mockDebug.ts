@@ -243,7 +243,7 @@ export class MockSession implements IDebugSession {
 		return Promise.resolve(undefined);
 	}
 
-	appendToRepl(data: string | IExpression, severity: Severity, source?: IReplElementSource): void { }
+	appendToRepl(data: string | IExpression, severity: Severity, isImportant?: boolean, source?: IReplElementSource): void { }
 
 	configuration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
 	unresolvedConfiguration: IConfig = { type: 'mock', name: 'mock', request: 'launch' };
