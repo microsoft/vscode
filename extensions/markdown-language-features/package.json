@@ -48,7 +48,7 @@
         "mimeTypes": [
           "text/markdown",
           "text/latex",
-		  "text/x-css",
+          "text/x-css",
           "text/x-html",
           "text/x-json",
           "text/x-typescript",
