@@ -41,7 +41,6 @@ const enum Constants {
 }
 
 const enum StorageKeys {
-	Keys = 'terminal.history.keys',
 	Entries = 'terminal.history.entries',
 	Timestamp = 'terminal.history.timestamp'
 }
@@ -84,8 +83,8 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 
 		// Listen to cache changes from other windows
 		this._storageService.onDidChangeValue(e => {
-			if (e.key === StorageKeys.Timestamp && !this._isStale) {
-				this._isStale = this._storageService.getNumber(`${StorageKeys.Timestamp}.${this._storageDataKey}`, StorageScope.GLOBAL, 0) === this._timestamp;
+			if (e.key === this._getTimestampStorageKey() && !this._isStale) {
+				this._isStale = this._storageService.getNumber(this._getTimestampStorageKey(), StorageScope.GLOBAL, 0) !== this._timestamp;
 			}
 		});
 	}
@@ -126,7 +125,7 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 	}
 
 	private _loadState() {
-		this._timestamp = this._storageService.getNumber(`${StorageKeys.Timestamp}.${this._storageDataKey}`, StorageScope.GLOBAL, 0);
+		this._timestamp = this._storageService.getNumber(this._getTimestampStorageKey(), StorageScope.GLOBAL, 0);
 
 		// Load global entries plus
 		const serialized = this._loadPersistedState();
@@ -138,7 +137,7 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 	}
 
 	private _loadPersistedState(): ISerializedCache<T> | undefined {
-		const raw = this._storageService.get(`${StorageKeys.Entries}.${this._storageDataKey}`, StorageScope.GLOBAL);
+		const raw = this._storageService.get(this._getEntriesStorageKey(), StorageScope.GLOBAL);
 		if (raw === undefined || raw.length === 0) {
 			return undefined;
 		}
@@ -155,13 +154,21 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 	private _saveState() {
 		const serialized: ISerializedCache<T> = { entries: [] };
 		this._entries.forEach((value, key) => serialized.entries.push({ key, value }));
-		this._storageService.store(`${StorageKeys.Entries}.${this._storageDataKey}`, JSON.stringify(serialized), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._storageService.store(this._getEntriesStorageKey(), JSON.stringify(serialized), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		this._timestamp = Date.now();
-		this._storageService.store(`${StorageKeys.Timestamp}.${this._storageDataKey}`, this._timestamp, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._storageService.store(this._getTimestampStorageKey(), this._timestamp, StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
 	private _getHistoryLimit() {
 		const historyLimit = this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandHistory);
 		return typeof historyLimit === 'number' ? historyLimit : Constants.DefaultHistoryLimit;
+	}
+
+	private _getTimestampStorageKey() {
+		return `${StorageKeys.Timestamp}.${this._storageDataKey}`;
+	}
+
+	private _getEntriesStorageKey() {
+		return `${StorageKeys.Entries}.${this._storageDataKey}`;
 	}
 }

@@ -769,6 +769,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		type Item = IQuickPickItem & { command?: ITerminalCommand };
 		let items: (Item | IQuickPickItem | IQuickPickSeparator)[] = [];
 		const commandMap: Set<string> = new Set();
+
+		const removeFromCommandHistoryButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.close),
+			tooltip: nls.localize('removeCommand', "Remove from Command History")
+		};
+
 		if (type === 'command') {
 			const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
 			// Current session history
@@ -826,7 +832,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			for (const [label, info] of history.entries) {
 				// Only add previous session item if it's not in this session
 				if (!commandMap.has(label) && info.shellType === this.shellType) {
-					previousSessionItems.push({ label });
+					previousSessionItems.push({
+						label,
+						buttons: [removeFromCommandHistoryButton]
+					});
 				}
 			}
 			if (previousSessionItems.length > 0) {
@@ -850,6 +859,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.items = items;
 		return new Promise<void>(r => {
 			quickPick.onDidTriggerItemButton(async e => {
+				if (e.button === removeFromCommandHistoryButton) {
+					console.log('button', e.button);
+					this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
+				}
 				// TODO: Handle history
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
