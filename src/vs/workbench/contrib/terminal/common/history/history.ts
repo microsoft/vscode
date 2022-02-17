@@ -84,8 +84,8 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 
 		// Listen to cache changes from other windows
 		this._storageService.onDidChangeValue(e => {
-			if (e.key !== StorageKeys.Timestamp) {
-				this._isStale = true;
+			if (e.key === StorageKeys.Timestamp && !this._isStale) {
+				this._isStale = this._storageService.getNumber(`${StorageKeys.Timestamp}.${this._storageDataKey}`, StorageScope.GLOBAL, 0) === this._timestamp;
 			}
 		});
 	}
@@ -115,8 +115,12 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 			this._isReady = true;
 		}
 
-		// TODO: Resolve stale cache
+		// React to stale cache caused by another window
 		if (this._isStale) {
+			// Since state is saved whenever the entries change, it's a safe assumption that no
+			// merging of entries needs to happen, just loading the new state.
+			this._entries.clear();
+			this._loadState();
 			this._isStale = false;
 		}
 	}
@@ -125,22 +129,27 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 		this._timestamp = this._storageService.getNumber(`${StorageKeys.Timestamp}.${this._storageDataKey}`, StorageScope.GLOBAL, 0);
 
 		// Load global entries plus
+		const serialized = this._loadPersistedState();
+		if (serialized) {
+			for (const entry of serialized.entries) {
+				this._entries.set(entry.key, entry.value);
+			}
+		}
+	}
+
+	private _loadPersistedState(): ISerializedCache<T> | undefined {
 		const raw = this._storageService.get(`${StorageKeys.Entries}.${this._storageDataKey}`, StorageScope.GLOBAL);
 		if (raw === undefined || raw.length === 0) {
-			return;
+			return undefined;
 		}
 		let serialized: ISerializedCache<T> | undefined = undefined;
 		try {
 			serialized = JSON.parse(raw);
 		} catch {
 			// Invalid data
-			return;
+			return undefined;
 		}
-		if (serialized) {
-			for (const entry of serialized.entries) {
-				this._entries.set(entry.key, entry.value);
-			}
-		}
+		return serialized;
 	}
 
 	private _saveState() {
