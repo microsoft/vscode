@@ -53,7 +53,7 @@ export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersiste
 	return commandHistory;
 }
 
-class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
+export class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
 	private readonly _entries: LRUCache<string, T>;
 	private _timestamp: number = 0;
 	private _isReady = false;
