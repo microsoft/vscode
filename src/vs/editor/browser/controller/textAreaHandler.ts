@@ -667,16 +667,13 @@ export class TextAreaHandler extends ViewPart {
 					left: left,
 					width: width,
 					height: this._lineHeight,
-					useCover: false
+					useCover: false,
+					color: (TokenizationRegistry.getColorMap() || [])[presentation.foreground],
+					italic: presentation.italic,
+					bold: presentation.bold,
+					underline: presentation.underline,
+					strikethrough: presentation.strikethrough
 				});
-				const color: Color | undefined = (TokenizationRegistry.getColorMap() || [])[presentation.foreground];
-				this.textArea.domNode.style.color = (color ? Color.Format.CSS.formatHex(color) : 'inherit');
-				this.textArea.domNode.style.fontStyle = (presentation.italic ? 'italic' : 'inherit');
-				if (presentation.bold) {
-					// fontWeight is also set by `applyFontInfo`, so only overwrite it if necessary
-					this.textArea.domNode.style.fontWeight = 'bold';
-				}
-				this.textArea.domNode.style.textDecoration = `${presentation.underline ? ' underline' : ''}${presentation.strikethrough ? ' line-through' : ''}`;
 			}
 			return;
 		}
@@ -770,6 +767,14 @@ export class TextAreaHandler extends ViewPart {
 		ta.setWidth(renderData.width);
 		ta.setHeight(renderData.height);
 
+		ta.setColor(renderData.color ? Color.Format.CSS.formatHex(renderData.color) : '');
+		ta.setFontStyle(renderData.italic ? 'italic' : '');
+		if (renderData.bold) {
+			// fontWeight is also set by `applyFontInfo`, so only overwrite it if necessary
+			ta.setFontWeight('bold');
+		}
+		ta.setTextDecoration(`${renderData.underline ? ' underline' : ''}${renderData.strikethrough ? ' line-through' : ''}`);
+
 		tac.setTop(renderData.useCover ? renderData.top : 0);
 		tac.setLeft(renderData.useCover ? renderData.left : 0);
 		tac.setWidth(renderData.useCover ? renderData.width : 0);
@@ -796,6 +801,12 @@ interface IRenderData {
 	width: number;
 	height: number;
 	useCover: boolean;
+
+	color?: Color | null;
+	italic?: boolean;
+	bold?: boolean;
+	underline?: boolean;
+	strikethrough?: boolean;
 }
 
 function measureText(text: string, fontInfo: BareFontInfo): number {
