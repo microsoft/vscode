@@ -106,10 +106,11 @@ export const enum TerminalSettingId {
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
 	ShellIntegrationCommandIcon = 'terminal.integrated.shellIntegration.commandIcon',
 	ShellIntegrationCommandIconError = 'terminal.integrated.shellIntegration.commandIconError',
-	ShellIntegrationCommandIconSkipped = 'terminal.integrated.shellIntegration.commandIconSkipped'
+	ShellIntegrationCommandIconSkipped = 'terminal.integrated.shellIntegration.commandIconSkipped',
+	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
-export enum WindowsShellType {
+export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
 	Wsl = 'wsl',

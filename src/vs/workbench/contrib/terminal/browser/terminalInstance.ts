@@ -68,6 +68,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { ITerminalCommand, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -399,10 +400,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(this.capabilities.onDidAddCapability(e => {
 			this._logService.debug('terminalInstance added capability', e);
 			if (e === TerminalCapability.CwdDetection) {
-				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd((e) => {
+				this.capabilities.get(TerminalCapability.CwdDetection)?.onDidChangeCwd(e => {
 					this._cwd = e;
 					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Config);
+				});
+			} else if (e === TerminalCapability.CommandDetection) {
+				this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
+					if (e.command.trim().length > 0) {
+						this._instantiationService.invokeFunction(getCommandHistory)?.add(e.command, { shellType: this._shellType });
+					}
 				});
 			}
 		}));
@@ -756,65 +763,104 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async runRecent(type: 'command' | 'cwd'): Promise<void> {
-		const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
-		if (!commands || !this.xterm) {
+		if (!this.xterm) {
 			return;
 		}
 		type Item = IQuickPickItem & { command?: ITerminalCommand };
-		const items: Item[] = [];
+		let items: (Item | IQuickPickItem | IQuickPickSeparator)[] = [];
+		const commandMap: Set<string> = new Set();
+
+		const removeFromCommandHistoryButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.close),
+			tooltip: nls.localize('removeCommand', "Remove from Command History")
+		};
+
 		if (type === 'command') {
-			for (const entry of commands) {
-				// trim off any whitespace and/or line endings
-				const label = entry.command.trim();
-				if (label.length === 0) {
-					continue;
-				}
-				let detail = '';
-				if (entry.cwd) {
-					detail += `cwd: ${entry.cwd} `;
-				}
-				if (entry.exitCode) {
-					// Since you cannot get the last command's exit code on pwsh, just whether it failed
-					// or not, -1 is treated specially as simply failed
-					if (entry.exitCode === -1) {
-						detail += 'failed';
-					} else {
-						detail += `exitCode: ${entry.exitCode}`;
+			const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			// Current session history
+			if (commands && commands.length > 0) {
+				for (const entry of commands) {
+					// trim off any whitespace and/or line endings
+					const label = entry.command.trim();
+					if (label.length === 0) {
+						continue;
 					}
+					let description = fromNow(entry.timestamp, true);
+					if (entry.cwd) {
+						description += ` @ ${entry.cwd}`;
+					}
+					if (entry.exitCode) {
+						// Since you cannot get the last command's exit code on pwsh, just whether it failed
+						// or not, -1 is treated specially as simply failed
+						if (entry.exitCode === -1) {
+							description += ' failed';
+						} else {
+							description += ` exitCode: ${entry.exitCode}`;
+						}
+					}
+					description = description.trim();
+					const iconClass = ThemeIcon.asClassName(Codicon.output);
+					const buttons: IQuickInputButton[] = [{
+						iconClass,
+						tooltip: nls.localize('viewCommandOutput', "View Command Output"),
+						alwaysVisible: true
+					}];
+					// Merge consecutive commands
+					const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
+					if (lastItem?.type !== 'separator' && lastItem?.label === label) {
+						lastItem.id = entry.timestamp.toString();
+						lastItem.description = description;
+						continue;
+					}
+					items.push({
+						label,
+						description,
+						id: entry.timestamp.toString(),
+						command: entry,
+						buttons: (!entry.endMarker?.isDisposed && !entry.marker?.isDisposed && (entry.endMarker!.line - entry.marker!.line > 0)) ? buttons : undefined
+					});
+					commandMap.add(label);
 				}
-				detail = detail.trim();
-				const iconClass = ThemeIcon.asClassName(Codicon.output);
-				const buttons: IQuickInputButton[] = [{
-					iconClass,
-					tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-					alwaysVisible: true
-				}];
-				// Merge consecutive commands
-				if (items.length > 0 && items[items.length - 1].label === label) {
-					items[items.length - 1].id = entry.timestamp.toString();
-					items[items.length - 1].detail = detail;
-					continue;
+				items = items.reverse();
+				items.unshift({ type: 'separator', label: 'current session' });
+			}
+
+			// Gather previous session history
+			const history = this._instantiationService.invokeFunction(getCommandHistory);
+			const previousSessionItems: IQuickPickItem[] = [];
+			for (const [label, info] of history.entries) {
+				// Only add previous session item if it's not in this session
+				if (!commandMap.has(label) && info.shellType === this.shellType) {
+					previousSessionItems.push({
+						label,
+						buttons: [removeFromCommandHistoryButton]
+					});
 				}
-				items.push({
-					label,
-					description: fromNow(entry.timestamp, true),
-					detail,
-					id: entry.timestamp.toString(),
-					command: entry,
-					buttons: (!entry.endMarker?.isDisposed && !entry.marker?.isDisposed && (entry.endMarker!.line - entry.marker!.line > 0)) ? buttons : undefined
-				});
+			}
+			if (previousSessionItems.length > 0) {
+				items.push(
+					{ type: 'separator', label: 'previous sessions' },
+					...previousSessionItems
+				);
 			}
 		} else {
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
 			for (const label of cwds) {
 				items.push({ label });
 			}
+			items = items.reverse();
+		}
+		if (items.length === 0) {
+			return;
 		}
 		const outputProvider = this._instantiationService.createInstance(TerminalOutputProvider);
 		const quickPick = this._quickInputService.createQuickPick();
-		quickPick.items = items.reverse();
+		quickPick.items = items;
 		return new Promise<void>(r => {
 			quickPick.onDidTriggerItemButton(async e => {
+				if (e.button === removeFromCommandHistoryButton) {
+					this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
+				}
 				const selectedCommand = (e.item as Item).command;
 				const output = selectedCommand?.getOutput();
 				if (output && selectedCommand?.command) {

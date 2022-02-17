@@ -291,8 +291,8 @@ export interface ITerminalConfiguration {
 	ignoreProcessNames: string[];
 	autoReplies: { [key: string]: string };
 	shellIntegration: {
-		enabled: boolean
-	}
+		enabled: boolean;
+	};
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -559,6 +559,7 @@ export const enum TerminalCommandId {
 	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
+	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
