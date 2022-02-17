@@ -182,7 +182,24 @@ export class AzureActiveDirectoryService {
 	//#region session operations
 
 	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
-		Logger.info(`Getting sessions for ${scopes?.join(',') ?? 'all scopes'}...`);
+		if (!scopes) {
+			Logger.info('Getting sessions for all scopes...');
+			const sessions = this._tokens.map(token => this.convertToSessionSync(token));
+			Logger.info(`Got ${sessions.length} sessions for all scopes...`);
+			return sessions;
+		}
+
+		const modifiedScopes = [...scopes];
+		if (!modifiedScopes.includes('openid')) {
+			modifiedScopes.push('openid');
+		}
+		if (!modifiedScopes.includes('email')) {
+			modifiedScopes.push('email');
+		}
+
+		let orderedScopes = modifiedScopes.sort().join(' ');
+		Logger.info(`Getting sessions for the following scopes: ${orderedScopes}`);
+
 		if (this._refreshingPromise) {
 			Logger.info('Refreshing in progress. Waiting for completion before continuing.');
 			try {
@@ -191,15 +208,19 @@ export class AzureActiveDirectoryService {
 				// this will get logged in the refresh function.
 			}
 		}
-		if (!scopes) {
-			const sessions = this._tokens.map(token => this.convertToSessionSync(token));
-			Logger.info(`Got ${sessions.length} sessions for all scopes...`);
-			return sessions;
+
+		let matchingTokens = this._tokens.filter(token => token.scope === orderedScopes);
+
+		// The user may still have a token that doesn't have the openid & email scopes so check for that as well.
+		// Eventually, we should remove this and force the user to re-log in so that we don't have any sessions
+		// without an idtoken.
+		if (!matchingTokens.length) {
+			orderedScopes = scopes.sort().join(' ');
+			Logger.trace(`No session found with idtoken scopes... Using fallback scope list of: ${orderedScopes}`);
+			matchingTokens = this._tokens.filter(token => token.scope === orderedScopes);
 		}
 
-		const orderedScopes = scopes.sort().join(' ');
-		const matchingTokens = this._tokens.filter(token => token.scope === orderedScopes);
-		Logger.info(`Got ${matchingTokens.length} sessions for ${scopes?.join(',')}...`);
+		Logger.info(`Got ${matchingTokens.length} sessions for scopes: ${orderedScopes}`);
 		return Promise.all(matchingTokens.map(token => this.convertToSession(token)));
 	}
 
@@ -210,6 +231,7 @@ export class AzureActiveDirectoryService {
 		if (!scopes.includes('email')) {
 			scopes.push('email');
 		}
+		scopes = scopes.sort();
 		const scopeData: IScopeData = {
 			scopes,
 			scopeStr: scopes.join(' '),
@@ -397,15 +419,23 @@ export class AzureActiveDirectoryService {
 
 		try {
 			if (json.id_token) {
-				Logger.info('Attempting to parse id_token instead since access_token was not parsable');
 				claims = JSON.parse(Buffer.from(json.id_token.split('.')[1], 'base64').toString());
 			} else {
+				Logger.info('Attempting to parse access_token instead since no id_token was included in the response.');
 				claims = JSON.parse(Buffer.from(json.access_token.split('.')[1], 'base64').toString());
 			}
 		} catch (e) {
 			throw e;
 		}
 
+		let label;
+		if (claims.name && claims.email) {
+			label = `${claims.name} - ${claims.email}`;
+		} else {
+			label = claims.email ?? claims.unique_name ?? claims.preferred_username ?? 'user@example.com';
+		}
+
+		const id = `${claims.tid}/${(claims.oid ?? (claims.altsecid ?? '' + claims.ipd ?? ''))}`;
 		return {
 			expiresIn: json.expires_in,
 			expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
@@ -413,10 +443,10 @@ export class AzureActiveDirectoryService {
 			idToken: json.id_token,
 			refreshToken: json.refresh_token,
 			scope: scopeData.scopeStr,
-			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
+			sessionId: existingId || `${id}/${uuid()}`,
 			account: {
-				label: `${claims.name} - ${claims.email}` || claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
-				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
+				label,
+				id
 			}
 		};
 	}
