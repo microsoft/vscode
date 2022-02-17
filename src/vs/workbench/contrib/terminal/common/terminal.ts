@@ -290,7 +290,7 @@ export interface ITerminalConfiguration {
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 	ignoreProcessNames: string[];
 	autoReplies: { [key: string]: string };
-	shellIntegration: {
+	shellIntegration?: {
 		enabled: boolean;
 	};
 }
