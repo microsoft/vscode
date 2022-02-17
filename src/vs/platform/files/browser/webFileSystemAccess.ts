@@ -18,6 +18,15 @@ export namespace WebFileSystemAccess {
 		return false;
 	}
 
+	export function isFileSystemHandle(handle: unknown): handle is FileSystemHandle {
+		const candidate = handle as FileSystemHandle | undefined;
+		if (!candidate) {
+			return false;
+		}
+
+		return typeof candidate.kind === 'string' && typeof candidate.queryPermission === 'function' && typeof candidate.requestPermission === 'function';
+	}
+
 	export function isFileSystemFileHandle(handle: FileSystemHandle): handle is FileSystemFileHandle {
 		return handle.kind === 'file';
 	}
