@@ -5,9 +5,10 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { TerminalSettingId, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 
 /**
  * Tracks a list of generic entries.
@@ -35,6 +36,10 @@ interface ISerializedCache<T> {
 	entries: { key: string; value: T }[];
 }
 
+const enum Constants {
+	DefaultHistoryLimit = 100
+}
+
 const enum StorageKeys {
 	Keys = 'terminal.history.keys',
 	Entries = 'terminal.history.entries',
@@ -50,8 +55,7 @@ export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersiste
 }
 
 class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
-	// TODO: Configure amount
-	private readonly _entries = new LRUCache<string, T>(5);
+	private readonly _entries: LRUCache<string, T>;
 	private _timestamp: number = 0;
 	private _isReady = false;
 	private _isStale = true;
@@ -63,9 +67,22 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 
 	constructor(
 		private readonly _storageDataKey: string,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
+
+		// Init cache
+		this._entries = new LRUCache<string, T>(this._getHistoryLimit());
+
+		// Listen for config changes to set history limit
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandHistory)) {
+				this._entries.limit = this._getHistoryLimit();
+			}
+		});
+
+		// Listen to cache changes from other windows
 		this._storageService.onDidChangeValue(e => {
 			if (e.key !== StorageKeys.Timestamp) {
 				this._isStale = true;
@@ -73,19 +90,19 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 		});
 	}
 
-	add(key: string, value: T): void {
+	add(key: string, value: T) {
 		this._ensureUpToDate();
 		this._entries.set(key, value);
 		this._saveState();
 	}
 
-	remove(key: string): void {
+	remove(key: string) {
 		this._ensureUpToDate();
 		this._entries.delete(key);
 		this._saveState();
 	}
 
-	clear(): void {
+	clear() {
 		this._ensureUpToDate();
 		this._entries.clear();
 		this._saveState();
@@ -132,5 +149,10 @@ class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersist
 		this._storageService.store(`${StorageKeys.Entries}.${this._storageDataKey}`, JSON.stringify(serialized), StorageScope.GLOBAL, StorageTarget.MACHINE);
 		this._timestamp = Date.now();
 		this._storageService.store(`${StorageKeys.Timestamp}.${this._storageDataKey}`, this._timestamp, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	}
+
+	private _getHistoryLimit() {
+		const historyLimit = this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandHistory);
+		return typeof historyLimit === 'number' ? historyLimit : Constants.DefaultHistoryLimit;
 	}
 }

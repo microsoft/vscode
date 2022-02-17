@@ -549,6 +549,12 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.ShellIntegrationCommandHistory]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.history', "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."),
+			type: 'number',
+			default: 100
+		},
 	}
 };
 
