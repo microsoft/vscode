@@ -68,7 +68,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { ITerminalCommand, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
+import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -404,6 +404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._cwd = e;
 					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Config);
+					this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, null);
 				});
 			} else if (e === TerminalCapability.CommandDetection) {
 				this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
@@ -848,7 +849,27 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			for (const label of cwds) {
 				items.push({ label });
 			}
+
 			items = items.reverse();
+
+			// Gather previous session history
+			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
+			const previousSessionItems: IQuickPickItem[] = [];
+			// Only add previous session item if it's not in this session
+			for (const [label] of history.entries) {
+				if (!cwds.includes(label)) {
+					previousSessionItems.push({
+						label,
+						buttons: [removeFromCommandHistoryButton]
+					});
+				}
+			}
+			if (previousSessionItems.length > 0) {
+				items.push(
+					{ type: 'separator', label: 'previous sessions' },
+					...previousSessionItems
+				);
+			}
 		}
 		if (items.length === 0) {
 			return;
@@ -859,22 +880,27 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return new Promise<void>(r => {
 			quickPick.onDidTriggerItemButton(async e => {
 				if (e.button === removeFromCommandHistoryButton) {
-					this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
-				}
-				const selectedCommand = (e.item as Item).command;
-				const output = selectedCommand?.getOutput();
-				if (output && selectedCommand?.command) {
-					const textContent = await outputProvider.provideTextContent(URI.from(
-						{
-							scheme: TerminalOutputProvider.scheme,
-							path: `${selectedCommand.command}... ${fromNow(selectedCommand.timestamp, true)}`,
-							fragment: output,
-							query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
-						}));
-					if (textContent) {
-						await this._editorService.openEditor({
-							resource: textContent.uri
-						});
+					if (type === 'command') {
+						this._instantiationService.invokeFunction(getCommandHistory)?.remove(e.item.label);
+					} else {
+						this._instantiationService.invokeFunction(getDirectoryHistory)?.remove(e.item.label);
+					}
+				} else {
+					const selectedCommand = (e.item as Item).command;
+					const output = selectedCommand?.getOutput();
+					if (output && selectedCommand?.command) {
+						const textContent = await outputProvider.provideTextContent(URI.from(
+							{
+								scheme: TerminalOutputProvider.scheme,
+								path: `${selectedCommand.command}... ${fromNow(selectedCommand.timestamp, true)}`,
+								fragment: output,
+								query: `terminal-output-${selectedCommand.timestamp}-${this.instanceId}`
+							}));
+						if (textContent) {
+							await this._editorService.openEditor({
+								resource: textContent.uri
+							});
+						}
 					}
 				}
 				quickPick.hide();
