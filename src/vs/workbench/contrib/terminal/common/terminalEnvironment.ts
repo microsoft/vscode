@@ -452,7 +452,7 @@ export function injectShellIntegrationArgs(
 			}
 		}
 		if (newArgs) {
-			const showWelcome = configurationService.getValue(TerminalSettingId.ShowShellIntegrationWelcome);
+			const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
 			const additionalArgs = showWelcome ? '' : ' -HideWelcome';
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], additionalArgs);
@@ -466,7 +466,7 @@ export function injectShellIntegrationArgs(
 					env['VSCODE_SHELL_LOGIN'] = '1';
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 				}
-				const showWelcome = configurationService.getValue(TerminalSettingId.ShowShellIntegrationWelcome);
+				const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
 				if (!showWelcome) {
 					env['VSCODE_SHELL_HIDE_WELCOME'] = '1';
 				}
@@ -479,7 +479,7 @@ export function injectShellIntegrationArgs(
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.PwshLogin);
 				}
 				if (newArgs) {
-					const showWelcome = configurationService.getValue(TerminalSettingId.ShowShellIntegrationWelcome);
+					const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
 					const additionalArgs = showWelcome ? '' : ' -HideWelcome';
 					newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 					newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], additionalArgs);
@@ -492,7 +492,7 @@ export function injectShellIntegrationArgs(
 				} else if (areZshBashLoginArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
 				}
-				const showWelcome = configurationService.getValue(TerminalSettingId.ShowShellIntegrationWelcome);
+				const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
 				if (!showWelcome) {
 					env['VSCODE_SHELL_HIDE_WELCOME'] = '1';
 				}

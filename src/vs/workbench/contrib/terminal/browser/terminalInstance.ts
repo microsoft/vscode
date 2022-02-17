@@ -441,7 +441,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xtermReadyPromise.then(async () => {
 			// Wait for a period to allow a container to be ready
 			await this._containerReadyBarrier.wait();
-			if (this._configHelper.config.enableShellIntegration && !this.shellLaunchConfig.executable) {
+			if (this._configHelper.config.shellIntegration.enabled && !this.shellLaunchConfig.executable) {
 				const os = await this._processManager.getBackendOS();
 				this.shellLaunchConfig.executable = (await this._terminalProfileResolverService.getDefaultProfile({ remoteAuthority: this.remoteAuthority, os })).path;
 			}
@@ -2518,9 +2518,9 @@ export function parseExitResult(
 			}
 			if (shellIntegrationAttempted) {
 				if (commandLine) {
-					message = nls.localize('launchFailed.exitCodeAndCommandLineShellIntegration', "The terminal process \"{0}\" failed to launch (exit code: {1}). Disabling shell integration with `terminal.integrated.enableShellIntegration` might help.", commandLine, code);
+					message = nls.localize('launchFailed.exitCodeAndCommandLineShellIntegration', "The terminal process \"{0}\" failed to launch (exit code: {1}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", commandLine, code);
 				} else {
-					message = nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code: {0}). Disabling shell integration with `terminal.integrated.enableShellIntegration` might help.", code);
+					message = nls.localize('launchFailed.exitCodeOnlyShellIntegration', "The terminal process failed to launch (exit code: {0}). Disabling shell integration with `terminal.integrated.shellIntegration.enabled` might help.", code);
 				}
 			} else if (processState === ProcessState.KilledDuringLaunch) {
 				if (commandLine) {

@@ -8,11 +8,12 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, CheckForVSCodeUpdateAction, CONTEXT_UPDATE_STATE, SwitchProductQualityContribution } from 'vs/workbench/contrib/update/browser/update';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
-import { StateType } from 'vs/platform/update/common/update';
+import { IUpdateService, StateType } from 'vs/platform/update/common/update';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const workbench = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -28,6 +29,58 @@ actionRegistry
 
 actionRegistry
 	.registerWorkbenchAction(SyncActionDescriptor.from(CheckForVSCodeUpdateAction), `${product.nameShort}: Check for Update`, product.nameShort, CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle));
+
+class DownloadUpdateAction extends Action2 {
+	constructor() {
+		super({
+			id: 'update.downloadUpdate',
+			title: localize('downloadUpdate', "Download Update"),
+			category: product.nameShort,
+			f1: true,
+			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IUpdateService).downloadUpdate();
+	}
+}
+
+class InstallUpdateAction extends Action2 {
+	constructor() {
+		super({
+			id: 'update.installUpdate',
+			title: localize('installUpdate', "Install Update"),
+			category: product.nameShort,
+			f1: true,
+			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IUpdateService).applyUpdate();
+	}
+}
+
+class RestartToUpdateAction extends Action2 {
+	constructor() {
+		super({
+			id: 'update.restartToUpdate',
+			title: localize('restartToUpdate', "Restart to Update"),
+			category: product.nameShort,
+			f1: true,
+			precondition: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IUpdateService).quitAndInstall();
+	}
+}
+
+registerAction2(DownloadUpdateAction);
+registerAction2(InstallUpdateAction);
+registerAction2(RestartToUpdateAction);
 
 // Menu
 if (ShowCurrentReleaseNotesAction.AVAILABE) {

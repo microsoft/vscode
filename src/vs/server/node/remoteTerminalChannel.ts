@@ -180,13 +180,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 
 
-		let baseEnv: platform.IProcessEnvironment;
-		if (args.shellLaunchConfig.useShellEnvironment) {
-			this._logService.trace('*');
-			baseEnv = await buildUserEnvironment(args.resolverEnv, platform.language, false, this._environmentService, this._logService);
-		} else {
-			baseEnv = this._getEnvironment();
-		}
+		const baseEnv = await buildUserEnvironment(args.resolverEnv, !!args.shellLaunchConfig.useShellEnvironment, platform.language, false, this._environmentService, this._logService);
 		this._logService.trace('baseEnv', baseEnv);
 
 		const reviveWorkspaceFolder = (workspaceData: IWorkspaceFolderData): IWorkspaceFolder => {

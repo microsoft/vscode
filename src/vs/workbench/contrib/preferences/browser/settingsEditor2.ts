@@ -189,6 +189,7 @@ export class SettingsEditor2 extends EditorPane {
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings = false;
 
+	/** Persist the search query upon reloads */
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
 
 	private tocFocusedElement: SettingsTreeGroupElement | null = null;
@@ -1548,6 +1549,8 @@ export class SettingsEditor2 extends EditorPane {
 			if (this.group && this.input) {
 				this.editorMemento.saveEditorState(this.group, this.input, { searchQuery, target });
 			}
+		} else if (this.group && this.input) {
+			this.editorMemento.clearEditorState(this.input, this.group);
 		}
 
 		super.saveState();

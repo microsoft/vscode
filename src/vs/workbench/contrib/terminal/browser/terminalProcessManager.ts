@@ -243,7 +243,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
-						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, this.os);
+						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration.enabled, shellLaunchConfig, this.os);
 						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
 						if (this.shellIntegrationAttempted && shellIntegration.args) {
 							const remoteEnv = await this._remoteAgentService.getEnvironment();
@@ -448,7 +448,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, OS);
+		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration.enabled, shellLaunchConfig, OS);
 		if (shellIntegration.enableShellIntegration) {
 			shellLaunchConfig.args = shellIntegration.args;
 			// Always resolve the injected arguments on local processes

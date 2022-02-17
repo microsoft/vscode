@@ -113,7 +113,7 @@ export class AudioCueLineFeatureContribution
 										this.audioCueService
 											.isEnabled(this.features[idx].audioCue)
 											.read(reader) &&
-										featureResult.read(reader).isActive(lineNumber),
+										featureResult.read(reader).isPresent(lineNumber),
 									'isActiveForLine'
 								)
 						),
@@ -181,7 +181,7 @@ interface LineFeature {
 }
 
 interface LineFeatureState {
-	isActive(lineNumber: number): boolean;
+	isPresent(lineNumber: number): boolean;
 }
 
 class MarkerLineFeature implements LineFeature {
@@ -195,12 +195,12 @@ class MarkerLineFeature implements LineFeature {
 	) { }
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
-		return fromEvent(
+		return fromEvent<LineFeatureState>(
 			Event.filter(this.markerService.onMarkerChanged, (changedUris) =>
 				changedUris.some((u) => u.toString() === model.uri.toString())
 			),
 			() => ({
-				isActive: (lineNumber) => {
+				isPresent: (lineNumber) => {
 					const hasMarker = this.markerService
 						.read({ resource: model.uri })
 						.some(
@@ -223,15 +223,15 @@ class FoldedAreaLineFeature implements LineFeature {
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
 			return constObservable({
-				isActive: () => false,
+				isPresent: () => false,
 			});
 		}
 
 		const foldingModel = fromPromise(
 			foldingController.getFoldingModel() ?? Promise.resolve(undefined)
 		);
-		return foldingModel.map((v) => ({
-			isActive: (lineNumber) => {
+		return foldingModel.map<LineFeatureState>((v) => ({
+			isPresent: (lineNumber) => {
 				const regionAtLine = v.value?.getRegionAtLine(lineNumber);
 				const hasFolding = !regionAtLine
 					? false
@@ -249,10 +249,10 @@ class BreakpointLineFeature implements LineFeature {
 	constructor(@IDebugService private readonly debugService: IDebugService) { }
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
-		return fromEvent(
+		return fromEvent<LineFeatureState>(
 			this.debugService.getModel().onDidChangeBreakpoints,
 			() => ({
-				isActive: (lineNumber) => {
+				isPresent: (lineNumber) => {
 					const breakpoints = this.debugService
 						.getModel()
 						.getBreakpoints({ uri: model.uri, lineNumber });
@@ -270,8 +270,8 @@ class InlineCompletionLineFeature implements LineFeature {
 	getObservableState(editor: ICodeEditor, _model: ITextModel): IObservable<LineFeatureState> {
 		const ghostTextController = GhostTextController.get(editor);
 		if (!ghostTextController) {
-			return constObservable({
-				isActive: () => false,
+			return constObservable<LineFeatureState>({
+				isPresent: () => false,
 			});
 		}
 
@@ -287,10 +287,10 @@ class InlineCompletionLineFeature implements LineFeature {
 				: undefined
 		));
 
-		return new LazyDerived(reader => {
+		return new LazyDerived<LineFeatureState>(reader => {
 			const ghostText = activeGhostText.read(reader)?.read(reader);
 			return {
-				isActive(lineNumber) {
+				isPresent(lineNumber) {
 					return ghostText?.lineNumber === lineNumber;
 				}
 			};
