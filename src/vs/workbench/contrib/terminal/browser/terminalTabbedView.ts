@@ -404,6 +404,10 @@ export class TerminalTabbedView extends Disposable {
 			}
 		}));
 		this._register(dom.addDisposableListener(terminalContainer, 'contextmenu', (event: MouseEvent) => {
+			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
+				this._cancelContextMenu = true;
+			}
 			if (!this._cancelContextMenu) {
 				openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
 			}
@@ -412,6 +416,10 @@ export class TerminalTabbedView extends Disposable {
 			this._cancelContextMenu = false;
 		}));
 		this._register(dom.addDisposableListener(this._tabContainer, 'contextmenu', (event: MouseEvent) => {
+			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
+				this._cancelContextMenu = true;
+			}
 			if (!this._cancelContextMenu) {
 				const emptyList = this._tabList.getFocus().length === 0;
 				openContextMenu(event, this._parentElement, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);

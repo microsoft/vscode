@@ -181,14 +181,21 @@ export class TerminalEditor extends EditorPane {
 		}));
 		this._register(dom.addDisposableListener(this._editorInstanceElement, 'contextmenu', (event: MouseEvent) => {
 			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-			if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
-				if (!this._cancelContextMenu) {
-					openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
-				}
+			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
 				event.preventDefault();
 				event.stopImmediatePropagation();
 				this._cancelContextMenu = false;
+				return;
 			}
+			else
+				if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
+					if (!this._cancelContextMenu) {
+						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
+					}
+					event.preventDefault();
+					event.stopImmediatePropagation();
+					this._cancelContextMenu = false;
+				}
 		}));
 	}
 
