@@ -5,6 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -27,11 +28,14 @@ export class ShowAudioCueHelp extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const audioCueService = accessor.get(IAudioCueService);
-		const quickPickService = accessor!.get(IQuickInputService);
-		const preferencesService = accessor!.get(IPreferencesService);
+		const quickPickService = accessor.get(IQuickInputService);
+		const preferencesService = accessor.get(IPreferencesService);
+		const accessibilityService = accessor.get(IAccessibilityService);
 
 		const items: (IQuickPickItem & { audioCue: AudioCue })[] = AudioCue.allAudioCues.map((cue, idx) => ({
-			label: `${cue.name}${audioCueService.isEnabled(cue).get() ? '' : ' (disabled)'}`,
+			label: accessibilityService.isScreenReaderOptimized() ?
+				`${cue.name}${audioCueService.isEnabled(cue).get() ? '' : ' (' + localize('disabled', "Disabled") + ')'}`
+				: `${audioCueService.isEnabled(cue).get() ? '$(check)' : '     '} ${cue.name}`,
 			audioCue: cue,
 			buttons: [{
 				iconClass: Codicon.settingsGear.classNames,
