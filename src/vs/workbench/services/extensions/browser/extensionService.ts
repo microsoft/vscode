@@ -156,7 +156,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					result.push(ExtensionRunningLocation.Remote);
 				}
 			}
-			if (extensionKind === 'web' && isInstalledLocally) {
+			if (extensionKind === 'web' && (isInstalledLocally || isInstalledRemotely)) {
 				// web worker extensions run in the local web worker if possible
 				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
 					return ExtensionRunningLocation.LocalWebWorker;
