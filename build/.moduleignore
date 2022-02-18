@@ -112,6 +112,11 @@ vscode-windows-ca-certs/**/*
 
 node-addon-api/**/*
 
+
+@microsoft/applicationinsights*/**
+@microsoft/dynamicproto-js/**
+!@microsoft/applicationinsights-web/dist/applicationinsights-web.min.js
+
 # other node modules
 
 **/docs/**
