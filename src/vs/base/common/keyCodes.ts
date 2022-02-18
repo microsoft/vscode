@@ -209,6 +209,11 @@ export const enum KeyCode {
 	LaunchApp2,
 
 	/**
+	 * VK_CLEAR, 0x0C, CLEAR key
+	 */
+	Clear,
+
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
@@ -569,7 +574,6 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[13, 1, ScanCode.End, 'End', KeyCode.End, 'End', 35, 'VK_END', empty, empty],
 		[12, 1, ScanCode.PageDown, 'PageDown', KeyCode.PageDown, 'PageDown', 34, 'VK_NEXT', empty, empty],
 		[17, 1, ScanCode.ArrowRight, 'ArrowRight', KeyCode.RightArrow, 'RightArrow', 39, 'VK_RIGHT', 'Right', empty],
-		[118, 1, ScanCode.NumpadClear, 'Clear', KeyCode.NUMPAD_SEPARATOR, 'Clear', 12, 'VK_CLEAR', 'Clear', empty],
 		[15, 1, ScanCode.ArrowLeft, 'ArrowLeft', KeyCode.LeftArrow, 'LeftArrow', 37, 'VK_LEFT', 'Left', empty],
 		[18, 1, ScanCode.ArrowDown, 'ArrowDown', KeyCode.DownArrow, 'DownArrow', 40, 'VK_DOWN', 'Down', empty],
 		[16, 1, ScanCode.ArrowUp, 'ArrowUp', KeyCode.UpArrow, 'UpArrow', 38, 'VK_UP', 'Up', empty],
@@ -639,7 +643,7 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[0, 1, ScanCode.NumpadMemoryClear, 'NumpadMemoryClear', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.NumpadMemoryAdd, 'NumpadMemoryAdd', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[0, 1, ScanCode.NumpadMemorySubtract, 'NumpadMemorySubtract', KeyCode.Unknown, empty, 0, empty, empty, empty],
-		[0, 1, ScanCode.NumpadClear, 'NumpadClear', KeyCode.Unknown, empty, 0, empty, empty, empty],
+		[0, 1, ScanCode.NumpadClear, 'NumpadClear', KeyCode.Clear, 'Clear', 12, 'VK_CLEAR', empty, empty],
 		[0, 1, ScanCode.NumpadClearEntry, 'NumpadClearEntry', KeyCode.Unknown, empty, 0, empty, empty, empty],
 		[5, 1, ScanCode.None, empty, KeyCode.Ctrl, 'Ctrl', 17, 'VK_CONTROL', empty, empty],
 		[4, 1, ScanCode.None, empty, KeyCode.Shift, 'Shift', 16, 'VK_SHIFT', empty, empty],
@@ -687,7 +691,6 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		[109, 1, ScanCode.None, empty, KeyCode.KEY_IN_COMPOSITION, 'KeyInComposition', 229, empty, empty, empty],
 		[111, 1, ScanCode.None, empty, KeyCode.ABNT_C2, 'ABNT_C2', 194, 'VK_ABNT_C2', empty, empty],
 		[91, 1, ScanCode.None, empty, KeyCode.OEM_8, 'OEM_8', 223, 'VK_OEM_8', empty, empty],
-
 		[0, 1, ScanCode.None, empty, KeyCode.Unknown, empty, 0, 'VK_KANA', empty, empty],
 		[0, 1, ScanCode.None, empty, KeyCode.Unknown, empty, 0, 'VK_HANGUL', empty, empty],
 		[0, 1, ScanCode.None, empty, KeyCode.Unknown, empty, 0, 'VK_JUNJA', empty, empty],
