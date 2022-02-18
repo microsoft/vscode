@@ -24,6 +24,14 @@ command_output_start() {
 	printf "\033]633;C\007"
 }
 
+continuation_start() {
+	printf "\033]633;F\007"
+}
+
+continuation_end() {
+	printf "\033]633;G\007"
+}
+
 command_complete() {
 	local HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
 	if [[ "$HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
@@ -39,6 +47,7 @@ update_prompt() {
 	PRIOR_PROMPT="$PS1"
 	IN_COMMAND_EXECUTION=""
 	PS1="$(prompt_start)$PREFIX$PS1$(prompt_end)"
+	PS2="$(continuation_start)$PS2$(continuation_end)"
 }
 
 precmd() {
