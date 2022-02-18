@@ -22,12 +22,12 @@ import { fromNow } from 'vs/base/common/date';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { editorGutterDeletedBackground, editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { TERMINAL_COMMAND_DECORATION_SKIPPED_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
 	ErrorColor = 'error',
-	SkippedColor = 'skipped',
+	DefaultColor = 'default',
 	Codicon = 'codicon',
 	XtermScreen = 'xterm-screen'
 }
@@ -136,7 +136,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 			decoration.onRender(target => {
 				this._applyStyles(target);
-				target.classList.add(DecorationSelector.SkippedColor);
+				target.classList.add(DecorationSelector.DefaultColor);
 			});
 			this._placeholderDecoration = decoration;
 			return decoration;
@@ -155,8 +155,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (target.clientWidth! > 0) {
 				this._applyStyles(target);
 				if (command.exitCode === undefined) {
-					target.classList.add(DecorationSelector.SkippedColor);
-					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconSkipped)}`);
+					target.classList.add(DecorationSelector.DefaultColor);
+					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconDefault)}`);
 				} else if (command.exitCode) {
 					target.classList.add(DecorationSelector.ErrorColor);
 					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconError)}`);
@@ -234,15 +234,21 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const defaultColor = theme.getColor(editorGutterModifiedBackground);
+	const successColor = theme.getColor(editorGutterModifiedBackground);
 	const errorColor = theme.getColor(editorGutterDeletedBackground);
-	const skippedColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SKIPPED_BACKGROUND_COLOR);
+	const defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
 	const hoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (!defaultColor || !errorColor || !skippedColor || !hoverBackgroundColor) {
-		return;
+
+	if (successColor) {
+		collector.addRule(`.${DecorationSelector.CommandDecoration} { color: ${successColor.toString()}; } `);
 	}
-	collector.addRule(`.${DecorationSelector.CommandDecoration} { color: ${defaultColor.toString()}; } `);
-	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.ErrorColor} { color: ${errorColor.toString()}; } `);
-	collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.SkippedColor} { color: ${skippedColor.toString()};} `);
-	collector.addRule(`.${DecorationSelector.CommandDecoration}: not(.${DecorationSelector.SkippedColor}): hover { background-color: ${hoverBackgroundColor.toString()}; }`);
+	if (errorColor) {
+		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.ErrorColor} { color: ${errorColor.toString()}; } `);
+	}
+	if (defaultColor) {
+		collector.addRule(`.${DecorationSelector.CommandDecoration}.${DecorationSelector.DefaultColor} { color: ${defaultColor.toString()};} `);
+	}
+	if (hoverBackgroundColor) {
+		collector.addRule(`.${DecorationSelector.CommandDecoration}:not(.${DecorationSelector.DefaultColor}):hover { background-color: ${hoverBackgroundColor.toString()}; }`);
+	}
 });
