@@ -1,3 +1,5 @@
+autoload -Uz add-zsh-hook
+
 IN_COMMAND_EXECUTION="1"
 prompt_start() {
 	printf "\033]633;A\007"
@@ -47,8 +49,8 @@ preexec() {
 	IN_COMMAND_EXECUTION="1"
 	command_output_start
 }
-precmd_functions+=($precmd_functions precmd)
-preexec_functions+=($preexec_functions preexec)
+add-zsh-hook precmd precmd
+add-zsh-hook preexec preexec
 
 # Show the welcome message
 if [ -z "${VSCODE_SHELL_HIDE_WELCOME-}" ]; then

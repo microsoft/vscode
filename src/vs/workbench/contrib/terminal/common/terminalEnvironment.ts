@@ -416,8 +416,8 @@ shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -
 shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{0}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-zsh.sh"; zsh -i']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-c', '"${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-zsh.sh"; zsh -il']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
 const loginArgs = ['-login', '-l'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
@@ -491,7 +491,12 @@ export function injectShellIntegrationArgs(
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
 				} else if (areZshBashLoginArgs(originalArgs)) {
 					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
+				} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
+					newArgs = originalArgs;
 				}
+				// Set the ZDOTDIR to be the dir of the shell integration script so that it runs
+				// as a .zshrc file and the autoload hook will work and set precmd and preexec correctly
+				env['ZDOTDIR'] = '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media';
 				const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
 				if (!showWelcome) {
 					env['VSCODE_SHELL_HIDE_WELCOME'] = '1';
