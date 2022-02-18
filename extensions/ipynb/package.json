@@ -32,6 +32,10 @@
 			{
 				"command": "ipynb.newUntitledIpynb",
 				"title": "Jupyter Notebook"
+			},
+			{
+				"command": "ipynb.openIpynbInNotebookEditor",
+				"title": "Open ipynb file in notebook editor"
 			}
 		],
 		"notebooks": [
@@ -51,6 +55,16 @@
 				{
 					"command": "ipynb.newUntitledIpynb",
 					"when": "!jupyterEnabled"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "ipynb.newUntitledIpynb",
+					"when": "false"
+				},
+				{
+					"command": "ipynb.openIpynbInNotebookEditor",
+					"when": "false"
 				}
 			]
 		}
