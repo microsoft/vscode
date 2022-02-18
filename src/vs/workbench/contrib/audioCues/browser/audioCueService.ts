@@ -11,6 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { fromEvent, IObservable, LazyDerived } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { Event } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -123,27 +124,27 @@ export class AudioCue {
 	}
 
 	public static readonly error = AudioCue.register({
-		name: 'Line has Error',
+		name: localize('audioCues.lineHasError.name', 'Line has Error'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasError',
 	});
 	public static readonly warning = AudioCue.register({
-		name: 'Line has Warning',
+		name: localize('audioCues.lineHasWarning.name', 'Line has Warning'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasWarning',
 	});
 	public static readonly foldedArea = AudioCue.register({
-		name: 'Line has Folded Area',
+		name: localize('audioCues.lineHasFoldedArea.name', 'Line has Folded Area'),
 		sound: Sound.foldedArea,
 		settingsKey: 'audioCues.lineHasFoldedArea',
 	});
 	public static readonly break = AudioCue.register({
-		name: 'Line has Breakpoint',
+		name: localize('audioCues.lineHasBreakpoint.name', 'Line has Breakpoint'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasBreakpoint',
 	});
 	public static readonly inlineSuggestion = AudioCue.register({
-		name: 'Line has Inline Suggestion Available',
+		name: localize('audioCues.lineHasInlineSuggestion.name', 'Line has Inline Suggestion Available'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
