@@ -393,8 +393,11 @@ export const diffRemoved = registerColor('diffEditor.removedTextBackground', { d
 export const diffInsertedLine = registerColor('diffEditor.insertedLineBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorInsertedLines', 'Background color for lines that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const diffRemovedLine = registerColor('diffEditor.removedLineBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorRemovedLines', 'Background color for lines that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);
 
-export const diffInsertedLineGutter = registerColor('diffEditor.insertedLineGutterBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorInsertedLineGutter', 'Background color for the margin where lines got inserted.'));
-export const diffRemovedLineGutter = registerColor('diffEditor.removedLineGutterBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorRemovedLineGutter', 'Background color for the margin where lines got removed.'));
+export const diffInsertedLineGutter = registerColor('diffEditorGutter.insertedLineBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorInsertedLineGutter', 'Background color for the margin where lines got inserted.'));
+export const diffRemovedLineGutter = registerColor('diffEditorGutter.removedLineBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorRemovedLineGutter', 'Background color for the margin where lines got removed.'));
+
+export const diffOverviewRulerInserted = registerColor('diffEditorOverview.insertedForeground', { dark: null, light: null, hc: null }, nls.localize('diffEditorOverviewInserted', 'Diff overview ruler foreground for inserted content.'));
+export const diffOverviewRulerRemoved = registerColor('diffEditorOverview.removedForeground', { dark: null, light: null, hc: null }, nls.localize('diffEditorOverviewRemoved', 'Diff overview ruler foreground for removed content.'));
 
 export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
 export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
