@@ -6,6 +6,8 @@
 autoload -Uz add-zsh-hook
 
 IN_COMMAND_EXECUTION="1"
+LAST_HISTORY_ID=0
+
 prompt_start() {
 	printf "\033]633;A\007"
 }
@@ -23,7 +25,13 @@ command_output_start() {
 }
 
 command_complete() {
-	printf "\033]633;D;%s\007" "$STATUS"
+	local HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
+	if [[ "$HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
+		printf "\033]633;D\007"
+	else
+		printf "\033]633;D;%s\007" "$STATUS"
+		LAST_HISTORY_ID=$HISTORY_ID
+	fi
 	update_cwd
 }
 

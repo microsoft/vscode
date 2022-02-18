@@ -53,7 +53,6 @@ command_complete() {
 		printf "\033]633;D;%s\007" "$STATUS"
 		LAST_HISTORY_ID=$HISTORY_ID
 	fi
-
 	update_cwd
 }
 
