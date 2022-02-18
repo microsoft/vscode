@@ -1410,6 +1410,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return this.view.renderHeight;
 	}
 
+	getScrollHeight() {
+		return this.view.scrollHeight;
+	}
+
 	override layout(height?: number, width?: number): void {
 		this._isInLayout = true;
 		super.layout(height, width);

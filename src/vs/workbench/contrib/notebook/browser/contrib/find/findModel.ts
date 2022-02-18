@@ -25,6 +25,7 @@ export class FindModel extends Disposable {
 	protected _findMatchesStarts: PrefixSumComputer | null = null;
 	private _currentMatch: number = -1;
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
+	private _allMatchesCellDecorations: string[] = [];
 	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
 	private readonly _throttledDelayer: Delayer<void>;
 	private _computePromise: CancelablePromise<CellFindMatchWithIndex[] | null> | null = null;
@@ -435,6 +436,16 @@ export class FindModel extends Disposable {
 
 			this._allMatchesDecorations = accessor.deltaDecorations(this._allMatchesDecorations, deltaDecorations);
 		});
+
+		this._allMatchesCellDecorations = this._notebookEditor.deltaCellDecorations(this._allMatchesCellDecorations, cellFindMatches.map(cellFindMatch => {
+			return {
+				ownerId: cellFindMatch.cell.handle,
+				handle: cellFindMatch.cell.handle,
+				options: {
+					overviewRuler: '#a8ac94'
+				}
+			};
+		}));
 	}
 
 
