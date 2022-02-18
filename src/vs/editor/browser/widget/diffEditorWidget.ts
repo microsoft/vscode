@@ -36,7 +36,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { defaultInsertColor, defaultRemoveColor, diffBorder, diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, scrollbarShadow, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, diffDiagonalFill } from 'vs/platform/theme/common/colorRegistry';
+import { defaultInsertColor, defaultRemoveColor, diffBorder, diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, scrollbarShadow, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground, diffDiagonalFill, diffInsertedGutter, diffRemovedGutter } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, getThemeTypeSelector, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IDiffLinesChange, InlineDiffMargin } from 'vs/editor/browser/widget/inlineDiffMargin';
@@ -1746,34 +1746,34 @@ const DECORATIONS = {
 	lineInsert: ModelDecorationOptions.register({
 		description: 'diff-editor-line-insert',
 		className: 'line-insert',
-		marginClassName: 'line-insert',
+		marginClassName: 'gutter-insert',
 		isWholeLine: true
 	}),
 	lineInsertWithSign: ModelDecorationOptions.register({
 		description: 'diff-editor-line-insert-with-sign',
 		className: 'line-insert',
 		linesDecorationsClassName: 'insert-sign ' + ThemeIcon.asClassName(diffInsertIcon),
-		marginClassName: 'line-insert',
+		marginClassName: 'gutter-insert',
 		isWholeLine: true
 	}),
 
 	lineDelete: ModelDecorationOptions.register({
 		description: 'diff-editor-line-delete',
 		className: 'line-delete',
-		marginClassName: 'line-delete',
+		marginClassName: 'gutter-delete',
 		isWholeLine: true
 	}),
 	lineDeleteWithSign: ModelDecorationOptions.register({
 		description: 'diff-editor-line-delete-with-sign',
 		className: 'line-delete',
 		linesDecorationsClassName: 'delete-sign ' + ThemeIcon.asClassName(diffRemoveIcon),
-		marginClassName: 'line-delete',
+		marginClassName: 'gutter-delete',
 		isWholeLine: true
 
 	}),
 	lineDeleteMargin: ModelDecorationOptions.register({
 		description: 'diff-editor-line-delete-margin',
-		marginClassName: 'line-delete',
+		marginClassName: 'gutter-delete',
 	})
 
 };
@@ -2369,7 +2369,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 					viewLineCounts[lineIndex] = lineBreakData.breakOffsets.length;
 					viewZone.heightInLines += (lineBreakData.breakOffsets.length - 1);
 					const marginDomNode2 = document.createElement('div');
-					marginDomNode2.className = 'line-delete';
+					marginDomNode2.className = 'gutter-delete';
 					result.original.push({
 						afterLineNumber: lineNumber,
 						afterColumn: 0,
@@ -2549,17 +2549,25 @@ function changedDiffEditorOptions(a: ValidDiffEditorBaseOptions, b: ValidDiffEdi
 
 registerThemingParticipant((theme, collector) => {
 	const added = theme.getColor(diffInserted);
+	const gutterAdded = theme.getColor(diffInsertedGutter) || added;
 	if (added) {
 		collector.addRule(`.monaco-editor .line-insert, .monaco-editor .char-insert { background-color: ${added}; }`);
 		collector.addRule(`.monaco-diff-editor .line-insert, .monaco-diff-editor .char-insert { background-color: ${added}; }`);
-		collector.addRule(`.monaco-editor .inline-added-margin-view-zone { background-color: ${added}; }`);
+	}
+	if (gutterAdded) {
+		collector.addRule(`.monaco-editor .inline-added-margin-view-zone { background-color: ${gutterAdded}; }`);
+		collector.addRule(`.monaco-editor .gutter-insert, .monaco-diff-editor .gutter-insert { background-color: ${gutterAdded}; }`);
 	}
 
 	const removed = theme.getColor(diffRemoved);
+	const gutterRemoved = theme.getColor(diffRemovedGutter) || removed;
 	if (removed) {
 		collector.addRule(`.monaco-editor .line-delete, .monaco-editor .char-delete { background-color: ${removed}; }`);
 		collector.addRule(`.monaco-diff-editor .line-delete, .monaco-diff-editor .char-delete { background-color: ${removed}; }`);
-		collector.addRule(`.monaco-editor .inline-deleted-margin-view-zone { background-color: ${removed}; }`);
+	}
+	if (gutterRemoved) {
+		collector.addRule(`.monaco-editor .inline-deleted-margin-view-zone { background-color: ${gutterRemoved}; }`);
+		collector.addRule(`.monaco-editor .gutter-delete, .monaco-diff-editor .gutter-delete { background-color: ${gutterRemoved}; }`);
 	}
 
 	const addedOutline = theme.getColor(diffInsertedOutline);
