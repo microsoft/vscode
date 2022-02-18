@@ -24,11 +24,6 @@ export interface IAudioCueService {
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
 
-	private readonly audioCueEnabledObservables = new Map<
-		AudioCue,
-		IObservable<boolean>
-	>();
-
 	private readonly screenReaderAttached = fromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => this.accessibilityService.isScreenReaderOptimized()
@@ -65,27 +60,42 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 	}
 
+	private readonly isEnabledCache = new Cache((cue: AudioCue) => {
+		const settingObservable = fromEvent(
+			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
+				e.affectsConfiguration(cue.settingsKey)
+			),
+			() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
+		);
+		return new LazyDerived(reader => {
+			const setting = settingObservable.read(reader);
+			if (setting === 'auto') {
+				return this.screenReaderAttached.read(reader);
+			} else if (setting === 'on') {
+				return true;
+			}
+			return false;
+		}, 'audio cue enabled');
+	});
+
 	public isEnabled(cue: AudioCue): IObservable<boolean> {
-		let observable = this.audioCueEnabledObservables.get(cue);
-		if (!observable) {
-			const settingObservable = fromEvent(
-				Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-					e.affectsConfiguration(cue.settingsKey)
-				),
-				() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
-			);
-			observable = new LazyDerived(reader => {
-				const setting = settingObservable.read(reader);
-				if (setting === 'auto') {
-					return this.screenReaderAttached.read(reader);
-				} else if (setting === 'on') {
-					return true;
-				}
-				return false;
-			}, 'audio cue enabled');
-			this.audioCueEnabledObservables.set(cue, observable);
+		return this.isEnabledCache.get(cue);
+	}
+}
+
+class Cache<TArg, TValue> {
+	private readonly map = new Map<TArg, TValue>();
+	constructor(private readonly getValue: (value: TArg) => TValue) {
+	}
+
+	public get(arg: TArg): TValue {
+		if (this.map.has(arg)) {
+			return this.map.get(arg)!;
 		}
-		return observable;
+
+		const value = this.getValue(arg);
+		this.map.set(arg, value);
+		return value;
 	}
 }
 
