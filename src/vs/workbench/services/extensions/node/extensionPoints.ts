@@ -11,7 +11,6 @@ import * as arrays from 'vs/base/common/arrays';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
 import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
 import { ExtensionIdentifier, IExtensionDescription, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
@@ -71,9 +70,9 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	}
 
 	public parse(): Promise<IExtensionDescription> {
-		return pfs.Promises.readFile(this._absoluteManifestPath).then((manifestContents) => {
+		return this._host.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
-			const manifest = ExtensionManifestParser._fastParseJSON(manifestContents.toString(), errors);
+			const manifest = ExtensionManifestParser._fastParseJSON(manifestContents, errors);
 			if (json.getNodeType(manifest) !== 'object') {
 				this._error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
 			} else if (errors.length === 0) {
@@ -141,7 +140,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 		let translationPath = this._nlsConfig.translations[translationId];
 		let localizedMessages: Promise<LocalizedMessages | undefined>;
 		if (translationPath) {
-			localizedMessages = pfs.Promises.readFile(translationPath, 'utf8').then<LocalizedMessages, LocalizedMessages>((content) => {
+			localizedMessages = this._host.readFile(translationPath).then<LocalizedMessages, LocalizedMessages>((content) => {
 				let errors: json.ParseError[] = [];
 				let translationBundle: TranslationBundle = json.parse(content, errors);
 				if (errors.length > 0) {
@@ -158,15 +157,15 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 				return { values: undefined, default: `${basename}.nls.json` };
 			});
 		} else {
-			localizedMessages = pfs.SymlinkSupport.existsFile(basename + '.nls' + extension).then<LocalizedMessages | undefined, LocalizedMessages | undefined>(exists => {
+			localizedMessages = this._host.existsFile(basename + '.nls' + extension).then<LocalizedMessages | undefined, LocalizedMessages | undefined>(exists => {
 				if (!exists) {
 					return undefined;
 				}
-				return ExtensionManifestNLSReplacer.findMessageBundles(this._nlsConfig, basename).then((messageBundle) => {
+				return ExtensionManifestNLSReplacer.findMessageBundles(this._host, this._nlsConfig, basename).then((messageBundle) => {
 					if (!messageBundle.localized) {
 						return { values: undefined, default: messageBundle.original };
 					}
-					return pfs.Promises.readFile(messageBundle.localized, 'utf8').then(messageBundleContent => {
+					return this._host.readFile(messageBundle.localized).then(messageBundleContent => {
 						let errors: json.ParseError[] = [];
 						let messages: MessageBag = json.parse(messageBundleContent, errors);
 						if (errors.length > 0) {
@@ -192,7 +191,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			}
 			let errors: json.ParseError[] = [];
 			// resolveOriginalMessageBundle returns null if localizedMessages.default === undefined;
-			return ExtensionManifestNLSReplacer.resolveOriginalMessageBundle(localizedMessages.default, errors).then((defaults) => {
+			return this.resolveOriginalMessageBundle(localizedMessages.default, errors).then((defaults) => {
 				if (errors.length > 0) {
 					reportErrors(localizedMessages.default, errors);
 					return extensionDescription;
@@ -212,11 +211,11 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	/**
 	 * Parses original message bundle, returns null if the original message bundle is null.
 	 */
-	private static resolveOriginalMessageBundle(originalMessageBundle: string | null, errors: json.ParseError[]) {
+	private resolveOriginalMessageBundle(originalMessageBundle: string | null, errors: json.ParseError[]) {
 		return new Promise<{ [key: string]: string } | null>((c, e) => {
 			if (originalMessageBundle) {
-				pfs.Promises.readFile(originalMessageBundle).then(originalBundleContent => {
-					c(json.parse(originalBundleContent.toString(), errors));
+				this._host.readFile(originalMessageBundle).then(originalBundleContent => {
+					c(json.parse(originalBundleContent, errors));
 				}, (err) => {
 					c(null);
 				});
@@ -230,11 +229,11 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	 * Finds localized message bundle and the original (unlocalized) one.
 	 * If the localized file is not present, returns null for the original and marks original as localized.
 	 */
-	private static findMessageBundles(nlsConfig: NlsConfiguration, basename: string): Promise<{ localized: string; original: string | null }> {
+	private static findMessageBundles(host: IExtensionScannerHost, nlsConfig: NlsConfiguration, basename: string): Promise<{ localized: string; original: string | null }> {
 		return new Promise<{ localized: string; original: string | null }>((c, e) => {
 			function loop(basename: string, locale: string): void {
 				let toCheck = `${basename}.nls.${locale}.json`;
-				pfs.SymlinkSupport.existsFile(toCheck).then(exists => {
+				host.existsFile(toCheck).then(exists => {
 					if (exists) {
 						c({ localized: toCheck, original: `${basename}.nls.json` });
 					}
@@ -514,16 +513,25 @@ export interface IExtensionResolver {
 
 class DefaultExtensionResolver implements IExtensionResolver {
 
-	constructor(private root: string) { }
+	constructor(
+		private readonly _host: IExtensionScannerHost,
+		private readonly root: string
+	) { }
 
 	resolveExtensions(): Promise<IExtensionReference[]> {
-		return pfs.Promises.readDirsInDir(this.root)
+		return this._host.readDirsInDir(this.root)
 			.then(folders => folders.map(name => ({ name, path: path.join(this.root, name) })));
 	}
 }
 
 export interface IExtensionScannerHost {
 	readonly log: ILog;
+	/**
+	 * If a file is not found, it must throw an error with a field `error.code` equal to 'ENOENT'
+	 */
+	readFile(filename: string): Promise<string>;
+	existsFile(filename: string): Promise<boolean>;
+	readDirsInDir(dirPath: string): Promise<string[]>;
 }
 
 export class ExtensionScanner {
@@ -561,14 +569,14 @@ export class ExtensionScanner {
 		const isUnderDevelopment = input.isUnderDevelopment;
 
 		if (!resolver) {
-			resolver = new DefaultExtensionResolver(absoluteFolderPath);
+			resolver = new DefaultExtensionResolver(host, absoluteFolderPath);
 		}
 
 		try {
 			let obsolete: { [folderName: string]: boolean } = {};
 			if (!isBuiltin) {
 				try {
-					const obsoleteFileContents = await pfs.Promises.readFile(path.join(absoluteFolderPath, '.obsolete'), 'utf8');
+					const obsoleteFileContents = await host.readFile(path.join(absoluteFolderPath, '.obsolete'));
 					obsolete = JSON.parse(obsoleteFileContents);
 				} catch (err) {
 					// Don't care
@@ -617,7 +625,7 @@ export class ExtensionScanner {
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;
 
-		return pfs.SymlinkSupport.existsFile(path.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
+		return host.existsFile(path.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
 				const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
 				return this.scanExtension(input.ourVersion, input.ourProductDate, host, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig).then((extensionDescription) => {

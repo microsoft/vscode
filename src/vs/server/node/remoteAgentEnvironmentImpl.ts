@@ -28,7 +28,7 @@ import { ILog, Translations } from 'vs/workbench/services/extensions/common/exte
 import { IBuiltInExtension } from 'vs/base/common/product';
 import { IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { cwd } from 'vs/base/common/process';
-import { Promises } from 'vs/base/node/pfs';
+import * as pfs from 'vs/base/node/pfs';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 
@@ -74,7 +74,10 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			}
 		};
 		this._extensionScannerHost = {
-			log: this._logger
+			log: this._logger,
+			readFile: (filename) => pfs.Promises.readFile(filename, 'utf8'),
+			existsFile: (filename) => pfs.SymlinkSupport.existsFile(filename),
+			readDirsInDir: (dirPath) => pfs.Promises.readDirsInDir(dirPath),
 		};
 
 		if (environmentService.args['install-builtin-extension']) {
@@ -335,7 +338,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		const config = await getNLSConfiguration(language, this.environmentService.userDataPath);
 		if (InternalNLSConfiguration.is(config)) {
 			try {
-				const content = await Promises.readFile(config._translationsConfigFile, 'utf8');
+				const content = await pfs.Promises.readFile(config._translationsConfigFile, 'utf8');
 				return JSON.parse(content);
 			} catch (err) {
 				return Object.create(null);

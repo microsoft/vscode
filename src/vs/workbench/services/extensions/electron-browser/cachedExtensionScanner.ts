@@ -19,7 +19,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IExtensionScannerHost, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 interface IExtensionCacheData {
@@ -66,7 +66,38 @@ export class CachedExtensionScanner {
 
 	private _createExtensionScannerHost(log: ILog): IExtensionScannerHost {
 		return {
-			log: log
+			log: log,
+			readFile: async (filename) => {
+				try {
+					const contents = await this._fileService.readFile(URI.file(filename), { atomic: true });
+					return contents.value.toString();
+				} catch (err) {
+					if (toFileOperationResult(err) === FileOperationResult.FILE_NOT_FOUND) {
+						const nodeLikeError = new Error(`File not found`);
+						(<any>nodeLikeError).code = 'ENOENT';
+						throw nodeLikeError;
+					}
+					throw err;
+				}
+			},
+			existsFile: async (filename) => {
+				try {
+					const stat = await this._fileService.resolve(URI.file(filename));
+					return stat.isFile;
+				} catch (err) {
+					return false;
+				}
+			},
+			readDirsInDir: async (dirPath) => {
+				const stat = await this._fileService.resolve(URI.file(dirPath));
+				const result: string[] = [];
+				for (const child of (stat.children || [])) {
+					if (child.isDirectory) {
+						result.push(child.name);
+					}
+				}
+				return result;
+			}
 		};
 	}
 
