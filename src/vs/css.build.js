@@ -18,6 +18,7 @@ var _cssPluginGlobal = this;
 var CSSBuildLoaderPlugin;
 (function (CSSBuildLoaderPlugin) {
     var global = (_cssPluginGlobal || {});
+    
     var BrowserCSSLoader = /** @class */ (function () {
         function BrowserCSSLoader() {
             this._pendingLoads = 0;
