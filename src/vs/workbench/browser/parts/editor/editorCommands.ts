@@ -35,6 +35,8 @@ import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEd
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { extname } from 'vs/base/common/resources';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -931,6 +933,7 @@ function registerCloseEditorCommands() {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const editorService = accessor.get(IEditorService);
 			const editorResolverService = accessor.get(IEditorResolverService);
+			const telemetryService = accessor.get(ITelemetryService);
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 
@@ -952,6 +955,28 @@ function registerCloseEditorCommands() {
 					options: resolvedEditor.options
 				}
 			]);
+
+			type WorkbenchEditorReopenClassification = {
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+
+			};
+
+			type WorkbenchEditorReopenEvent = {
+				scheme: string;
+				ext: string;
+				from: string;
+				to: string;
+			};
+
+			telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
+				scheme: editor.resource?.scheme ?? '',
+				ext: editor.resource ? extname(editor.resource) : '',
+				from: editor.editorId ?? '',
+				to: resolvedEditor.editor.editorId ?? ''
+			});
 
 			// Make sure it becomes active too
 			await resolvedEditor.group.openEditor(resolvedEditor.editor);
