@@ -157,9 +157,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					return;
 				}
 				this._hoverDelayer.trigger(() => {
-					let hoverContent = `${localize('terminal-prompt-context-menu', "Show Actions")}...\n\n---\n\n- ${localize('terminal-prompt-command-executed-time', 'Executed: {0}', fromNow(command.timestamp, true))}`;
+					let hoverContent = `${localize('terminalPromptContextMenu', "Show Command Actions")}...`;
+					hoverContent += '\n\n---\n\n';
 					if (command.exitCode) {
-						hoverContent += `\n- ${command.exitCode === -1 ? localize('terminal-prompt-command-failed', 'Failed') : localize('terminal-prompt-command-exit-code', 'Exit code: {0}', command.exitCode)}`;
+						if (command.exitCode === -1) {
+							hoverContent += localize('terminalPromptCommandFailed', 'Command executed {0} and failed', fromNow(command.timestamp, true));
+						} else {
+							hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
+						}
+					} else {
+						hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
 					}
 					this._hoverService.showHover({ content: new MarkdownString(hoverContent), target });
 				});
