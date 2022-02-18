@@ -280,7 +280,7 @@
 		"terminal.ansiBrightMagenta": "#bc05bc",
 		"terminal.ansiBrightRed": "#cd3131",
 		"terminal.ansiBrightWhite": "#a5a5a5",
-		"terminal.ansiBrightYellow": "",
+		"terminal.ansiBrightYellow": "#b5ba00",
 		"terminal.ansiCyan": "#0598bc",
 		"terminal.ansiGreen": "#00bc00",
 		"terminal.ansiMagenta": "#bc05bc",
@@ -294,9 +294,6 @@
 		"gitDecoration.ignoredResourceForeground": "#8e8e90",
 		"gitDecoration.modifiedResourceForeground": "#895503",
 		"gitDecoration.renamedResourceForeground": "#007100",
-		"gitDecoration.stageDeletedResourceForeground": "",
-		"gitDecoration.stageModifiedResourceForeground": "",
-		"gitDecoration.submoduleResourceForeground": "",
 		"gitDecoration.untrackedResourceForeground": "#007100",
 
 		"quickInputTitle.background": "#ffffff",
@@ -339,7 +336,10 @@
 		"debugView.exceptionLabelForeground": "#ffffff",
 		"debugView.stateLabelBackground": "#88888844",
 		"debugView.stateLabelForeground": "#616161",
-		"debugView.valueChangedHighlight": "#569cd6"
+		"debugView.valueChangedHighlight": "#569cd6",
+
+		"diffEditor.insertedTextBorder": "#374e06",
+		"diffEditor.removedTextBorder": "#ad0707"
 	},
 	"tokenColors": [
 		{
