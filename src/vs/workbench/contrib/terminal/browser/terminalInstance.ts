@@ -404,7 +404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._cwd = e;
 					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Config);
-					this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, null);
+					this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: this.remoteAuthority });
 				});
 			} else if (e === TerminalCapability.CommandDetection) {
 				this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
@@ -855,9 +855,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
 			const previousSessionItems: IQuickPickItem[] = [];
-			// Only add previous session item if it's not in this session
-			for (const [label] of history.entries) {
-				if (!cwds.includes(label)) {
+			// Only add previous session item if it's not in this session and it matches the remote authority
+			for (const [label, info] of history.entries) {
+				if ((info === null || info.remoteAuthority === this.remoteAuthority) && !cwds.includes(label)) {
 					previousSessionItems.push({
 						label,
 						buttons: [removeFromCommandHistoryButton]
