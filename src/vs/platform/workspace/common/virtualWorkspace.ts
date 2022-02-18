@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
@@ -27,12 +26,4 @@ export function getVirtualWorkspaceScheme(workspace: IWorkspace): string | undef
 
 export function isVirtualWorkspace(workspace: IWorkspace): boolean {
 	return getVirtualWorkspaceLocation(workspace) !== undefined;
-}
-
-export function isTemporaryWorkspace(workspace: IWorkspace): boolean {
-	if (!isWeb) {
-		return false; // this concept only exists in web currently
-	}
-
-	return workspace.configuration?.scheme === Schemas.tmp;
 }

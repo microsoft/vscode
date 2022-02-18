@@ -71,7 +71,7 @@ import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/e
 import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -404,7 +404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					this._cwd = e;
 					this._xtermOnKey?.dispose();
 					this.refreshTabLabels(this.title, TitleEventSource.Config);
-					this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, null);
+					this._instantiationService.invokeFunction(getDirectoryHistory)?.add(e, { remoteAuthority: this.remoteAuthority });
 				});
 			} else if (e === TerminalCapability.CommandDetection) {
 				this.capabilities.get(TerminalCapability.CommandDetection)?.onCommandFinished(e => {
@@ -823,7 +823,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					commandMap.add(label);
 				}
 				items = items.reverse();
-				items.unshift({ type: 'separator', label: 'current session' });
+				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
 			}
 
 			// Gather previous session history
@@ -840,24 +840,26 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (previousSessionItems.length > 0) {
 				items.push(
-					{ type: 'separator', label: 'previous sessions' },
+					{ type: 'separator', label: terminalStrings.previousSessionCategory },
 					...previousSessionItems
 				);
 			}
 		} else {
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
-			for (const label of cwds) {
-				items.push({ label });
+			if (cwds && cwds.length > 0) {
+				for (const label of cwds) {
+					items.push({ label });
+				}
+				items = items.reverse();
+				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
 			}
-
-			items = items.reverse();
 
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
 			const previousSessionItems: IQuickPickItem[] = [];
-			// Only add previous session item if it's not in this session
-			for (const [label] of history.entries) {
-				if (!cwds.includes(label)) {
+			// Only add previous session item if it's not in this session and it matches the remote authority
+			for (const [label, info] of history.entries) {
+				if ((info === null || info.remoteAuthority === this.remoteAuthority) && !cwds.includes(label)) {
 					previousSessionItems.push({
 						label,
 						buttons: [removeFromCommandHistoryButton]
@@ -866,7 +868,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			if (previousSessionItems.length > 0) {
 				items.push(
-					{ type: 'separator', label: 'previous sessions' },
+					{ type: 'separator', label: terminalStrings.previousSessionCategory },
 					...previousSessionItems
 				);
 			}

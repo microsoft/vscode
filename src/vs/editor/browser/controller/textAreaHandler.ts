@@ -47,6 +47,14 @@ class VisibleTextAreaData {
 	public visibleTextareaStart: HorizontalPosition | null = null;
 	public visibleTextareaEnd: HorizontalPosition | null = null;
 
+	/**
+	 * When doing composition, the currently composed text might be split up into
+	 * multiple tokens, then merged again into a single token, etc. Here we attempt
+	 * to keep the presentation of the <textarea> stable by using the previous used
+	 * style if multiple tokens come into play. This avoids flickering.
+	 */
+	private _previousPresentation: ITokenPresentation | null = null;
+
 	constructor(
 		private readonly _context: ViewContext,
 		public readonly modelLineNumber: number,
@@ -71,6 +79,22 @@ class VisibleTextAreaData {
 			this.visibleTextareaStart = null;
 			this.visibleTextareaEnd = null;
 		}
+	}
+
+	updatePresentation(tokenPresentation: ITokenPresentation | null): ITokenPresentation {
+		if (tokenPresentation) {
+			this._previousPresentation = tokenPresentation;
+		}
+		if (!this._previousPresentation) {
+			this._previousPresentation = {
+				foreground: ColorId.DefaultForeground,
+				italic: false,
+				bold: false,
+				underline: false,
+				strikethrough: false,
+			};
+		}
+		return this._previousPresentation;
 	}
 }
 
@@ -644,19 +668,10 @@ export class TextAreaHandler extends ViewPart {
 				const viewLineData = this._context.viewModel.getViewLineData(startPosition.lineNumber);
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
-				let presentation: ITokenPresentation;
-				if (startTokenIndex === endTokenIndex) {
-					presentation = viewLineData.tokens.getPresentation(startTokenIndex);
-				} else {
-					// if the textarea spans multiple tokens, then use default styles
-					presentation = {
-						foreground: ColorId.DefaultForeground,
-						italic: false,
-						bold: false,
-						underline: false,
-						strikethrough: false,
-					};
-				}
+				const textareaSpansSingleToken = (startTokenIndex === endTokenIndex);
+				const presentation = this._visibleTextArea.updatePresentation(
+					(textareaSpansSingleToken ? viewLineData.tokens.getPresentation(startTokenIndex) : null)
+				);
 
 				this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
 				this.textArea.domNode.scrollLeft = scrollLeft;

@@ -153,15 +153,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	private readonly resourceLocks = new ResourceMap<Barrier>(resource => extUriBiasedIgnorePathCase.getComparisonKey(resource));
 
 	private async createResourceLock(resource: URI): Promise<IDisposable> {
-		this.logService.trace(`[Disk FileSystemProvider]: request to acquire resource lock (${this.toFilePath(resource)})`);
+		const filePath = this.toFilePath(resource);
+		this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - request to acquire resource lock (${filePath})`);
 
 		// Await pending locks for resource. It is possible for a new lock being
 		// added right after opening, so we have to loop over locks until no lock
 		// remains.
 		let existingLock: Barrier | undefined = undefined;
 		while (existingLock = this.resourceLocks.get(resource)) {
-			this.logService.trace(`[Disk FileSystemProvider]: waiting for resource lock to be released (${this.toFilePath(resource)})`);
-
+			this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - waiting for resource lock to be released (${filePath})`);
 			await existingLock.wait();
 		}
 
@@ -169,17 +169,19 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		const newLock = new Barrier();
 		this.resourceLocks.set(resource, newLock);
 
-		this.logService.trace(`[Disk FileSystemProvider]: new resource lock created (${this.toFilePath(resource)})`);
+		this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - new resource lock created (${filePath})`);
 
 		return toDisposable(() => {
-			this.logService.trace(`[Disk FileSystemProvider]: resource lock disposed (${this.toFilePath(resource)})`);
+			this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - resource lock dispose() (${filePath})`);
 
 			// Delete lock if it is still ours
 			if (this.resourceLocks.get(resource) === newLock) {
+				this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - resource lock removed from resource-lock map (${filePath})`);
 				this.resourceLocks.delete(resource);
 			}
 
 			// Open lock
+			this.logService.trace(`[Disk FileSystemProvider]: createResourceLock() - resource lock barrier open() (${filePath})`);
 			newLock.open();
 		});
 	}
@@ -257,6 +259,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	private canFlush: boolean = true;
 
 	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
+		const filePath = this.toFilePath(resource);
 
 		// Writes: guard multiple writes to the same resource
 		// behind a single lock to prevent races when writing
@@ -266,9 +269,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			lock = await this.createResourceLock(resource);
 		}
 
-		let handle: number | undefined = undefined;
+		let fd: number | undefined = undefined;
 		try {
-			const filePath = this.toFilePath(resource);
 
 			// Determine wether to unlock the file (write only)
 			if (isFileOpenForWriteOptions(opts) && opts.unlock) {
@@ -318,7 +320,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			// Finally open handle to file path
-			handle = await Promises.open(filePath, flags);
+			fd = await Promises.open(filePath, flags);
 
 		} catch (error) {
 
@@ -339,18 +341,19 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		// just created and the position was not moved so far (see
 		// also http://man7.org/linux/man-pages/man2/open.2.html -
 		// "The file offset is set to the beginning of the file.")
-		this.mapHandleToPos.set(handle, 0);
+		this.mapHandleToPos.set(fd, 0);
 
 		// remember that this handle was used for writing
 		if (isFileOpenForWriteOptions(opts)) {
-			this.writeHandles.set(handle, resource);
+			this.writeHandles.set(fd, resource);
 		}
 
 		if (lock) {
-			const previousLock = this.mapHandleToLock.get(handle);
+			const previousLock = this.mapHandleToLock.get(fd);
 
 			// Remember that this handle has an associated lock
-			this.mapHandleToLock.set(handle, lock);
+			this.logService.trace(`[Disk FileSystemProvider]: open() - storing lock for handle ${fd} (${filePath})`);
+			this.mapHandleToLock.set(fd, lock);
 
 			// There is a slight chance that a resource lock for a
 			// handle was not yet disposed when we acquire a new
@@ -359,11 +362,12 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			// wise we end up in a deadlock situation
 			// https://github.com/microsoft/vscode/issues/142462
 			if (previousLock) {
+				this.logService.trace(`[Disk FileSystemProvider]: open() - disposing a previous lock that was still stored on same handle ${fd} (${filePath})`);
 				previousLock.dispose();
 			}
 		}
 
-		return handle;
+		return fd;
 	}
 
 	async close(fd: number): Promise<void> {
@@ -400,8 +404,11 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		} finally {
 			if (lockForHandle) {
 				if (this.mapHandleToLock.get(fd) === lockForHandle) {
+					this.logService.trace(`[Disk FileSystemProvider]: close() - resource lock removed from handle-lock map ${fd}`);
 					this.mapHandleToLock.delete(fd); // only delete from map if this is still our lock!
 				}
+
+				this.logService.trace(`[Disk FileSystemProvider]: close() - disposing lock for handle ${fd}`);
 				lockForHandle.dispose();
 			}
 		}

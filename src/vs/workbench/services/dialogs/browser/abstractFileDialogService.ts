@@ -193,7 +193,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 	}
 
-	private addFileToRecentlyOpened(uri: URI): void {
+	protected addFileToRecentlyOpened(uri: URI): void {
 		// add the picked file into the list of recently opened
 		// only if it is outside the currently opened workspace
 		if (!this.contextService.isInsideWorkspace(uri)) {

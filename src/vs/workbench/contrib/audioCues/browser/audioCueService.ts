@@ -11,6 +11,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { fromEvent, IObservable, LazyDerived } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { Event } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -22,11 +23,6 @@ export interface IAudioCueService {
 
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
-
-	private readonly audioCueEnabledObservables = new Map<
-		AudioCue,
-		IObservable<boolean>
-	>();
 
 	private readonly screenReaderAttached = fromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
@@ -64,27 +60,42 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 	}
 
+	private readonly isEnabledCache = new Cache((cue: AudioCue) => {
+		const settingObservable = fromEvent(
+			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
+				e.affectsConfiguration(cue.settingsKey)
+			),
+			() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
+		);
+		return new LazyDerived(reader => {
+			const setting = settingObservable.read(reader);
+			if (setting === 'auto') {
+				return this.screenReaderAttached.read(reader);
+			} else if (setting === 'on') {
+				return true;
+			}
+			return false;
+		}, 'audio cue enabled');
+	});
+
 	public isEnabled(cue: AudioCue): IObservable<boolean> {
-		let observable = this.audioCueEnabledObservables.get(cue);
-		if (!observable) {
-			const settingObservable = fromEvent(
-				Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-					e.affectsConfiguration(cue.settingsKey)
-				),
-				() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
-			);
-			observable = new LazyDerived(reader => {
-				const setting = settingObservable.read(reader);
-				if (setting === 'auto') {
-					return this.screenReaderAttached.read(reader);
-				} else if (setting === 'on') {
-					return true;
-				}
-				return false;
-			}, 'audio cue enabled');
-			this.audioCueEnabledObservables.set(cue, observable);
+		return this.isEnabledCache.get(cue);
+	}
+}
+
+class Cache<TArg, TValue> {
+	private readonly map = new Map<TArg, TValue>();
+	constructor(private readonly getValue: (value: TArg) => TValue) {
+	}
+
+	public get(arg: TArg): TValue {
+		if (this.map.has(arg)) {
+			return this.map.get(arg)!;
 		}
-		return observable;
+
+		const value = this.getValue(arg);
+		this.map.set(arg, value);
+		return value;
 	}
 }
 
@@ -123,27 +134,27 @@ export class AudioCue {
 	}
 
 	public static readonly error = AudioCue.register({
-		name: 'Line has Error',
+		name: localize('audioCues.lineHasError.name', 'Line has Error'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasError',
 	});
 	public static readonly warning = AudioCue.register({
-		name: 'Line has Warning',
+		name: localize('audioCues.lineHasWarning.name', 'Line has Warning'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasWarning',
 	});
 	public static readonly foldedArea = AudioCue.register({
-		name: 'Line has Folded Area',
+		name: localize('audioCues.lineHasFoldedArea.name', 'Line has Folded Area'),
 		sound: Sound.foldedArea,
 		settingsKey: 'audioCues.lineHasFoldedArea',
 	});
 	public static readonly break = AudioCue.register({
-		name: 'Line has Breakpoint',
+		name: localize('audioCues.lineHasBreakpoint.name', 'Line has Breakpoint'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasBreakpoint',
 	});
 	public static readonly inlineSuggestion = AudioCue.register({
-		name: 'Line has Inline Suggestion Available',
+		name: localize('audioCues.lineHasInlineSuggestion.name', 'Line has Inline Suggestion Available'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});

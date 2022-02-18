@@ -76,7 +76,7 @@ const serverResources = [
 
 	// Terminal shell integration
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-zsh.sh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/.zshrc',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1',
 
 	'!**/test/**'
