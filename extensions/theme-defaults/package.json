@@ -38,10 +38,16 @@
         "path": "./themes/light_vs.json"
       },
       {
-        "id": "Default High Contrast",
+        "id": "Dark High Contrast",
         "label": "%hcColorThemeLabel%",
         "uiTheme": "hc-black",
         "path": "./themes/hc_black.json"
+      },
+      {
+        "id": "Light High Contrast",
+        "label": "%lightHcColorThemeLabel%",
+        "uiTheme": "hc-black",
+        "path": "./themes/hc_light.json"
       }
     ],
     "iconThemes": [
