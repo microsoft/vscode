@@ -30,20 +30,32 @@ abstract class ExtensionManifestHandler {
 
 	protected readonly _ourVersion: string;
 	protected readonly _ourProductDate: string | undefined;
-	protected readonly _log: ILog;
+	protected readonly _host: IExtensionScannerHost;
 	protected readonly _absoluteFolderPath: string;
 	protected readonly _isBuiltin: boolean;
 	protected readonly _isUnderDevelopment: boolean;
 	protected readonly _absoluteManifestPath: string;
 
-	constructor(ourVersion: string, ourProductDate: string | undefined, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean) {
+	constructor(ourVersion: string, ourProductDate: string | undefined, host: IExtensionScannerHost, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean) {
 		this._ourVersion = ourVersion;
 		this._ourProductDate = ourProductDate;
-		this._log = log;
+		this._host = host;
 		this._absoluteFolderPath = absoluteFolderPath;
 		this._isBuiltin = isBuiltin;
 		this._isUnderDevelopment = isUnderDevelopment;
 		this._absoluteManifestPath = path.join(absoluteFolderPath, MANIFEST_FILE);
+	}
+
+	protected _error(source: string, message: string): void {
+		this._host.log.error(source, message);
+	}
+
+	protected _warn(source: string, message: string): void {
+		this._host.log.warn(source, message);
+	}
+
+	protected _info(source: string, message: string): void {
+		this._host.log.info(source, message);
 	}
 }
 
@@ -63,7 +75,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 			const errors: json.ParseError[] = [];
 			const manifest = ExtensionManifestParser._fastParseJSON(manifestContents.toString(), errors);
 			if (json.getNodeType(manifest) !== 'object') {
-				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
+				this._error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
 			} else if (errors.length === 0) {
 				if (manifest.__metadata) {
 					manifest.uuid = manifest.__metadata.id;
@@ -73,7 +85,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 				return manifest;
 			} else {
 				errors.forEach(e => {
-					this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: [{1}, {2}] {3}.", this._absoluteManifestPath, e.offset, e.length, getParseErrorMessage(e.error)));
+					this._error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: [{1}, {2}] {3}.", this._absoluteManifestPath, e.offset, e.length, getParseErrorMessage(e.error)));
 				});
 			}
 			return null;
@@ -82,7 +94,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 				return null;
 			}
 
-			this._log.error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", this._absoluteManifestPath, err.message));
+			this._error(this._absoluteFolderPath, nls.localize('fileReadFail', "Cannot read file {0}: {1}.", this._absoluteManifestPath, err.message));
 			return null;
 		});
 	}
@@ -107,19 +119,19 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 
 	private readonly _nlsConfig: NlsConfiguration;
 
-	constructor(ourVersion: string, ourProductDate: string | undefined, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration) {
-		super(ourVersion, ourProductDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
+	constructor(ourVersion: string, ourProductDate: string | undefined, host: IExtensionScannerHost, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration) {
+		super(ourVersion, ourProductDate, host, absoluteFolderPath, isBuiltin, isUnderDevelopment);
 		this._nlsConfig = nlsConfig;
 	}
 
 	public replaceNLS(extensionDescription: IExtensionDescription): Promise<IExtensionDescription> {
 		const reportErrors = (localized: string | null, errors: json.ParseError[]): void => {
 			errors.forEach((error) => {
-				this._log.error(this._absoluteFolderPath, nls.localize('jsonsParseReportErrors', "Failed to parse {0}: {1}.", localized, getParseErrorMessage(error.error)));
+				this._error(this._absoluteFolderPath, nls.localize('jsonsParseReportErrors', "Failed to parse {0}: {1}.", localized, getParseErrorMessage(error.error)));
 			});
 		};
 		const reportInvalidFormat = (localized: string | null): void => {
-			this._log.error(this._absoluteFolderPath, nls.localize('jsonInvalidFormat', "Invalid format {0}: JSON object expected.", localized));
+			this._error(this._absoluteFolderPath, nls.localize('jsonInvalidFormat', "Invalid format {0}: JSON object expected.", localized));
 		};
 
 		let extension = path.extname(this._absoluteManifestPath);
@@ -189,7 +201,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 					return extensionDescription;
 				}
 				const localized = localizedMessages.values || Object.create(null);
-				ExtensionManifestNLSReplacer._replaceNLStrings(this._nlsConfig, extensionDescription, localized, defaults, this._log, this._absoluteFolderPath);
+				ExtensionManifestNLSReplacer._replaceNLStrings(this._nlsConfig, extensionDescription, localized, defaults, this._host.log, this._absoluteFolderPath);
 				return extensionDescription;
 			});
 		}, (err) => {
@@ -321,14 +333,14 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		let notices: string[] = [];
 		if (!ExtensionManifestValidator.isValidExtensionDescription(this._ourVersion, this._ourProductDate, this._absoluteFolderPath, extensionDescription, notices)) {
 			notices.forEach((error) => {
-				this._log.error(this._absoluteFolderPath, error);
+				this._error(this._absoluteFolderPath, error);
 			});
 			return null;
 		}
 
 		// in this case the notices are warnings
 		notices.forEach((error) => {
-			this._log.warn(this._absoluteFolderPath, error);
+			this._warn(this._absoluteFolderPath, error);
 		});
 
 		// allow publisher to be undefined to make the initial extension authoring experience smoother
@@ -510,28 +522,32 @@ class DefaultExtensionResolver implements IExtensionResolver {
 	}
 }
 
+export interface IExtensionScannerHost {
+	readonly log: ILog;
+}
+
 export class ExtensionScanner {
 
 	/**
 	 * Read the extension defined in `absoluteFolderPath`
 	 */
-	private static scanExtension(version: string, productDate: string | undefined, log: ILog, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration): Promise<IExtensionDescription | null> {
+	private static scanExtension(version: string, productDate: string | undefined, host: IExtensionScannerHost, absoluteFolderPath: string, isBuiltin: boolean, isUnderDevelopment: boolean, nlsConfig: NlsConfiguration): Promise<IExtensionDescription | null> {
 		absoluteFolderPath = path.normalize(absoluteFolderPath);
 
-		let parser = new ExtensionManifestParser(version, productDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
+		let parser = new ExtensionManifestParser(version, productDate, host, absoluteFolderPath, isBuiltin, isUnderDevelopment);
 		return parser.parse().then<IExtensionDescription | null>((extensionDescription) => {
 			if (extensionDescription === null) {
 				return null;
 			}
 
-			let nlsReplacer = new ExtensionManifestNLSReplacer(version, productDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig);
+			let nlsReplacer = new ExtensionManifestNLSReplacer(version, productDate, host, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig);
 			return nlsReplacer.replaceNLS(extensionDescription);
 		}).then((extensionDescription) => {
 			if (extensionDescription === null) {
 				return null;
 			}
 
-			let validator = new ExtensionManifestValidator(version, productDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment);
+			let validator = new ExtensionManifestValidator(version, productDate, host, absoluteFolderPath, isBuiltin, isUnderDevelopment);
 			return validator.validate(extensionDescription);
 		});
 	}
@@ -539,7 +555,7 @@ export class ExtensionScanner {
 	/**
 	 * Scan a list of extensions defined in `absoluteFolderPath`
 	 */
-	public static async scanExtensions(input: ExtensionScannerInput, log: ILog, resolver: IExtensionResolver | null = null): Promise<IExtensionDescription[]> {
+	public static async scanExtensions(input: ExtensionScannerInput, host: IExtensionScannerHost, resolver: IExtensionResolver | null = null): Promise<IExtensionDescription[]> {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;
@@ -569,7 +585,7 @@ export class ExtensionScanner {
 			}
 
 			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-			let _extensionDescriptions = await Promise.all(refs.map(r => this.scanExtension(input.ourVersion, input.ourProductDate, log, r.path, isBuiltin, isUnderDevelopment, nlsConfig)));
+			let _extensionDescriptions = await Promise.all(refs.map(r => this.scanExtension(input.ourVersion, input.ourProductDate, host, r.path, isBuiltin, isUnderDevelopment, nlsConfig)));
 			let extensionDescriptions = arrays.coalesce(_extensionDescriptions);
 			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[new ExtensionIdentifierWithVersion({ id: getGalleryExtensionId(item.publisher, item.name) }, item.version).key()]);
 
@@ -587,7 +603,7 @@ export class ExtensionScanner {
 			});
 			return extensionDescriptions;
 		} catch (err) {
-			log.error(absoluteFolderPath, err);
+			host.log.error(absoluteFolderPath, err);
 			return [];
 		}
 	}
@@ -596,7 +612,7 @@ export class ExtensionScanner {
 	 * Combination of scanExtension and scanExtensions: If an extension manifest is found at root, we load just this extension,
 	 * otherwise we assume the folder contains multiple extensions.
 	 */
-	public static scanOneOrMultipleExtensions(input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription[]> {
+	public static scanOneOrMultipleExtensions(input: ExtensionScannerInput, host: IExtensionScannerHost): Promise<IExtensionDescription[]> {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;
@@ -604,26 +620,26 @@ export class ExtensionScanner {
 		return pfs.SymlinkSupport.existsFile(path.join(absoluteFolderPath, MANIFEST_FILE)).then((exists) => {
 			if (exists) {
 				const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-				return this.scanExtension(input.ourVersion, input.ourProductDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig).then((extensionDescription) => {
+				return this.scanExtension(input.ourVersion, input.ourProductDate, host, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig).then((extensionDescription) => {
 					if (extensionDescription === null) {
 						return [];
 					}
 					return [extensionDescription];
 				});
 			}
-			return this.scanExtensions(input, log);
+			return this.scanExtensions(input, host);
 		}, (err) => {
-			log.error(absoluteFolderPath, err);
+			host.log.error(absoluteFolderPath, err);
 			return [];
 		});
 	}
 
-	public static scanSingleExtension(input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription | null> {
+	public static scanSingleExtension(input: ExtensionScannerInput, host: IExtensionScannerHost): Promise<IExtensionDescription | null> {
 		const absoluteFolderPath = input.absoluteFolderPath;
 		const isBuiltin = input.isBuiltin;
 		const isUnderDevelopment = input.isUnderDevelopment;
 		const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-		return this.scanExtension(input.ourVersion, input.ourProductDate, log, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig);
+		return this.scanExtension(input.ourVersion, input.ourProductDate, host, absoluteFolderPath, isBuiltin, isUnderDevelopment, nlsConfig);
 	}
 
 	public static mergeBuiltinExtensions(builtinExtensions: Promise<IExtensionDescription[]>, extraBuiltinExtensions: Promise<IExtensionDescription[]>): Promise<IExtensionDescription[]> {
