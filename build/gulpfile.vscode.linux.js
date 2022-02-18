@@ -16,6 +16,8 @@ const task = require('./lib/task');
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const rpmDependenciesGenerator = require('./linux/rpm/dependencies-generator');
+const debianDependenciesGenerator = require('./linux/debian/dependencies-generator');
+const debianRecommendedDependencies = require('./linux/debian/dep-lists').recommendedDeps;
 const path = require('path');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
@@ -74,12 +76,15 @@ function prepareDebPackage(arch) {
 		let size = 0;
 		const control = code.pipe(es.through(
 			function (f) { size += f.isDirectory() ? 4096 : f.contents.length; },
-			function () {
+			async function () {
 				const that = this;
+				const dependencies = await debianDependenciesGenerator.getDependencies(binaryDir, product.applicationName, debArch);
 				gulp.src('resources/linux/debian/control.template', { base: '.' })
 					.pipe(replace('@@NAME@@', product.applicationName))
 					.pipe(replace('@@VERSION@@', packageJson.version + '-' + linuxPackageRevision))
 					.pipe(replace('@@ARCHITECTURE@@', debArch))
+					.pipe(replace('@@DEPENDS@@', dependencies.join(', ')))
+					.pipe(replace('@@RECOMMENDS@@', debianRecommendedDependencies.join(', ')))
 					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024)))
 					.pipe(rename('DEBIAN/control'))
 					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
