@@ -23,6 +23,9 @@ export interface ICurrentPartialCommand {
 
 	commandFinishedMarker?: IMarker;
 
+	currentContinuationMarker?: IMarker;
+	continuations?: { marker: IMarker; end: number }[];
+
 	command?: string;
 }
 
@@ -67,6 +70,27 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	handlePromptStart(): void {
 		this._currentCommand.promptStartMarker = this._terminal.registerMarker(0);
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
+	}
+
+	handleContinuationStart(): void {
+		this._currentCommand.currentContinuationMarker = this._terminal.registerMarker(0);
+		this._logService.debug('CommandDetectionCapability#handleContinuationStart', this._currentCommand.currentContinuationMarker);
+	}
+
+	handleContinuationEnd(): void {
+		if (!this._currentCommand.currentContinuationMarker) {
+			this._logService.warn('CommandDetectionCapability#handleContinuationEnd Received continuation end without start');
+			return;
+		}
+		if (!this._currentCommand.continuations) {
+			this._currentCommand.continuations = [];
+		}
+		this._currentCommand.continuations.push({
+			marker: this._currentCommand.currentContinuationMarker,
+			end: this._terminal.buffer.active.cursorX
+		});
+		this._currentCommand.currentContinuationMarker = undefined;
+		this._logService.debug('CommandDetectionCapability#handleContinuationEnd', this._currentCommand.continuations[this._currentCommand.continuations.length - 1]);
 	}
 
 	handleCommandStart(): void {
@@ -118,7 +142,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		for (; y < commandExecutedLine; y++) {
 			const line = this._terminal.buffer.active.getLine(y);
 			if (line) {
-				this._currentCommand.command += line.translateToString(true);
+				const continuation = this._currentCommand.continuations?.find(e => e.marker.line === y);
+				if (continuation) {
+					this._currentCommand.command += '\n';
+				}
+				const startColumn = continuation?.end ?? 0;
+				this._currentCommand.command += line.translateToString(true, startColumn);
 			}
 		}
 		if (y === commandExecutedLine) {
