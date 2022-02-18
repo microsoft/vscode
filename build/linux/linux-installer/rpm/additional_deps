@@ -1,0 +1,46 @@
+# Copyright 2018 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# Additional dependencies not in the rpm find-requires output.
+
+# Make sure users have SSL certificates.
+ca-certificates
+
+# Make sure users have compatible fonts for viewing PDFs.
+liberation-fonts
+
+# GTK is dlopen()'ed.  Versions 3 or 4 are supported.
+# TODO(https://crbug.com/876355): RPM 4.13 is required for boolean dependencies,
+# however only 4.12 is available on Ubuntu 16.04.  Depend on GTK3 for now and
+# relax the dependency to GTK3 or GTK4 once the bots are upgraded to Ubuntu
+# 18.04 or later.
+# (libgtk-3.so.0()(64bit) or libgtk-4.so.1()(64bit))
+libgtk-3.so.0()(64bit)
+
+# Specify a more recent version for security and stability updates. While we
+# depend on libnss3.so and not libssl3.so, force the dependency on libssl3 to
+# ensure the NSS version is 3.28 or later, since libssl3 should always be
+# packaged with libnss3.
+libnss3.so(NSS_3.22)(64bit)
+libssl3.so(NSS_3.28)(64bit)
+
+# This dependency is added by newer versions of rpmlib.  To ensure consistency
+# of expected dependencies when Chrome is built with the older versions, add it
+# as a manual dependency.
+rpmlib(FileDigests) <= 4.6.0-1
+
+# libvulkan is dlopen()'ed, so must be added as a manual dependency.
+libvulkan.so.1()(64bit)
+
+# For uploading crash reports with Breakpad.
+wget
+# TODO(https://crbug.com/876355): RPM 4.13 is required for boolean dependencies,
+# however only 4.12 is available on Ubuntu 16.04.  Depend on libcurl.so.4 for
+# now and relax the dependency to the below once the bots are upgraded to Ubuntu
+# 18.04 or later.
+# (libcurl.so()(64bit) or libcurl-gnutls.so.4()(64bit) or libcurl-nss.so.4()(64bit) or libcurl.so.4()(64bit))
+libcurl.so.4()(64bit)
+
+# For OS integration.
+xdg-utils
