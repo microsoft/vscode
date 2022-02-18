@@ -18,8 +18,8 @@ export class ShowAudioCueHelp extends Action2 {
 		super({
 			id: ShowAudioCueHelp.ID,
 			title: {
-				value: localize('audioCues.help', "Help: Audio Cues"),
-				original: 'Help: Audio Cues'
+				value: localize('audioCues.help', "Help: List Audio Cues"),
+				original: 'Help: List Audio Cues'
 			},
 			f1: true,
 		});
@@ -30,16 +30,19 @@ export class ShowAudioCueHelp extends Action2 {
 		const quickPickService = accessor!.get(IQuickInputService);
 		const preferencesService = accessor!.get(IPreferencesService);
 
+		const items: (IQuickPickItem & { audioCue: AudioCue })[] = AudioCue.allAudioCues.map((cue, idx) => ({
+			label: `${cue.name}${audioCueService.isEnabled(cue).get() ? '' : ' (disabled)'}`,
+			audioCue: cue,
+			buttons: [{
+				iconClass: Codicon.settingsGear.classNames,
+				tooltip: localize('audioCues.help.settings', 'Enable/Disable Audio Cue'),
+			}],
+		}));
+
 		const quickPick = quickPickService.pick<IQuickPickItem & { audioCue: AudioCue }>(
-			AudioCue.allAudioCues.map((cue, idx) => ({
-				label: `${audioCueService.isEnabled(cue).get() ? '$(check)' : '     '} ${cue.name}`,
-				audioCue: cue,
-				buttons: [{
-					iconClass: Codicon.settingsGear.classNames,
-					tooltip: localize('audioCues.help.settings', 'Enable/Disable Audio Cue'),
-				}],
-			})),
+			items,
 			{
+				activeItem: items[0],
 				onDidFocus: (item) => {
 					audioCueService.playAudioCue(item.audioCue);
 				},
