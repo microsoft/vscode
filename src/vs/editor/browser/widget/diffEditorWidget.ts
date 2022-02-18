@@ -1388,8 +1388,8 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 		const zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, renderIndicators);
 
 		// Get decorations & overview ruler zones
-		const originalDecorations = this._getOriginalEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators);
-		const modifiedDecorations = this._getModifiedEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators);
+		const originalDecorations = this._getOriginalEditorDecorations(zones, lineChanges, ignoreTrimWhitespace, renderIndicators);
+		const modifiedDecorations = this._getModifiedEditorDecorations(zones, lineChanges, ignoreTrimWhitespace, renderIndicators);
 
 		return {
 			original: {
@@ -1406,8 +1406,8 @@ abstract class DiffEditorWidgetStyle extends Disposable {
 	}
 
 	protected abstract _getViewZones(lineChanges: ILineChange[], originalForeignVZ: IEditorWhitespace[], modifiedForeignVZ: IEditorWhitespace[], renderIndicators: boolean): IEditorsZones;
-	protected abstract _getOriginalEditorDecorations(lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
-	protected abstract _getModifiedEditorDecorations(lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
+	protected abstract _getOriginalEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
+	protected abstract _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations;
 
 	public abstract setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	public abstract layout(): number;
@@ -1547,7 +1547,8 @@ abstract class ViewZonesComputer {
 						count = lineChange.modifiedStartLineNumber - lastModifiedLineNumber;
 					}
 				} else {
-					count = originalModel.getLineCount() - lastOriginalLineNumber;
+					// `lastOriginalLineNumber` has not been looked at yet
+					count = originalModel.getLineCount() - lastOriginalLineNumber + 1;
 				}
 
 				for (let i = 0; i < count; i++) {
@@ -1886,7 +1887,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		return c.getViewZones();
 	}
 
-	protected _getOriginalEditorDecorations(lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
+	protected _getOriginalEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
 		const originalEditor = this._dataSource.getOriginalEditor();
 		const overviewZoneColor = String(this._removeColor);
 
@@ -1910,7 +1911,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 				}
 
 				const viewRange = getViewRange(originalModel, originalViewModel, lineChange.originalStartLineNumber, lineChange.originalEndLineNumber);
-				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, overviewZoneColor));
+				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, /*use endLineNumber*/0, overviewZoneColor));
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
@@ -1943,7 +1944,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 		return result;
 	}
 
-	protected _getModifiedEditorDecorations(lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
+	protected _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
 		const modifiedEditor = this._dataSource.getModifiedEditor();
 		const overviewZoneColor = String(this._insertColor);
 
@@ -1968,7 +1969,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 				}
 
 				const viewRange = getViewRange(modifiedModel, modifiedViewModel, lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber);
-				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, overviewZoneColor));
+				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber,/*use endLineNumber*/0, overviewZoneColor));
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
@@ -2069,7 +2070,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 		return computer.getViewZones();
 	}
 
-	protected _getOriginalEditorDecorations(lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
+	protected _getOriginalEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
 		const overviewZoneColor = String(this._removeColor);
 
 		const result: IEditorDiffDecorations = {
@@ -2080,6 +2081,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 		const originalEditor = this._dataSource.getOriginalEditor();
 		const originalModel = originalEditor.getModel()!;
 		const originalViewModel = originalEditor._getViewModel()!;
+		let zoneIndex = 0;
 
 		for (const lineChange of lineChanges) {
 
@@ -2090,15 +2092,37 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 					options: DECORATIONS.lineDeleteMargin
 				});
 
+				while (zoneIndex < zones.modified.length) {
+					const zone = zones.modified[zoneIndex];
+					if (zone.diff && zone.diff.originalStartLineNumber >= lineChange.originalStartLineNumber) {
+						break;
+					}
+					zoneIndex++;
+				}
+
+				let zoneHeightInLines = 0;
+				if (zoneIndex < zones.modified.length) {
+					const zone = zones.modified[zoneIndex];
+					if (
+						zone.diff
+						&& zone.diff.originalStartLineNumber === lineChange.originalStartLineNumber
+						&& zone.diff.originalEndLineNumber === lineChange.originalEndLineNumber
+						&& zone.diff.modifiedStartLineNumber === lineChange.modifiedStartLineNumber
+						&& zone.diff.modifiedEndLineNumber === lineChange.modifiedEndLineNumber
+					) {
+						zoneHeightInLines = zone.heightInLines;
+					}
+				}
+
 				const viewRange = getViewRange(originalModel, originalViewModel, lineChange.originalStartLineNumber, lineChange.originalEndLineNumber);
-				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, overviewZoneColor));
+				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, zoneHeightInLines, overviewZoneColor));
 			}
 		}
 
 		return result;
 	}
 
-	protected _getModifiedEditorDecorations(lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
+	protected _getModifiedEditorDecorations(zones: IEditorsZones, lineChanges: ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean): IEditorDiffDecorations {
 		const modifiedEditor = this._dataSource.getModifiedEditor();
 		const overviewZoneColor = String(this._insertColor);
 
@@ -2120,7 +2144,7 @@ class DiffEditorWidgetInline extends DiffEditorWidgetStyle {
 				});
 
 				const viewRange = getViewRange(modifiedModel, modifiedViewModel, lineChange.modifiedStartLineNumber, lineChange.modifiedEndLineNumber);
-				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, overviewZoneColor));
+				result.overviewZones.push(new OverviewRulerZone(viewRange.startLineNumber, viewRange.endLineNumber, /*use endLineNumber*/0, overviewZoneColor));
 
 				if (lineChange.charChanges) {
 					for (const charChange of lineChange.charChanges) {
