@@ -138,7 +138,11 @@ export class TerminalEditor extends EditorPane {
 				}
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
+				if (rightClickBehavior === 'nothing') {
+					this._cancelContextMenu = true;
+					return;
+				}
+				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					const terminal = this._terminalEditorService.activeInstance;
 					if (!terminal) {
 						return;
@@ -175,7 +179,10 @@ export class TerminalEditor extends EditorPane {
 		}));
 		this._register(dom.addDisposableListener(this._editorInstanceElement, 'contextmenu', (event: MouseEvent) => {
 			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-			if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
+			if (rightClickBehavior === 'nothing') {
+				return;
+			}
+			else if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 				if (!this._cancelContextMenu) {
 					openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
 				}

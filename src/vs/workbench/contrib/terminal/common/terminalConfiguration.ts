@@ -303,12 +303,13 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.RightClickBehavior]: {
 			type: 'string',
-			enum: ['default', 'copyPaste', 'paste', 'selectWord'],
+			enum: ['default', 'copyPaste', 'paste', 'selectWord', 'nothing'],
 			enumDescriptions: [
 				localize('terminal.integrated.rightClickBehavior.default', "Show the context menu."),
 				localize('terminal.integrated.rightClickBehavior.copyPaste', "Copy when there is a selection, otherwise paste."),
 				localize('terminal.integrated.rightClickBehavior.paste', "Paste on right click."),
-				localize('terminal.integrated.rightClickBehavior.selectWord', "Select the word under the cursor and show the context menu.")
+				localize('terminal.integrated.rightClickBehavior.selectWord', "Select the word under the cursor and show the context menu."),
+				localize('terminal.integrated.rightClickBehavior.nothing', "Do nothing and pass event to terminal.")
 			],
 			default: isMacintosh ? 'selectWord' : isWindows ? 'copyPaste' : 'default',
 			description: localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click.")

@@ -367,7 +367,11 @@ export class TerminalTabbedView extends Disposable {
 				terminal.focus();
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
-				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
+				if (rightClickBehavior === 'nothing') {
+					this._cancelContextMenu = true;
+					return;
+				}
+				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
 						openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
