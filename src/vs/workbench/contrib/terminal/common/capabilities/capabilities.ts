@@ -87,6 +87,8 @@ export interface ICommandDetectionCapability {
 	 */
 	getCwdForLine(line: number): string | undefined;
 	handlePromptStart(): void;
+	handleContinuationStart(): void;
+	handleContinuationEnd(): void;
 	handleCommandStart(): void;
 	handleCommandExecuted(): void;
 	handleCommandFinished(exitCode: number | undefined): void;
