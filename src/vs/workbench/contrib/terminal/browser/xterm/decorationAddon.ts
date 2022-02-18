@@ -142,7 +142,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			return decoration;
 		}
 
-		const decoration = this._terminal.registerDecoration({ marker: command.marker! });
+		const decoration = this._terminal.registerDecoration({ marker: command.marker });
 		if (!decoration) {
 			return undefined;
 		}
