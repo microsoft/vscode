@@ -5,58 +5,40 @@
 
 'use strict';
 
-import { spawnSync, SpawnSyncReturns } from 'child_process';
+import { spawnSync } from 'child_process';
+import { calculatePackageDeps, mergePackageDeps } from './linux-installer/rpm/rpmDependencyScripts';
+import { resolve } from 'path';
 import { readFileSync } from 'fs';
-import { basename } from 'path';
 
-export function getRpmDependencies(scriptsDir: string, binaryDir: string): string[] {
-	// Run the update package provides script.
-	let result: SpawnSyncReturns<Buffer>;
-	result = spawnSync('python2', [`${scriptsDir}/rpm/update_package_provides.py`]);
-	if (result.status) {
-		console.error('Error updating package provides:');
-		console.error(result.stderr.toString('utf-8'));
-		return [];
-	}
-
-	// No sysroot step.
+export function getRpmDependencies(): string[] {
 	// Get the files for which we want to find dependencies.
-	result = spawnSync('find', ['-wholename', `${binaryDir}/resources/app/node_modules.asar.unpacked/**/*.node`]);
-	if (result.status) {
+	const findResult = spawnSync('find', ['.', '-name', '*.node']);
+	if (findResult.status) {
 		console.error('Error finding files:');
-		console.error(result.stderr.toString('utf-8'));
+		console.error(findResult.stderr.toString());
 		return [];
 	}
+
+	// Filter the files and add on the Code binary.
+	const files: string[] = findResult.stdout.toString().split('\n').filter((file) => {
+		return !file.includes('obj.target') && file.includes('build/Release');
+	});
+	files.push('.build/electron/code-oss');
 
 	// Generate the dependencies.
-	const files: string[] = result.stdout.toString('utf-8').split('\n');
-	files.push(`${binaryDir}/code-insiders`);
-	const dependencyFiles: string[] = [];
-	for (const file of files) {
-		const dependencyFileName = `${basename(file)}.deps`;
-		result = spawnSync('python2', [`${scriptsDir}/rpm/calculate_package_deps.py`, file, dependencyFileName]);
-		if (result.status) {
-			console.error(`Error generating dependencies for ${file}:`);
-			console.error(result.stderr.toString('utf-8'));
-			return [];
-		}
-	}
+	const dependencies: Set<string>[] = files.map((file) => calculatePackageDeps(file));
 
-	// Merge the dependencies.
-	result = spawnSync('python2', [`${scriptsDir}/rpm/merge_package_deps.py`, 'merged.deps', `${scriptsDir}/rpm/additional_deps`, ...dependencyFiles]);
-	if (result.status) {
-		console.error('Error merging dependencies:');
-		console.error(result.stderr.toString('utf-8'));
-		return [];
-	}
+	// Fetch additional dependencies file.
+	const additionalDeps = readFileSync(resolve(__dirname, 'linux-installer/rpm/additional_deps'));
+	const additionalDepsSet = new Set(additionalDeps.toString('utf-8').trim().split('\n'));
+	dependencies.push(additionalDepsSet);
 
-	// Read the merged dependencies.
-	try {
-		const buf = readFileSync('merged.deps');
-		return buf.toString('utf-8').split('\n');
-	} catch (e) {
-		console.error('Error reading merged dependencies:');
-		console.error(e);
-		return [];
+	// Merge all the dependencies.
+	const mergedDependencies = mergePackageDeps(dependencies);
+	const sortedDependencies: string[] = [];
+	for (const dependency of mergedDependencies) {
+		sortedDependencies.push(dependency);
 	}
+	sortedDependencies.sort();
+	return sortedDependencies;
 }
