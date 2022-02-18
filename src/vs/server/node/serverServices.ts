@@ -70,15 +70,6 @@ import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/co
 
 const eventPrefix = 'monacoworkbench';
 
-const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
-
-function getUriTransformer(remoteAuthority: string): IURITransformer {
-	if (!_uriTransformerCache[remoteAuthority]) {
-		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
-	}
-	return _uriTransformerCache[remoteAuthority];
-}
-
 export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, disposables: DisposableStore) {
 	const services = new ServiceCollection();
 	const socketServer = new SocketServer<RemoteAgentConnectionContext>();
@@ -214,6 +205,15 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	});
 
 	return { socketServer, instantiationService };
+}
+
+const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
+
+function getUriTransformer(remoteAuthority: string): IURITransformer {
+	if (!_uriTransformerCache[remoteAuthority]) {
+		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
+	}
+	return _uriTransformerCache[remoteAuthority];
 }
 
 export class SocketServer<TContext = string> extends IPCServer<TContext> {
