@@ -494,6 +494,8 @@ export function injectShellIntegrationArgs(
 				} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
 					newArgs = originalArgs;
 				}
+				// Set the ZDOTDIR to be the dir of the shell integration script so that it runs
+				// as a .zshrc file and the autoload hook will work and set precmd and preexec correctly
 				env['ZDOTDIR'] = '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media';
 				const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
 				if (!showWelcome) {
