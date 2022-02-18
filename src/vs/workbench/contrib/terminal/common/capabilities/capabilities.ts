@@ -78,6 +78,7 @@ export interface ITerminalCapabilityImplMap {
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
+	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;

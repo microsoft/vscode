@@ -8,7 +8,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IBuffer, IDisposable, IMarker, Terminal } from 'xterm';
 
-interface ICurrentPartialCommand {
+export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
 
 	promptStartMarker?: IMarker;
@@ -39,6 +39,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
+	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
+	readonly onCommandStarted = this._onCommandStarted.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
 
@@ -70,6 +72,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	handleCommandStart(): void {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+		this._currentCommand.commandStartMarker!.onDispose((c) => console.log('disposed of ', this._currentCommand.commandStartMarker!.id));
 		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
 			this._commandMarkers.length = 0;
@@ -82,6 +85,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				}
 			});
 		}
+		this._onCommandStarted.fire({ marker: this._currentCommand.promptStartMarker! } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -139,7 +143,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
 			return;
+		} else if (this._currentCommand.commandStartMarker.isDisposed) {
+			console.log(`marker is already disposed of ${this._currentCommand.commandStartMarker!.id.toString()}`);
 		}
+		console.log('decoration with marker ', this._currentCommand.commandStartMarker!.id);
 		if (command !== undefined && !command.startsWith('\\')) {
 			const buffer = this._terminal.buffer.active;
 			const clonedPartialCommand = { ...this._currentCommand };
@@ -157,6 +164,9 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
+		}
+		if (this._currentCommand.previousCommandMarker) {
+			console.log('disposing of previous marker', this._currentCommand.previousCommandMarker.id);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
