@@ -846,11 +846,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		} else {
 			const cwds = this.capabilities.get(TerminalCapability.CwdDetection)?.cwds || [];
-			for (const label of cwds) {
-				items.push({ label });
+			if (cwds && cwds.length > 0) {
+				for (const label of cwds) {
+					items.push({ label });
+				}
+				items = items.reverse();
+				items.unshift({ type: 'separator', label: 'current session' });
 			}
-
-			items = items.reverse();
 
 			// Gather previous session history
 			const history = this._instantiationService.invokeFunction(getDirectoryHistory);
