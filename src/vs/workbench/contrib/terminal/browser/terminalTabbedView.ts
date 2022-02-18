@@ -368,7 +368,9 @@ export class TerminalTabbedView extends Disposable {
 			} else if (event.which === 3) {
 				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
 				if (rightClickBehavior === 'nothing') {
-					this._cancelContextMenu = true;
+					if (!event.shiftKey) {
+						this._cancelContextMenu = true;
+					}
 					return;
 				}
 				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
