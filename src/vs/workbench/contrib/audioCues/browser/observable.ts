@@ -314,6 +314,9 @@ export class AutorunObserver implements IObserver, IReader, IDisposable {
 	}
 }
 
+export namespace autorun {
+	export const Observer = AutorunObserver;
+}
 export function autorunDelta<T>(
 	observable: IObservable<T>,
 	handler: (args: { lastValue: T | undefined; newValue: T }) => void
@@ -330,6 +333,9 @@ export function autorunDelta<T>(
 
 // == Lazy Derived ==
 
+export function derivedObservable<T>(name: string, computeFn: (reader: IReader) => T): IObservable<T> {
+	return new LazyDerived(computeFn, name);
+}
 export class LazyDerived<T> extends ConvenientObservable<T> {
 	private readonly observer: LazyDerivedObserver<T>;
 
@@ -344,6 +350,10 @@ export class LazyDerived<T> extends ConvenientObservable<T> {
 
 	public unsubscribe(observer: IObserver): void {
 		this.observer.unsubscribe(observer);
+	}
+
+	public override read(reader: IReader): T {
+		return this.observer.read(reader);
 	}
 
 	public get(): T {
@@ -485,6 +495,10 @@ class LazyDerivedObserver<T>
 	}
 }
 
+export namespace LazyDerived {
+	export const Observer = LazyDerivedObserver;
+}
+
 export function fromPromise<T>(promise: Promise<T>): IObservable<{ value?: T }> {
 	const observable = new ObservableValue<{ value?: T }>({}, 'promiseValue');
 	promise.then((value) => {
@@ -551,6 +565,10 @@ class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 			return this.getValue(undefined);
 		}
 	}
+}
+
+export namespace fromEvent {
+	export const Observer = FromEventObservable;
 }
 
 export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T> {
