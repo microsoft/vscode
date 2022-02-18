@@ -65,6 +65,7 @@ function assignThreadContext(element: IThread, context: any) {
 
 function assignStackFrameContext(element: StackFrame, context: any) {
 	context.frameId = element.getId();
+	context.frameName = element.name;
 	context.frameLocation = { range: element.range, source: element.source.raw };
 	assignThreadContext(element.thread, context);
 	return context;
