@@ -16,8 +16,7 @@ import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IExtensionScannerHost, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
-import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { Translations, ILog, ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IExtensionScannerHost, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';

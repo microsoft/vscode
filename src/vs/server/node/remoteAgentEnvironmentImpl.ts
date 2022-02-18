@@ -12,7 +12,7 @@ import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensio
 import * as nls from 'vs/nls';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { ExtensionScanner, ExtensionScannerInput, IExtensionResolver, IExtensionReference, IExtensionScannerHost } from 'vs/workbench/services/extensions/node/extensionPoints';
+import { ILog, Translations, ExtensionScanner, ExtensionScannerInput, IExtensionResolver, IExtensionReference, IExtensionScannerHost } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { transformOutgoingURIs } from 'vs/base/common/uriIpc';
@@ -24,7 +24,6 @@ import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/n
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { basename, isAbsolute, join, normalize } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
-import { ILog, Translations } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { IBuiltInExtension } from 'vs/base/common/product';
 import { IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { cwd } from 'vs/base/common/process';
