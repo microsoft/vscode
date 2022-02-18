@@ -19,7 +19,7 @@ else
 fi
 
 IN_COMMAND_EXECUTION="1"
-LAST_HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
+LAST_HISTORY_ID=$(history 1 | awk '{print $1;}')
 
 prompt_start() {
 	printf "\033]633;A\007"
@@ -46,7 +46,7 @@ continuation_end() {
 }
 
 command_complete() {
-	local HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
+	local HISTORY_ID=$(history 1 | awk '{print $1;}')
 	if [[ "$HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
 		printf "\033]633;D\007"
 	else
