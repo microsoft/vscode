@@ -72,7 +72,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	handleCommandStart(): void {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-		this._currentCommand.commandStartMarker!.onDispose((c) => console.log('disposed of ', this._currentCommand.commandStartMarker!.id));
+
 		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
 			this._commandMarkers.length = 0;
@@ -143,10 +143,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
 			return;
-		} else if (this._currentCommand.commandStartMarker.isDisposed) {
-			console.log(`marker is already disposed of ${this._currentCommand.commandStartMarker!.id.toString()}`);
 		}
-		console.log('decoration with marker ', this._currentCommand.commandStartMarker!.id);
+
 		if (command !== undefined && !command.startsWith('\\')) {
 			const buffer = this._terminal.buffer.active;
 			const clonedPartialCommand = { ...this._currentCommand };
@@ -164,9 +162,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
-		}
-		if (this._currentCommand.previousCommandMarker) {
-			console.log('disposing of previous marker', this._currentCommand.previousCommandMarker.id);
 		}
 		this._currentCommand.previousCommandMarker?.dispose();
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
