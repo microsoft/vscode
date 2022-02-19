@@ -18,6 +18,7 @@ if (majorNodeVersion < 14 || (majorNodeVersion === 14 && minorNodeVersion < 17) 
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
+const os = require('os');
 const yarnVersion = cp.execSync('yarn -v', { encoding: 'utf8' }).trim();
 const parsedYarnVersion = /^(\d+)\.(\d+)\./.exec(yarnVersion);
 const majorYarnVersion = parseInt(parsedYarnVersion[1]);
@@ -63,14 +64,30 @@ function hasSupportedVisualStudioVersion() {
 			break;
 		}
 		const programFiles86Path = process.env['ProgramFiles(x86)'];
-		if (programFiles86Path) {
-			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
-			const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools'];
-			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
-				availableVersions.push(version);
-				break;
+		const programFiles64Path = process.env['ProgramFiles'];
+
+		if (os.arch() === 'x64') {
+			if (programFiles64Path) {
+				vsPath = `${programFiles64Path}/Microsoft Visual Studio/${version}`;
+				const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools'];
+				if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
+					availableVersions.push(version);
+					break;
+				}
 			}
 		}
+
+		else if (os.arch === 'x32') {
+			if (programFiles86Path) {
+				vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
+				const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools'];
+				if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
+					availableVersions.push(version);
+					break;
+				}
+			}
+		}
+
 	}
 	return availableVersions.length;
 }
