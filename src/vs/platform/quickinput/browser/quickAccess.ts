@@ -11,6 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
+import * as nls from 'vs/nls';
 
 export class QuickAccessController extends Disposable implements IQuickAccessController {
 
@@ -109,6 +110,21 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		if (descriptor?.placeholder) {
 			picker.ariaLabel = descriptor?.placeholder;
 		}
+
+		// Add toggle for multiselect mode
+		picker.customButton = true;
+		picker.canSelectMany = false;
+		picker.customHover = nls.localize('quickAccessToggle', "Toggle Multi-Select Mode");
+		const setCustomLabel = () => {
+			//picker.customLabel = picker.canSelectMany ? '$(check)' : '$(check-all)';
+			picker.customLabel = picker.canSelectMany ? '$(file)' : '$(files)';
+		};
+		setCustomLabel();
+		picker.onDidCustom(() => {
+			picker.selectedItems = [];
+			picker.canSelectMany = !picker.canSelectMany;
+			setCustomLabel();
+		});
 
 		// Pick mode: setup a promise that can be resolved
 		// with the selected items and prevent execution
