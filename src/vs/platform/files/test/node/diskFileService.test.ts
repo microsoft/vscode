@@ -242,7 +242,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
-		assert.ok(result!.isDirectory);
+		assert.ok(result.isDirectory);
 		assert.strictEqual(result.readonly, false);
 		assert.ok(result.mtime! > 0);
 		assert.ok(result.ctime! > 0);
@@ -285,7 +285,7 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.children);
 		assert.ok(result.children!.length > 0);
-		assert.ok(result!.isDirectory);
+		assert.ok(result.isDirectory);
 		assert.ok(result.mtime! > 0);
 		assert.ok(result.ctime! > 0);
 		assert.strictEqual(result.children!.length, testsElements.length);
@@ -456,6 +456,36 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(!resolvedLink?.isDirectory);
 		assert.ok(!resolvedLink?.isFile);
+	});
+
+	test('stat - file', async () => {
+		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver/index.html'));
+		const resolved = await service.stat(resource);
+
+		assert.strictEqual(resolved.name, 'index.html');
+		assert.strictEqual(resolved.isFile, true);
+		assert.strictEqual(resolved.isDirectory, false);
+		assert.strictEqual(resolved.readonly, false);
+		assert.strictEqual(resolved.isSymbolicLink, false);
+		assert.strictEqual(resolved.resource.toString(), resource.toString());
+		assert.strictEqual(resolved.children, undefined);
+		assert.ok(resolved.mtime! > 0);
+		assert.ok(resolved.ctime! > 0);
+		assert.ok(resolved.size! > 0);
+	});
+
+	test('stat - directory', async () => {
+		const resource = URI.file(getPathFromAmdModule(require, './fixtures/resolver'));
+		const result = await service.stat(resource);
+
+		assert.ok(result);
+		assert.strictEqual(result.resource.toString(), resource.toString());
+		assert.strictEqual(result.name, 'resolver');
+		assert.strictEqual(result.children, undefined);
+		assert.ok(result.isDirectory);
+		assert.strictEqual(result.readonly, false);
+		assert.ok(result.mtime! > 0);
+		assert.ok(result.ctime! > 0);
 	});
 
 	test('deleteFile', async () => {

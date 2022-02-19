@@ -297,6 +297,14 @@ export class FileService extends Disposable implements IFileService {
 		}));
 	}
 
+	async stat(resource: URI): Promise<IFileStatWithMetadata> {
+		const provider = await this.withProvider(resource);
+
+		const stat = await provider.stat(resource);
+
+		return this.toFileStat(provider, resource, stat, undefined, true, () => false /* Do not resolve any children */);
+	}
+
 	async exists(resource: URI): Promise<boolean> {
 		const provider = await this.withProvider(resource);
 
