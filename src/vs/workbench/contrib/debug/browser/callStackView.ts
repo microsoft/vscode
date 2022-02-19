@@ -377,7 +377,13 @@ export class CallStackView extends ViewPane {
 
 		this._register(this.debugService.onDidNewSession(s => {
 			const sessionListeners: IDisposable[] = [];
-			sessionListeners.push(s.onDidChangeName(() => this.tree.rerender(s)));
+			sessionListeners.push(s.onDidChangeName(() => {
+				// this.tree.updateChildren is called on a delay after a session is added,
+				// so don't rerender if the tree doesn't have the node yet
+				if (this.tree.hasNode(s)) {
+					this.tree.rerender(s);
+				}
+			}));
 			sessionListeners.push(s.onDidEndAdapter(() => dispose(sessionListeners)));
 			if (s.parentSession) {
 				// A session we already expanded has a new child session, allow to expand it again.
