@@ -113,11 +113,19 @@ export interface IFileService {
 	resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 
 	/**
-	 * Same as resolve() but supports resolving multiple resources in parallel.
-	 * If one of the resolve targets fails to resolve returns a fake IFileStat instead of making the whole call fail.
+	 * Same as `resolve()` but supports resolving multiple resources in parallel.
+	 *
+	 * If one of the resolve targets fails to resolve returns a fake `IFileStat` instead of
+	 * making the whole call fail.
 	 */
 	resolveAll(toResolve: { resource: URI; options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
 	resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
+
+	/**
+	 * Same as `resolve()` but without resolving the children of a folder if the
+	 * resource is pointing to a folder.
+	 */
+	stat(resource: URI): Promise<IFileStatWithMetadata>;
 
 	/**
 	 * Finds out if a file/folder identified by the resource exists.

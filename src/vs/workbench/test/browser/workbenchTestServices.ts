@@ -995,6 +995,10 @@ export class TestFileService implements IFileService {
 		});
 	}
 
+	stat(resource: URI): Promise<IFileStatWithMetadata> {
+		return this.resolve(resource, { resolveMetadata: true });
+	}
+
 	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
 		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
 
