@@ -298,7 +298,7 @@ export class ResourcesDropHandler {
 
 			// Check for Folder
 			try {
-				const stat = await this.fileService.resolve(resource);
+				const stat = await this.fileService.stat(resource);
 				if (stat.isDirectory) {
 					toOpen.push({ folderUri: stat.resource });
 					folderURIs.push({ uri: stat.resource });

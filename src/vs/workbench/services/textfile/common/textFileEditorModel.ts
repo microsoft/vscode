@@ -319,7 +319,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		let size: number;
 		let etag: string;
 		try {
-			const metadata = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			const metadata = await this.fileService.stat(this.resource);
 			mtime = metadata.mtime;
 			ctime = metadata.ctime;
 			size = metadata.size;
@@ -492,7 +492,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
-			isSymbolicLink: false
+			isSymbolicLink: false,
+			children: undefined
 		});
 
 		// Keep the original encoding to not loose it when saving

@@ -144,7 +144,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 					return item;
 				}
 
-				return await fileService.resolve(resource);
+				return await fileService.stat(resource);
 			}));
 			const files = items.filter(i => !i.isDirectory);
 			const editors = files.map(f => ({
