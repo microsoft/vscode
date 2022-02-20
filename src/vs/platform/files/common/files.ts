@@ -125,7 +125,7 @@ export interface IFileService {
 	 * Same as `resolve()` but without resolving the children of a folder if the
 	 * resource is pointing to a folder.
 	 */
-	stat(resource: URI): Promise<IFileStatWithoutChildren>;
+	stat(resource: URI): Promise<IFileStatWithPartialMetadata>;
 
 	/**
 	 * Finds out if a file/folder identified by the resource exists.
@@ -969,7 +969,7 @@ export interface IFileStat extends IBaseFileStat {
 	/**
 	 * The children of the file stat or undefined if none.
 	 */
-	children?: IFileStat[];
+	children: IFileStat[] | undefined;
 }
 
 export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetadata {
@@ -978,7 +978,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetad
 	readonly etag: string;
 	readonly size: number;
 	readonly readonly: boolean;
-	readonly children?: IFileStatWithMetadata[];
+	readonly children: IFileStatWithMetadata[] | undefined;
 }
 
 export interface IFileStatResult {
@@ -990,7 +990,7 @@ export interface IFileStatResultWithMetadata extends IFileStatResult {
 	readonly stat?: IFileStatWithMetadata;
 }
 
-export interface IFileStatWithoutChildren extends Omit<IFileStatWithMetadata, 'children'> { }
+export interface IFileStatWithPartialMetadata extends Omit<IFileStatWithMetadata, 'children'> { }
 
 export interface IFileContent extends IBaseFileStatWithMetadata {
 

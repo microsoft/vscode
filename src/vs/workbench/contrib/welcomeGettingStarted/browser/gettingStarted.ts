@@ -496,7 +496,7 @@ export class GettingStartedPage extends EditorPane {
 					const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
 
 					const fileExists = (file: URI) => this.fileService
-						.resolve(file, { resolveMetadata: true })
+						.stat(file)
 						.then((stat) => !!stat.size) // Double check the file actually has content for fileSystemProviders that fake `stat`. #131809
 						.catch(() => false);
 
