@@ -139,6 +139,8 @@ export interface IReplElementSource {
 
 export interface IExpressionContainer extends ITreeElement {
 	readonly hasChildren: boolean;
+	readonly isLazyEvaluated?: boolean;
+	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
 	readonly value: string;
@@ -567,7 +569,10 @@ export interface IViewModel extends ITreeElement {
 	onDidFocusSession: Event<IDebugSession | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean }>;
 	onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
+	onDidEvaluateLazyExpression: Event<IExpressionContainer>;
 	onWillUpdateViews: Event<void>;
+
+	evaluateLazyExpression(expression: IExpressionContainer): void;
 }
 
 export interface IEvaluate {

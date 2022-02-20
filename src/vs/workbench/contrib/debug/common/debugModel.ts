@@ -40,6 +40,8 @@ export class ExpressionContainer implements IExpressionContainer {
 	private _value: string = '';
 	protected children?: Promise<IExpression[]>;
 
+	private _isLazyEvaluated = false;
+
 	constructor(
 		protected session: IDebugSession | undefined,
 		protected threadId: number | undefined,
@@ -48,8 +50,13 @@ export class ExpressionContainer implements IExpressionContainer {
 		public namedVariables: number | undefined = 0,
 		public indexedVariables: number | undefined = 0,
 		public memoryReference: string | undefined = undefined,
-		private startOfVariables: number | undefined = 0
+		private startOfVariables: number | undefined = 0,
+		private isLazy = false
 	) { }
+
+	get isLazyEvaluated(): boolean {
+		return this._isLazyEvaluated;
+	}
 
 	get reference(): number | undefined {
 		return this._reference;
@@ -58,6 +65,30 @@ export class ExpressionContainer implements IExpressionContainer {
 	set reference(value: number | undefined) {
 		this._reference = value;
 		this.children = undefined; // invalidate children cache
+	}
+
+	async evaluateLazy(): Promise<void> {
+		if (typeof this.reference === 'undefined') {
+			return;
+		}
+
+		const response = await this.session!.variables(this.reference, this.threadId, undefined, undefined, undefined);
+		if (!response || !response.body || !response.body.variables || response.body.variables.length !== 1) {
+			return;
+		}
+
+		const dummyVar = response.body.variables[0];
+		this.reference = dummyVar.variablesReference;
+		this._value = dummyVar.value;
+		this.namedVariables = dummyVar.namedVariables;
+		this.indexedVariables = dummyVar.indexedVariables;
+		this.memoryReference = dummyVar.memoryReference;
+		this._isLazyEvaluated = true;
+		// Also call overridden method to adopt subclass props
+		this.adoptLazyResponse(dummyVar);
+	}
+
+	protected adoptLazyResponse(response: DebugProtocol.Variable): void {
 	}
 
 	getChildren(): Promise<IExpression[]> {
@@ -116,7 +147,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	get hasChildren(): boolean {
 		// only variables with reference > 0 have children.
-		return !!this.reference && this.reference > 0;
+		return !!this.reference && this.reference > 0 && (!this.isLazy || this._isLazyEvaluated);
 	}
 
 	private async fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
@@ -258,7 +289,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		startOfVariables = 0,
 		idDuplicationIndex = '',
 	) {
-		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables, presentationHint?.lazy);
 		this.value = value || '';
 		this.type = type;
 	}
@@ -292,6 +323,11 @@ export class Variable extends ExpressionContainer implements IExpression {
 
 	override toString(): string {
 		return this.name ? `${this.name}: ${this.value}` : this.value;
+	}
+
+	protected override adoptLazyResponse(response: DebugProtocol.Variable): void {
+		this.evaluateName = response.evaluateName;
+		this.presentationHint = response.presentationHint;
 	}
 
 	toDebugProtocolObject(): DebugProtocol.Variable {
