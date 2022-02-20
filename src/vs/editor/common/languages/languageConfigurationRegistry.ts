@@ -467,7 +467,7 @@ export class LanguageConfigurationRegistryImpl {
 		let embeddedLanguage = false;
 		let beforeEnterText: string;
 		if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
-			// we are in the embeded language content
+			// we are in the embedded language content
 			embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
 			beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
