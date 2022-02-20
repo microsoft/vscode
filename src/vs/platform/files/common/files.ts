@@ -118,14 +118,14 @@ export interface IFileService {
 	 * If one of the resolve targets fails to resolve returns a fake `IFileStat` instead of
 	 * making the whole call fail.
 	 */
-	resolveAll(toResolve: { resource: URI; options: IResolveMetadataFileOptions }[]): Promise<IResolveFileResult[]>;
-	resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]>;
+	resolveAll(toResolve: { resource: URI; options: IResolveMetadataFileOptions }[]): Promise<IFileStatResult[]>;
+	resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]>;
 
 	/**
 	 * Same as `resolve()` but without resolving the children of a folder if the
 	 * resource is pointing to a folder.
 	 */
-	stat(resource: URI): Promise<IFileStatWithMetadata>;
+	stat(resource: URI): Promise<IFileStatWithPartialMetadata>;
 
 	/**
 	 * Finds out if a file/folder identified by the resource exists.
@@ -889,7 +889,7 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	return path.indexOf(candidate) === 0;
 }
 
-interface IBaseStat {
+interface IBaseFileStat {
 
 	/**
 	 * The unified resource identifier of this file or folder.
@@ -941,12 +941,12 @@ interface IBaseStat {
 	readonly readonly?: boolean;
 }
 
-export interface IBaseStatWithMetadata extends Required<IBaseStat> { }
+export interface IBaseFileStatWithMetadata extends Required<IBaseFileStat> { }
 
 /**
- * A file resource with meta information.
+ * A file resource with meta information and resolved children if any.
  */
-export interface IFileStat extends IBaseStat {
+export interface IFileStat extends IBaseFileStat {
 
 	/**
 	 * The resource is a file.
@@ -969,28 +969,30 @@ export interface IFileStat extends IBaseStat {
 	/**
 	 * The children of the file stat or undefined if none.
 	 */
-	children?: IFileStat[];
+	children: IFileStat[] | undefined;
 }
 
-export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata {
+export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetadata {
 	readonly mtime: number;
 	readonly ctime: number;
 	readonly etag: string;
 	readonly size: number;
 	readonly readonly: boolean;
-	readonly children?: IFileStatWithMetadata[];
+	readonly children: IFileStatWithMetadata[] | undefined;
 }
 
-export interface IResolveFileResult {
+export interface IFileStatResult {
 	readonly stat?: IFileStat;
 	readonly success: boolean;
 }
 
-export interface IResolveFileResultWithMetadata extends IResolveFileResult {
+export interface IFileStatResultWithMetadata extends IFileStatResult {
 	readonly stat?: IFileStatWithMetadata;
 }
 
-export interface IFileContent extends IBaseStatWithMetadata {
+export interface IFileStatWithPartialMetadata extends Omit<IFileStatWithMetadata, 'children'> { }
+
+export interface IFileContent extends IBaseFileStatWithMetadata {
 
 	/**
 	 * The content of a file as buffer.
@@ -998,7 +1000,7 @@ export interface IFileContent extends IBaseStatWithMetadata {
 	readonly value: VSBuffer;
 }
 
-export interface IFileStreamContent extends IBaseStatWithMetadata {
+export interface IFileStreamContent extends IBaseFileStatWithMetadata {
 
 	/**
 	 * The content of a file as stream.

@@ -1010,7 +1010,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 			}
-			const fileToPasteStat = await fileService.resolve(fileToPaste);
+			const fileToPasteStat = await fileService.stat(fileToPaste);
 
 			// Find target
 			let target: ExplorerItem;

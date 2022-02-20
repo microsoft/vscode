@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFilesConfiguration } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFilesConfiguration, IFileStatWithPartialMetadata, IFileStat } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -69,7 +69,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	// --- consumer fs, vscode.workspace.fs
 
 	$stat(uri: UriComponents): Promise<IStat> {
-		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: true }).then(stat => {
+		return this._fileService.stat(URI.revive(uri)).then(stat => {
 			return {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
@@ -91,7 +91,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		}).catch(MainThreadFileSystem._handleError);
 	}
 
-	private static _asFileType(stat: IFileStat): FileType {
+	private static _asFileType(stat: IFileStat | IFileStatWithPartialMetadata): FileType {
 		let res = 0;
 		if (stat.isFile) {
 			res += FileType.File;
