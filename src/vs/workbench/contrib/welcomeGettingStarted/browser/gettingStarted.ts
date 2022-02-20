@@ -71,6 +71,7 @@ import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { Codicon } from 'vs/base/common/codicons';
 import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomePage/browser/welcomePage';
@@ -347,7 +348,7 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'showMoreRecents': {
-				this.commandService.executeCommand('workbench.action.openRecent');
+				this.commandService.executeCommand(OpenRecentAction.ID);
 				break;
 			}
 			case 'seeAllWalkthroughs': {
@@ -1100,7 +1101,7 @@ export class GettingStartedPage extends EditorPane {
 					$('button.button-link',
 						{
 							'x-dispatch': 'showMoreRecents',
-							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel('workbench.action.openRecent'))
+							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
 						}, 'More...')),
 				renderElement: renderRecent,
 				contextService: this.contextService
