@@ -171,6 +171,11 @@ export interface IWorkbenchConstructionOptions {
 	readonly additionalTrustedDomains?: string[];
 
 	/**
+	 * Disable workspace trust feature for the current window
+	 */
+	readonly disableWorkspaceTrust?: boolean;
+
+	/**
 	 * Urls that will be opened externally that are allowed access
 	 * to the opener window. This is primarily used to allow
 	 * `window.close()` to be called from the newly opened window.
