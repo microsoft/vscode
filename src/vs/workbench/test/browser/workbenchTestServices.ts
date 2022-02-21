@@ -148,7 +148,6 @@ import { env } from 'vs/base/common/process';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
@@ -1909,43 +1908,4 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> { return null; }
 	canNavigateValueSet(resource: URI): boolean { return false; }
 	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
-}
-
-export class TestClipboardService implements IClipboardService {
-
-	_serviceBrand: undefined;
-
-	private text: string | undefined = undefined;
-
-	async writeText(text: string, type?: string): Promise<void> {
-		this.text = text;
-	}
-
-	async readText(type?: string): Promise<string> {
-		return this.text ?? '';
-	}
-
-	private findText: string | undefined = undefined;
-
-	async readFindText(): Promise<string> {
-		return this.findText ?? '';
-	}
-
-	async writeFindText(text: string): Promise<void> {
-		this.findText = text;
-	}
-
-	private resources: URI[] | undefined = undefined;
-
-	async writeResources(resources: URI[]): Promise<void> {
-		this.resources = resources;
-	}
-
-	async readResources(): Promise<URI[]> {
-		return this.resources ?? [];
-	}
-
-	async hasResources(): Promise<boolean> {
-		return Array.isArray(this.resources) && this.resources.length > 0;
-	}
 }
