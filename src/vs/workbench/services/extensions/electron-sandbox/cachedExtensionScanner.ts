@@ -196,7 +196,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			const folderStat = await this._fileService.resolve(URI.file(input.absoluteFolderPath));
+			const folderStat = await this._fileService.stat(URI.file(input.absoluteFolderPath));
 			if (typeof folderStat.mtime === 'number') {
 				input.mtime = folderStat.mtime;
 			}
