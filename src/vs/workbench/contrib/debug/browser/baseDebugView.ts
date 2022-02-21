@@ -111,7 +111,7 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 		data.label.set(':');
 	}
 
-	data.expression.classList.toggle('lazy', !!(variable.presentationHint?.lazy && !variable.isLazyEvaluated));
+	data.expression.classList.toggle('lazy', !!variable.presentationHint?.lazy);
 	renderExpressionValue(variable, data.value, {
 		showChanged,
 		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,

@@ -139,14 +139,13 @@ export interface IReplElementSource {
 
 export interface IExpressionContainer extends ITreeElement {
 	readonly hasChildren: boolean;
-	readonly isLazyEvaluated?: boolean;
 	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
 	readonly value: string;
 	readonly type?: string;
 	valueChanged?: boolean;
-	readonly presentationHint: DebugProtocol.VariablePresentationHint | undefined;
+	readonly presentationHint?: DebugProtocol.VariablePresentationHint | undefined;
 }
 
 export interface IExpression extends IExpressionContainer {
