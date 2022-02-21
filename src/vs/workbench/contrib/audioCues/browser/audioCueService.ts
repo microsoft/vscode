@@ -37,7 +37,9 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	public async playAudioCue(cue: AudioCue): Promise<void> {
-		await this.playSound(cue.sound);
+		if (this.isEnabled(cue).get()) {
+			await this.playSound(cue.sound);
+		}
 	}
 
 	private async playSound(sound: Sound): Promise<void> {
