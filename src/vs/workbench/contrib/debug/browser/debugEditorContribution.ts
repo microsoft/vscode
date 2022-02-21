@@ -688,7 +688,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								}
 								if (expr) {
 									const expression = new Expression(expr);
-									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch');
+									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch', true);
 									if (expression.available) {
 										text = strings.format(var_value_format, expr, expression.value);
 									}

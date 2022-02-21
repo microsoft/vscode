@@ -146,6 +146,7 @@ export interface IExpressionContainer extends ITreeElement {
 	readonly value: string;
 	readonly type?: string;
 	valueChanged?: boolean;
+	readonly presentationHint: DebugProtocol.VariablePresentationHint | undefined;
 }
 
 export interface IExpression extends IExpressionContainer {

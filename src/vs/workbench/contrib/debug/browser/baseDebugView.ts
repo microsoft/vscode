@@ -33,7 +33,6 @@ export interface IRenderValueOptions {
 	showHover?: boolean;
 	colorize?: boolean;
 	linkDetector?: LinkDetector;
-	lazyButton?: HTMLElement;
 }
 
 export interface IVariableTemplateData {

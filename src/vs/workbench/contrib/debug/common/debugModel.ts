@@ -51,7 +51,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		public indexedVariables: number | undefined = 0,
 		public memoryReference: string | undefined = undefined,
 		private startOfVariables: number | undefined = 0,
-		private isLazy = false
+		public presentationHint: DebugProtocol.VariablePresentationHint | undefined = undefined
 	) { }
 
 	get isLazyEvaluated(): boolean {
@@ -147,7 +147,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	get hasChildren(): boolean {
 		// only variables with reference > 0 have children.
-		return !!this.reference && this.reference > 0 && (!this.isLazy || this._isLazyEvaluated);
+		return !!this.reference && this.reference > 0 && (!this.presentationHint?.lazy || this._isLazyEvaluated);
 	}
 
 	private async fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
@@ -192,7 +192,8 @@ export class ExpressionContainer implements IExpressionContainer {
 		expression: string,
 		session: IDebugSession | undefined,
 		stackFrame: IStackFrame | undefined,
-		context: string): Promise<boolean> {
+		context: string,
+		keepLazyVars = false): Promise<boolean> {
 
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
@@ -211,6 +212,12 @@ export class ExpressionContainer implements IExpressionContainer {
 				this.indexedVariables = response.body.indexedVariables;
 				this.memoryReference = response.body.memoryReference;
 				this.type = response.body.type || this.type;
+				this.presentationHint = response.body.presentationHint;
+
+				if (!keepLazyVars && response.body.presentationHint?.lazy) {
+					await this.evaluateLazy();
+				}
+
 				return true;
 			}
 			return false;
@@ -248,8 +255,8 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<void> {
-		this.available = await this.evaluateExpression(this.name, session, stackFrame, context);
+	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean): Promise<void> {
+		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars);
 	}
 
 	override toString(): string {
@@ -282,14 +289,14 @@ export class Variable extends ExpressionContainer implements IExpression {
 		namedVariables: number | undefined,
 		indexedVariables: number | undefined,
 		memoryReference: string | undefined,
-		public presentationHint: DebugProtocol.VariablePresentationHint | undefined,
+		presentationHint: DebugProtocol.VariablePresentationHint | undefined,
 		type: string | undefined = undefined,
 		public variableMenuContext: string | undefined = undefined,
 		public available = true,
 		startOfVariables = 0,
 		idDuplicationIndex = '',
 	) {
-		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables, presentationHint?.lazy);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables, presentationHint);
 		this.value = value || '';
 		this.type = type;
 	}
