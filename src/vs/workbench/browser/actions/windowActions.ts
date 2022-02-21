@@ -232,9 +232,11 @@ abstract class BaseOpenRecentAction extends Action2 {
 
 export class OpenRecentAction extends BaseOpenRecentAction {
 
+	static ID = 'workbench.action.openRecent';
+
 	constructor() {
 		super({
-			id: 'workbench.action.openRecent',
+			id: OpenRecentAction.ID,
 			title: {
 				value: localize('openRecent', "Open Recent..."),
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),

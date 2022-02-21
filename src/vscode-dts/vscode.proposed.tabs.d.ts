@@ -7,6 +7,13 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
+	export enum TabKind {
+		SINGULAR = 0,
+		DIFF = 1,
+		SIDEBYSIDE = 2,
+		OTHER = 3
+	}
+
 	/**
 	 * Represents a tab within the window
 	 */
@@ -54,6 +61,11 @@ declare module 'vscode' {
 		 * Whether or not the dirty indicator is present on the tab
 		 */
 		readonly isDirty: boolean;
+
+		/**
+		 * Indicates the type of tab it is.
+		 */
+		readonly kind: TabKind;
 
 		/**
 		 * Moves a tab to the given index within the column.

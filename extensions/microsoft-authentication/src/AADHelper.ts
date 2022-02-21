@@ -196,6 +196,9 @@ export class AzureActiveDirectoryService {
 		if (!modifiedScopes.includes('email')) {
 			modifiedScopes.push('email');
 		}
+		if (!modifiedScopes.includes('profile')) {
+			modifiedScopes.push('profile');
+		}
 
 		let orderedScopes = modifiedScopes.sort().join(' ');
 		Logger.info(`Getting sessions for the following scopes: ${orderedScopes}`);
@@ -230,6 +233,9 @@ export class AzureActiveDirectoryService {
 		}
 		if (!scopes.includes('email')) {
 			scopes.push('email');
+		}
+		if (!scopes.includes('profile')) {
+			scopes.push('profile');
 		}
 		scopes = scopes.sort();
 		const scopeData: IScopeData = {

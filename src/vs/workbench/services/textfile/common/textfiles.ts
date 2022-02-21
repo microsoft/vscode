@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { ReadableStream } from 'vs/base/common/stream';
-import { IBaseStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
+import { IBaseFileStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
@@ -241,7 +241,7 @@ export const enum TextFileResolveReason {
 	OTHER = 3
 }
 
-interface IBaseTextFileContent extends IBaseStatWithMetadata {
+interface IBaseTextFileContent extends IBaseFileStatWithMetadata {
 
 	/**
 	 * The encoding of the content if known.

@@ -171,7 +171,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 			const uri = URI.from({ scheme, path: sanitizedLink });
 			try {
-				const fileStat = await this._fileService.resolve(uri);
+				const fileStat = await this._fileService.stat(uri);
 				resourceMatch = { uri, isDirectory: fileStat.isDirectory };
 			} catch {
 				// File or dir doesn't exist, continue on

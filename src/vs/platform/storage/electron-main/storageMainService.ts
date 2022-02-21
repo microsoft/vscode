@@ -10,7 +10,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, logCi } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { GlobalStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
 import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -78,6 +78,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		// All Storage: Close when shutting down
 		this._register(this.lifecycleMainService.onWillShutdown(e => {
+			logCi(this.logService, 'storageMainService#onWillShutdown()');
 
 			// Global Storage
 			e.join(this.globalStorage.close());

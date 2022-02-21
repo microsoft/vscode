@@ -7,11 +7,12 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
+import { isCI } from 'vs/base/common/platform';
 import { Promises } from 'vs/base/node/pfs';
 import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, logCi, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -153,7 +154,7 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	protected createLoggingOptions(): ISQLiteStorageDatabaseLoggingOptions {
 		return {
-			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
+			logTrace: isCI ? msg => this.logService.info(msg) : (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
 			logError: error => this.logService.error(error)
 		};
 	}
@@ -246,6 +247,15 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 		storage.set(lastSessionDateStorageKey, typeof lastSessionDate === 'undefined' ? null : lastSessionDate);
 		storage.set(currentSessionDateStorageKey, currentSessionDate);
 	}
+
+	override async close(): Promise<void> {
+		logCi(this.logService, 'GlobalStorageMain#close() - begin');
+		try {
+			await super.close();
+		} finally {
+			logCi(this.logService, 'GlobalStorageMain#close() - end');
+		}
+	}
 }
 
 export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMain {
@@ -313,6 +323,15 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 			} catch (error) {
 				this.logService.error(`StorageMain#ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);
 			}
+		}
+	}
+
+	override async close(): Promise<void> {
+		logCi(this.logService, 'WorkspaceStorageMain#close() - begin');
+		try {
+			await super.close();
+		} finally {
+			logCi(this.logService, 'WorkspaceStorageMain#close() - end');
 		}
 	}
 }

@@ -162,7 +162,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 
 		if (uri) {
-			const stat = await this.fileService.resolve(uri);
+			const stat = await this.fileService.stat(uri);
 
 			const toOpen: IWindowOpenable = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
 			if (!isWorkspaceToOpen(toOpen) && isFileToOpen(toOpen)) {

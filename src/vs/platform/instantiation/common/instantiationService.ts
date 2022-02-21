@@ -86,8 +86,8 @@ export class InstantiationService implements IInstantiationService {
 		let serviceArgs: any[] = [];
 		for (const dependency of serviceDependencies) {
 			let service = this._getOrCreateServiceInstance(dependency.id, _trace);
-			if (!service && this._strict && !dependency.optional) {
-				throw new Error(`[createInstance] ${ctor.name} depends on UNKNOWN service ${dependency.id}.`);
+			if (!service) {
+				this._throwIfStrict(`[createInstance] ${ctor.name} depends on UNKNOWN service ${dependency.id}.`, false);
 			}
 			serviceArgs.push(service);
 		}
@@ -174,8 +174,8 @@ export class InstantiationService implements IInstantiationService {
 			for (let dependency of _util.getServiceDependencies(item.desc.ctor)) {
 
 				let instanceOrDesc = this._getServiceInstanceOrDescriptor(dependency.id);
-				if (!instanceOrDesc && !dependency.optional) {
-					console.warn(`[createInstance] ${id} depends on ${dependency.id} which is NOT registered.`);
+				if (!instanceOrDesc) {
+					this._throwIfStrict(`[createInstance] ${id} depends on ${dependency.id} which is NOT registered.`, true);
 				}
 
 				if (instanceOrDesc instanceof SyncDescriptor) {
@@ -253,6 +253,15 @@ export class InstantiationService implements IInstantiationService {
 					return true;
 				}
 			});
+		}
+	}
+
+	private _throwIfStrict(msg: string, printWarning: boolean): void {
+		if (printWarning) {
+			console.warn(printWarning);
+		}
+		if (this._strict) {
+			throw new Error(msg);
 		}
 	}
 }

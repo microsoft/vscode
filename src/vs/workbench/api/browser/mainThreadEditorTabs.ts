@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -48,12 +48,14 @@ export class MainThreadEditorTabs {
 	 */
 	private _buildTabObject(editor: EditorInput, group: IEditorGroup): IEditorTabDto {
 		// Even though the id isn't a diff / sideBySide on the main side we need to let the ext host know what type of editor it is
-		const editorId = editor instanceof DiffEditorInput ? 'diff' : editor instanceof SideBySideEditorInput ? 'sideBySide' : editor.editorId;
+		const editorId = editor.editorId;
+		const tabKind = editor instanceof DiffEditorInput ? TabKind.DIFF : editor instanceof SideBySideEditorInput ? TabKind.SIDEBYSIDE : TabKind.SINGULAR;
 		const tab: IEditorTabDto = {
 			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 			label: editor.getName(),
 			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 			editorId,
+			kind: tabKind,
 			additionalResourcesAndViewIds: [],
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
