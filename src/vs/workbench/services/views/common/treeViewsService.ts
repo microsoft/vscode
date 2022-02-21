@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITreeDataTransfer } from 'vs/workbench/common/views';
-
-export const ITreeViewsDragAndDropService = createDecorator<ITreeViewsDragAndDropService<ITreeDataTransfer>>('treeViewsDragAndDropService');
-export interface ITreeViewsDragAndDropService<T> {
+export interface ITreeViewsService<T, U, V> {
 	readonly _serviceBrand: undefined;
 
 	removeDragOperationTransfer(uuid: string | undefined): Promise<T | undefined> | undefined;
 	addDragOperationTransfer(uuid: string, transferPromise: Promise<T | undefined>): void;
+
+	getRenderedTreeElement(node: U): V | undefined;
+	addRenderedTreeItemElement(node: U, element: V): void;
+	removeRenderedTreeItemElement(node: U): void;
 }
 
-export class TreeViewsDragAndDropService<T> implements ITreeViewsDragAndDropService<T> {
+export class TreeviewsService<T, U, V> implements ITreeViewsService<T, U, V> {
 	_serviceBrand: undefined;
 	private _dragOperations: Map<string, Promise<T | undefined>> = new Map();
+	private _renderedElements: Map<U, V> = new Map();
 
 	removeDragOperationTransfer(uuid: string | undefined): Promise<T | undefined> | undefined {
 		if ((uuid && this._dragOperations.has(uuid))) {
@@ -31,6 +31,22 @@ export class TreeViewsDragAndDropService<T> implements ITreeViewsDragAndDropServ
 	addDragOperationTransfer(uuid: string, transferPromise: Promise<T | undefined>): void {
 		this._dragOperations.set(uuid, transferPromise);
 	}
-}
 
-registerSingleton(ITreeViewsDragAndDropService, TreeViewsDragAndDropService);
+
+	getRenderedTreeElement(node: U): V | undefined {
+		if (this._renderedElements.has(node)) {
+			return this._renderedElements.get(node);
+		}
+		return undefined;
+	}
+
+	addRenderedTreeItemElement(node: U, element: V): void {
+		this._renderedElements.set(node, element);
+	}
+
+	removeRenderedTreeItemElement(node: U): void {
+		if (this._renderedElements.has(node)) {
+			this._renderedElements.delete(node);
+		}
+	}
+}
