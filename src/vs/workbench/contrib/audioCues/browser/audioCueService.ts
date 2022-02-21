@@ -44,7 +44,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 	private async playSound(sound: Sound): Promise<void> {
 		const url = FileAccess.asBrowserUri(
-			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}.opus`,
+			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`,
 			require
 		).toString();
 		const audio = new Audio(url);
@@ -111,9 +111,10 @@ export class Sound {
 	}
 
 
-	public static readonly error = Sound.register({ fileName: 'error' });
-	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas' });
-	public static readonly break = Sound.register({ fileName: 'break' });
+	public static readonly error = Sound.register({ fileName: 'error.opus' });
+	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.opus' });
+	public static readonly break = Sound.register({ fileName: 'break.opus' });
+	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.opus' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -157,7 +158,7 @@ export class AudioCue {
 	});
 	public static readonly inlineSuggestion = AudioCue.register({
 		name: localize('audioCues.lineHasInlineSuggestion.name', 'Line has Inline Suggestion Available'),
-		sound: Sound.break,
+		sound: Sound.quickFixes,
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
 
