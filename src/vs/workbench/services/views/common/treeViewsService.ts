@@ -7,17 +7,22 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITreeDataTransfer } from 'vs/workbench/common/views';
 
-export const ITreeViewsDragAndDropService = createDecorator<ITreeViewsDragAndDropService<ITreeDataTransfer>>('treeViewsDragAndDropService');
-export interface ITreeViewsDragAndDropService<T> {
+export const ITreeViewsService = createDecorator<ITreeViewsService<ITreeDataTransfer>>('treeViewsService');
+export interface ITreeViewsService<T> {
 	readonly _serviceBrand: undefined;
 
 	removeDragOperationTransfer(uuid: string | undefined): Promise<T | undefined> | undefined;
 	addDragOperationTransfer(uuid: string, transferPromise: Promise<T | undefined>): void;
+
+	getRenderedTreeElement(node: T): HTMLElement | undefined;
+	addRenderedTreeItemElement(node: T, element: HTMLElement): void;
+	removeRenderedTreeItemElement(node: T): void;
 }
 
-export class TreeViewsDragAndDropService<T> implements ITreeViewsDragAndDropService<T> {
+export class TreeviewsService<T> implements ITreeViewsService<T> {
 	_serviceBrand: undefined;
 	private _dragOperations: Map<string, Promise<T | undefined>> = new Map();
+	private _renderedElements: Map<T, HTMLElement> = new Map();
 
 	removeDragOperationTransfer(uuid: string | undefined): Promise<T | undefined> | undefined {
 		if ((uuid && this._dragOperations.has(uuid))) {
@@ -31,6 +36,24 @@ export class TreeViewsDragAndDropService<T> implements ITreeViewsDragAndDropServ
 	addDragOperationTransfer(uuid: string, transferPromise: Promise<T | undefined>): void {
 		this._dragOperations.set(uuid, transferPromise);
 	}
+
+
+	getRenderedTreeElement(node: T): HTMLElement | undefined {
+		if (this._renderedElements.has(node)) {
+			return this._renderedElements.get(node);
+		}
+		return undefined;
+	}
+
+	addRenderedTreeItemElement(node: T, element: HTMLElement): void {
+		this._renderedElements.set(node, element);
+	}
+
+	removeRenderedTreeItemElement(node: T): void {
+		if (this._renderedElements.has(node)) {
+			this._renderedElements.delete(node);
+		}
+	}
 }
 
-registerSingleton(ITreeViewsDragAndDropService, TreeViewsDragAndDropService);
+registerSingleton(ITreeViewsService, TreeviewsService);
