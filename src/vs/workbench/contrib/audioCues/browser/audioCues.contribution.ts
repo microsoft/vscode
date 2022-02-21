@@ -61,6 +61,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.debuggerStoppedOnBreakpoint', "Plays a sound when the debugger stopped on a breakpoint."),
 			...audioCueFeatureBase,
 		},
+		'audioCues.noInlayHints': {
+			'description': localize('audioCues.noInlayHints', "Plays a sound when trying to read a line with inlay hints that has no inlay hints."),
+			...audioCueFeatureBase,
+		},
 	}
 });
 
