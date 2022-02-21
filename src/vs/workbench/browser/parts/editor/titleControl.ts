@@ -228,14 +228,17 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts
 		this.contextKeyService.bufferChangeEvents(() => {
-			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+			const activeEditor = this.group.activeEditor;
 
-			this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
-			this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
-			this.editorLastContext.set(this.group.activeEditor ? this.group.getIndexOfEditor(this.group.activeEditor) + 1 === this.group.editors.length : false);
+			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 
-			this.editorCanSplitInGroupContext.set(this.group.activeEditor ? this.group.activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-			this.sideBySideEditorContext.set(this.group.activeEditor?.typeId === SideBySideEditorInput.ID);
+			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
+			this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
+
+			this.editorLastContext.set(activeEditor ? this.group.getIndexOfEditor(activeEditor) + 1 === this.group.editors.length : false);
+
+			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
+			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
 
 			this.groupLockedContext.set(this.group.isLocked);
 		});
