@@ -106,7 +106,7 @@ export class CachedExtensionScanner {
 		const version = this._productService.version;
 		const commit = this._productService.commit;
 		const date = this._productService.date;
-		const devMode = !!process.env['VSCODE_DEV'];
+		const devMode = !this._environmentService.isBuilt;
 		const locale = platform.language;
 		const input = new ExtensionScannerInput(version, date, commit, locale, devMode, path, isBuiltin, false, translations);
 		return ExtensionScanner.scanSingleExtension(input, this._createExtensionScannerHost(log));
@@ -255,7 +255,7 @@ export class CachedExtensionScanner {
 		const version = this._productService.version;
 		const commit = this._productService.commit;
 		const date = this._productService.date;
-		const devMode = !!process.env['VSCODE_DEV'];
+		const devMode = !this._environmentService.isBuilt;
 		const locale = platform.language;
 
 		const builtinExtensions = this._scanExtensionsWithCache(
