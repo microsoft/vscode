@@ -32,7 +32,7 @@ import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/bro
 import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ContextMenuEditorLastContext } from 'vs/workbench/common/contextkeys';
+import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
@@ -91,7 +91,7 @@ export abstract class TitleControl extends Themable {
 
 	private groupLockedContext: IContextKey<boolean>;
 
-	private menuEditorLastContext: IContextKey<boolean>;
+	private editorLastContext: IContextKey<boolean>;
 
 	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
 
@@ -126,7 +126,7 @@ export abstract class TitleControl extends Themable {
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(contextKeyService);
 
-		this.menuEditorLastContext = ContextMenuEditorLastContext.bindTo(contextKeyService);
+		this.editorLastContext = ActiveEditorLastContext.bindTo(contextKeyService);
 
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 		this.renderDropdownAsChildElement = false;
@@ -232,6 +232,7 @@ export abstract class TitleControl extends Themable {
 
 			this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
 			this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
+			this.editorLastContext.set(this.group.activeEditor ? this.group.getIndexOfEditor(this.group.activeEditor) + 1 === this.group.editors.length : false);
 
 			this.editorCanSplitInGroupContext.set(this.group.activeEditor ? this.group.activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
 			this.sideBySideEditorContext.set(this.group.activeEditor?.typeId === SideBySideEditorInput.ID);
@@ -342,8 +343,8 @@ export abstract class TitleControl extends Themable {
 		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 		const currentSideBySideEditorContext = !!this.sideBySideEditorContext.get();
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
-		const currentMenuEditorLastContext = !!this.menuEditorLastContext.get();
-		this.menuEditorLastContext.set(this.group.getIndexOfEditor(editor) + 1 === this.group.editors.length);
+		const currentEditorLastContext = !!this.editorLastContext.get();
+		this.editorLastContext.set(this.group.getIndexOfEditor(editor) + 1 === this.group.editors.length);
 
 		// Find target anchor
 		let anchor: HTMLElement | { x: number; y: number } = node;
@@ -371,7 +372,7 @@ export abstract class TitleControl extends Themable {
 				this.groupLockedContext.set(currentGroupLockedContext);
 				this.editorCanSplitInGroupContext.set(currentEditorCanSplitContext);
 				this.sideBySideEditorContext.set(currentSideBySideEditorContext);
-				this.menuEditorLastContext.set(currentMenuEditorLastContext);
+				this.editorLastContext.set(currentEditorLastContext);
 
 				// restore focus to active group
 				this.accessor.activeGroup.focus();
