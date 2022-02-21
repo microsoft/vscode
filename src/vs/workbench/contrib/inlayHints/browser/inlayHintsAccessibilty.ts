@@ -67,7 +67,7 @@ export class InlayHintsAccessibility implements IEditorContribution {
 		this._ctxIsReading.reset();
 	}
 
-	private async _(line: number, hints: InlayHintItem[]) {
+	private async _read(line: number, hints: InlayHintItem[]) {
 
 		this._sessionDispoosables.clear();
 
@@ -168,7 +168,7 @@ export class InlayHintsAccessibility implements IEditorContribution {
 		if (!hints || hints.length === 0) {
 			this._audioCueService.playAudioCue(AudioCue.noInlayHints);
 		} else {
-			this._(line, hints);
+			this._read(line, hints);
 		}
 	}
 
