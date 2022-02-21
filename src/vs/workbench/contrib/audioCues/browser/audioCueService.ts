@@ -168,6 +168,12 @@ export class AudioCue {
 		settingsKey: 'audioCues.debuggerStoppedOnBreakpoint',
 	});
 
+	public static readonly noInlayHints = AudioCue.register({
+		name: localize('audioClues.noInlayHints', 'No Inlay Hints available for the current line'),
+		sound: Sound.error,
+		settingsKey: 'audioClues.noInlayHints'
+	});
+
 	private constructor(
 		public readonly sound: Sound,
 		public readonly name: string,
