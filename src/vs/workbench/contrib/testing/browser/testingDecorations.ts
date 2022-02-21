@@ -13,16 +13,17 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { editorCodeLensForeground, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { editorCodeLensForeground, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -32,6 +33,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
@@ -113,11 +115,11 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		// is up to date. This prevents issues, as in #138632, #138835, #138922.
 		this._register(this.testService.onWillProcessDiff(diff => {
 			for (const entry of diff) {
-				let uri: URI | undefined;
-				if (entry[0] === TestDiffOpType.Add || entry[0] === TestDiffOpType.Update) {
-					uri = entry[1].item?.uri;
-				} else if (entry[0] === TestDiffOpType.Remove) {
-					uri = this.testService.collection.getNodeById(entry[1])?.item.uri;
+				let uri: URI | undefined | null;
+				if (entry.op === TestDiffOpType.Add || entry.op === TestDiffOpType.Update) {
+					uri = entry.item.item?.uri;
+				} else if (entry.op === TestDiffOpType.Remove) {
+					uri = this.testService.collection.getNodeById(entry.itemId)?.item.uri;
 				}
 
 				const rec = uri && this.decorationCache.get(uri);
@@ -197,7 +199,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		const newDecorations = new TestDecorations<ITestDecoration>();
 
 		model.changeDecorations(accessor => {
-			const runDecorations = new TestDecorations<{ line: number; id: ''; test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined }>();
+			const runDecorations = new TestDecorations<{ line: number; id: ''; test: IncrementalTestCollectionItem; resultItem: TestResultItem | undefined }>();
 			for (const test of this.testService.collection.all) {
 				if (!test.item.range || test.item.uri?.toString() !== uriStr) {
 					continue;
@@ -265,7 +267,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 								continue;
 							}
 
-							const messageUri = m.type === TestMessageType.Info ? undefined : buildTestUri({
+							const messageUri = buildTestUri({
 								type: TestUriType.ResultActualOutput,
 								messageIndex: i,
 								taskIndex: taskId,
@@ -322,6 +324,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestService private readonly testService: ITestService,
 		@ITestingDecorationsService private readonly decorations: ITestingDecorationsService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -404,7 +407,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.decorations.syncDecorations(uri);
 
 		(async () => {
-			for await (const _test of testsInFile(this.testService.collection, uri)) {
+			for await (const _test of testsInFile(this.testService.collection, this.uriIdentityService, uri)) {
 				// consume the iterator so that all tests in the file get expanded. Or
 				// at least until the URI changes. If new items are requested, changes
 				// will be trigged in the `onDidProcessDiff` callback.
@@ -536,6 +539,7 @@ abstract class TitleLensContentWidget {
 
 			this.viewZoneId = accessor.addZone({
 				afterLineNumber: 0,
+				afterColumn: Constants.MAX_SAFE_SMALL_INTEGER,
 				domNode: document.createElement('div'),
 				heightInPx: 20,
 			});
@@ -605,8 +609,8 @@ abstract class RunTestDecoration {
 
 	constructor(
 		protected tests: readonly {
-			test: IncrementalTestCollectionItem,
-			resultItem: TestResultItem | undefined,
+			test: IncrementalTestCollectionItem;
+			resultItem: TestResultItem | undefined;
 		}[],
 		private visible: boolean,
 		protected readonly model: ITextModel,
@@ -655,8 +659,8 @@ abstract class RunTestDecoration {
 	 * @returns true if options were changed, false otherwise
 	 */
 	public replaceOptions(newTests: readonly {
-		test: IncrementalTestCollectionItem,
-		resultItem: TestResultItem | undefined,
+		test: IncrementalTestCollectionItem;
+		resultItem: TestResultItem | undefined;
 	}[], visible: boolean): boolean {
 		if (visible === this.visible
 			&& equals(this.tests.map(t => t.test.item.extId), newTests.map(t => t.test.item.extId))
@@ -890,7 +894,7 @@ class TestMessageDecoration implements ITestDecoration {
 
 		options.after = {
 			content: ' '.repeat(4) + inlineText,
-			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass}`
+			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass} ${messageUri ? 'test-message-inline-content-clickable' : ''}`
 		};
 		options.showIfCollapsed = true;
 

@@ -32,7 +32,7 @@ export interface ColorContribution {
  * @sample `editorSuggestWidget.background` is `--vscode-editorSuggestWidget-background`.
  */
 export function asCssVariableName(colorIdent: ColorIdentifier): string {
-	return `--vscode-${colorIdent.replace('.', '-')}`;
+	return `--vscode-${colorIdent.replace(/\./g, '-')}`;
 }
 
 export const enum ColorTransformType {
@@ -50,7 +50,7 @@ export type ColorTransform =
 	| { op: ColorTransformType.Transparent; value: ColorValue; factor: number }
 	| { op: ColorTransformType.OneOf; values: readonly ColorValue[] }
 	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number }
-	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue, else: ColorValue };
+	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue; else: ColorValue };
 
 export interface ColorDefaults {
 	light: ColorValue | null;
@@ -114,7 +114,7 @@ class ColorRegistry implements IColorRegistry {
 
 	private colorsById: { [key: string]: ColorContribution };
 	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
-	private colorReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
+	private colorReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
 		this.colorsById = {};
@@ -390,6 +390,15 @@ export const defaultRemoveColor = new Color(new RGBA(255, 0, 0, 0.2));
 export const diffInserted = registerColor('diffEditor.insertedTextBackground', { dark: defaultInsertColor, light: defaultInsertColor, hc: null }, nls.localize('diffEditorInserted', 'Background color for text that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
 export const diffRemoved = registerColor('diffEditor.removedTextBackground', { dark: defaultRemoveColor, light: defaultRemoveColor, hc: null }, nls.localize('diffEditorRemoved', 'Background color for text that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);
 
+export const diffInsertedLine = registerColor('diffEditor.insertedLineBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorInsertedLines', 'Background color for lines that got inserted. The color must not be opaque so as not to hide underlying decorations.'), true);
+export const diffRemovedLine = registerColor('diffEditor.removedLineBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorRemovedLines', 'Background color for lines that got removed. The color must not be opaque so as not to hide underlying decorations.'), true);
+
+export const diffInsertedLineGutter = registerColor('diffEditorGutter.insertedLineBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorInsertedLineGutter', 'Background color for the margin where lines got inserted.'));
+export const diffRemovedLineGutter = registerColor('diffEditorGutter.removedLineBackground', { dark: null, light: null, hc: null }, nls.localize('diffEditorRemovedLineGutter', 'Background color for the margin where lines got removed.'));
+
+export const diffOverviewRulerInserted = registerColor('diffEditorOverview.insertedForeground', { dark: null, light: null, hc: null }, nls.localize('diffEditorOverviewInserted', 'Diff overview ruler foreground for inserted content.'));
+export const diffOverviewRulerRemoved = registerColor('diffEditorOverview.removedForeground', { dark: null, light: null, hc: null }, nls.localize('diffEditorOverviewRemoved', 'Diff overview ruler foreground for removed content.'));
+
 export const diffInsertedOutline = registerColor('diffEditor.insertedTextBorder', { dark: null, light: null, hc: '#33ff2eff' }, nls.localize('diffEditorInsertedOutline', 'Outline color for the text that got inserted.'));
 export const diffRemovedOutline = registerColor('diffEditor.removedTextBorder', { dark: null, light: null, hc: '#FF008F' }, nls.localize('diffEditorRemovedOutline', 'Outline color for text that got removed.'));
 
@@ -499,7 +508,6 @@ export const overviewRulerFindMatchForeground = registerColor('editorOverviewRul
 
 export const overviewRulerSelectionHighlightForeground = registerColor('editorOverviewRuler.selectionHighlightForeground', { dark: '#A0A0A0CC', light: '#A0A0A0CC', hc: '#A0A0A0CC' }, nls.localize('overviewRulerSelectionHighlightForeground', 'Overview ruler marker color for selection highlights. The color must not be opaque so as not to hide underlying decorations.'), true);
 
-export const overviewRulerUnicodeHighlightForeground = registerColor('editorOverviewRuler.unicodeForeground', { dark: '#d186167e', light: '#d186167e', hc: '#AB5A00' }, nls.localize('overviewRulerUnicodeForeground', 'Overview ruler marker color for highlighted unicode characters. The color must not be opaque so as not to hide underlying decorations.'), true);
 
 export const minimapFindMatch = registerColor('minimap.findMatchHighlight', { light: '#d18616', dark: '#d18616', hc: '#AB5A00' }, nls.localize('minimapFindMatchHighlight', 'Minimap marker color for find matches.'), true);
 export const minimapSelectionOccurrenceHighlight = registerColor('minimap.selectionOccurrenceHighlight', { light: '#c9c9c9', dark: '#676767', hc: '#ffffff' }, nls.localize('minimapSelectionOccurrenceHighlight', 'Minimap marker color for repeating editor selections.'), true);
@@ -508,7 +516,6 @@ export const minimapError = registerColor('minimap.errorHighlight', { dark: new 
 export const minimapWarning = registerColor('minimap.warningHighlight', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningBorder }, nls.localize('overviewRuleWarning', 'Minimap marker color for warnings.'));
 export const minimapBackground = registerColor('minimap.background', { dark: null, light: null, hc: null }, nls.localize('minimapBackground', "Minimap background color."));
 export const minimapForegroundOpacity = registerColor('minimap.foregroundOpacity', { dark: Color.fromHex('#000f'), light: Color.fromHex('#000f'), hc: Color.fromHex('#000f') }, nls.localize('minimapForegroundOpacity', 'Opacity of foreground elements rendered in the minimap. For example, "#000000c0" will render the elements with 75% opacity.'));
-export const minimapUnicodeHighlight = registerColor('minimap.unicodeHighlight', { light: '#d18616', dark: '#d18616', hc: '#AB5A00' }, nls.localize('minimapUnicodeHighlight', 'Minimap marker color for highlighted unicode characters.'));
 
 export const minimapSliderBackground = registerColor('minimapSlider.background', { light: transparent(scrollbarSliderBackground, 0.5), dark: transparent(scrollbarSliderBackground, 0.5), hc: transparent(scrollbarSliderBackground, 0.5) }, nls.localize('minimapSliderBackground', "Minimap slider background color."));
 export const minimapSliderHoverBackground = registerColor('minimapSlider.hoverBackground', { light: transparent(scrollbarSliderHoverBackground, 0.5), dark: transparent(scrollbarSliderHoverBackground, 0.5), hc: transparent(scrollbarSliderHoverBackground, 0.5) }, nls.localize('minimapSliderHoverBackground', "Minimap slider background color when hovering."));

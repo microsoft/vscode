@@ -9,48 +9,13 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { UriDto } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
+import { ICommandAction, ICommandActionTitle, Icon, ILocalizedString } from 'vs/platform/action/common/action';
 import { CommandsRegistry, ICommandHandlerDescription, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor, SyncDescriptor0 } from 'vs/platform/instantiation/common/descriptors';
-import { BrandedService, createDecorator, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { BrandedService, createDecorator, IConstructorSignature, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingRule, IKeybindings, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-
-export interface ILocalizedString {
-	/**
-	 * The localized value of the string.
-	 */
-	value: string;
-	/**
-	 * The original (non localized value of the string)
-	 */
-	original: string;
-}
-
-export interface ICommandActionTitle extends ILocalizedString {
-	/**
-	 * The title with a mnemonic designation. && precedes the mnemonic.
-	 */
-	mnemonicTitle?: string;
-}
-
-export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
-
-export interface ICommandAction {
-	id: string;
-	title: string | ICommandActionTitle;
-	shortTitle?: string | ICommandActionTitle;
-	category?: string | ILocalizedString;
-	tooltip?: string | ILocalizedString;
-	icon?: Icon;
-	source?: string;
-	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string, title?: string | ILocalizedString };
-}
-
-export type ISerializableCommandAction = UriDto<ICommandAction>;
 
 export interface IMenuItem {
 	command: ICommandAction;
@@ -113,6 +78,7 @@ export class MenuId {
 	static readonly MenubarLayoutMenu = new MenuId('MenubarLayoutMenu');
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
 	static readonly MenubarPanelAlignmentMenu = new MenuId('MenubarPanelAlignmentMenu');
+	static readonly MenubarPanelPositionMenu = new MenuId('MenubarPanelPositionMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
@@ -233,7 +199,7 @@ export interface IMenuRegistry {
 	addCommand(userCommand: ICommandAction): IDisposable;
 	getCommand(id: string): ICommandAction | undefined;
 	getCommands(): ICommandsMap;
-	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable;
+	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
 }
@@ -284,7 +250,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return this.appendMenuItems(Iterable.single({ id, item }));
 	}
 
-	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable {
+	appendMenuItems(items: Iterable<{ id: MenuId; item: IMenuItem | ISubmenuItem }>): IDisposable {
 
 		const changedIds = new Set<MenuId>();
 		const toRemove = new LinkedList<Function>();
@@ -408,7 +374,7 @@ export class MenuItemAction implements IAction {
 
 		if (item.toggled) {
 			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
-				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString, title?: string | ILocalizedString
+				condition: ContextKeyExpression; icon?: Icon; tooltip?: string | ILocalizedString; title?: string | ILocalizedString;
 			};
 			this.checked = contextKeyService.contextMatchesRules(toggled.condition);
 			if (this.checked && toggled.tooltip) {
@@ -462,7 +428,7 @@ export class SyncActionDescriptor {
 	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	): SyncActionDescriptor {
-		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string | undefined, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
+		return new SyncActionDescriptor(ctor as IConstructorSignature<Action, [string, string | undefined]>, id, label, keybindings, keybindingContext, keybindingWeight);
 	}
 
 	public static from<Services extends BrandedService[]>(
@@ -476,7 +442,7 @@ export class SyncActionDescriptor {
 		return SyncActionDescriptor.create(ctor, ctor.ID, ctor.LABEL, keybindings, keybindingContext, keybindingWeight);
 	}
 
-	private constructor(ctor: IConstructorSignature2<string, string | undefined, Action>,
+	private constructor(ctor: IConstructorSignature<Action, [string, string | undefined]>,
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	) {
 		this._id = id;
@@ -484,7 +450,7 @@ export class SyncActionDescriptor {
 		this._keybindings = keybindings;
 		this._keybindingContext = keybindingContext;
 		this._keybindingWeight = keybindingWeight;
-		this._descriptor = new SyncDescriptor(ctor, [this._id, this._label]) as unknown as SyncDescriptor0<Action>;
+		this._descriptor = new SyncDescriptor(ctor, [this._id, this._label]);
 	}
 
 	public get syncDescriptor(): SyncDescriptor0<Action> {

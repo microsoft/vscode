@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -110,7 +110,7 @@ steps:
 
   - script: |
       set -e
-      docker run -e VSCODE_QUALITY -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH) /root/vscode/build/azure-pipelines/linux/alpine/install-dependencies.sh
+      docker run -e VSCODE_QUALITY -v $(pwd):/root/vscode -v ~/.netrc:/root/.netrc vscodehub.azurecr.io/vscode-linux-build-agent:alpine-$(VSCODE_ARCH) /root/vscode/build/azure-pipelines/linux/scripts/install-remote-dependencies.sh
     displayName: Prebuild
 
   - script: |

@@ -276,7 +276,7 @@ export class Menu extends ActionBar {
 				this.styleSheet = Menu.globalStyleSheet;
 			}
 		}
-		this.styleSheet.textContent = getMenuWidgetCSS(style);
+		this.styleSheet.textContent = getMenuWidgetCSS(style, isInShadowDOM(container));
 	}
 
 	style(style: IMenuStyles): void {
@@ -843,7 +843,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 	}
 
-	private calculateSubmenuMenuLayout(windowDimensions: Dimension, submenu: Dimension, entry: IDomNodePagePosition, expandDirection: Direction): { top: number, left: number } {
+	private calculateSubmenuMenuLayout(windowDimensions: Dimension, submenu: Dimension, entry: IDomNodePagePosition, expandDirection: Direction): { top: number; left: number } {
 		const ret = { top: 0, left: 0 };
 
 		// Start with horizontal
@@ -1006,7 +1006,7 @@ export function cleanMnemonic(label: string): string {
 	return label.replace(regex, mnemonicInText ? '$2$3' : '').trim();
 }
 
-function getMenuWidgetCSS(style: IMenuStyles): string {
+function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
@@ -1295,101 +1295,106 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .action-item {
 	cursor: default;
-}
+}`;
 
-/* Arrows */
-.monaco-scrollable-element > .scrollbar > .scra {
-	cursor: pointer;
-	font-size: 11px !important;
-}
-
-.monaco-scrollable-element > .visible {
-	opacity: 1;
-
-	/* Background rule added for IE9 - to allow clicks on dom node */
-	background:rgba(0,0,0,0);
-
-	transition: opacity 100ms linear;
-}
-.monaco-scrollable-element > .invisible {
-	opacity: 0;
-	pointer-events: none;
-}
-.monaco-scrollable-element > .invisible.fade {
-	transition: opacity 800ms linear;
-}
-
-/* Scrollable Content Inset Shadow */
-.monaco-scrollable-element > .shadow {
-	position: absolute;
-	display: none;
-}
-.monaco-scrollable-element > .shadow.top {
-	display: block;
-	top: 0;
-	left: 3px;
-	height: 3px;
-	width: 100%;
-}
-.monaco-scrollable-element > .shadow.left {
-	display: block;
-	top: 3px;
-	left: 0;
-	height: 100%;
-	width: 3px;
-}
-.monaco-scrollable-element > .shadow.top-left-corner {
-	display: block;
-	top: 0;
-	left: 0;
-	height: 3px;
-	width: 3px;
-}
-`;
-
-	// Scrollbars
-	const scrollbarShadowColor = style.scrollbarShadow;
-	if (scrollbarShadowColor) {
+	if (isForShadowDom) {
+		// Only define scrollbar styles when used inside shadow dom,
+		// otherwise leave their styling to the global workbench styling.
 		result += `
+			/* Arrows */
+			.monaco-scrollable-element > .scrollbar > .scra {
+				cursor: pointer;
+				font-size: 11px !important;
+			}
+
+			.monaco-scrollable-element > .visible {
+				opacity: 1;
+
+				/* Background rule added for IE9 - to allow clicks on dom node */
+				background:rgba(0,0,0,0);
+
+				transition: opacity 100ms linear;
+			}
+			.monaco-scrollable-element > .invisible {
+				opacity: 0;
+				pointer-events: none;
+			}
+			.monaco-scrollable-element > .invisible.fade {
+				transition: opacity 800ms linear;
+			}
+
+			/* Scrollable Content Inset Shadow */
+			.monaco-scrollable-element > .shadow {
+				position: absolute;
+				display: none;
+			}
 			.monaco-scrollable-element > .shadow.top {
-				box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+				display: block;
+				top: 0;
+				left: 3px;
+				height: 3px;
+				width: 100%;
 			}
-
 			.monaco-scrollable-element > .shadow.left {
-				box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+				display: block;
+				top: 3px;
+				left: 0;
+				height: 100%;
+				width: 3px;
 			}
-
-			.monaco-scrollable-element > .shadow.top.left {
-				box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
-			}
-		`;
-	}
-
-	const scrollbarSliderBackgroundColor = style.scrollbarSliderBackground;
-	if (scrollbarSliderBackgroundColor) {
-		result += `
-			.monaco-scrollable-element > .scrollbar > .slider {
-				background: ${scrollbarSliderBackgroundColor};
+			.monaco-scrollable-element > .shadow.top-left-corner {
+				display: block;
+				top: 0;
+				left: 0;
+				height: 3px;
+				width: 3px;
 			}
 		`;
-	}
 
-	const scrollbarSliderHoverBackgroundColor = style.scrollbarSliderHoverBackground;
-	if (scrollbarSliderHoverBackgroundColor) {
-		result += `
-			.monaco-scrollable-element > .scrollbar > .slider:hover {
-				background: ${scrollbarSliderHoverBackgroundColor};
-			}
-		`;
-	}
+		// Scrollbars
+		const scrollbarShadowColor = style.scrollbarShadow;
+		if (scrollbarShadowColor) {
+			result += `
+				.monaco-scrollable-element > .shadow.top {
+					box-shadow: ${scrollbarShadowColor} 0 6px 6px -6px inset;
+				}
 
-	const scrollbarSliderActiveBackgroundColor = style.scrollbarSliderActiveBackground;
-	if (scrollbarSliderActiveBackgroundColor) {
-		result += `
-			.monaco-scrollable-element > .scrollbar > .slider.active {
-				background: ${scrollbarSliderActiveBackgroundColor};
-			}
-		`;
+				.monaco-scrollable-element > .shadow.left {
+					box-shadow: ${scrollbarShadowColor} 6px 0 6px -6px inset;
+				}
+
+				.monaco-scrollable-element > .shadow.top.left {
+					box-shadow: ${scrollbarShadowColor} 6px 6px 6px -6px inset;
+				}
+			`;
+		}
+
+		const scrollbarSliderBackgroundColor = style.scrollbarSliderBackground;
+		if (scrollbarSliderBackgroundColor) {
+			result += `
+				.monaco-scrollable-element > .scrollbar > .slider {
+					background: ${scrollbarSliderBackgroundColor};
+				}
+			`;
+		}
+
+		const scrollbarSliderHoverBackgroundColor = style.scrollbarSliderHoverBackground;
+		if (scrollbarSliderHoverBackgroundColor) {
+			result += `
+				.monaco-scrollable-element > .scrollbar > .slider:hover {
+					background: ${scrollbarSliderHoverBackgroundColor};
+				}
+			`;
+		}
+
+		const scrollbarSliderActiveBackgroundColor = style.scrollbarSliderActiveBackground;
+		if (scrollbarSliderActiveBackgroundColor) {
+			result += `
+				.monaco-scrollable-element > .scrollbar > .slider.active {
+					background: ${scrollbarSliderActiveBackgroundColor};
+				}
+			`;
+		}
 	}
 
 	return result;

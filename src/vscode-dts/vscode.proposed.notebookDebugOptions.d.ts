@@ -18,7 +18,7 @@ declare module 'vscode' {
 			 * When true, the debug toolbar will not be shown for this session, the window statusbar color will not be changed, and the debug viewlet will not be automatically revealed.
 			 */
 			simple?: boolean;
-		}
+		};
 
 		/**
 		 * When true, a save will not be triggered for open editors when starting a debug session, regardless of the value of the `debug.saveBeforeStart` setting.

@@ -77,7 +77,7 @@ module.exports = new (_a = class ApiEventNaming {
             if (def.type === experimental_utils_1.AST_NODE_TYPES.Identifier) {
                 return def;
             }
-            else if ((def.type === experimental_utils_1.AST_NODE_TYPES.TSPropertySignature || def.type === experimental_utils_1.AST_NODE_TYPES.ClassProperty) && def.key.type === experimental_utils_1.AST_NODE_TYPES.Identifier) {
+            else if ((def.type === experimental_utils_1.AST_NODE_TYPES.TSPropertySignature || def.type === experimental_utils_1.AST_NODE_TYPES.Property) && def.key.type === experimental_utils_1.AST_NODE_TYPES.Identifier) {
                 return def.key;
             }
             return this.getIdent(def.parent);

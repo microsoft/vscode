@@ -168,4 +168,22 @@ suite('OnEnter', () => {
 		testIndentAction('', '  * test() {', '', IndentAction.Indent, null, 0);
 		testIndentAction('  ', '  * test() {', '', IndentAction.Indent, null, 0);
 	});
+
+	test('issue #141816', () => {
+		let support = new OnEnterSupport({
+			onEnterRules: javascriptOnEnterRules
+		});
+		let testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
+			let actual = support.onEnter(EditorAutoIndentStrategy.Advanced, '', beforeText, afterText);
+			if (expected === IndentAction.None) {
+				assert.strictEqual(actual, null);
+			} else {
+				assert.strictEqual(actual!.indentAction, expected);
+			}
+		};
+
+		testIndentAction('const r = /{/;', '', IndentAction.None);
+		testIndentAction('const r = /{[0-9]/;', '', IndentAction.None);
+		testIndentAction('const r = /[a-zA-Z]{/;', '', IndentAction.None);
+	});
 });

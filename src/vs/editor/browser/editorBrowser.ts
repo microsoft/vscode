@@ -7,19 +7,18 @@ import { Event } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursor/cursorEvents';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer } from 'vs/editor/common/model';
+import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, PositionAffinity } from 'vs/editor/common/model';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { InjectedText } from 'vs/editor/common/viewModel/modelLineProjectionData';
+import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
+import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IDimension } from 'vs/editor/common/core/dimension';
 
@@ -36,8 +35,14 @@ export interface IViewZone {
 	/**
 	 * The column after which this zone should appear.
 	 * If not set, the maxLineColumn of `afterLineNumber` will be used.
+	 * This is relevant for wrapped lines.
 	 */
 	afterColumn?: number;
+
+	/**
+	 * If the `afterColumn` has multiple view columns, the affinity specifies which one to use. Defaults to `none`.
+	*/
+	afterColumnAffinity?: PositionAffinity;
 	/**
 	 * Suppress mouse down events.
 	 * If set, the editor will attach a mouse down listener to the view zone and .preventDefault on it.
@@ -723,7 +728,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get value of the current model attached to this editor.
 	 * @see {@link ITextModel.getValue}
 	 */
-	getValue(options?: { preserveBOM: boolean; lineEnding: string; }): string;
+	getValue(options?: { preserveBOM: boolean; lineEnding: string }): string;
 
 	/**
 	 * Set the value of the current model attached to this editor.
@@ -968,7 +973,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
 	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 	 */
-	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; } | null;
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number } | null;
 
 	/**
 	 * Apply the same font settings as the editor to `target`.
@@ -1035,7 +1040,7 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
 	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 	 */
-	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
+	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number };
 }
 
 /**

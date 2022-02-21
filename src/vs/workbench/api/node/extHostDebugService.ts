@@ -5,6 +5,7 @@
 
 import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
+import { homedir } from 'os';
 import * as platform from 'vs/base/common/platform';
 import { DebugAdapterExecutable, ThemeIcon } from 'vs/workbench/api/common/extHostTypes';
 import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
@@ -23,8 +24,10 @@ import { SignService } from 'vs/platform/sign/node/signService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
-import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
+import { hasChildProcesses, prepareCommand } from 'vs/workbench/contrib/debug/node/terminals';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -153,8 +156,26 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs, this._workspaceService);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs, this._workspaceService, homedir());
 	}
+}
+
+let externalTerminalService: IExternalTerminalService | undefined = undefined;
+
+export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
+	if (!externalTerminalService) {
+		if (platform.isWindows) {
+			externalTerminalService = new WindowsExternalTerminalService();
+		} else if (platform.isMacintosh) {
+			externalTerminalService = new MacExternalTerminalService();
+		} else if (platform.isLinux) {
+			externalTerminalService = new LinuxExternalTerminalService();
+		} else {
+			throw new Error('external terminals not supported on this platform');
+		}
+	}
+	const config = configProvider.getConfiguration('terminal');
+	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
 }
 
 class DebugTerminalCollection {
@@ -163,7 +184,7 @@ class DebugTerminalCollection {
 	 */
 	private static minUseDelay = 1000;
 
-	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
+	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number; config: string }>();
 
 	public async checkout(config: string, name: string) {
 		const entries = [...this._terminalInstances.entries()];

@@ -14,13 +14,13 @@ import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, PositionAffinity } from 'vs/editor/common/model';
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -290,6 +290,7 @@ class AdditionalLinesWidget implements IDisposable {
 					afterLineNumber: lineNumber,
 					heightInLines: heightInLines,
 					domNode,
+					afterColumnAffinity: PositionAffinity.Right
 				});
 			}
 		});

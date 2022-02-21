@@ -31,7 +31,7 @@ export class TelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
 	private _appenders: ITelemetryAppender[];
-	private _commonProperties: Promise<{ [name: string]: any; }>;
+	private _commonProperties: Promise<{ [name: string]: any }>;
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
 	private _telemetryLevel: TelemetryLevel;
@@ -60,22 +60,6 @@ export class TelemetryService implements ITelemetryService {
 
 		this._updateTelemetryLevel();
 		this._configurationService.onDidChangeConfiguration(this._updateTelemetryLevel, this, this._disposables);
-		type OptInClassification = {
-			optIn: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
-		};
-		type OptInEvent = {
-			optIn: boolean;
-		};
-		this.publicLog2<OptInEvent, OptInClassification>('optInStatus', { optIn: this._telemetryLevel === TelemetryLevel.USAGE });
-
-		this._commonProperties.then(values => {
-			const isHashedId = /^[a-f0-9]+$/i.test(values['common.machineId']);
-
-			type MachineIdFallbackClassification = {
-				usingFallbackGuid: { classification: 'SystemMetaData', purpose: 'BusinessInsight', isMeasurement: true };
-			};
-			this.publicLog2<{ usingFallbackGuid: boolean }, MachineIdFallbackClassification>('machineIdFallback', { usingFallbackGuid: !isHashedId });
-		});
 	}
 
 	setExperimentProperty(name: string, value: string): void {

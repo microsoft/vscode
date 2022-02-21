@@ -15,6 +15,7 @@
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
+    "tabs",
     "timeline"
   ],
   "categories": [
@@ -531,6 +532,11 @@
         "category": "Git"
       },
       {
+        "command": "git.closeAllDiffEditors",
+        "title": "%command.closeAllDiffEditors%",
+        "category": "Git"
+      },
+      {
         "command": "git.api.getRepositories",
         "title": "%command.api.getRepositories%",
         "category": "Git API"
@@ -931,6 +937,10 @@
         {
           "command": "git.timeline.compareWithSelected",
           "when": "false"
+        },
+        {
+          "command": "git.closeAllDiffEditors",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.api.getRepositories",
@@ -2113,6 +2123,12 @@
           "default": true,
           "description": "%config.confirmNoVerifyCommit%"
         },
+        "git.closeDiffOnOperation": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.closeDiffOnOperation%"
+        },
         "git.openDiffOnClick": {
           "type": "boolean",
           "scope": "resource",
@@ -2218,11 +2234,44 @@
           "default": 10000,
           "description": "%config.statusLimit%"
         },
+        "git.experimental.installGuide": {
+          "type": "string",
+          "enum": [
+            "default",
+            "download"
+          ],
+          "tags": [
+            "experimental"
+          ],
+          "scope": "machine",
+          "description": "%config.experimental.installGuide%",
+          "default": "default"
+        },
+        "git.repositoryScanIgnoredFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules"
+          ],
+          "scope": "resource",
+          "markdownDescription": "%config.repositoryScanIgnoredFolders%"
+        },
         "git.repositoryScanMaxDepth": {
           "type": "number",
           "scope": "resource",
           "default": 1,
           "markdownDescription": "%config.repositoryScanMaxDepth%"
+        },
+        "git.commandsToLog": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "%config.commandsToLog%"
         }
       }
     },
@@ -2337,8 +2386,28 @@
       },
       {
         "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide.mac%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isMac"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide.windows%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isWindows"
+      },
+      {
+        "view": "scm",
+        "contents": "%view.workbench.scm.missing.guide.windows%",
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == download && isLinux"
+      },
+      {
+        "view": "scm",
         "contents": "%view.workbench.scm.missing%",
-        "when": "config.git.enabled && git.missing"
+        "when": "config.git.enabled && git.missing && config.git.experimental.installGuide == default"
       },
       {
         "view": "scm",
@@ -2398,7 +2467,7 @@
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "^8.2.0",
-    "@types/node": "14.x",
+    "@types/node": "16.x",
     "@types/which": "^1.0.28"
   },
   "repository": {

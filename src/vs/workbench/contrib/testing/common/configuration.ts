@@ -16,6 +16,7 @@ export const enum TestingConfigKeys {
 	FollowRunningTest = 'testing.followRunningTest',
 	DefaultGutterClickAction = 'testing.defaultGutterClickAction',
 	GutterEnabled = 'testing.gutterEnabled',
+	SaveBeforeTest = 'testing.saveBeforeTest',
 }
 
 export const enum AutoOpenTesting {
@@ -108,6 +109,11 @@ export const testingConfiguation: IConfigurationNode = {
 			type: 'boolean',
 			default: true,
 		},
+		[TestingConfigKeys.SaveBeforeTest]: {
+			description: localize('testing.saveBeforeTest', 'Control whether save all dirty editors before running a test.'),
+			type: 'boolean',
+			default: true,
+		},
 		[TestingConfigKeys.OpenTesting]: {
 			enum: [
 				AutoOpenTesting.NeverOpen,
@@ -120,7 +126,7 @@ export const testingConfiguation: IConfigurationNode = {
 				localize('testing.openTesting.openOnTestFailure', 'Open the testing view on any test failure'),
 			],
 			default: 'openOnTestStart',
-			description: localize('testing.openTesting', "Controls when the debug view should open.")
+			description: localize('testing.openTesting', "Controls when the testing view should open.")
 		},
 	}
 };
@@ -133,6 +139,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.FollowRunningTest]: boolean;
 	[TestingConfigKeys.DefaultGutterClickAction]: DefaultGutterClickAction;
 	[TestingConfigKeys.GutterEnabled]: boolean;
+	[TestingConfigKeys.SaveBeforeTest]: boolean;
 	[TestingConfigKeys.OpenTesting]: AutoOpenTesting;
 }
 

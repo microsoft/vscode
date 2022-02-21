@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as cookie from 'cookie';
 import * as fs from 'fs';
+import * as http from 'http';
+import * as url from 'url';
+import * as path from 'vs/base/common/path';
 import { generateUuid } from 'vs/base/common/uuid';
+import { connectionTokenCookieName, connectionTokenQueryName } from 'vs/base/common/network';
 import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
+import { Promises } from 'vs/base/node/pfs';
 
 const connectionTokenRegex = /^[0-9A-Za-z-]+$/;
 
@@ -53,7 +59,7 @@ export class ServerConnectionTokenParseError {
 	) { }
 }
 
-export function parseServerConnectionToken(args: ServerParsedArgs): ServerConnectionToken | ServerConnectionTokenParseError {
+export async function parseServerConnectionToken(args: ServerParsedArgs, defaultValue: () => Promise<string>): Promise<ServerConnectionToken | ServerConnectionTokenParseError> {
 	const withoutConnectionToken = args['without-connection-token'];
 	const connectionToken = args['connection-token'];
 	const connectionTokenFile = args['connection-token-file'];
@@ -101,8 +107,49 @@ export function parseServerConnectionToken(args: ServerParsedArgs): ServerConnec
 	if (compatibility) {
 		// TODO: Remove this case soon
 		console.log(`Breaking change in the next release: Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
-		return new OptionalServerConnectionToken(generateUuid());
+		return new OptionalServerConnectionToken(await defaultValue());
 	}
 
-	return new MandatoryServerConnectionToken(generateUuid());
+	return new MandatoryServerConnectionToken(await defaultValue());
+}
+
+export async function determineServerConnectionToken(args: ServerParsedArgs): Promise<ServerConnectionToken | ServerConnectionTokenParseError> {
+	const readOrGenerateConnectionToken = async () => {
+		if (!args['user-data-dir']) {
+			// No place to store it!
+			return generateUuid();
+		}
+		const storageLocation = path.join(args['user-data-dir'], 'token');
+
+		// First try to find a connection token
+		try {
+			const fileContents = await Promises.readFile(storageLocation);
+			const connectionToken = fileContents.toString().replace(/\r?\n$/, '');
+			if (connectionTokenRegex.test(connectionToken)) {
+				return connectionToken;
+			}
+		} catch (err) { }
+
+		// No connection token found, generate one
+		const connectionToken = generateUuid();
+
+		try {
+			// Try to store it
+			await Promises.writeFile(storageLocation, connectionToken, { mode: 0o600 });
+		} catch (err) { }
+
+		return connectionToken;
+	};
+	return parseServerConnectionToken(args, readOrGenerateConnectionToken);
+}
+
+export function requestHasValidConnectionToken(connectionToken: ServerConnectionToken, req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery) {
+	// First check if there is a valid query parameter
+	if (connectionToken.validate(parsedUrl.query[connectionTokenQueryName])) {
+		return true;
+	}
+
+	// Otherwise, check if there is a valid cookie
+	const cookies = cookie.parse(req.headers.cookie || '');
+	return connectionToken.validate(cookies[connectionTokenCookieName]);
 }

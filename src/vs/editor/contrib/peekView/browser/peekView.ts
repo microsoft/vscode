@@ -36,7 +36,7 @@ export interface IPeekViewService {
 registerSingleton(IPeekViewService, class implements IPeekViewService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _widgets = new Map<ICodeEditor, { widget: PeekViewWidget, listener: IDisposable; }>();
+	private readonly _widgets = new Map<ICodeEditor, { widget: PeekViewWidget; listener: IDisposable }>();
 
 	addExclusiveWidget(editor: ICodeEditor, widget: PeekViewWidget): void {
 		const existing = this._widgets.get(editor);

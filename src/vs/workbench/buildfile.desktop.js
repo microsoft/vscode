@@ -16,6 +16,6 @@ exports.collectModules = function () {
 
 		createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
 
-		createModuleDescription('vs/workbench/services/extensions/node/extensionHostProcess'),
+		createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
 	];
 };

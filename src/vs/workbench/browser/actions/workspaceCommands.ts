@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { dirname, removeTrailingPathSeparator } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -16,14 +16,14 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IFileDialogService, IPickAndOpenOptions } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { hasWorkspaceFileExtension, IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IRecent, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { ILocalizedString } from 'vs/platform/actions/common/actions';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };

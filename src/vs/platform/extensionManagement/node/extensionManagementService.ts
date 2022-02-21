@@ -12,6 +12,7 @@ import { isLinux, isMacintosh, platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
+import { isBoolean } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
@@ -292,7 +293,10 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 		installableExtension.metadata.isMachineScoped = this.options.isMachineScoped || existingExtension?.isMachineScoped;
 		installableExtension.metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
 		installableExtension.metadata.isPreReleaseVersion = this.gallery.properties.isPreReleaseVersion;
-		installableExtension.metadata.preRelease = this.gallery.hasPreReleaseVersion ? this.gallery.properties.isPreReleaseVersion : (existingExtension?.preRelease || this.options.installPreReleaseVersion);
+		installableExtension.metadata.preRelease = this.gallery.properties.isPreReleaseVersion ||
+			(isBoolean(this.options.installPreReleaseVersion)
+				? this.options.installPreReleaseVersion /* Respect the passed flag */
+				: existingExtension?.preRelease /* Respect the existing pre-release flag if it was set */);
 
 		try {
 			const local = await this.installExtension(installableExtension, token);

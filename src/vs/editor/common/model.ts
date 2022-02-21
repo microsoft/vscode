@@ -22,6 +22,7 @@ import { equals } from 'vs/base/common/objects';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -365,25 +366,12 @@ export interface ISingleEditOperationIdentifier {
 /**
  * A single edit operation, that has an identifier.
  */
-export interface IIdentifiedSingleEditOperation {
+export interface IIdentifiedSingleEditOperation extends ISingleEditOperation {
 	/**
 	 * An identifier associated with this single edit operation.
 	 * @internal
 	 */
 	identifier?: ISingleEditOperationIdentifier | null;
-	/**
-	 * The range to replace. This can be empty to emulate a simple insert.
-	 */
-	range: IRange;
-	/**
-	 * The text to replace with. This can be null to emulate a simple delete.
-	 */
-	text: string | null;
-	/**
-	 * This indicates that this operation has "insert" semantics.
-	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-	 */
-	forceMoveMarkers?: boolean;
 	/**
 	 * This indicates that this operation is inserting automatic whitespace
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
@@ -939,6 +927,11 @@ export interface ITextModel {
 	getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
 
 	/**
+	 * @internal
+	*/
+	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
+
+	/**
 	 * Get the word under or besides `position`.
 	 * @param position The position to look for a word.
 	 * @return The word under or besides `position`. Might be null.
@@ -1161,13 +1154,6 @@ export interface ITextModel {
 	 */
 	readonly onDidChangeContentOrInjectedText: Event<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent>;
 	/**
-	 * @deprecated Please use `onDidChangeContent` instead.
-	 * An event emitted when the contents of the model have changed.
-	 * @internal
-	 * @event
-	 */
-	readonly onDidChangeRawContent: Event<ModelRawContentChangedEvent>;
-	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
 	 */
@@ -1268,9 +1254,6 @@ export interface ITextModel {
 	readonly guides: IGuidesTextModelPart;
 }
 
-/**
- * @internal
- */
 export const enum PositionAffinity {
 	/**
 	 * Prefers the left most position.
@@ -1300,7 +1283,7 @@ export interface ITextBufferBuilder {
  * @internal
  */
 export interface ITextBufferFactory {
-	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; };
+	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable };
 	getFirstLineText(lengthLimit: number): string;
 }
 

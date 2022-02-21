@@ -32,7 +32,7 @@ else if (typeof require?.__$__nodeRequire === 'function') {
 	const rootPath = dirname(FileAccess.asFileUri('', require));
 
 	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
-	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
+	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string };
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
@@ -58,7 +58,7 @@ else {
 	// Running out of sources
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
-			version: '1.64.0-dev',
+			version: '1.65.0-dev',
 			nameShort: 'Code - OSS Dev',
 			nameLong: 'Code - OSS Dev',
 			applicationName: 'code-oss',

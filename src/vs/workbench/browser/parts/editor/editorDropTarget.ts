@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorIdentifier, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { GroupDirection, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -21,6 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -40,6 +41,7 @@ class DropOverlay extends Themable {
 
 	private readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
+	private readonly treeItemsTransfer = LocalSelectionTransfer.getInstance<DraggedTreeItemsIdentifier>();
 
 	constructor(
 		private accessor: IEditorGroupsAccessor,
@@ -47,7 +49,8 @@ class DropOverlay extends Themable {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@ITreeViewsService private readonly treeViewsDragAndDropService: ITreeViewsService
 	) {
 		super(themeService);
 
@@ -202,7 +205,7 @@ class DropOverlay extends Themable {
 		return undefined;
 	}
 
-	private handleDrop(event: DragEvent, splitDirection?: GroupDirection): void {
+	private async handleDrop(event: DragEvent, splitDirection?: GroupDirection): Promise<void> {
 
 		// Determine target group
 		const ensureTargetGroup = () => {
@@ -290,6 +293,34 @@ class DropOverlay extends Themable {
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 			}
+		}
+
+		// Check for tree items
+		else if (this.treeItemsTransfer.hasData(DraggedTreeItemsIdentifier.prototype)) {
+			const data = this.treeItemsTransfer.getData(DraggedTreeItemsIdentifier.prototype);
+			if (Array.isArray(data)) {
+				const editors: IUntypedEditorInput[] = [];
+				for (const id of data) {
+					const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
+					if (dataTransferItem) {
+						const extractedDropData = await extractTreeDropData(dataTransferItem);
+						editors.push(...extractedDropData.map(editor => {
+							return {
+								...editor,
+								resource: editor.resource,
+								options: {
+									...editor.options,
+									pinned: true
+								}
+							};
+						}));
+					}
+				}
+
+				this.editorService.openEditors(editors, ensureTargetGroup(), { validateTrust: true });
+			}
+
+			this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);
 		}
 
 		// Web: check for file transfer
@@ -451,7 +482,7 @@ class DropOverlay extends Themable {
 		this.currentDropOperation = { splitDirection };
 	}
 
-	private doPositionOverlay(options: { top: string, left: string, width: string, height: string }): void {
+	private doPositionOverlay(options: { top: string; left: string; width: string; height: string }): void {
 		const [container, overlay] = assertAllDefined(this.container, this.overlay);
 
 		// Container

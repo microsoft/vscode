@@ -53,7 +53,7 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService
 	) {
-		ipcRenderer.on('vscode:getDiagnosticInfo', (event: unknown, request: { replyChannel: string, args: IDiagnosticInfoOptions }): void => {
+		ipcRenderer.on('vscode:getDiagnosticInfo', (event: unknown, request: { replyChannel: string; args: IDiagnosticInfoOptions }): void => {
 			const connection = remoteAgentService.getConnection();
 			if (connection) {
 				const hostName = labelService.getHostLabel(Schemas.vscodeRemote, connection.remoteAuthority);
@@ -137,7 +137,7 @@ class RemoteEmptyWorkbenchPresentation extends Disposable implements IWorkbenchC
 			return shouldShowExplorer();
 		}
 
-		const { remoteAuthority, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService.configuration;
+		const { remoteAuthority, filesToDiff, filesToOpenOrCreate, filesToWait } = environmentService;
 		if (remoteAuthority && contextService.getWorkbenchState() === WorkbenchState.EMPTY && !filesToDiff?.length && !filesToOpenOrCreate?.length && !filesToWait) {
 			remoteAuthorityResolverService.resolveAuthority(remoteAuthority).then(() => {
 				if (shouldShowExplorer()) {

@@ -13,10 +13,10 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 type NotebookSelector = string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 
 export interface NotebookEditorDescriptor {
-	readonly extension?: ExtensionIdentifier,
+	readonly extension?: ExtensionIdentifier;
 	readonly id: string;
 	readonly displayName: string;
-	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
+	readonly selectors: readonly { filenamePattern?: string; excludeFileNamePattern?: string }[];
 	readonly priority: RegisteredEditorPriority;
 	readonly providerDisplayName: string;
 	readonly exclusive: boolean;

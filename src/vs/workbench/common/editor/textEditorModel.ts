@@ -8,7 +8,7 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
 import { ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/language';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';

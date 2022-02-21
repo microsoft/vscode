@@ -12,7 +12,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
-import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
@@ -21,10 +21,11 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { Emitter } from 'vs/base/common/event';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ResourceMap } from 'vs/base/common/map';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 export class BoundModelReferenceCollection {
 
-	private _data = new Array<{ uri: URI, length: number, dispose(): void }>();
+	private _data = new Array<{ uri: URI; length: number; dispose(): void }>();
 	private _length = 0;
 
 	constructor(
@@ -51,7 +52,7 @@ export class BoundModelReferenceCollection {
 	add(uri: URI, ref: IReference<any>, length: number = 0): void {
 		// const length = ref.object.textEditorModel.getValueLength();
 		let handle: any;
-		let entry: { uri: URI, length: number, dispose(): void };
+		let entry: { uri: URI; length: number; dispose(): void };
 		const dispose = () => {
 			const idx = this._data.indexOf(entry);
 			if (idx >= 0) {
@@ -193,7 +194,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._modelTrackers.set(model.uri, new ModelTracker(model, this._onIsCaughtUpWithContentChanges, this._proxy, this._textFileService));
 	}
 
-	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string; }): void {
+	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string }): void {
 		let { model } = event;
 		if (!this._modelIsSynced.has(model.uri)) {
 			return;
@@ -250,7 +251,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		});
 	}
 
-	$tryCreateDocument(options?: { language?: string, content?: string }): Promise<URI> {
+	$tryCreateDocument(options?: { language?: string; content?: string }): Promise<URI> {
 		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
 	}
 
@@ -263,10 +264,11 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	private _handleUntitledScheme(uri: URI): Promise<URI> {
 		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
-		return this._fileService.resolve(asLocalUri).then(stats => {
-			// don't create a new file ontop of an existing file
-			return Promise.reject(new Error('file already exists'));
-		}, err => {
+		return this._fileService.exists(asLocalUri).then(exists => {
+			if (exists) {
+				// don't create a new file ontop of an existing file
+				return Promise.reject(new Error('file already exists'));
+			}
 			return this._doCreateUntitled(Boolean(uri.path) ? uri : undefined);
 		});
 	}

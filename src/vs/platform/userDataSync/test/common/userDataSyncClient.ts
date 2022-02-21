@@ -160,11 +160,11 @@ export class UserDataSyncTestServer implements IRequestService {
 	private session: string | null = null;
 	private readonly data: Map<ServerResource, IUserData> = new Map<SyncResource, IUserData>();
 
-	private _requests: { url: string, type: string, headers?: IHeaders }[] = [];
-	get requests(): { url: string, type: string, headers?: IHeaders }[] { return this._requests; }
+	private _requests: { url: string; type: string; headers?: IHeaders }[] = [];
+	get requests(): { url: string; type: string; headers?: IHeaders }[] { return this._requests; }
 
-	private _requestsWithAllHeaders: { url: string, type: string, headers?: IHeaders }[] = [];
-	get requestsWithAllHeaders(): { url: string, type: string, headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
+	private _requestsWithAllHeaders: { url: string; type: string; headers?: IHeaders }[] = [];
+	get requestsWithAllHeaders(): { url: string; type: string; headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
 
 	private _responses: { status: number }[] = [];
 	get responses(): { status: number }[] { return this._responses; }

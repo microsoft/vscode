@@ -55,6 +55,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
+import { LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 suite('MainThreadEditors', () => {
 
@@ -83,16 +85,18 @@ suite('MainThreadEditors', () => {
 		const notificationService = new TestNotificationService();
 		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const themeService = new TestThemeService();
+		const logService = new NullLogService();
 		modelService = new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),
 			themeService,
-			new NullLogService(),
+			logService,
 			undoRedoService,
 			disposables.add(new LanguageService()),
-			new TestLanguageConfigurationService()
+			new TestLanguageConfigurationService(),
+			new LanguageFeatureDebounceService(logService),
+			new LanguageFeaturesService()
 		);
-
 
 		const services = new ServiceCollection();
 		services.set(IBulkEditService, new SyncDescriptor(BulkEditService));

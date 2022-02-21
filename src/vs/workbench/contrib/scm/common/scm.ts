@@ -99,7 +99,7 @@ export interface ISCMInputChangeEvent {
 
 export interface ISCMActionButtonDescriptor {
 	command: Command;
-	description?: string
+	description?: string;
 }
 
 export interface ISCMActionButton {

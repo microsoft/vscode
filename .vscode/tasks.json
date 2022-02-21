@@ -8,7 +8,8 @@
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
-				"group": "buildWatchers"
+				"group": "buildWatchers",
+				"close": false
 			},
 			"problemMatcher": {
 				"owner": "typescript",
@@ -35,7 +36,8 @@
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
-				"group": "buildWatchers"
+				"group": "buildWatchers",
+				"close": false
 			},
 			"problemMatcher": {
 				"owner": "typescript",

@@ -19,9 +19,10 @@ import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IListService, WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
+import { IListService, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse, WorkbenchTreeElementCanExpand } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { OneReference, ReferencesModel } from '../referencesModel';
@@ -246,7 +247,7 @@ export abstract class ReferencesController implements IEditorContribution {
 
 		return this._editorService.openCodeEditor({
 			resource: ref.uri,
-			options: { selection: range }
+			options: { selection: range, selectionSource: TextEditorSelectionSource.JUMP }
 		}, this._editor).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
@@ -292,7 +293,7 @@ export abstract class ReferencesController implements IEditorContribution {
 		const { uri, range } = ref;
 		this._editorService.openCodeEditor({
 			resource: uri,
-			options: { selection: range, pinned }
+			options: { selection: range, selectionSource: TextEditorSelectionSource.JUMP, pinned }
 		}, this._editor, sideBySide);
 	}
 }
@@ -380,7 +381,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyCode.Enter,
 		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
 	},
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse.negate(), WorkbenchTreeElementCanExpand.negate()),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
 		const focus = <any[]>listService.lastFocusedList?.getFocus();
@@ -397,7 +398,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
-	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey, WorkbenchTreeElementCanCollapse.negate(), WorkbenchTreeElementCanExpand.negate()),
 	handler(accessor: ServicesAccessor) {
 		const listService = accessor.get(IListService);
 		const focus = <any[]>listService.lastFocusedList?.getFocus();

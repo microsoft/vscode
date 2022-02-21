@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex, OutputFindMatch } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, CellFindMatch, CellEditState, CellFindMatchWithIndex, OutputFindMatch, ICellModelDecorations, ICellModelDeltaDecorations } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { FindDecorations } from 'vs/editor/contrib/find/browser/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { FindMatch, IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ICellModelDeltaDecorations, ICellModelDecorations } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { CellKind, INotebookSearchOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -26,7 +25,7 @@ export class FindModel extends Disposable {
 	protected _findMatchesStarts: PrefixSumComputer | null = null;
 	private _currentMatch: number = -1;
 	private _allMatchesDecorations: ICellModelDecorations[] = [];
-	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[]; } | { kind: 'output'; index: number } | null = null;
+	private _currentMatchDecorations: { kind: 'input'; decorations: ICellModelDecorations[] } | { kind: 'output'; index: number } | null = null;
 	private readonly _throttledDelayer: Delayer<void>;
 	private _computePromise: CancelablePromise<CellFindMatchWithIndex[] | null> | null = null;
 	private readonly _modelDisposable = this._register(new DisposableStore());
@@ -333,7 +332,7 @@ export class FindModel extends Disposable {
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
 		this.set(findMatches, false);
-		this._currentMatch = currentMatchesPosition;
+		this._currentMatch = currentMatchesPosition % findMatches.length;
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 

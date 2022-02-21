@@ -43,7 +43,7 @@ import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMai
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/terminal/node/shellEnv';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
@@ -89,11 +89,13 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IWindowsMainService, OpenContext, WindowError } from 'vs/platform/windows/electron-main/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow, WindowError } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
-import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -244,7 +246,7 @@ export class CodeApplication extends Disposable {
 
 		//#region Code Cache
 
-		type SessionWithCodeCachePathSupport = typeof Session & {
+		type SessionWithCodeCachePathSupport = Session & {
 			/**
 			 * Sets code cache directory. By default, the directory will be `Code Cache` under
 			 * the respective user data folder.
@@ -521,7 +523,7 @@ export class CodeApplication extends Disposable {
 		return machineId;
 	}
 
-	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>, sharedProcessClient: Promise<MessagePortClient> } {
+	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess; sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
 		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, this.userEnv));
 
 		const sharedProcessClient = (async () => {
@@ -771,7 +773,7 @@ export class CodeApplication extends Disposable {
 			} catch {
 				return undefined;
 			}
-		}).filter((obj): obj is { uri: URI, url: string } => {
+		}).filter((obj): obj is { uri: URI; url: string } => {
 			if (!obj) {
 				return false;
 			}
@@ -800,8 +802,11 @@ export class CodeApplication extends Disposable {
 		const app = this;
 		const environmentService = this.environmentMainService;
 		const productService = this.productService;
+		const logService = this.logService;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+				logService.trace('app#handleURL: ', uri.toString(true), options);
+
 				if (uri.scheme === productService.urlProtocol && uri.path === 'workspace') {
 					uri = uri.with({
 						authority: 'file',
@@ -817,6 +822,7 @@ export class CodeApplication extends Disposable {
 
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
+				logService.trace('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);
 				if (windowOpenableFromProtocolLink) {
 					const [window] = windowsMainService.open({
 						context: OpenContext.API,
@@ -1043,11 +1049,11 @@ export class CodeApplication extends Disposable {
 
 			// Telemetry
 			type SharedProcessErrorClassification = {
-				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				visible: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				shuttingdown: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				visible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				shuttingdown: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;

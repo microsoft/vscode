@@ -86,7 +86,7 @@ export class Source {
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	static getEncodedDebugData(modelUri: URI): { name: string, path: string, sessionId?: string, sourceReference?: number } {
+	static getEncodedDebugData(modelUri: URI): { name: string; path: string; sessionId?: string; sourceReference?: number } {
 		let path: string;
 		let sourceReference: number | undefined;
 		let sessionId: string | undefined;

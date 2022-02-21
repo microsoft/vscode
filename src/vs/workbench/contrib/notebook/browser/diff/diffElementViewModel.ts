@@ -36,7 +36,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	public outputFoldingState: PropertyFoldingState;
 	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
 	onDidLayoutChange = this._layoutInfoEmitter.event;
-	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean; }>());
+	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean }>());
 	onDidStateChange = this._stateChangeEmitter.event;
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
@@ -115,8 +115,8 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		readonly initData: {
-			metadataStatusHeight: number,
-			outputStatusHeight: number
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
 		}
 	) {
 		super();
@@ -274,8 +274,8 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		this.editorEventDispatcher.emit([{ type: NotebookDiffViewEventType.CellLayoutChanged, source: this._layoutInfo }]);
 	}
 
-	abstract checkIfOutputsModified(): false | { reason: string | undefined; };
-	abstract checkMetadataIfModified(): false | { reason: string | undefined; };
+	abstract checkIfOutputsModified(): false | { reason: string | undefined };
+	abstract checkMetadataIfModified(): false | { reason: string | undefined };
 	abstract isOutputEmpty(): boolean;
 	abstract getRichOutputTotalHeight(): number;
 	abstract getCellByUri(cellUri: URI): IGenericCellViewModel;
@@ -338,8 +338,8 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 		type: 'unchanged' | 'modified',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
-			metadataStatusHeight: number,
-			outputStatusHeight: number
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
 		}
 	) {
 		super(
@@ -391,7 +391,7 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	checkMetadataIfModified() {
-		const modified = hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+		const modified = hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
 		if (modified) {
 			return { reason: undefined };
 		} else {
@@ -489,8 +489,8 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		type: 'insert' | 'delete',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
-			metadataStatusHeight: number,
-			outputStatusHeight: number
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
 		}
 	) {
 		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData);
@@ -600,7 +600,7 @@ function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 	return OutputComparison.Unchanged;
 }
 
-export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
+export function getFormattedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
 	let filteredMetadata: { [key: string]: any } = {};
 
 	if (documentTextModel) {
@@ -643,7 +643,7 @@ export function getStreamOutputData(outputs: IOutputItemDto[]) {
 	}
 }
 
-export function getFormatedOutputJSON(outputs: IOutputDto[]) {
+export function getFormattedOutputJSON(outputs: IOutputDto[]) {
 	if (outputs.length === 1) {
 		const streamOutputData = getStreamOutputData(outputs[0].outputs);
 		if (streamOutputData) {

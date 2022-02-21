@@ -16,9 +16,9 @@ import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { ILanguageService } from 'vs/editor/common/services/language';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -28,21 +28,21 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService, matchesScheme, matchesSomeScheme } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
-import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri, webviewGenericCspSource } from 'vs/workbench/common/webview';
 import { CellEditState, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookWebviewMessage, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
-import { INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookRendererInfo, NotebookSetting, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewElement, IWebviewService, WebviewContentPurpose } from 'vs/workbench/contrib/webview/browser/webview';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
+import { FromWebviewMessage, IAckOutputHeight, IClickedDataUrlMessage, ICodeBlockHighlightRequest, IContentWidgetTopRequest, IControllerPreload, ICreationRequestMessage, IFindMatch, IMarkupCellInitialization, ToWebviewMessage } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -69,9 +69,9 @@ export interface INotebookDelegateForWebview {
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
 	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
-	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
-	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
+	didDropMarkupCell(cellId: string, event: { dragOffsetY: number; ctrlKey: boolean; altKey: boolean }): void;
 	didEndDragMarkupCell(cellId: string): void;
 	setScrollTop(scrollTop: number): void;
 	triggerScroll(event: IMouseWheelEvent): void;
@@ -123,11 +123,11 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super();
 
@@ -218,6 +218,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			{ dragAndDropEnabled: this.options.dragAndDropEnabled },
 			renderersData,
 			this.workspaceTrustManagementService.isWorkspaceTrusted(),
+			this.configurationService.getValue<number>(NotebookSetting.textOutputLineLimit) ?? 30,
 			this.nonce);
 
 		const enableCsp = this.configurationService.getValue('notebook.experimental.enableCsp');
@@ -415,7 +416,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 		});
 	}
 
-	private resolveOutputId(id: string): { cellInfo: T, output: ICellOutputViewModel } | undefined {
+	private resolveOutputId(id: string): { cellInfo: T; output: ICellOutputViewModel } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
@@ -529,6 +530,12 @@ var requirejs = (function() {
 			}
 
 			if (matchesScheme(link, Schemas.command)) {
+				const ret = /command\:workbench\.action\.openLargeOutput\?(.*)/.exec(link);
+				if (ret && ret.length === 2) {
+					const outputId = ret[1];
+					this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+					return;
+				}
 				console.warn('Command links are deprecated and will be removed, use messag passing instead: https://github.com/microsoft/vscode/issues/123601');
 			}
 
@@ -598,6 +605,7 @@ var requirejs = (function() {
 							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
 							if (latestCell) {
 								latestCell.outputIsFocused = true;
+								this.notebookEditor.focusNotebookCell(latestCell, 'container', { skipReveal: true });
 							}
 						}
 						break;
@@ -654,7 +662,23 @@ var requirejs = (function() {
 				case 'clicked-link':
 					{
 						let linkToOpen: URI | string | undefined;
-						if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.command, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook, Schemas.file)) {
+						if (matchesScheme(data.href, Schemas.command)) {
+							const ret = /command\:workbench\.action\.openLargeOutput\?(.*)/.exec(data.href);
+							if (ret && ret.length === 2) {
+								const outputId = ret[1];
+								const group = this.editorGroupService.activeGroup;
+
+								if (group) {
+									if (group.activeEditor) {
+										group.pinEditor(group.activeEditor);
+									}
+								}
+
+								this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
+								return;
+							}
+						}
+						if (matchesSomeScheme(data.href, Schemas.http, Schemas.https, Schemas.mailto, Schemas.command, Schemas.vscodeNotebookCell, Schemas.vscodeNotebook)) {
 							linkToOpen = data.href;
 						} else if (!/^[\w\-]+:/.test(data.href)) {
 							if (this.documentUri.scheme === Schemas.untitled) {
@@ -792,50 +816,38 @@ var requirejs = (function() {
 							cell.renderedHtml = data.html;
 						}
 
-						for (const { id, value, lang } of data.codeBlocks) {
-							// The language id may be a language aliases (e.g.js instead of javascript)
-							const languageId = this.languageService.getLanguageIdByLanguageName(lang);
-							if (!languageId) {
-								continue;
-							}
-
-							tokenizeToString(this.languageService, value, languageId).then((html) => {
-								if (this._disposed) {
-									return;
-								}
-								this._sendMessageToWebview({
-									type: 'tokenizedCodeBlock',
-									html,
-									codeBlockId: id
-								});
-							});
-						}
+						this._handleHighlightCodeBlock(data.codeBlocks);
 						break;
 					}
-				case 'telemetryFoundRenderedMarkdownMath':
+				case 'renderedCellOutput':
 					{
-						this.telemetryService.publicLog2<{}, {}>('notebook/markdown/renderedLatex', {});
-						break;
-					}
-				case 'telemetryFoundUnrenderedMarkdownMath':
-					{
-						type Classification = {
-							latexDirective: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
-						};
-
-						type TelemetryEvent = {
-							latexDirective: string;
-						};
-
-						this.telemetryService.publicLog2<TelemetryEvent, Classification>('notebook/markdown/foundUnrenderedLatex', {
-							latexDirective: data.latexDirective
-						});
+						this._handleHighlightCodeBlock(data.codeBlocks);
 						break;
 					}
 			}
 		}));
 	}
 
+	private _handleHighlightCodeBlock(codeBlocks: ReadonlyArray<ICodeBlockHighlightRequest>) {
+		for (const { id, value, lang } of codeBlocks) {
+			// The language id may be a language aliases (e.g.js instead of javascript)
+			const languageId = this.languageService.getLanguageIdByLanguageName(lang);
+			if (!languageId) {
+				continue;
+			}
+
+			tokenizeToString(this.languageService, value, languageId).then((html) => {
+				if (this._disposed) {
+					return;
+				}
+				this._sendMessageToWebview({
+					type: 'tokenizedCodeBlock',
+					html,
+					codeBlockId: id
+				});
+			});
+		}
+	}
 	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
 		if (typeof event.data !== 'string') {
 			return;
@@ -948,7 +960,7 @@ var requirejs = (function() {
 		});
 	}
 
-	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markupPreviews: { id: string, top: number }[]) {
+	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markupPreviews: { id: string; top: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -1287,7 +1299,7 @@ var requirejs = (function() {
 		}, 50);
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean }): Promise<IFindMatch[]> {
 		if (query === '') {
 			return [];
 		}

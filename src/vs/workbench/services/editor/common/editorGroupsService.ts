@@ -90,10 +90,10 @@ export interface ICloseEditorOptions {
 }
 
 export type ICloseEditorsFilter = {
-	except?: EditorInput,
-	direction?: CloseDirection,
-	savedOnly?: boolean,
-	excludeSticky?: boolean
+	except?: EditorInput;
+	direction?: CloseDirection;
+	savedOnly?: boolean;
+	excludeSticky?: boolean;
 };
 
 export interface ICloseAllEditorsOptions {
@@ -279,12 +279,12 @@ export interface IEditorGroupsService {
 	/**
 	 * Returns the size of a group.
 	 */
-	getSize(group: IEditorGroup | GroupIdentifier): { width: number, height: number };
+	getSize(group: IEditorGroup | GroupIdentifier): { width: number; height: number };
 
 	/**
 	 * Sets the size of a group.
 	 */
-	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number, height: number }): void;
+	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number; height: number }): void;
 
 	/**
 	 * Arrange all groups according to the provided arrangement.

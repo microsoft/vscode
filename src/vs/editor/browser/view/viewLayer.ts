@@ -5,7 +5,7 @@
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
-import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
+import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
@@ -52,7 +52,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		this._rendLineNumberStart = rendLineNumberStart;
 	}
 
-	_get(): { rendLineNumberStart: number; lines: T[]; } {
+	_get(): { rendLineNumberStart: number; lines: T[] } {
 		return {
 			rendLineNumberStart: this._rendLineNumberStart,
 			lines: this._lines
@@ -210,7 +210,7 @@ export class RenderedLinesCollection<T extends ILine> {
 		return deletedLines;
 	}
 
-	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number; }[]): boolean {
+	public onTokensChanged(ranges: { fromLineNumber: number; toLineNumber: number }[]): boolean {
 		if (this.getCount() === 0) {
 			// no lines
 			return false;

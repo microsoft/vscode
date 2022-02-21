@@ -11,6 +11,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion } from 'vs/editor/common/languages';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 
+/**
+ * A normalized inline completion is an inline completion with a defined range.
+*/
 export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
@@ -135,7 +138,7 @@ export function inlineCompletionToGhostText(
 	return new GhostText(lineNumber, parts, 0);
 }
 
-let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[] | undefined; } | undefined = undefined;
+let lastRequest: { originalValue: string; newValue: string; changes: readonly IDiffChange[] | undefined } | undefined = undefined;
 function cachingDiff(originalValue: string, newValue: string): readonly IDiffChange[] | undefined {
 	if (lastRequest?.originalValue === originalValue && lastRequest?.newValue === newValue) {
 		return lastRequest?.changes;

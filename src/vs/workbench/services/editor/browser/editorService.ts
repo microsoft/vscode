@@ -10,7 +10,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
-import { Event, Emitter, MicrotaskEmitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -47,7 +47,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private readonly _onDidVisibleEditorsChange = this._register(new Emitter<void>());
 	readonly onDidVisibleEditorsChange = this._onDidVisibleEditorsChange.event;
 
-	private readonly _onDidEditorsChange = this._register(new MicrotaskEmitter<IEditorsChangeEvent[]>({ merge: events => events.flat(1) }));
+	private readonly _onDidEditorsChange = this._register(new Emitter<IEditorsChangeEvent>());
 	readonly onDidEditorsChange = this._onDidEditorsChange.event;
 
 	private readonly _onDidCloseEditor = this._register(new Emitter<IEditorCloseEvent>());
@@ -148,7 +148,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const groupDisposables = new DisposableStore();
 
 		groupDisposables.add(group.onDidModelChange(e => {
-			this._onDidEditorsChange.fire([{ groupId: group.id, ...e }]);
+			this._onDidEditorsChange.fire({ groupId: group.id, ...e });
 		}));
 
 		groupDisposables.add(group.onDidActiveEditorChange(() => {
@@ -358,7 +358,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private getAllNonDirtyEditors(options: { includeUntitled: boolean, supportSideBySide: boolean }): EditorInput[] {
+	private getAllNonDirtyEditors(options: { includeUntitled: boolean; supportSideBySide: boolean }): EditorInput[] {
 		const editors: EditorInput[] = [];
 
 		function conditionallyAddEditor(editor: EditorInput): void {
@@ -619,7 +619,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private extractEditorResources(editors: Array<EditorInputWithOptions | IUntypedEditorInput>): { resources: URI[], diffMode?: boolean } {
+	private extractEditorResources(editors: Array<EditorInputWithOptions | IUntypedEditorInput>): { resources: URI[]; diffMode?: boolean } {
 		const resources = new ResourceMap<boolean>();
 		let diffMode = false;
 
@@ -910,8 +910,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (!result.matches(editor)) {
 				const targetGroups = editor.hasCapability(EditorInputCapabilities.Untitled) ? this.editorGroupService.groups.map(group => group.id) /* untitled replaces across all groups */ : [groupId];
 				for (const targetGroup of targetGroups) {
+					const resolvedEditor = await this.editorResolverService.resolveEditor({ resource: result.resource, }, targetGroup);
 					const group = this.editorGroupService.getGroup(targetGroup);
-					await group?.replaceEditors([{ editor, replacement: result, options: editorOptions }]);
+					if (resolvedEditor !== ResolvedStatus.ABORT && isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+						// dispose the previous result before replacing with the resolved editor
+						saveResults.pop()?.dispose();
+						saveResults.push(resolvedEditor.editor);
+						await group?.replaceEditors([{ editor, replacement: resolvedEditor.editor, options: editorOptions }]);
+					} else {
+						await group?.replaceEditors([{ editor, replacement: result, options: editorOptions }]);
+					}
 				}
 			}
 		}

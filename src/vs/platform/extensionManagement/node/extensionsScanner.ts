@@ -391,7 +391,7 @@ export class ExtensionsScanner extends Disposable {
 		return this._devSystemExtensionsPath;
 	}
 
-	private async readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: Metadata | null; }> {
+	private async readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: Metadata | null }> {
 		const promises = [
 			pfs.Promises.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 				.then(raw => this.parseManifest(raw)),
@@ -407,7 +407,7 @@ export class ExtensionsScanner extends Disposable {
 		};
 	}
 
-	private parseManifest(raw: string): Promise<{ manifest: IExtensionManifest; metadata: Metadata | null; }> {
+	private parseManifest(raw: string): Promise<{ manifest: IExtensionManifest; metadata: Metadata | null }> {
 		return new Promise((c, e) => {
 			try {
 				const manifest = <ILocalExtensionManifest & { publisher: string }>JSON.parse(raw);

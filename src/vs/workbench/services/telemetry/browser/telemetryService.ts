@@ -22,7 +22,7 @@ import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetr
 class WebAppInsightsAppender implements ITelemetryAppender {
 	private _aiClient: ApplicationInsights | undefined;
 	private _aiClientLoaded = false;
-	private _telemetryCache: { eventName: string, data: any }[] = [];
+	private _telemetryCache: { eventName: string; data: any }[] = [];
 
 	constructor(private _eventPrefix: string, aiKey: string) {
 		const endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
@@ -107,7 +107,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
 	private impl: ITelemetryService;
-	public readonly sendErrorTelemetry = false;
+	public readonly sendErrorTelemetry = true;
 
 	constructor(
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
@@ -125,7 +125,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const config: ITelemetryServiceConfig = {
 				appenders: [new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)],
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
-				sendErrorTelemetry: false,
+				sendErrorTelemetry: this.sendErrorTelemetry,
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService));

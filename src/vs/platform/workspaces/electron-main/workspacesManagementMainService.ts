@@ -23,9 +23,10 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
-import { getStoredWorkspaceFolder, hasWorkspaceFileExtension, IEnterWorkspaceResult, IResolvedWorkspace, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, isUntitledWorkspace, isWorkspaceIdentifier, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, IWorkspaceIdentifier, toWorkspaceFolders, UNTITLED_WORKSPACE_NAME } from 'vs/platform/workspaces/common/workspaces';
+import { isWorkspaceIdentifier, IWorkspaceIdentifier, IResolvedWorkspace, hasWorkspaceFileExtension, UNTITLED_WORKSPACE_NAME, isUntitledWorkspace } from 'vs/platform/workspace/common/workspace';
+import { getStoredWorkspaceFolder, IEnterWorkspaceResult, isStoredWorkspaceFolder, IStoredWorkspace, IStoredWorkspaceFolder, IUntitledWorkspaceInfo, IWorkspaceFolderCreationData, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
 
 export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
@@ -169,7 +170,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		return workspace;
 	}
 
-	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = [], remoteAuthority?: string): { workspace: IWorkspaceIdentifier, storedWorkspace: IStoredWorkspace } {
+	private newUntitledWorkspace(folders: IWorkspaceFolderCreationData[] = [], remoteAuthority?: string): { workspace: IWorkspaceIdentifier; storedWorkspace: IStoredWorkspace } {
 		const randomId = (Date.now() + Math.round(Math.random() * 1000)).toString();
 		const untitledWorkspaceConfigFolder = joinPath(this.untitledWorkspacesHome, randomId);
 		const untitledWorkspaceConfigPath = joinPath(untitledWorkspaceConfigFolder, UNTITLED_WORKSPACE_NAME);

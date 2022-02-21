@@ -25,7 +25,7 @@ import { ModelDecorationOptions, TextModel } from 'vs/editor/common/model/textMo
 import { Location } from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { AccessibilityProvider, DataSource, Delegate, FileReferencesRenderer, IdentityProvider, OneReferenceRenderer, StringRepresentationProvider, TreeElement } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesTree';
 import * as peekView from 'vs/editor/contrib/peekView/browser/peekView';

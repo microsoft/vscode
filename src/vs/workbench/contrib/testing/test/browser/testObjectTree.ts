@@ -13,7 +13,7 @@ import { TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/test
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
 
-type SerializedTree = { e: string; children?: SerializedTree[], data?: string };
+type SerializedTree = { e: string; children?: SerializedTree[]; data?: string };
 
 const element = document.createElement('div');
 element.style.height = '1000px';

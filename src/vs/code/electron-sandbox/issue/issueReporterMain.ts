@@ -21,12 +21,11 @@ import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 
 import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-
 import { IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -789,7 +788,7 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
-	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string, repositoryName: string }): Promise<boolean> {
+	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
 		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
 		const init = {
 			method: 'POST',
@@ -897,7 +896,7 @@ export class IssueReporter extends Disposable {
 				: this.configuration.product.reportIssueUrl!;
 	}
 
-	private parseGitHubUrl(url: string): undefined | { repositoryName: string, owner: string } {
+	private parseGitHubUrl(url: string): undefined | { repositoryName: string; owner: string } {
 		// Assumes a GitHub url to a particular repo, https://github.com/repositoryName/owner.
 		// Repository name and owner cannot contain '/'
 		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);

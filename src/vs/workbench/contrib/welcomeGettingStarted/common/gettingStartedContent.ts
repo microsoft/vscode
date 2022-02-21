@@ -18,37 +18,37 @@ const intermediateIcon = registerIcon('getting-started-intermediate', Codicon.mo
 
 
 export type BuiltinGettingStartedStep = {
-	id: string
-	title: string,
-	description: string,
-	completionEvents?: string[]
-	when?: string,
+	id: string;
+	title: string;
+	description: string;
+	completionEvents?: string[];
+	when?: string;
 	media:
-	| { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string }
-	| { type: 'svg', path: string, altText: string }
-	| { type: 'markdown', path: string },
+	| { type: 'image'; path: string | { hc: string; light: string; dark: string }; altText: string }
+	| { type: 'svg'; path: string; altText: string }
+	| { type: 'markdown'; path: string };
 };
 
 export type BuiltinGettingStartedCategory = {
-	id: string
-	title: string,
-	description: string,
-	isFeatured: boolean,
-	next?: string,
-	icon: ThemeIcon,
-	when?: string,
+	id: string;
+	title: string;
+	description: string;
+	isFeatured: boolean;
+	next?: string;
+	icon: ThemeIcon;
+	when?: string;
 	content:
-	| { type: 'steps', steps: BuiltinGettingStartedStep[] }
+	| { type: 'steps'; steps: BuiltinGettingStartedStep[] };
 };
 
 export type BuiltinGettingStartedStartEntry = {
-	id: string
-	title: string,
-	description: string,
-	icon: ThemeIcon,
-	when?: string,
+	id: string;
+	title: string;
+	description: string;
+	icon: ThemeIcon;
+	when?: string;
 	content:
-	| { type: 'startEntry', command: string }
+	| { type: 'startEntry'; command: string };
 };
 
 type GettingStartedWalkthroughContent = BuiltinGettingStartedCategory[];
@@ -62,7 +62,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
-			command: 'welcome.showNewFileEntries',
+			command: 'command:welcome.showNewFileEntries',
 		}
 	},
 	// {
@@ -83,7 +83,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: '!isWeb && isMac',
 		content: {
 			type: 'startEntry',
-			command: 'workbench.action.files.openFileFolder',
+			command: 'command:workbench.action.files.openFileFolder',
 		}
 	},
 	{
@@ -94,7 +94,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: 'isWeb || !isMac',
 		content: {
 			type: 'startEntry',
-			command: 'workbench.action.files.openFile',
+			command: 'command:workbench.action.files.openFile',
 		}
 	},
 	{
@@ -105,7 +105,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: '!isWeb && !isMac',
 		content: {
 			type: 'startEntry',
-			command: 'workbench.action.files.openFolder',
+			command: 'command:workbench.action.files.openFolder',
 		}
 	},
 	{
@@ -113,10 +113,10 @@ export const startEntries: GettingStartedStartEntryContent = [
 		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
 		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
 		icon: Codicon.folderOpened,
-		when: 'isWeb && workbenchState == \'workspace\'',
+		when: '!openFolderWorkspaceSupport && workbenchState == \'workspace\'',
 		content: {
 			type: 'startEntry',
-			command: 'workbench.action.addRootFolder',
+			command: 'command:workbench.action.addRootFolder',
 		}
 	},
 	{
@@ -127,7 +127,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		icon: Codicon.sourceControl,
 		content: {
 			type: 'startEntry',
-			command: 'git.clone',
+			command: 'command:git.clone',
 		}
 	},
 	{
@@ -138,7 +138,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		icon: Codicon.sourceControl,
 		content: {
 			type: 'startEntry',
-			command: 'remoteHub.openRepository',
+			command: 'command:remoteHub.openRepository',
 		}
 	},
 	{
@@ -149,7 +149,29 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: 'allWalkthroughsHidden',
 		content: {
 			type: 'startEntry',
-			command: 'welcome.showAllWalkthroughs',
+			command: 'command:welcome.showAllWalkthroughs',
+		}
+	},
+	{
+		id: 'topLevelVideoTutorials',
+		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
+		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
+		icon: Codicon.playCircle,
+		when: 'config.workbench.welcomePage.experimental.videoTutorials == on',
+		content: {
+			type: 'startEntry',
+			command: 'https://aka.ms/vscode-getting-started-video',
+		}
+	},
+	{
+		id: 'topLevelVideoTutorialsExperimental',
+		title: localize('gettingStarted.topLevelVideoTutorials.title', "Watch Video Tutorials"),
+		description: localize('gettingStarted.topLevelVideoTutorials.description', "Watch our series of short & practical video tutorials for VS Code's key features."),
+		when: 'config.workbench.welcomePage.experimental.videoTutorials == experimental',
+		icon: Codicon.playCircle,
+		content: {
+			type: 'startEntry',
+			command: 'https://aka.ms/vscode-videos',
 		}
 	},
 ];

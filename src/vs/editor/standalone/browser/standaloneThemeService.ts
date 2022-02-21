@@ -32,7 +32,7 @@ class StandaloneTheme implements IStandaloneTheme {
 
 	private readonly themeData: IStandaloneThemeData;
 	private colors: Map<string, Color> | null;
-	private readonly defaultColors: { [colorId: string]: Color | undefined; };
+	private readonly defaultColors: { [colorId: string]: Color | undefined };
 	private _tokenTheme: TokenTheme | null;
 
 	constructor(name: string, standaloneThemeData: IStandaloneThemeData) {
@@ -354,7 +354,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _updateThemeOrColorMap(): void {
 		const cssRules: string[] = [];
-		const hasRule: { [rule: string]: boolean; } = {};
+		const hasRule: { [rule: string]: boolean } = {};
 		const ruleCollector: ICssStyleCollector = {
 			addRule: (rule: string) => {
 				if (!hasRule[rule]) {

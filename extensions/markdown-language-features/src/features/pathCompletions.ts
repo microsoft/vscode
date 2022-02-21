@@ -60,7 +60,7 @@ interface CompletionContext {
 	/**
 	 * Info if the link looks like it is for an anchor: `[](#header)`
 	 */
-	readonly anchorInfo?: AnchorContext
+	readonly anchorInfo?: AnchorContext;
 }
 
 export class PathCompletionProvider implements vscode.CompletionItemProvider {
@@ -237,7 +237,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			const replacementRange = new vscode.Range(insertionRange.start, position.translate({ characterDelta: context.linkSuffix.length }));
 			yield {
 				kind: vscode.CompletionItemKind.Reference,
-				label: '#' + entry.slug.value,
+				label: '#' + decodeURI(entry.slug.value),
 				range: {
 					inserting: insertionRange,
 					replacing: replacementRange,
@@ -275,7 +275,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 
 			const isDir = type === vscode.FileType.Directory;
 			yield {
-				label: isDir ? name + '/' : name,
+				label: isDir ? encodeURIComponent(name) + '/' : encodeURIComponent(name),
 				kind: isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File,
 				range: {
 					inserting: insertRange,
@@ -293,18 +293,24 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			const workspaceFolder = vscode.workspace.getWorkspaceFolder(docUri);
 			if (workspaceFolder) {
 				return vscode.Uri.joinPath(workspaceFolder.uri, ref);
+			} else {
+				return this.resolvePath(docUri, ref.slice(1));
 			}
 		}
 
+		return this.resolvePath(docUri, ref);
+	}
+
+	private resolvePath(root: vscode.Uri, ref: string): vscode.Uri | undefined {
 		try {
-			if (docUri.scheme === 'file') {
-				return vscode.Uri.file(resolve(dirname(docUri.fsPath), ref));
+			if (root.scheme === 'file') {
+				return vscode.Uri.file(resolve(dirname(root.fsPath), ref));
 			} else {
-				return docUri.with({
-					path: resolve(dirname(docUri.path), ref),
+				return root.with({
+					path: resolve(dirname(root.path), ref),
 				});
 			}
-		} catch (e) {
+		} catch {
 			return undefined;
 		}
 	}

@@ -103,6 +103,21 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'view',
 			description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 		},
+		[TerminalSettingId.ShellIntegrationCommandIcon]: {
+			type: 'string',
+			default: 'primitive-dot',
+			description: localize('terminal.integrated.shellIntegration.commandIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to '' to hide the icon.")
+		},
+		[TerminalSettingId.ShellIntegrationCommandIconError]: {
+			type: 'string',
+			default: 'error-small',
+			description: localize('terminal.integrated.shellIntegration.commandIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to '' to hide the icon.")
+		},
+		[TerminalSettingId.ShellIntegrationCommandIconDefault]: {
+			type: 'string',
+			default: 'circle-outline',
+			description: localize('terminal.integrated.shellIntegration.commandIconDefault', "Controls the icon that will be used for skipped/empty commands. Set to '' to hide the icon.")
+		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
@@ -132,6 +147,11 @@ const terminalConfiguration: IConfigurationNode = {
 			description: localize('terminal.integrated.copyOnSelection', "Controls whether text selected in the terminal will be copied to the clipboard."),
 			type: 'boolean',
 			default: false
+		},
+		[TerminalSettingId.EnableMultiLinePasteWarning]: {
+			description: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal."),
+			type: 'boolean',
+			default: true
 		},
 		[TerminalSettingId.DrawBoldTextInBrightColors]: {
 			description: localize('terminal.integrated.drawBoldTextInBrightColors', "Controls whether bold text in the terminal will always use the \"bright\" ANSI color variant."),
@@ -436,11 +456,6 @@ const terminalConfiguration: IConfigurationNode = {
 			default: '11',
 			description: localize('terminal.integrated.unicodeVersion', "Controls what version of unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
 		},
-		[TerminalSettingId.ExperimentalLinkProvider]: {
-			description: localize('terminal.integrated.experimentalLinkProvider', "An experimental setting that aims to improve link detection in the terminal by improving when links are detected and by enabling shared link detection with the editor. Currently this only supports web links."),
-			type: 'boolean',
-			default: true
-		},
 		[TerminalSettingId.LocalEchoLatencyThreshold]: {
 			description: localize('terminal.integrated.localEchoLatencyThreshold', "Length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
 			type: 'integer',
@@ -505,21 +520,34 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
-			description: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses. Note that the message includes escape sequences so the reply might not happen with styled text. Each reply can only happen once every second."),
+			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "\\r"`', '`"\\r"`'),
 			type: 'object',
 			additionalProperties: {
-				type: 'string',
-				description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
+				oneOf: [{
+					type: 'string',
+					description: localize('terminal.integrated.autoReplies.reply', "The reply to send to the process.")
+				},
+				{ type: 'null' }]
 			},
-			default: {
-				'Terminate batch job (Y/N)': 'Y\r'
-			}
+			default: {}
 		},
-		[TerminalSettingId.EnableShellIntegration]: {
+		[TerminalSettingId.ShellIntegrationEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable shell integration which will turn on certain feature such enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
+			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Enable the experimental shell integration feature which will turn on certain features like enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
 			type: 'boolean',
 			default: false
+		},
+		[TerminalSettingId.ShellIntegrationShowWelcome]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.showWelcome', "Whether to show the shell integration activated welcome message in the terminal when the feature is enabled."),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.ShellIntegrationCommandHistory]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.history', "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."),
+			type: 'number',
+			default: 100
 		},
 	}
 };

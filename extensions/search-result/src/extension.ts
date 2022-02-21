@@ -13,7 +13,7 @@ const SEARCH_RESULT_SELECTOR = { language: 'search-result', exclusive: true };
 const DIRECTIVES = ['# Query:', '# Flags:', '# Including:', '# Excluding:', '# ContextLines:'];
 const FLAGS = ['RegExp', 'CaseSensitive', 'IgnoreExcludeSettings', 'WordMatch'];
 
-let cachedLastParse: { version: number, parse: ParsedSearchResults, uri: vscode.Uri } | undefined;
+let cachedLastParse: { version: number; parse: ParsedSearchResults; uri: vscode.Uri } | undefined;
 let documentChangeListener: vscode.Disposable | undefined;
 
 
@@ -174,8 +174,8 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 	return undefined;
 }
 
-type ParsedSearchFileLine = { type: 'file', location: vscode.LocationLink, allLocations: vscode.LocationLink[], path: string };
-type ParsedSearchResultLine = { type: 'result', locations: Required<vscode.LocationLink>[], isContext: boolean, prefixRange: vscode.Range };
+type ParsedSearchFileLine = { type: 'file'; location: vscode.LocationLink; allLocations: vscode.LocationLink[]; path: string };
+type ParsedSearchResultLine = { type: 'result'; locations: Required<vscode.LocationLink>[]; isContext: boolean; prefixRange: vscode.Range };
 type ParsedSearchResults = Array<ParsedSearchFileLine | ParsedSearchResultLine>;
 const isFileLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line is ParsedSearchFileLine => line.type === 'file';
 const isResultLine = (line: ParsedSearchResultLine | ParsedSearchFileLine): line is ParsedSearchResultLine => line.type === 'result';
@@ -227,14 +227,6 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 
 			let locations: Required<vscode.LocationLink>[] = [];
 
-			// Allow line number, indentation, etc to take you to definition as well.
-			locations.push({
-				targetRange,
-				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, 1),
-				targetUri: currentTarget,
-				originSelectionRange: new vscode.Range(i, 0, i, metadataOffset - 1),
-			});
-
 			let lastEnd = metadataOffset;
 			let offset = 0;
 			ELISION_REGEX.lastIndex = metadataOffset;
@@ -258,8 +250,19 @@ function parseSearchResults(document: vscode.TextDocument, token?: vscode.Cancel
 					originSelectionRange: new vscode.Range(i, lastEnd, i, line.length),
 				});
 			}
+			// only show result lines in file-level peek
+			if (separator.includes(':')) {
+				currentTargetLocations?.push(...locations);
+			}
 
-			currentTargetLocations?.push(...locations);
+			// Allow line number, indentation, etc to take you to definition as well.
+			let convenienceLocation: Required<vscode.LocationLink> = {
+				targetRange,
+				targetSelectionRange: new vscode.Range(lineNumber, 0, lineNumber, 1),
+				targetUri: currentTarget,
+				originSelectionRange: new vscode.Range(i, 0, i, metadataOffset - 1),
+			};
+			locations.push(convenienceLocation);
 			links[i] = { type: 'result', locations, isContext: separator === ' ', prefixRange: new vscode.Range(i, 0, i, metadataOffset) };
 		}
 	}

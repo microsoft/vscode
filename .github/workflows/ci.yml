@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - uses: actions/setup-python@v2
         with:
@@ -113,7 +113,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -123,8 +123,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules14-
+          key: ${{ runner.os }}-cacheNodeModules19-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules19-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -185,7 +185,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -195,8 +195,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules14-
+          key: ${{ runner.os }}-cacheNodeModules19-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules19-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -259,7 +259,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -269,8 +269,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules14-
+          key: ${{ runner.os }}-cacheNodeModules19-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules19-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -289,11 +289,20 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: yarn --frozen-lockfile --network-timeout 180000
 
+      - name: Download Playwright
+        run: yarn playwright-install
+
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
 
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
+
+      - name: Compile /build/
+        run: yarn --cwd build compile
+
+      - name: Check clean git state
+        run: ./.github/workflows/check-clean-git-state.sh
 
       - name: Run eslint
         run: yarn eslint
@@ -310,6 +319,10 @@ jobs:
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle
 
+      - name: Editor ESM sources check
+        working-directory: ./test/monaco
+        run: yarn run esm-check
+
       - name: Typings validation prep
         run: |
           mkdir typings-test
@@ -322,16 +335,13 @@ jobs:
           echo "import '../out-monaco-editor-core';" > a.ts
           ../node_modules/.bin/tsc --noEmit
 
-      - name: Webpack Editor
+      - name: Package Editor with Webpack
         working-directory: ./test/monaco
-        run: yarn run bundle
+        run: yarn run bundle-webpack
 
       - name: Compile Editor Tests
         working-directory: ./test/monaco
         run: yarn run compile
-
-      - name: Download Playwright
-        run: yarn playwright-install
 
       - name: Run Editor Tests
         timeout-minutes: 5

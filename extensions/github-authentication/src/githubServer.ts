@@ -41,7 +41,7 @@ function parseQuery(uri: vscode.Uri) {
 
 export interface IGitHubServer extends vscode.Disposable {
 	login(scopes: string): Promise<string>;
-	getUserInfo(token: string): Promise<{ id: string, accountName: string }>;
+	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
 	sendAdditionalTelemetryInfo(token: string): Promise<void>;
 	friendlyName: string;
 	type: AuthProviderType;
@@ -77,7 +77,7 @@ async function getScopes(token: string, serverUri: vscode.Uri, logger: Log): Pro
 	}
 }
 
-async function getUserInfo(token: string, serverUri: vscode.Uri, logger: Log): Promise<{ id: string, accountName: string }> {
+async function getUserInfo(token: string, serverUri: vscode.Uri, logger: Log): Promise<{ id: string; accountName: string }> {
 	let result: Response;
 	try {
 		logger.info('Getting user info...');
@@ -119,7 +119,7 @@ export class GitHubServer implements IGitHubServer {
 	private _onDidManuallyProvideToken = new vscode.EventEmitter<string | undefined>();
 
 	private _pendingStates = new Map<string, string[]>();
-	private _codeExchangePromises = new Map<string, { promise: Promise<string>, cancel: vscode.EventEmitter<void> }>();
+	private _codeExchangePromises = new Map<string, { promise: Promise<string>; cancel: vscode.EventEmitter<void> }>();
 	private _statusBarCommandId = `${this.type}.provide-manually`;
 	private _disposable: vscode.Disposable;
 	private _uriHandler = new UriEventHandler(this._logger);
@@ -220,18 +220,19 @@ export class GitHubServer implements IGitHubServer {
 
 		const json = await result.json() as IGitHubDeviceCodeResponse;
 
-		await vscode.env.clipboard.writeText(json.user_code);
 
 		const modalResult = await vscode.window.showInformationMessage(
 			localize('code.title', "Your Code: {0}", json.user_code),
 			{
 				modal: true,
-				detail: localize('code.detail', "The above one-time code has been copied to your clipboard. To finish authenticating, paste it on GitHub.")
-			}, 'Continue to GitHub');
+				detail: localize('code.detail', "To finish authenticating, navigate to GitHub and paste in the above one-time code.")
+			}, 'Copy & Continue to GitHub');
 
-		if (modalResult !== 'Continue to GitHub') {
+		if (modalResult !== 'Copy & Continue to GitHub') {
 			throw new Error('Cancelled');
 		}
+
+		await vscode.env.clipboard.writeText(json.user_code);
 
 		const uriToOpen = await vscode.env.asExternalUri(vscode.Uri.parse(json.verification_uri));
 		await vscode.env.openExternal(uriToOpen);
@@ -381,7 +382,7 @@ export class GitHubServer implements IGitHubServer {
 		this._uriHandler.handleUri(vscode.Uri.parse(uri.trim()));
 	}
 
-	public getUserInfo(token: string): Promise<{ id: string, accountName: string }> {
+	public getUserInfo(token: string): Promise<{ id: string; accountName: string }> {
 		return getUserInfo(token, this.getServerUri('/user'), this._logger);
 	}
 
@@ -405,7 +406,7 @@ export class GitHubServer implements IGitHubServer {
 			});
 
 			if (result.ok) {
-				const json: { student: boolean, faculty: boolean } = await result.json();
+				const json: { student: boolean; faculty: boolean } = await result.json();
 
 				/* __GDPR__
 					"session" : {
@@ -439,7 +440,7 @@ export class GitHubServer implements IGitHubServer {
 				return;
 			}
 
-			const json: { verifiable_password_authentication: boolean, installed_version: string } = await result.json();
+			const json: { verifiable_password_authentication: boolean; installed_version: string } = await result.json();
 
 			/* __GDPR__
 				"ghe-session" : {
@@ -503,7 +504,7 @@ export class GitHubEnterpriseServer implements IGitHubServer {
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}/api/v3${path}`);
 	}
 
-	public async getUserInfo(token: string): Promise<{ id: string, accountName: string }> {
+	public async getUserInfo(token: string): Promise<{ id: string; accountName: string }> {
 		return getUserInfo(token, this.getServerUri('/user'), this._logger);
 	}
 
@@ -521,7 +522,7 @@ export class GitHubEnterpriseServer implements IGitHubServer {
 				return;
 			}
 
-			const json: { verifiable_password_authentication: boolean, installed_version: string } = await result.json();
+			const json: { verifiable_password_authentication: boolean; installed_version: string } = await result.json();
 
 			/* __GDPR__
 				"ghe-session" : {

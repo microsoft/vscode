@@ -17,7 +17,7 @@ import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/pla
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { ReleaseNotesManager } from './releaseNotesEditor';
+import { ReleaseNotesManager } from 'vs/workbench/contrib/update/browser/releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

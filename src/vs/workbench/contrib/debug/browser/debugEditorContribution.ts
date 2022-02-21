@@ -12,7 +12,7 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Constants } from 'vs/base/common/uint';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/languages';
+import { InlineValueContext, StandardTokenType } from 'vs/editor/common/languages';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { distinct, flatten } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -20,14 +20,13 @@ import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugEditorContribution, IDebugService, State, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, IDebugSession, CONTEXT_EXCEPTION_WIDGET_VISIBLE } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Position } from 'vs/editor/common/core/position';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
@@ -45,11 +44,15 @@ import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
+
+const DEAFULT_INLINE_DEBOUNCE_DELAY = 200;
 
 export const debugInlineForeground = registerColor('editor.inlineValuesForeground', {
 	dark: '#ffffff80',
@@ -217,18 +220,21 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private altListener: IDisposable | undefined;
 	private altPressed = false;
 	private oldDecorations: string[] = [];
+	private readonly debounceInfo: IFeatureDebounceInformation;
 
 	constructor(
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService private readonly hostService: IHostService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService
 	) {
+		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [];
 		this.registerListeners();
@@ -262,6 +268,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.updateInlineValuesScheduler.schedule();
 		}));
 		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
+		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
@@ -279,7 +286,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			// Inline value provider should get called on view port change
 			const model = this.editor.getModel();
-			if (model && InlineValuesProviderRegistry.has(model)) {
+			if (model && this.languageFeaturesService.inlineValuesProvider.has(model)) {
 				this.updateInlineValuesScheduler.schedule();
 			}
 		}));
@@ -523,10 +530,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	async addLaunchConfiguration(): Promise<any> {
-		/* __GDPR__
-			"debug/addLaunchConfiguration" : {}
-		*/
-		this.telemetryService.publicLog('debug/addLaunchConfiguration');
 		const model = this.editor.getModel();
 		if (!model) {
 			return;
@@ -603,9 +606,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get updateInlineValuesScheduler(): RunOnceScheduler {
+		const model = this.editor.getModel();
 		return new RunOnceScheduler(
 			async () => await this.updateInlineValueDecorations(this.debugService.getViewModel().focusedStackFrame),
-			200
+			model ? this.debounceInfo.get(model) : DEAFULT_INLINE_DEBOUNCE_DELAY
 		);
 	}
 
@@ -616,7 +620,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		const model = this.editor.getModel();
 		const inlineValuesSetting = this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues;
-		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && InlineValuesProviderRegistry.has(model));
+		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && this.languageFeaturesService.inlineValuesProvider.has(model));
 		if (!inlineValuesTurnedOn || !model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
@@ -628,7 +632,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		let allDecorations: IModelDeltaDecoration[];
 
-		if (InlineValuesProviderRegistry.has(model)) {
+		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
 
 			const findVariable = async (_key: string, caseSensitiveLookup: boolean): Promise<string | undefined> => {
 				const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
@@ -650,7 +654,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			const token = new CancellationTokenSource().token;
 
 			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
-			const providers = InlineValuesProviderRegistry.ordered(model).reverse();
+			const providers = this.languageFeaturesService.inlineValuesProvider.ordered(model).reverse();
 
 			allDecorations = [];
 			const lineDecorations = new Map<number, InlineSegment[]>();
@@ -684,7 +688,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								}
 								if (expr) {
 									const expression = new Expression(expr);
-									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch');
+									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch', true);
 									if (expression.available) {
 										text = strings.format(var_value_format, expr, expression.value);
 									}
@@ -710,7 +714,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				onUnexpectedExternalError(err);
 			}))));
 
+			const startTime = Date.now();
+
 			await Promise.all(promises);
+
+			// update debounce info
+			this.updateInlineValuesScheduler.delay = this.debounceInfo.update(model, Date.now() - startTime);
 
 			// sort line segments and concatenate them into a decoration
 

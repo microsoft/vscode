@@ -8,19 +8,19 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
+import { FindMatch, IModelDeltaDecoration, IReadonlyTextBuffer, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
+import { IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, IOutputItemDto, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -52,16 +52,8 @@ export const KERNEL_EXTENSIONS = new Map<string, string>([
 
 //#region  Output related types
 export const enum RenderOutputType {
-	Mainframe,
 	Html,
 	Extension
-}
-
-export interface IRenderMainframeOutput {
-	type: RenderOutputType.Mainframe;
-	supportAppend?: boolean;
-	initHeight?: number;
-	disposable?: IDisposable;
 }
 
 export interface IRenderPlainHtmlOutput {
@@ -78,28 +70,6 @@ export interface IRenderOutputViaExtension {
 }
 
 export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
-export type IRenderOutput = IRenderMainframeOutput | IInsetRenderOutput;
-
-export interface IOutputTransformContribution {
-	getType(): RenderOutputType;
-	getMimetypes(): string[];
-	/**
-	 * Dispose this contribution.
-	 */
-	dispose(): void;
-
-	/**
-	 * Returns contents to place in the webview inset, or the {@link IRenderNoOutput}.
-	 * This call is allowed to have side effects, such as placing output
-	 * directly into the container element.
-	 */
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput;
-}
-
-export interface IOutputRenderer {
-	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput;
-	getContribution(preferredMimeType: string): IOutputTransformContribution | undefined;
-}
 
 export interface ICellOutputViewModel extends IDisposable {
 	cellViewModel: IGenericCellViewModel;
@@ -109,7 +79,6 @@ export interface ICellOutputViewModel extends IDisposable {
 	model: ICellOutput;
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: IOrderedMimeType | undefined;
-	supportAppend(): boolean;
 	hasMultiMimeType(): boolean;
 	toRawJSON(): any;
 }
@@ -149,12 +118,6 @@ export interface ICommonCellInfo {
 	cellUri: URI;
 }
 
-export interface INotebookCellOutputLayoutInfo {
-	width: number;
-	height: number;
-	fontInfo: FontInfo;
-}
-
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 }
@@ -172,6 +135,7 @@ export interface CodeCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorHeight: number;
 	readonly editorWidth: number;
+	readonly statusBarHeight: number;
 	readonly totalHeight: number;
 	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
@@ -197,11 +161,16 @@ export interface MarkdownCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
+	readonly statusBarHeight: number;
 	readonly previewHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
 	readonly layoutState: CellLayoutState;
 	readonly foldHintHeight: number;
+}
+
+export enum CellLayoutContext {
+	Fold
 }
 
 export interface MarkdownCellLayoutChangeEvent {
@@ -210,16 +179,22 @@ export interface MarkdownCellLayoutChangeEvent {
 	editorHeight?: number;
 	previewHeight?: number;
 	totalHeight?: number;
+	context?: CellLayoutContext;
 }
 
+export interface ICommonCellViewModelLayoutChangeInfo {
+	totalHeight?: boolean | number;
+	outerWidth?: number;
+	context?: CellLayoutContext;
+}
 export interface ICellViewModel extends IGenericCellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
 	readonly textBuffer: IReadonlyTextBuffer;
-	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; };
-	readonly onDidChangeLayout: Event<{ totalHeight?: boolean | number; outerWidth?: number; }>;
+	readonly layoutInfo: { totalHeight: number; bottomToolbarOffset: number; editorWidth: number; editorHeight: number; statusBarHeight: number };
+	readonly onDidChangeLayout: Event<ICommonCellViewModelLayoutChangeInfo>;
 	readonly onDidChangeCellStatusBarItems: Event<void>;
-	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>;
+	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>;
 	readonly onDidChangeState: Event<CellViewModelStateChangeEvent>;
 	readonly editStateSource: string;
 	readonly editorAttached: boolean;
@@ -257,7 +232,7 @@ export interface IEditableCellViewModel extends ICellViewModel {
 
 export interface INotebookEditorMouseEvent {
 	readonly event: MouseEvent;
-	readonly target: CellViewModel;
+	readonly target: ICellViewModel;
 }
 
 export interface INotebookEditorContribution {
@@ -299,7 +274,7 @@ export interface INotebookEditorOptions extends ITextEditorOptions {
 	readonly viewState?: INotebookEditorViewState;
 }
 
-export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
+export type INotebookEditorContributionCtor = IConstructorSignature<INotebookEditorContribution, [INotebookEditor]>;
 
 export interface INotebookEditorContributionDescription {
 	id: string;
@@ -325,6 +300,64 @@ export interface INotebookEditorCreationOptions {
 export interface INotebookWebviewMessage {
 	message: unknown;
 }
+
+//#region Notebook View Model
+export interface INotebookEditorViewState {
+	editingCells: { [key: number]: boolean };
+	collapsedInputCells: { [key: number]: boolean };
+	collapsedOutputCells: { [key: number]: boolean };
+	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
+	hiddenFoldingRanges?: ICellRange[];
+	cellTotalHeights?: { [key: number]: number };
+	scrollPosition?: { left: number; top: number };
+	focus?: number;
+	editorFocused?: boolean;
+	contributionsState?: { [id: string]: unknown };
+}
+
+export interface ICellModelDecorations {
+	ownerId: number;
+	decorations: string[];
+}
+
+export interface ICellModelDeltaDecorations {
+	ownerId: number;
+	decorations: IModelDeltaDecoration[];
+}
+
+export interface IModelDecorationsChangeAccessor {
+	deltaDecorations(oldDecorations: ICellModelDecorations[], newDecorations: ICellModelDeltaDecorations[]): ICellModelDecorations[];
+}
+
+
+export type NotebookViewCellsSplice = [
+	number /* start */,
+	number /* delete count */,
+	ICellViewModel[]
+];
+
+export interface INotebookViewCellsUpdateEvent {
+	synchronous: boolean;
+	splices: NotebookViewCellsSplice[];
+}
+
+export interface INotebookViewModel {
+	notebookDocument: NotebookTextModel;
+	viewCells: ICellViewModel[];
+	layoutInfo: NotebookLayoutInfo | null;
+	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
+	onDidChangeSelection: Event<string>;
+	getNearestVisibleCellIndexUpwards(index: number): number;
+	getTrackedRange(id: string): ICellRange | null;
+	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null;
+	getSelections(): ICellRange[];
+	getCellIndex(cell: ICellViewModel): number;
+	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[];
+	getFoldedLength(index: number): number;
+	replaceOne(cell: ICellViewModel, range: Range, text: string): Promise<void>;
+	replaceAll(matches: CellFindMatch[], texts: string[]): Promise<void>;
+}
+//#endregion
 
 export interface INotebookEditor {
 	//#region Eventing
@@ -353,6 +386,7 @@ export interface INotebookEditor {
 	readonly notebookOptions: NotebookOptions;
 	readonly isDisposed: boolean;
 	readonly activeKernel: INotebookKernel | undefined;
+	readonly scrollTop: number;
 	//#endregion
 
 	getLength(): number;
@@ -364,7 +398,7 @@ export interface INotebookEditor {
 
 	cursorNavigationMode: boolean;
 
-	_getViewModel(): NotebookViewModel | undefined;
+	_getViewModel(): INotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
 	getDomNode(): HTMLElement;
@@ -398,11 +432,6 @@ export interface INotebookEditor {
 	getLayoutInfo(): NotebookLayoutInfo;
 
 	getVisibleRangesPlusViewportBelow(): ICellRange[];
-
-	/**
-	 * Fetch the output renderers for notebook outputs.
-	 */
-	getOutputRenderer(): IOutputRenderer;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
@@ -567,16 +596,19 @@ export interface INotebookEditor {
 	getCellByHandle(handle: number): ICellViewModel | undefined;
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
+	getPreviousVisibleCellIndex(index: number): number | undefined;
 	find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]>;
 	highlightFind(cell: ICellViewModel, matchIndex: number): Promise<number>;
 	unHighlightFind(matchIndex: number): Promise<void>;
 	findStop(): void;
 	showProgress(): void;
 	hideProgress(): void;
+
+	getAbsoluteTopOfElement(cell: ICellViewModel): number;
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
-	_getViewModel(): NotebookViewModel;
+	_getViewModel(): INotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
 	cellAt(index: number): ICellViewModel;
@@ -609,7 +641,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 }
 
 export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
-	_getViewModel(): NotebookViewModel;
+	_getViewModel(): INotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
 	cellAt(index: number): ICellViewModel;
@@ -622,13 +654,13 @@ export interface OutputFindMatch {
 }
 
 export interface CellFindMatch {
-	cell: CellViewModel;
+	cell: ICellViewModel;
 	matches: (FindMatch | OutputFindMatch)[];
 	modelMatchCount: number;
 }
 
 export interface CellFindMatchWithIndex {
-	cell: CellViewModel;
+	cell: ICellViewModel;
 	index: number;
 	matches: (FindMatch | OutputFindMatch)[];
 	modelMatchCount: number;
@@ -672,7 +704,7 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 	const input = editorPane.input;
 
 	if (input && isCompositeNotebookEditorInput(input)) {
-		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined; }).notebookEditor;
+		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined }).notebookEditor;
 	}
 
 	return undefined;
@@ -726,7 +758,7 @@ export const enum CellFoldingState {
 }
 
 export interface EditorFoldingStateDelegate {
-	getCellIndex(cell: CellViewModel): number;
+	getCellIndex(cell: ICellViewModel): number;
 	getFoldingState(index: number): CellFoldingState;
 }
 //#endregion

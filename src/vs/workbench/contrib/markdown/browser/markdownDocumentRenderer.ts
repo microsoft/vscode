@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const DEFAULT_MARKDOWN_STYLES = `
@@ -203,10 +203,16 @@ export async function renderMarkdownDocument(
 	allowUnknownProtocols: boolean = false,
 ): Promise<string> {
 
-	const highlight = (code: string, lang: string, callback: ((error: any, code: string) => void) | undefined): any => {
+	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
 		if (!callback) {
 			return code;
 		}
+
+		if (typeof lang !== 'string') {
+			callback(null, `<code>${code}</code>`);
+			return '';
+		}
+
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
 			const languageId = languageService.getLanguageIdByLanguageName(lang);
 			const html = await tokenizeToString(languageService, code, languageId);

@@ -7,14 +7,14 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
-import { IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { ICellModelDecorations, ICellModelDeltaDecorations, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { IActiveNotebookEditor, ICellModelDecorations, ICellModelDeltaDecorations } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
@@ -177,8 +177,6 @@ suite('Notebook Find', () => {
 				}], true, undefined, () => undefined, undefined, true);
 				await found2;
 				assert.strictEqual(model.findMatches.length, 3);
-				assert.strictEqual(model.currentMatch, 3);
-				model.find(false);
 				assert.strictEqual(model.currentMatch, 0);
 				model.find(true);
 				assert.strictEqual(model.currentMatch, 3);

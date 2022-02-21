@@ -67,8 +67,21 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		super();
 	}
 
-	override run(action: IAction): Promise<void> {
-		return super.run(action, this.context);
+	override run(action: IAction, context?: { preserveFocus?: boolean }): Promise<void> {
+
+		// Even though we have a fixed context for editor commands,
+		// allow to preserve the context that is given to us in case
+		// it applies.
+
+		let mergedContext = this.context;
+		if (context?.preserveFocus) {
+			mergedContext = {
+				...this.context,
+				preserveFocus: true
+			};
+		}
+
+		return super.run(action, mergedContext);
 	}
 }
 
@@ -340,7 +353,7 @@ export abstract class TitleControl extends Themable {
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
 
 		// Find target anchor
-		let anchor: HTMLElement | { x: number, y: number; } = node;
+		let anchor: HTMLElement | { x: number; y: number } = node;
 		if (e instanceof MouseEvent) {
 			const event = new StandardMouseEvent(e);
 			anchor = { x: event.posx, y: event.posy };

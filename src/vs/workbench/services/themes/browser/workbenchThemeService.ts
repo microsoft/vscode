@@ -40,7 +40,7 @@ import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 // implementation
 
@@ -114,7 +114,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@ILogService private readonly logService: ILogService,
 		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 		@IUserDataInitializationService readonly userDataInitializationService: IUserDataInitializationService,
-		@ILanguageService readonly modeService: ILanguageService
+		@ILanguageService readonly languageService: ILanguageService
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -127,7 +127,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		this.fileIconThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this));
 		this.fileIconThemeRegistry = new ThemeRegistry(fileIconThemesExtPoint, FileIconThemeData.fromExtensionTheme, true, FileIconThemeData.noIconTheme);
-		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, modeService);
+		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, languageService);
 		this.onFileIconThemeChange = new Emitter<IWorkbenchFileIconTheme>();
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
 		this.fileIconThemeSequencer = new Sequencer();
@@ -560,11 +560,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const key = themeType + themeData.extensionId;
 			if (!this.themeExtensionsActivated.get(key)) {
 				type ActivatePluginClassification = {
-					id: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-					name: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
-					isBuiltin: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-					publisherDisplayName: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					themeId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+					id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+					name: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+					isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+					publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+					themeId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 				};
 				type ActivatePluginEvent = {
 					id: string;
@@ -802,7 +802,7 @@ class ThemeFileWatcher {
 	constructor(private fileService: IFileService, private environmentService: IBrowserWorkbenchEnvironmentService, private onUpdate: () => void) {
 	}
 
-	update(theme: { location?: URI, watch?: boolean; }) {
+	update(theme: { location?: URI; watch?: boolean }) {
 		if (!resources.isEqual(theme.location, this.watchedLocation)) {
 			this.dispose();
 			if (theme.location && (theme.watch || this.environmentService.isExtensionDevelopment)) {

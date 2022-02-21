@@ -107,7 +107,7 @@ export class SuggestWidget implements IDisposable {
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;
 	private _completionModel?: CompletionModel;
-	private _cappedHeight?: { wanted: number; capped: number; };
+	private _cappedHeight?: { wanted: number; capped: number };
 	private _forceRenderingAbove: boolean = false;
 	private _explainMode: boolean = false;
 
@@ -388,9 +388,10 @@ export class SuggestWidget implements IDisposable {
 						this.showDetails(true);
 					}
 				}, 250);
-				token.onCancellationRequested(() => loading.dispose());
+				const sub = token.onCancellationRequested(() => loading.dispose());
 				const result = await item.resolve(token);
 				loading.dispose();
+				sub.dispose();
 				return result;
 			});
 

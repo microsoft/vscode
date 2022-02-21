@@ -99,6 +99,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
+			'workbench.editor.languageDetectionPreferredLanguages': {
+				type: 'array',
+				default: ['cpp', 'csharp', 'css', 'html', 'java', 'javascript', 'json', 'markdown', 'php', 'python', 'typescript', 'yaml',],
+				items: {
+					type: 'string',
+					enum: ['bat', 'c', 'coffeescript', 'cpp', 'csharp', 'css', 'go', 'html', 'java', 'javascript', 'json', 'lua', 'markdown', 'objective-c', 'perl', 'php', 'powershell', 'python', 'r', 'ruby', 'rust', 'scala', 'sh', 'sql', 'swift', 'typescript', 'yaml',],
+				},
+				description: localize('workbench.editor.languageDetectionPreferredLanguages', "Configures languages automatic language detection will prefer to select for a given document. This applies primarily to short documents where there is insufficient data to confidently predict a language."),
+			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
 				'enum': ['left', 'right', 'off'],
@@ -195,8 +204,19 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
-				'description': localize('mouseBackForwardToNavigate', "Navigate between open files using mouse buttons four and five if provided."),
+				'description': localize('mouseBackForwardToNavigate', "Enables the use of mouse buttons four and five for commands 'Go Back' and 'Go Forward'."),
 				'default': true
+			},
+			'workbench.editor.navigationScope': {
+				'type': 'string',
+				'enum': ['default', 'editorGroup', 'editor'],
+				'default': 'default',
+				'markdownDescription': localize('navigationScope', "Controls the scope of history navigation in editors for commands such as 'Go Back' and 'Go Forward'."),
+				'enumDescriptions': [
+					localize('workbench.editor.navigationScopeDefault', "Navigate across all opened editors and editor groups."),
+					localize('workbench.editor.navigationScopeEditorGroup', "Navigate only in editors of the active editor group."),
+					localize('workbench.editor.navigationScopeEditor', "Navigate only in the active editor.")
+				],
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
@@ -217,7 +237,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'enumDescriptions': [
 					localize('workbench.editor.splitInGroupLayoutVertical', "Editors are positioned from top to bottom."),
 					localize('workbench.editor.splitInGroupLayoutHorizontal', "Editors are positioned from left to right.")
-				],
+				]
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
@@ -285,8 +305,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
-				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench."),
-				'deprecationMessage': localize('panelDefaultLocationDeprecated', "With the introduction of the side panel, the panel position is no longer able to be moved in favor of moving view containers between the panels.")
+				'description': localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems) in a new workspace. It can either show at the bottom, right, or left of the editor area."),
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',

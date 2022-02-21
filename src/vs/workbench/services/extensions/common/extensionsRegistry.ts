@@ -246,6 +246,11 @@ export const schema: IJSONSchema = {
 				type: 'string',
 				defaultSnippets: [
 					{
+						label: 'onWebviewPanel',
+						description: nls.localize('vscode.extension.activationEvents.onWebviewPanel', 'An activation event emmited when a webview is loaded of a certain viewType'),
+						body: 'onWebviewPanel:viewType'
+					},
+					{
 						label: 'onLanguage',
 						description: nls.localize('vscode.extension.activationEvents.onLanguage', 'An activation event emitted whenever a file that resolves to the specified language gets opened.'),
 						body: 'onLanguage:${1:languageId}'

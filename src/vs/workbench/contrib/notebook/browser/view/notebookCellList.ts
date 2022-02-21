@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
@@ -260,7 +260,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const bottomModelIndex = this._viewModel!.getCellIndex(bottomElement);
 
 			if (bottomModelIndex - topModelIndex === bottomViewIndex - topViewIndex) {
-				this.visibleRanges = [{ start: topModelIndex, end: bottomModelIndex }];
+				this.visibleRanges = [{ start: topModelIndex, end: bottomModelIndex + 1 }];
 			} else {
 				this.visibleRanges = this._getVisibleRangesFromIndex(topViewIndex, topModelIndex, bottomViewIndex, bottomModelIndex);
 			}
@@ -568,9 +568,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				// no hidden area after it
 				if (stack.length) {
 					if (stack[stack.length - 1] === modelIndex - 1) {
-						ranges.push({ start: stack[stack.length - 1], end: modelIndex });
+						ranges.push({ start: stack[stack.length - 1], end: modelIndex + 1 });
 					} else {
-						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] + 1 });
 					}
 				}
 
@@ -581,9 +581,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				// there are hidden ranges after it
 				if (stack.length) {
 					if (stack[stack.length - 1] === modelIndex - 1) {
-						ranges.push({ start: stack[stack.length - 1], end: modelIndex });
+						ranges.push({ start: stack[stack.length - 1], end: modelIndex + 1 });
 					} else {
-						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+						ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] + 1 });
 					}
 				}
 
@@ -594,7 +594,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		if (stack.length) {
-			ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+			ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] + 1 });
 		}
 
 		return reduceCellRanges(ranges);
@@ -699,6 +699,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!indexes.length) {
 			if (this._viewModel) {
+				if (this.length) {
+					// Don't allow clearing focus, #121129
+					return;
+				}
+
 				this._viewModel.updateSelectionsState({
 					kind: SelectionStateType.Handle,
 					primary: null,

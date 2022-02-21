@@ -21,6 +21,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
 export async function showGoToContextMenu(accessor: ServicesAccessor, editor: ICodeEditor, anchor: HTMLElement, part: RenderedInlayHintLabelPart) {
 
@@ -28,6 +29,7 @@ export async function showGoToContextMenu(accessor: ServicesAccessor, editor: IC
 	const contextMenuService = accessor.get(IContextMenuService);
 	const commandService = accessor.get(ICommandService);
 	const instaService = accessor.get(IInstantiationService);
+	const notificationService = accessor.get(INotificationService);
 
 	await part.item.resolve(CancellationToken.None);
 
@@ -60,8 +62,16 @@ export async function showGoToContextMenu(accessor: ServicesAccessor, editor: IC
 	if (part.part.command) {
 		const { command } = part.part;
 		menuActions.push(new Separator());
-		menuActions.push(new Action(command.id, command.title, undefined, true, () => {
-			commandService.executeCommand(command.id, ...(command.arguments ?? []));
+		menuActions.push(new Action(command.id, command.title, undefined, true, async () => {
+			try {
+				await commandService.executeCommand(command.id, ...(command.arguments ?? []));
+			} catch (err) {
+				notificationService.notify({
+					severity: Severity.Error,
+					source: part.item.provider.displayName,
+					message: err
+				});
+			}
 		}));
 	}
 

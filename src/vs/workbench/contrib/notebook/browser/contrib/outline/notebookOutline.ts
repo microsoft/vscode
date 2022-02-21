@@ -33,7 +33,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { IdleValue } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { executingStateIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -225,7 +225,7 @@ class NotebookOutlineAccessibility implements IListAccessibilityProvider<Outline
 }
 
 class NotebookNavigationLabelProvider implements IKeyboardNavigationLabelProvider<OutlineEntry> {
-	getKeyboardNavigationLabel(element: OutlineEntry): { toString(): string | undefined; } | { toString(): string | undefined; }[] | undefined {
+	getKeyboardNavigationLabel(element: OutlineEntry): { toString(): string | undefined } | { toString(): string | undefined }[] | undefined {
 		return element.label;
 	}
 }

@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { ReadableStream } from 'vs/base/common/stream';
-import { IBaseStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
+import { IBaseFileStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
@@ -96,7 +96,7 @@ export interface ITextFileService extends IDisposable {
 	 * Create files. If the file exists it will be overwritten with the contents if
 	 * the options enable to overwrite.
 	 */
-	create(operations: { resource: URI, value?: string | ITextSnapshot, options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
+	create(operations: { resource: URI; value?: string | ITextSnapshot; options?: { overwrite?: boolean } }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Returns the readable that uses the appropriate encoding. This method should
@@ -241,7 +241,7 @@ export const enum TextFileResolveReason {
 	OTHER = 3
 }
 
-interface IBaseTextFileContent extends IBaseStatWithMetadata {
+interface IBaseTextFileContent extends IBaseFileStatWithMetadata {
 
 	/**
 	 * The encoding of the content if known.
@@ -374,7 +374,7 @@ export interface ITextFileEditorModelManager {
 	/**
 	 * Runs the registered save participants on the provided model.
 	 */
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Waits for the model to be ready to be disposed. There may be conditions

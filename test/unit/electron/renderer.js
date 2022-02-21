@@ -56,7 +56,7 @@
 		['rmdir', 1],
 	].forEach((element) => {
 		intercept(element[0], element[1]);
-	})
+	});
 })();
 
 const { ipcRenderer } = require('electron');
@@ -112,7 +112,7 @@ function createCoverageReport(opts) {
 function loadWorkbenchTestingUtilsModule() {
 	return new Promise((resolve, reject) => {
 		loader.require(['vs/workbench/test/common/utils'], resolve, reject);
-	})
+	});
 }
 
 function loadTestModules(opts) {
@@ -199,7 +199,7 @@ function loadTests(opts) {
 				});
 			});
 		});
-	})
+	});
 }
 
 function serializeSuite(suite) {

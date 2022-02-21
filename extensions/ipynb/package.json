@@ -13,7 +13,7 @@
 		"notebookEditorEdit"
 	],
 	"activationEvents": [
-		"onNotebook:jupyter-notebook"
+		"*"
 	],
 	"extensionKind": [
 		"workspace",
@@ -28,25 +28,10 @@
 		}
 	},
 	"contributes": {
-		"languages": [
+		"commands": [
 			{
-				"id": "jupyter",
-				"aliases": [
-					"Jupyter (JSON)"
-				],
-				"extensions": [
-					".ipynb"
-				]
-			}
-		],
-		"grammars": [
-			{
-				"language": "jupyter",
-				"scopeName": "source.jupyter",
-				"path": "./syntaxes/jupyter.tmLanguage.json",
-				"embeddedLanguages": {
-					"source.json": "json"
-				}
+				"command": "ipynb.newUntitledIpynb",
+				"title": "Jupyter Notebook"
 			}
 		],
 		"notebooks": [
@@ -60,7 +45,15 @@
 				],
 				"priority": "default"
 			}
-		]
+		],
+		"menus": {
+			"file/newFile": [
+				{
+					"command": "ipynb.newUntitledIpynb",
+					"when": "!jupyterEnabled"
+				}
+			]
+		}
 	},
 	"scripts": {
 		"compile": "npx gulp compile-extension:ipynb",

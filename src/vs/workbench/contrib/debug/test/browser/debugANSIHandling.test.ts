@@ -38,7 +38,7 @@ suite('Debug - ANSI Handling', () => {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		linkDetector = instantiationService.createInstance(LinkDetector);
 
-		const colors: { [id: string]: string; } = {};
+		const colors: { [id: string]: string } = {};
 		for (const color in ansiColorMap) {
 			colors[color] = <any>ansiColorMap[color].defaults.dark;
 		}

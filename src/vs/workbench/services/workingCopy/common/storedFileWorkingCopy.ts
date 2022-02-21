@@ -430,7 +430,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		let size: number;
 		let etag: string;
 		try {
-			const metadata = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			const metadata = await this.fileService.stat(this.resource);
 			mtime = metadata.mtime;
 			ctime = metadata.ctime;
 			size = metadata.size;
@@ -593,7 +593,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
-			isSymbolicLink: false
+			isSymbolicLink: false,
+			children: undefined
 		});
 
 		// Update existing model if we had been resolved

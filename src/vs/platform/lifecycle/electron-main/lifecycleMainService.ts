@@ -13,10 +13,10 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, logCi } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/windows/electron-main/windows';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -109,7 +109,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Restart the application with optional arguments (CLI). All lifecycle event handlers are triggered.
 	 */
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
+	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 
 	/**
 	 * Shutdown the application normally. All lifecycle event handlers are triggered.
@@ -548,7 +548,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		return this.pendingQuitPromise;
 	}
 
-	async relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void> {
+	async relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
 		this.logService.trace('Lifecycle#relaunch()');
 
 		const args = process.argv.slice(1);
@@ -596,9 +596,9 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	async kill(code?: number): Promise<void> {
-		this.logService.trace('Lifecycle#kill()');
+		logCi(this.logService, 'Lifecycle#kill()');
 
-		// Give main process participants a chance to oderly shutdown
+		// Give main process participants a chance to orderly shutdown
 		await this.fireOnWillShutdown();
 
 		// From extension tests we have seen issues where calling app.exit()
@@ -625,12 +625,16 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 							whenWindowClosed = Promise.resolve();
 						}
 
+						logCi(this.logService, 'Lifecycle#kill() - window.destroy()');
 						window.destroy();
 						await whenWindowClosed;
+						logCi(this.logService, 'Lifecycle#kill() - window closed');
 					}
 				}
 			})()
 		]);
+
+		logCi(this.logService, `Lifecycle#kill() - app.exit(${code})`);
 
 		// Now exit either after 1s or all windows destroyed
 		app.exit(code);

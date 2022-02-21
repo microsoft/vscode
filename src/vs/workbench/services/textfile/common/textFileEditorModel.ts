@@ -11,7 +11,7 @@ import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
 import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
@@ -319,7 +319,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		let size: number;
 		let etag: string;
 		try {
-			const metadata = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			const metadata = await this.fileService.stat(this.resource);
 			mtime = metadata.mtime;
 			ctime = metadata.ctime;
 			size = metadata.size;
@@ -492,7 +492,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
-			isSymbolicLink: false
+			isSymbolicLink: false,
+			children: undefined
 		});
 
 		// Keep the original encoding to not loose it when saving

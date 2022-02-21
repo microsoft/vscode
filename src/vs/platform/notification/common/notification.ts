@@ -93,7 +93,7 @@ export interface INotification extends INotificationProperties {
 	/**
 	 * The source of the notification appears as additional information.
 	 */
-	readonly source?: string | { label: string; id: string; };
+	readonly source?: string | { label: string; id: string };
 
 	/**
 	 * Actions to show as part of the notification. Primary actions show up as
@@ -357,7 +357,7 @@ export interface INotificationService {
 	 *
 	 * @param severity the severity of the notification. Either `Info`, `Warning` or `Error`.
 	 * @param message the message to show as status.
-	 * @param choices options to be choosen from.
+	 * @param choices options to be chosen from.
 	 * @param options provides some optional configuration options.
 	 *
 	 * @returns a handle on the notification to e.g. hide it or update message, buttons, etc.

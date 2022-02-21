@@ -158,7 +158,7 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 }
 
-export class PreReleaseIndicatorWidget extends ExtensionWidget {
+export class RunningPreReleaseVersionIndicatorWidget extends ExtensionWidget {
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -171,15 +171,9 @@ export class PreReleaseIndicatorWidget extends ExtensionWidget {
 	render(): void {
 		this.container.innerText = '';
 
-		if (!this.extension) {
-			return;
-		}
-
-		if (!this.extension.local?.isPreReleaseVersion && !this.extension.gallery?.properties.isPreReleaseVersion) {
-			return;
-		}
-
-		if (this.extension.state !== ExtensionState.Installed) {
+		if (!this.extension
+			|| this.extension.state !== ExtensionState.Installed
+			|| !this.extension.local?.isPreReleaseVersion) {
 			return;
 		}
 
@@ -486,10 +480,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		}
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
-		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;_v${this.extension.version}_`);
-		if (this.extension.local?.isPreReleaseVersion || this.extension.gallery?.properties.isPreReleaseVersion) {
+		markdown.appendMarkdown(`**${this.extension.displayName}**&nbsp;<span style="background-color:#8080802B;">**&nbsp;_v${this.extension.version}_**&nbsp;</span>`);
+		if (this.extension.state === ExtensionState.Installed ? this.extension.local?.isPreReleaseVersion : this.extension.gallery?.properties.isPreReleaseVersion) {
 			const extensionPreReleaseIcon = this.themeService.getColorTheme().getColor(extensionPreReleaseIconColor);
-			markdown.appendMarkdown(`&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);
+			markdown.appendMarkdown(`**&nbsp;**&nbsp;<span style="color:#ffffff;background-color:${extensionPreReleaseIcon ? Color.Format.CSS.formatHex(extensionPreReleaseIcon) : '#ffffff'};">&nbsp;$(${preReleaseIcon.id})&nbsp;${localize('pre-release-label', "Pre-Release")}&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 

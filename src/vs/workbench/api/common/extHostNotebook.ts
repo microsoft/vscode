@@ -225,7 +225,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
-	async createNotebookDocument(options: { viewType: string, content?: vscode.NotebookData }): Promise<URI> {
+	async createNotebookDocument(options: { viewType: string; content?: vscode.NotebookData }): Promise<URI> {
 		const canonicalUri = await this._notebookDocumentsProxy.$tryCreateNotebook({
 			viewType: options.viewType,
 			content: options.content && typeConverters.NotebookData.from(options.content)

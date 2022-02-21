@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { runWhenIdle, IdleDeadline } from 'vs/base/common/async';
@@ -42,9 +42,9 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 	private instantiationService: IInstantiationService | undefined;
 	private lifecycleService: ILifecycleService | undefined;
 
-	private readonly toBeInstantiated = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
+	private readonly toBeInstantiated = new Map<LifecyclePhase, IConstructorSignature<IWorkbenchContribution>[]>();
 
-	registerWorkbenchContribution(ctor: IConstructorSignature0<IWorkbenchContribution>, phase: LifecyclePhase = LifecyclePhase.Starting): void {
+	registerWorkbenchContribution(ctor: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase = LifecyclePhase.Starting): void {
 
 		// Instantiate directly if we are already matching the provided phase
 		if (this.instantiationService && this.lifecycleService && this.lifecycleService.phase >= phase) {
@@ -59,7 +59,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				this.toBeInstantiated.set(phase, toBeInstantiated);
 			}
 
-			toBeInstantiated.push(ctor as IConstructorSignature0<IWorkbenchContribution>);
+			toBeInstantiated.push(ctor as IConstructorSignature<IWorkbenchContribution>);
 		}
 	}
 
@@ -116,7 +116,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 		}
 	}
 
-	private safeCreateInstance(instantiationService: IInstantiationService, ctor: IConstructorSignature0<IWorkbenchContribution>): void {
+	private safeCreateInstance(instantiationService: IInstantiationService, ctor: IConstructorSignature<IWorkbenchContribution>): void {
 		try {
 			instantiationService.createInstance(ctor);
 		} catch (error) {
