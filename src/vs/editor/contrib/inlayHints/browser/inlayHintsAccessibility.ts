@@ -81,6 +81,8 @@ export class InlayHintsAccessibility {
 		const newChildren: (string | HTMLElement)[] = [];
 
 		let start = 0;
+		let tooLongToRead = false;
+
 		for (const item of hints) {
 
 			// text
@@ -88,6 +90,13 @@ export class InlayHintsAccessibility {
 			if (part.length > 0) {
 				newChildren.push(part);
 				start = item.hint.position.column - 1;
+			}
+
+			// check length
+			if (start > 750) {
+				newChildren.push('…');
+				tooLongToRead = true;
+				break;
 			}
 
 			// hint
@@ -113,9 +122,11 @@ export class InlayHintsAccessibility {
 		}
 
 		// trailing text
-		newChildren.push(model.getValueInRange({ startLineNumber: line, startColumn: start + 1, endLineNumber: line, endColumn: Number.MAX_SAFE_INTEGER }));
-		dom.reset(this._ariaElement, ...newChildren);
+		if (!tooLongToRead) {
+			newChildren.push(model.getValueInRange({ startLineNumber: line, startColumn: start + 1, endLineNumber: line, endColumn: Number.MAX_SAFE_INTEGER }));
+		}
 
+		dom.reset(this._ariaElement, ...newChildren);
 		this._ariaElement.focus();
 		this._ctxIsReading.set(true);
 
