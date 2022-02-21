@@ -9,7 +9,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { fromEvent, IObservable, LazyDerived } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { observableFromEvent, IObservable, LazyDerived } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 
@@ -24,7 +24,7 @@ export interface IAudioCueService {
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
 
-	private readonly screenReaderAttached = fromEvent(
+	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => this.accessibilityService.isScreenReaderOptimized()
 	);
@@ -63,7 +63,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	private readonly isEnabledCache = new Cache((cue: AudioCue) => {
-		const settingObservable = fromEvent(
+		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
 				e.affectsConfiguration(cue.settingsKey)
 			),
