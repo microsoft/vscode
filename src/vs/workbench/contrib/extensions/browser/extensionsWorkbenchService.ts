@@ -954,6 +954,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			});
 		}
 
+		if (!extension && this.extensionManagementServerService.webExtensionManagementServer) {
+			extension = extensionsToChoose.find(extension => {
+				for (const extensionKind of extensionKinds) {
+					switch (extensionKind) {
+						case 'web':
+							/* Choose web extension if exists */
+							if (extension.server === this.extensionManagementServerService.webExtensionManagementServer) {
+								return true;
+							}
+							return false;
+					}
+				}
+				return false;
+			});
+		}
+
 		if (!extension && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			extension = extensionsToChoose.find(extension => {
 				for (const extensionKind of extensionKinds) {
