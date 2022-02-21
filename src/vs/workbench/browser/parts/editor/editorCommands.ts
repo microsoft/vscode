@@ -739,7 +739,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 
 	// Copy the editor to the new group, else create an empty group
 	if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
-		sourceGroup.copyEditor(editorToCopy, newGroup);
+		sourceGroup.copyEditor(editorToCopy, newGroup, { preserveFocus: context?.preserveFocus });
 	}
 
 	// Focus
@@ -806,7 +806,7 @@ function registerCloseEditorCommands() {
 					.map(editor => typeof editor.editorIndex === 'number' ? group.getEditorByIndex(editor.editorIndex) : group.activeEditor))
 					.filter(editor => !keepStickyEditors || !group.isSticky(editor));
 
-				return group.closeEditors(editorsToClose);
+				return group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
 			}
 		}));
 	}
@@ -871,7 +871,7 @@ function registerCloseEditorCommands() {
 		handler: (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			return Promise.all(getEditorsContext(accessor, resourceOrContext, context).groups.map(async group => {
 				if (group) {
-					return group.closeEditors({ savedOnly: true, excludeSticky: true });
+					return group.closeEditors({ savedOnly: true, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
 				}
 			}));
 		}
@@ -899,7 +899,7 @@ function registerCloseEditorCommands() {
 						}
 					}
 
-					return group.closeEditors(editorsToClose);
+					return group.closeEditors(editorsToClose, { preserveFocus: context?.preserveFocus });
 				}
 			}));
 		}
@@ -919,7 +919,7 @@ function registerCloseEditorCommands() {
 					group.pinEditor(group.activeEditor);
 				}
 
-				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true });
+				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor, excludeSticky: true }, { preserveFocus: context?.preserveFocus });
 			}
 		}
 	});
