@@ -30,7 +30,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { WorkbenchStateContext, RemoteNameContext, OpenFolderWorkspaceSupportContext } from 'vs/workbench/common/contextkeys';
-import { IsIOSContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
@@ -297,8 +297,6 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	when: ContextKeyExpr.and(
 		// inside a .code-workspace
 		WorkbenchStateContext.isEqualTo('workspace'),
-		// but not on iOS (TODO@isidorn why?)
-		IsIOSContext.toNegated(),
 		// unless we cannot enter or open workspaces (e.g. web serverless)
 		OpenFolderWorkspaceSupportContext
 	),

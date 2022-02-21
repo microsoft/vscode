@@ -69,7 +69,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
@@ -356,7 +355,7 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'openFolder': {
-				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsIOSContext.toNegated()))) {
+				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace')))) {
 					this.commandService.executeCommand(AddRootFolderAction.ID);
 				} else {
 					this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
