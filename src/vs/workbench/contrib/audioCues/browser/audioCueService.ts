@@ -169,9 +169,9 @@ export class AudioCue {
 	});
 
 	public static readonly noInlayHints = AudioCue.register({
-		name: localize('audioClues.noInlayHints', 'No Inlay Hints available for the current line'),
+		name: localize('audioCues.noInlayHints', 'No Inlay Hints available for the current line'),
 		sound: Sound.error,
-		settingsKey: 'audioClues.noInlayHints'
+		settingsKey: 'audioCues.noInlayHints'
 	});
 
 	private constructor(
