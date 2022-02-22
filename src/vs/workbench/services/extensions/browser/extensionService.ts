@@ -201,11 +201,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// takes care of duplicates and picks a running location for each extension
 		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
 
-		// Remote extensions can run locally in the web worker, so mix everything up and split them again based on running location
-		// NOTE: An extension can appear twice in `allExtensions`, but it will be filtered out based on running location below:
-		const allExtensions = remoteExtensions.concat(localExtensions);
-		localExtensions = filterByRunningLocation(allExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
-		remoteExtensions = filterByRunningLocation(allExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
+		localExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
+		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
 
 		const result = this._registry.deltaExtensions(remoteExtensions.concat(localExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
