@@ -75,6 +75,7 @@ import { ITestResult, maxCountPriority, resultItemParents, TestResultItemChange,
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 
 class TestDto {
 	public readonly test: ITestItem;
@@ -1275,6 +1276,19 @@ class OutputPeekTree extends Disposable {
 			};
 		});
 
+		// Queued result updates to prevent spamming CPU when lots of tests are
+		// completing and messaging quickly (#142514)
+		const resultsToUpdate = new Set<ITestResult>();
+		const resultUpdateScheduler = this._register(new RunOnceScheduler(() => {
+			for (const result of resultsToUpdate) {
+				const resultNode = creationCache.get(result);
+				if (resultNode && this.tree.hasElement(resultNode)) {
+					this.tree.setChildren(resultNode, getResultChildren(result), { diffIdentityProvider });
+				}
+			}
+			resultsToUpdate.clear();
+		}, 300));
+
 		this._register(results.onTestChanged(e => {
 			const itemNode = creationCache.get(e.item);
 			if (itemNode && this.tree.hasElement(itemNode)) { // update to existing test message/state
@@ -1283,8 +1297,11 @@ class OutputPeekTree extends Disposable {
 			}
 
 			const resultNode = creationCache.get(e.result);
-			if (resultNode && this.tree.hasElement(resultNode)) { // new test
-				this.tree.setChildren(null, getRootChildren(), { diffIdentityProvider });
+			if (resultNode && this.tree.hasElement(resultNode)) { // new test, update result children
+				if (!resultUpdateScheduler.isScheduled) {
+					resultsToUpdate.add(e.result);
+					resultUpdateScheduler.schedule();
+				}
 				return;
 			}
 
