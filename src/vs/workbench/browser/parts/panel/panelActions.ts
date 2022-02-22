@@ -462,8 +462,8 @@ export class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
 		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
 			id: MovePanelToSidePanelAction.ID,
 			title: {
-				value: localize('movePanelToSidePanel', "Move Views From Panel To Side Panel"),
-				original: 'Move Views From Panel To Side Panel'
+				value: localize('movePanelToSidePanel', "Move Panel Views To Side Panel"),
+				original: 'Move Panel Views To Side Panel'
 			},
 			category: CATEGORIES.View,
 			f1: true,
@@ -488,8 +488,8 @@ export class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
 			id: MoveSidePanelToPanelAction.ID,
 			title: {
-				value: localize('moveSidePanelToPanel', "Move Views From Side Panel To Panel"),
-				original: 'Move Views From Side Panel To Panel'
+				value: localize('moveSidePanelToPanel', "Move Side Panel Views To Panel"),
+				original: 'Move Side Panel Views To Panel'
 			},
 			category: CATEGORIES.View,
 			f1: true
