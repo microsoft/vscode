@@ -23,7 +23,7 @@ let _enableDisposeWithListenerWarning = false;
 // See https://github.com/microsoft/vscode/issues/142851
 // -----------------------------------------------------------------------------------------------------------------------
 let _enableSnapshotPotentialLeakWarning = false;
-_enableSnapshotPotentialLeakWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
+// _enableSnapshotPotentialLeakWarning = Boolean("TRUE"); // causes a linter warning so that it cannot be pushed
 
 /**
  * To an event a function with one or zero parameters
