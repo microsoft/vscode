@@ -280,8 +280,9 @@ async function ensureStableCode(): Promise<void> {
 
 		let lastProgressMessage: string | undefined = undefined;
 		let lastProgressReportedAt = 0;
-		const stableCodeExecutable = await measureAndLog(vscodetest.download({
-			cachePath: path.join(os.tmpdir(), 'vscode-test'),
+		const stableCodeDestination = path.join(testDataPath, 's');
+		const stableCodeExecutable = await retry(() => measureAndLog(vscodetest.download({
+			cachePath: stableCodeDestination,
 			version: previousVersion.version,
 			extractSync: true,
 			reporter: {
@@ -301,7 +302,15 @@ async function ensureStableCode(): Promise<void> {
 				},
 				error: error => logger.log(`download stable code error: ${error}`)
 			}
-		}), 'download stable code', logger);
+		}), 'download stable code', logger), 1000, 3, () => new Promise<void>((resolve, reject) => {
+			rimraf(stableCodeDestination, { maxBusyTries: 10 }, error => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve();
+				}
+			});
+		}));
 
 		if (process.platform === 'darwin') {
 			// Visual Studio Code.app/Contents/MacOS/Electron
