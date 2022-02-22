@@ -14801,7 +14801,7 @@ declare module 'vscode' {
 		 * removed tests.
 		 *
 		 * It's recommended that extensions try to update tests in realtime, using
-		 * a {@link FileWatcher} for example, and use this method as a fallback.
+		 * a {@link FileSystemWatcher} for example, and use this method as a fallback.
 		 *
 		 * @returns A thenable that resolves when tests have been refreshed.
 		 */

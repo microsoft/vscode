@@ -536,11 +536,16 @@ var requirejs = (function() {
 					this.openerService.open(CellUri.generateCellOutputUri(this.documentUri, outputId));
 					return;
 				}
-				console.warn('Command links are deprecated and will be removed, use messag passing instead: https://github.com/microsoft/vscode/issues/123601');
+				console.warn('Command links are deprecated and will be removed, use message passing instead: https://github.com/microsoft/vscode/issues/123601');
 			}
 
-			if (matchesScheme(link, Schemas.vscodeNotebookCell) || matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
-				|| matchesScheme(link, Schemas.command)) {
+			if (matchesScheme(link, Schemas.command)) {
+				if (this.workspaceTrustManagementService.isWorkspaceTrusted()) {
+					this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
+				} else {
+					console.warn('Command links are disabled in untrusted workspaces');
+				}
+			} else if (matchesScheme(link, Schemas.vscodeNotebookCell) || matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
 				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
 			}
 		}));
