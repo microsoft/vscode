@@ -128,23 +128,23 @@
 	z-index: 3000;
 	-webkit-app-region: no-drag;
 	height: 100%;
-	width: 138px;
+	min-width: 138px;
 	margin-left: auto;
 }
 
 .monaco-workbench .part.titlebar > .window-controls-container.show-layout-control {
-	width: 160px;
+	min-width: 160px;
 }
 
 .monaco-workbench.web .part.titlebar > .window-controls-container.show-layout-control {
-	width: 28px;
+	min-width: 28px;
 	padding-right: 8px;
 }
 
 .monaco-workbench.mac:not(.web) .part.titlebar > .window-controls-container {
 	position: absolute;
 	right: 8px;
-	width: 28px;
+	min-width: 28px;
 	display: none;
 }
 
@@ -158,6 +158,7 @@
 }
 
 .monaco-workbench .part.titlebar > .window-controls-container > .layout-dropdown-container {
+	padding-right: 2px;
 	display: none;
 }
 
@@ -167,7 +168,7 @@
 }
 
 .monaco-workbench:not(.mac):not(.web) .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container {
-	width: 46px;
+	min-width: 46px;
 }
 
 .monaco-workbench .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container .codicon {

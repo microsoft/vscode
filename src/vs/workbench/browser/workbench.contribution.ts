@@ -379,7 +379,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'tags': ['experimental'],
 				'default': false,
-				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
+				'description': localize('layoutControlEnabled', "Controls whether the layout controls in the custom title bar is enabled."),
+			},
+			'workbench.experimental.layoutControl.type': {
+				'type': 'string',
+				'enum': ['menu', 'toggles', 'both'],
+				'tags': ['experimental'],
+				'default': 'menu',
+				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
 		}
 	});

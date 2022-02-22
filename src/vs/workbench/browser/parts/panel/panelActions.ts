@@ -26,6 +26,7 @@ import { ICommandActionTitle } from 'vs/platform/action/common/action';
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
 const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
+const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localize('togglePanelIcon', 'Icon to toggle the panel.'));
 
 export class TogglePanelAction extends Action {
 
@@ -426,15 +427,28 @@ MenuRegistry.appendMenuItems([
 			order: 5
 		}
 	}, {
-		id: MenuId.LayoutControlMenu,
+		id: MenuId.LayoutControlMenuSubmenu,
 		item: {
 			group: '0_workbench_layout',
 			command: {
 				id: TogglePanelAction.ID,
-				title: localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+				title: localize('miShowPanelNoMnemonic', "Show Panel"),
 				toggled: PanelVisibleContext
 			},
 			order: 4
+		}
+	}, {
+		id: MenuId.LayoutControlMenu,
+		item: {
+			group: '0_workbench_toggles',
+			command: {
+				id: TogglePanelAction.ID,
+				title: localize('togglePanel', "Toggle Panel"),
+				icon: panelIcon,
+				toggled: PanelVisibleContext
+			},
+			when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both')),
+			order: 1
 		}
 	}, {
 		id: MenuId.ViewTitleContext,
