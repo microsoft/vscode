@@ -109,11 +109,15 @@ export class AudioCueLineFeatureContribution
 		);
 		const debouncedLineNumber = debouncedObservable(curLineNumber, 100, store);
 
-		const isFeaturePresentInDebouncedLine = (
-			feature: LineFeature,
-			lineFeatureState: IObservable<LineFeatureState>
-		): IObservable<boolean> =>
-			derivedObservable(
+		const isTyping = wasEventTriggeredRecently(
+			editorModel.onDidChangeContent.bind(editorModel),
+			1000,
+			store
+		);
+
+		const featureStates = this.features.map((feature) => {
+			const lineFeatureState = feature.getObservableState(editor, editorModel);
+			const isFeaturePresent = derivedObservable(
 				`isPresentInLine:${feature.audioCue.name}`,
 				(reader) => {
 					if (!this.audioCueService.isEnabled(feature.audioCue).read(reader)) {
@@ -125,18 +129,6 @@ export class AudioCueLineFeatureContribution
 						: lineFeatureState.read(reader).isPresent(lineNumber);
 				}
 			);
-
-		const isTyping = wasEventTriggeredRecently(
-			editorModel.onDidChangeContent.bind(editorModel),
-			1000,
-			store
-		);
-
-		const featureStates = this.features.map((feature) => {
-			const isFeaturePresent = isFeaturePresentInDebouncedLine(
-				feature,
-				feature.getObservableState(editor, editorModel)
-			);
 			return derivedObservable(
 				`typingDebouncedFeatureState:\n${feature.audioCue.name}`,
 				(reader) =>
@@ -147,7 +139,7 @@ export class AudioCueLineFeatureContribution
 		});
 
 		const state = derivedObservable(
-			'state',
+			'states',
 			(reader) => ({
 				lineNumber: debouncedLineNumber.read(reader),
 				featureStates: new Map(
@@ -160,7 +152,7 @@ export class AudioCueLineFeatureContribution
 		);
 
 		store.add(
-			autorunDelta(state, ({ lastValue, newValue }) => {
+			autorunDelta('Play Audio Cue', state, ({ lastValue, newValue }) => {
 				for (const feature of this.features) {
 					if (
 						newValue?.featureStates.get(feature) &&

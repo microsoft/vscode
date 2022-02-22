@@ -318,6 +318,7 @@ export namespace autorun {
 	export const Observer = AutorunObserver;
 }
 export function autorunDelta<T>(
+	name: string,
 	observable: IObservable<T>,
 	handler: (args: { lastValue: T | undefined; newValue: T }) => void
 ): IDisposable {
@@ -327,7 +328,7 @@ export function autorunDelta<T>(
 		const lastValue = _lastValue;
 		_lastValue = newValue;
 		handler({ lastValue, newValue });
-	}, '');
+	}, name);
 }
 
 
