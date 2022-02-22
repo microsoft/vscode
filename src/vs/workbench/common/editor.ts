@@ -842,6 +842,8 @@ export function isEditorIdentifier(identifier: unknown): identifier is IEditorId
 export interface IEditorCommandsContext {
 	groupId: GroupIdentifier;
 	editorIndex?: number;
+
+	preserveFocus?: boolean;
 }
 
 /**
@@ -1277,7 +1279,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 		let type = path.type;
 		if (typeof exists !== 'boolean' || typeof type !== 'number') {
 			try {
-				type = (await fileService.resolve(resource)).isDirectory ? FileType.Directory : FileType.Unknown;
+				type = (await fileService.stat(resource)).isDirectory ? FileType.Directory : FileType.Unknown;
 				exists = true;
 			} catch {
 				exists = false;

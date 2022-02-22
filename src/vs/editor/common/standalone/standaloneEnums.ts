@@ -575,10 +575,14 @@ export enum KeyCode {
 	LaunchMail = 124,
 	LaunchApp2 = 125,
 	/**
+	 * VK_CLEAR, 0x0C, CLEAR key
+	 */
+	Clear = 126,
+	/**
 	 * Placed last to cover the length of the enum.
 	 * Please do not depend on this value!
 	 */
-	MAX_VALUE = 126
+	MAX_VALUE = 127
 }
 
 export enum MarkerSeverity {

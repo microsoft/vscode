@@ -20,6 +20,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IThemable } from 'vs/base/common/styler';
+import { isIterable } from 'vs/base/common/types';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -764,15 +765,19 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		if (!node.hasChildren) {
 			childrenPromise = Promise.resolve(Iterable.empty());
 		} else {
-			const slowTimeout = timeout(800);
+			const children = this.doGetChildren(node);
+			if (isIterable(children)) {
+				childrenPromise = Promise.resolve(children);
+			} else {
+				const slowTimeout = timeout(800);
 
-			slowTimeout.then(() => {
-				node.slow = true;
-				this._onDidChangeNodeSlowState.fire(node);
-			}, _ => null);
+				slowTimeout.then(() => {
+					node.slow = true;
+					this._onDidChangeNodeSlowState.fire(node);
+				}, _ => null);
 
-			childrenPromise = this.doGetChildren(node)
-				.finally(() => slowTimeout.cancel());
+				childrenPromise = children.finally(() => slowTimeout.cancel());
+			}
 		}
 
 		try {
@@ -796,21 +801,20 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		}
 	}
 
-	private doGetChildren(node: IAsyncDataTreeNode<TInput, T>): Promise<Iterable<T>> {
+	private doGetChildren(node: IAsyncDataTreeNode<TInput, T>): Promise<Iterable<T>> | Iterable<T> {
 		let result = this.refreshPromises.get(node);
 
 		if (result) {
 			return result;
 		}
-
-		result = createCancelablePromise(async () => {
-			const children = await this.dataSource.getChildren(node.element!);
+		const children = this.dataSource.getChildren(node.element!);
+		if (isIterable(children)) {
 			return this.processChildren(children);
-		});
-
-		this.refreshPromises.set(node, result);
-
-		return result.finally(() => { this.refreshPromises.delete(node); });
+		} else {
+			result = createCancelablePromise(async () => this.processChildren(await children));
+			this.refreshPromises.set(node, result);
+			return result.finally(() => { this.refreshPromises.delete(node); });
+		}
 	}
 
 	private _onDidChangeCollapseState({ node, deep }: ICollapseStateChangeEvent<IAsyncDataTreeNode<TInput, T> | null, any>): void {

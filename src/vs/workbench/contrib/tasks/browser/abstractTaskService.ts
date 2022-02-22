@@ -22,7 +22,7 @@ import { LRUCache, Touch } from 'vs/base/common/map';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
@@ -3008,7 +3008,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private openTaskFile(resource: URI, taskSource: string) {
 		let configFileCreated = false;
-		this.fileService.resolve(resource).then((stat) => stat, () => undefined).then(async (stat) => {
+		this.fileService.stat(resource).then((stat) => stat, () => undefined).then(async (stat) => {
 			const fileExists: boolean = !!stat;
 			const configValue = this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
 			let tasksExistInFile: boolean;
@@ -3125,8 +3125,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			taskPromise = Promise.resolve(new TaskMap());
 		}
 
-		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStat | undefined>>((folder) => {
-			return this.fileService.resolve(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
+		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStatWithPartialMetadata | undefined>>((folder) => {
+			return this.fileService.stat(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
 		});
 
 		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');

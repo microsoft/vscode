@@ -23,7 +23,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -148,7 +148,6 @@ import { env } from 'vs/base/common/process';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
@@ -991,11 +990,16 @@ export class TestFileService implements IFileService {
 			isDirectory: false,
 			isSymbolicLink: false,
 			readonly: this.readonly,
-			name: basename(resource)
+			name: basename(resource),
+			children: undefined
 		});
 	}
 
-	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+		return this.resolve(resource, { resolveMetadata: true });
+	}
+
+	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {
 		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
 
 		return stats.map(stat => ({ stat, success: true }));
@@ -1066,7 +1070,8 @@ export class TestFileService implements IFileService {
 			isDirectory: false,
 			isSymbolicLink: false,
 			readonly: this.readonly,
-			name: basename(resource)
+			name: basename(resource),
+			children: undefined
 		});
 	}
 
@@ -1903,43 +1908,4 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> { return null; }
 	canNavigateValueSet(resource: URI): boolean { return false; }
 	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
-}
-
-export class TestClipboardService implements IClipboardService {
-
-	_serviceBrand: undefined;
-
-	private text: string | undefined = undefined;
-
-	async writeText(text: string, type?: string): Promise<void> {
-		this.text = text;
-	}
-
-	async readText(type?: string): Promise<string> {
-		return this.text ?? '';
-	}
-
-	private findText: string | undefined = undefined;
-
-	async readFindText(): Promise<string> {
-		return this.findText ?? '';
-	}
-
-	async writeFindText(text: string): Promise<void> {
-		this.findText = text;
-	}
-
-	private resources: URI[] | undefined = undefined;
-
-	async writeResources(resources: URI[]): Promise<void> {
-		this.resources = resources;
-	}
-
-	async readResources(): Promise<URI[]> {
-		return this.resources ?? [];
-	}
-
-	async hasResources(): Promise<boolean> {
-		return Array.isArray(this.resources) && this.resources.length > 0;
-	}
 }

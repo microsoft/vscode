@@ -40,6 +40,7 @@ export interface IExtensionHostManager {
 	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
 	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
+	activationEventIsDone(activationEvent: string): boolean;
 	getInspectPort(tryEnableInspector: boolean): Promise<number>;
 	resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
 	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI>;
@@ -86,6 +87,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	 * A map of already requested activation events to speed things up if the same activation event is triggered multiple times.
 	 */
 	private readonly _cachedActivationEvents: Map<string, Promise<void>>;
+	private readonly _resolvedActivationEvents: Set<string>;
 	private _rpcProtocol: RPCProtocol | null;
 	private readonly _customers: IDisposable[];
 	private readonly _extensionHost: IExtensionHost;
@@ -104,6 +106,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	) {
 		super();
 		this._cachedActivationEvents = new Map<string, Promise<void>>();
+		this._resolvedActivationEvents = new Set<string>();
 		this._rpcProtocol = null;
 		this._customers = [];
 
@@ -325,6 +328,10 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return this._cachedActivationEvents.get(activationEvent)!;
 	}
 
+	public activationEventIsDone(activationEvent: string): boolean {
+		return this._resolvedActivationEvents.has(activationEvent);
+	}
+
 	private async _activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
 		if (!this._proxy) {
 			return;
@@ -335,7 +342,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			// i.e. the extension host could not be started
 			return;
 		}
-		return proxy.activateByEvent(activationEvent, activationKind);
+		await proxy.activateByEvent(activationEvent, activationKind);
+		this._resolvedActivationEvents.add(activationEvent);
 	}
 
 	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
@@ -518,6 +526,15 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		if (this._actual) {
 			return this._actual.activateByEvent(activationEvent, activationKind);
 		}
+	}
+	public activationEventIsDone(activationEvent: string): boolean {
+		if (!this._startCalled.isOpen()) {
+			return false;
+		}
+		if (this._actual) {
+			return this._actual.activationEventIsDone(activationEvent);
+		}
+		return true;
 	}
 	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		await this._startCalled.wait();

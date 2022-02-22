@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownEvent, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -46,6 +46,7 @@ suite('StorageMainService', function () {
 			const joiners: Promise<void>[] = [];
 
 			this._onWillShutdown.fire({
+				reason: ShutdownReason.QUIT,
 				join(promise) {
 					joiners.push(promise);
 				}

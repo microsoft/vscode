@@ -9,8 +9,9 @@ import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { fromEvent, IObservable, LazyDerived } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { observableFromEvent, IObservable, LazyDerived } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { Event } from 'vs/base/common/event';
+import { localize } from 'vs/nls';
 
 export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 
@@ -23,12 +24,7 @@ export interface IAudioCueService {
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
 
-	private readonly audioCueEnabledObservables = new Map<
-		AudioCue,
-		IObservable<boolean>
-	>();
-
-	private readonly screenReaderAttached = fromEvent(
+	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => this.accessibilityService.isScreenReaderOptimized()
 	);
@@ -41,12 +37,14 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	public async playAudioCue(cue: AudioCue): Promise<void> {
-		await this.playSound(cue.sound);
+		if (this.isEnabled(cue).get()) {
+			await this.playSound(cue.sound);
+		}
 	}
 
 	private async playSound(sound: Sound): Promise<void> {
 		const url = FileAccess.asBrowserUri(
-			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}.opus`,
+			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`,
 			require
 		).toString();
 		const audio = new Audio(url);
@@ -64,27 +62,42 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 	}
 
+	private readonly isEnabledCache = new Cache((cue: AudioCue) => {
+		const settingObservable = observableFromEvent(
+			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
+				e.affectsConfiguration(cue.settingsKey)
+			),
+			() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
+		);
+		return new LazyDerived(reader => {
+			const setting = settingObservable.read(reader);
+			if (setting === 'auto') {
+				return this.screenReaderAttached.read(reader);
+			} else if (setting === 'on') {
+				return true;
+			}
+			return false;
+		}, 'audio cue enabled');
+	});
+
 	public isEnabled(cue: AudioCue): IObservable<boolean> {
-		let observable = this.audioCueEnabledObservables.get(cue);
-		if (!observable) {
-			const settingObservable = fromEvent(
-				Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
-					e.affectsConfiguration(cue.settingsKey)
-				),
-				() => this.configurationService.getValue<'on' | 'off' | 'auto'>(cue.settingsKey)
-			);
-			observable = new LazyDerived(reader => {
-				const setting = settingObservable.read(reader);
-				if (setting === 'auto') {
-					return this.screenReaderAttached.read(reader);
-				} else if (setting === 'on') {
-					return true;
-				}
-				return false;
-			}, 'audio cue enabled');
-			this.audioCueEnabledObservables.set(cue, observable);
+		return this.isEnabledCache.get(cue);
+	}
+}
+
+class Cache<TArg, TValue> {
+	private readonly map = new Map<TArg, TValue>();
+	constructor(private readonly getValue: (value: TArg) => TValue) {
+	}
+
+	public get(arg: TArg): TValue {
+		if (this.map.has(arg)) {
+			return this.map.get(arg)!;
 		}
-		return observable;
+
+		const value = this.getValue(arg);
+		this.map.set(arg, value);
+		return value;
 	}
 }
 
@@ -98,9 +111,10 @@ export class Sound {
 	}
 
 
-	public static readonly error = Sound.register({ fileName: 'error' });
-	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas' });
-	public static readonly break = Sound.register({ fileName: 'break' });
+	public static readonly error = Sound.register({ fileName: 'error.opus' });
+	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.opus' });
+	public static readonly break = Sound.register({ fileName: 'break.opus' });
+	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.opus' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -123,35 +137,41 @@ export class AudioCue {
 	}
 
 	public static readonly error = AudioCue.register({
-		name: 'Line has Error',
+		name: localize('audioCues.lineHasError.name', 'Line has Error'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasError',
 	});
 	public static readonly warning = AudioCue.register({
-		name: 'Line has Warning',
+		name: localize('audioCues.lineHasWarning.name', 'Line has Warning'),
 		sound: Sound.error,
 		settingsKey: 'audioCues.lineHasWarning',
 	});
 	public static readonly foldedArea = AudioCue.register({
-		name: 'Line has Folded Area',
+		name: localize('audioCues.lineHasFoldedArea.name', 'Line has Folded Area'),
 		sound: Sound.foldedArea,
 		settingsKey: 'audioCues.lineHasFoldedArea',
 	});
 	public static readonly break = AudioCue.register({
-		name: 'Line has Breakpoint',
+		name: localize('audioCues.lineHasBreakpoint.name', 'Line has Breakpoint'),
 		sound: Sound.break,
 		settingsKey: 'audioCues.lineHasBreakpoint',
 	});
 	public static readonly inlineSuggestion = AudioCue.register({
-		name: 'Line has Inline Suggestion Available',
-		sound: Sound.break,
+		name: localize('audioCues.lineHasInlineSuggestion.name', 'Line has Inline Suggestion Available'),
+		sound: Sound.quickFixes,
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
 
-	public static readonly executionStopped = AudioCue.register({
-		name: 'Debugger Execution Paused',
+	public static readonly debuggerStoppedOnBreakpoint = AudioCue.register({
+		name: 'Debugger Stopped On Breakpoint',
 		sound: Sound.break,
-		settingsKey: 'audioCues.debuggerExecutionPaused',
+		settingsKey: 'audioCues.debuggerStoppedOnBreakpoint',
+	});
+
+	public static readonly noInlayHints = AudioCue.register({
+		name: localize('audioCues.noInlayHints', 'No Inlay Hints available for the current line'),
+		sound: Sound.error,
+		settingsKey: 'audioCues.noInlayHints'
 	});
 
 	private constructor(

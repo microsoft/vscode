@@ -78,6 +78,7 @@ export interface ITerminalCapabilityImplMap {
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
+	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
@@ -87,6 +88,8 @@ export interface ICommandDetectionCapability {
 	 */
 	getCwdForLine(line: number): string | undefined;
 	handlePromptStart(): void;
+	handleContinuationStart(): void;
+	handleContinuationEnd(): void;
 	handleCommandStart(): void;
 	handleCommandExecuted(): void;
 	handleCommandFinished(exitCode: number | undefined): void;

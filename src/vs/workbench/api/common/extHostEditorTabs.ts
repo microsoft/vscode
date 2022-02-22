@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabKind } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -17,6 +17,7 @@ export interface IEditorTab {
 	resource: vscode.Uri | undefined;
 	viewId: string | undefined;
 	isActive: boolean;
+	kind: TabKind;
 	isDirty: boolean;
 	additionalResourcesAndViewIds: { resource: vscode.Uri | undefined; viewId: string | undefined }[];
 	move(index: number, viewColumn: ViewColumn): Promise<void>;
@@ -92,6 +93,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			additionalResourcesAndViewIds: tabDto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
 			viewId: tabDto.editorId,
 			isActive: tabDto.isActive,
+			kind: tabDto.kind,
 			isDirty: tabDto.isDirty,
 			move: async (index: number, viewColumn: ViewColumn) => {
 				this._proxy.$moveTab(tabDto, index, typeConverters.ViewColumn.from(viewColumn));

@@ -62,6 +62,6 @@ export class TerminalShellIntegrationLinkDetector implements ITerminalLinkDetect
 	}
 
 	private async _hideMessage() {
-		await this._configurationService.updateValue(TerminalSettingId.ShowShellIntegrationWelcome, false);
+		await this._configurationService.updateValue(TerminalSettingId.ShellIntegrationShowWelcome, false);
 	}
 }

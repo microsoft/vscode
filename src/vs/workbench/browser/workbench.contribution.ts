@@ -99,6 +99,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
+			'workbench.editor.languageDetectionPreferredLanguages': {
+				type: 'array',
+				default: ['cpp', 'csharp', 'css', 'html', 'java', 'javascript', 'json', 'markdown', 'php', 'python', 'typescript', 'yaml',],
+				items: {
+					type: 'string',
+					enum: ['bat', 'c', 'coffeescript', 'cpp', 'csharp', 'css', 'go', 'html', 'java', 'javascript', 'json', 'lua', 'markdown', 'objective-c', 'perl', 'php', 'powershell', 'python', 'r', 'ruby', 'rust', 'scala', 'sh', 'sql', 'swift', 'typescript', 'yaml',],
+				},
+				description: localize('workbench.editor.languageDetectionPreferredLanguages', "Configures languages automatic language detection will prefer to select for a given document. This applies primarily to short documents where there is insufficient data to confidently predict a language."),
+			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
 				'enum': ['left', 'right', 'off'],
@@ -370,7 +379,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'tags': ['experimental'],
 				'default': false,
-				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
+				'description': localize('layoutControlEnabled', "Controls whether the layout controls in the custom title bar is enabled."),
+			},
+			'workbench.experimental.layoutControl.type': {
+				'type': 'string',
+				'enum': ['menu', 'toggles', 'both'],
+				'tags': ['experimental'],
+				'default': 'menu',
+				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
 		}
 	});

@@ -169,19 +169,28 @@ const presentation: IJSONSchema = {
 const terminal: IJSONSchema = Objects.deepClone(presentation);
 terminal.deprecationMessage = nls.localize('JsonSchema.tasks.terminal', 'The terminal property is deprecated. Use presentation instead');
 
+const groupStrings: IJSONSchema = {
+	type: 'string',
+	enum: [
+		'build',
+		'test',
+		'none'
+	],
+	enumDescriptions: [
+		nls.localize('JsonSchema.tasks.group.build', 'Marks the task as a build task accessible through the \'Run Build Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.test', 'Marks the task as a test task accessible through the \'Run Test Task\' command.'),
+		nls.localize('JsonSchema.tasks.group.none', 'Assigns the task to no group')
+	],
+	description: nls.localize('JsonSchema.tasks.group.kind', 'The task\'s execution group.')
+};
+
 const group: IJSONSchema = {
 	oneOf: [
-		{
-			type: 'string',
-		},
+		groupStrings,
 		{
 			type: 'object',
 			properties: {
-				kind: {
-					type: 'string',
-					default: 'none',
-					description: nls.localize('JsonSchema.tasks.group.kind', 'The task\'s execution group.')
-				},
+				kind: groupStrings,
 				isDefault: {
 					type: 'boolean',
 					default: false,
@@ -190,19 +199,15 @@ const group: IJSONSchema = {
 			}
 		},
 	],
-	enum: [
-		{ kind: 'build', isDefault: true },
-		{ kind: 'test', isDefault: true },
-		'build',
-		'test',
-		'none'
-	],
-	enumDescriptions: [
-		nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the task as the default build task.'),
-		nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the task as the default test task.'),
-		nls.localize('JsonSchema.tasks.group.build', 'Marks the task as a build task accessible through the \'Run Build Task\' command.'),
-		nls.localize('JsonSchema.tasks.group.test', 'Marks the task as a test task accessible through the \'Run Test Task\' command.'),
-		nls.localize('JsonSchema.tasks.group.none', 'Assigns the task to no group')
+	defaultSnippets: [
+		{
+			body: { kind: 'build', isDefault: true },
+			description: nls.localize('JsonSchema.tasks.group.defaultBuild', 'Marks the task as the default build task.')
+		},
+		{
+			body: { kind: 'test', isDefault: true },
+			description: nls.localize('JsonSchema.tasks.group.defaultTest', 'Marks the task as the default test task.')
+		}
 	],
 	description: nls.localize('JsonSchema.tasks.group', 'Defines to which execution group this task belongs to. It supports "build" to add it to the build group and "test" to add it to the test group.')
 };

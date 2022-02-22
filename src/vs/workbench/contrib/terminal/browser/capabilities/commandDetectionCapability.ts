@@ -8,7 +8,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IBuffer, IDisposable, IMarker, Terminal } from 'xterm';
 
-interface ICurrentPartialCommand {
+export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
 
 	promptStartMarker?: IMarker;
@@ -22,6 +22,9 @@ interface ICurrentPartialCommand {
 	commandExecutedX?: number;
 
 	commandFinishedMarker?: IMarker;
+
+	currentContinuationMarker?: IMarker;
+	continuations?: { marker: IMarker; end: number }[];
 
 	command?: string;
 }
@@ -39,6 +42,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
+	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
+	readonly onCommandStarted = this._onCommandStarted.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
 
@@ -67,9 +72,31 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
 	}
 
+	handleContinuationStart(): void {
+		this._currentCommand.currentContinuationMarker = this._terminal.registerMarker(0);
+		this._logService.debug('CommandDetectionCapability#handleContinuationStart', this._currentCommand.currentContinuationMarker);
+	}
+
+	handleContinuationEnd(): void {
+		if (!this._currentCommand.currentContinuationMarker) {
+			this._logService.warn('CommandDetectionCapability#handleContinuationEnd Received continuation end without start');
+			return;
+		}
+		if (!this._currentCommand.continuations) {
+			this._currentCommand.continuations = [];
+		}
+		this._currentCommand.continuations.push({
+			marker: this._currentCommand.currentContinuationMarker,
+			end: this._terminal.buffer.active.cursorX
+		});
+		this._currentCommand.currentContinuationMarker = undefined;
+		this._logService.debug('CommandDetectionCapability#handleContinuationEnd', this._currentCommand.continuations[this._currentCommand.continuations.length - 1]);
+	}
+
 	handleCommandStart(): void {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+
 		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
 			this._commandMarkers.length = 0;
@@ -82,6 +109,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				}
 			});
 		}
+		this._onCommandStarted.fire({ marker: this._currentCommand.promptStartMarker! } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
@@ -114,7 +142,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		for (; y < commandExecutedLine; y++) {
 			const line = this._terminal.buffer.active.getLine(y);
 			if (line) {
-				this._currentCommand.command += line.translateToString(true);
+				const continuation = this._currentCommand.continuations?.find(e => e.marker.line === y);
+				if (continuation) {
+					this._currentCommand.command += '\n';
+				}
+				const startColumn = continuation?.end ?? 0;
+				this._currentCommand.command += line.translateToString(true, startColumn);
 			}
 		}
 		if (y === commandExecutedLine) {
@@ -140,6 +173,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
 			return;
 		}
+
 		if (command !== undefined && !command.startsWith('\\')) {
 			const buffer = this._terminal.buffer.active;
 			const clonedPartialCommand = { ...this._currentCommand };

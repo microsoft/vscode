@@ -625,6 +625,13 @@ export interface IEditorTabGroupDto {
 	groupId: number;
 }
 
+export enum TabKind {
+	SINGULAR = 0,
+	DIFF = 1,
+	SIDEBYSIDE = 2,
+	OTHER = 3
+}
+
 export interface IEditorTabDto {
 	viewColumn: EditorGroupColumn;
 	label: string;
@@ -632,6 +639,7 @@ export interface IEditorTabDto {
 	editorId?: string;
 	isActive: boolean;
 	isDirty: boolean;
+	kind: TabKind;
 	additionalResourcesAndViewIds: { resource?: UriComponents; viewId?: string }[];
 }
 

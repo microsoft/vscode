@@ -243,7 +243,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
-						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, this.os);
+						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration?.enabled || false, shellLaunchConfig, this.os);
 						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
 						if (this.shellIntegrationAttempted && shellIntegration.args) {
 							const remoteEnv = await this._remoteAgentService.getEnvironment();
@@ -272,6 +272,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						if (env?.['VSCODE_SHELL_LOGIN']) {
 							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
 							shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = '1';
+						}
+						if (env?.['ZDOTDIR']) {
+							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+							shellLaunchConfig.env['ZDOTDIR'] = env['ZDOTDIR'].replace('${execInstallFolder}', remoteEnv.appRoot.fsPath);
 						}
 
 						newProcess = await backend.createProcess(
@@ -448,9 +452,16 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, OS);
+		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration?.enabled || false, shellLaunchConfig, OS);
 		if (shellIntegration.enableShellIntegration) {
 			shellLaunchConfig.args = shellIntegration.args;
+			if (env?.['ZDOTDIR']) {
+				shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
+				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const resolved = await this._configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, env['ZDOTDIR']);
+				env['ZDOTDIR'] = resolved;
+			}
 			// Always resolve the injected arguments on local processes
 			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 				remoteAuthority: undefined,

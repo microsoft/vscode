@@ -269,6 +269,9 @@ import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 // Formatter Help
 import 'vs/workbench/contrib/format/browser/format.contribution';
 
+// Inlay Hint Accessibility
+import 'vs/workbench/contrib/inlayHints/browser/inlayHintsAccessibilty';
+
 // Themes
 import 'vs/workbench/contrib/themes/browser/themes.contribution';
 

@@ -719,6 +719,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
+	public activationEventIsDone(activationEvent: string): boolean {
+		if (!this._installedExtensionsReady.isOpen()) {
+			return false;
+		}
+		if (!this._registry.containsActivationEvent(activationEvent)) {
+			// There is no extension that is interested in this activation event
+			return true;
+		}
+		return this._extensionHostManagers.every(manager => manager.activationEventIsDone(activationEvent));
+	}
+
 	public whenInstalledExtensionsRegistered(): Promise<boolean> {
 		return this._installedExtensionsReady.wait();
 	}

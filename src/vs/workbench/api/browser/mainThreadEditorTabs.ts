@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -48,12 +48,14 @@ export class MainThreadEditorTabs {
 	 */
 	private _buildTabObject(editor: EditorInput, group: IEditorGroup): IEditorTabDto {
 		// Even though the id isn't a diff / sideBySide on the main side we need to let the ext host know what type of editor it is
-		const editorId = editor instanceof DiffEditorInput ? 'diff' : editor instanceof SideBySideEditorInput ? 'sideBySide' : editor.editorId;
+		const editorId = editor.editorId;
+		const tabKind = editor instanceof DiffEditorInput ? TabKind.DIFF : editor instanceof SideBySideEditorInput ? TabKind.SIDEBYSIDE : TabKind.SINGULAR;
 		const tab: IEditorTabDto = {
 			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 			label: editor.getName(),
 			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 			editorId,
+			kind: tabKind,
 			additionalResourcesAndViewIds: [],
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
@@ -114,7 +116,11 @@ export class MainThreadEditorTabs {
 	 */
 	private _onDidTabOpen(groupId: number, editorInput: EditorInput, editorIndex: number) {
 		const group = this._editorGroupsService.getGroup(groupId);
-		if (!group) {
+		// Even if the editor service knows about the group the group might not exist yet in our model
+		const groupInModel = this._groupModel.get(groupId) !== undefined;
+		// Means a new group was likely created so we rebuild the model
+		if (!group || !groupInModel) {
+			this._createTabsModel();
 			return;
 		}
 		const tabs = this._groupModel.get(groupId)?.tabs;
@@ -132,7 +138,9 @@ export class MainThreadEditorTabs {
 	private _onDidTabClose(groupId: number, editorIndex: number) {
 		const group = this._editorGroupsService.getGroup(groupId);
 		const tabs = this._groupModel.get(groupId)?.tabs;
+		// Something is wrong with the model state so we rebuild
 		if (!group || !tabs) {
+			this._createTabsModel();
 			return;
 		}
 		// Splice tab into group at index editorIndex
@@ -176,7 +184,9 @@ export class MainThreadEditorTabs {
 
 	private _onDidTabDirty(groupId: number, editorIndex: number, editor: EditorInput) {
 		const tab = this._groupModel.get(groupId)?.tabs[editorIndex];
+		// Something wrong with the model staate so we rebuild
 		if (!tab) {
+			this._createTabsModel();
 			return;
 		}
 		tab.isDirty = editor.isDirty();
@@ -244,27 +254,27 @@ export class MainThreadEditorTabs {
 					return;
 				}
 			case GroupModelChangeKind.EDITOR_LABEL:
-				if (event.editor && event.editorIndex) {
+				if (event.editor !== undefined && event.editorIndex !== undefined) {
 					this._onDidTabLabelChange(event.groupId, event.editor, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_OPEN:
-				if (event.editor && event.editorIndex) {
+				if (event.editor !== undefined && event.editorIndex !== undefined) {
 					this._onDidTabOpen(event.groupId, event.editor, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_CLOSE:
-				if (event.editorIndex) {
+				if (event.editorIndex !== undefined) {
 					this._onDidTabClose(event.groupId, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_ACTIVE:
-				if (event.editorIndex) {
+				if (event.editorIndex !== undefined) {
 					this._onDidTabActiveChange(event.groupId, event.editorIndex);
 					break;
 				}
 			case GroupModelChangeKind.EDITOR_DIRTY:
-				if (event.editorIndex && event.editor) {
+				if (event.editorIndex !== undefined && event.editor !== undefined) {
 					this._onDidTabDirty(event.groupId, event.editorIndex, event.editor);
 					break;
 				}

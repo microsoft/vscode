@@ -10,6 +10,7 @@ import { basename } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 import type { Database, Statement } from '@vscode/sqlite3';
+import { isCI } from 'vs/base/common/platform';
 
 interface IDatabaseConnection {
 	readonly db: Database;
@@ -244,6 +245,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	private async connect(path: string, retryOnBusy: boolean = true): Promise<IDatabaseConnection> {
 		this.logger.trace(`[storage ${this.name}] open(${path}, retryOnBusy: ${retryOnBusy})`);
+		this.logger.trace(`[storage ${this.name}] open - source: ${new Error().stack}`);
 
 		try {
 			return await this.doConnect(path);
@@ -426,7 +428,7 @@ class SQLiteStorageDatabaseLogger {
 	private readonly logError: ((error: string | Error) => void) | undefined;
 
 	constructor(options?: ISQLiteStorageDatabaseLoggingOptions) {
-		if (options && typeof options.logTrace === 'function' && process.env[SQLiteStorageDatabaseLogger.VSCODE_TRACE_STORAGE]) {
+		if (options && typeof options.logTrace === 'function' && (process.env[SQLiteStorageDatabaseLogger.VSCODE_TRACE_STORAGE] || isCI)) {
 			this.logTrace = options.logTrace;
 		}
 
