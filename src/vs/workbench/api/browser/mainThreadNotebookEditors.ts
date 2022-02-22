@@ -7,7 +7,6 @@ import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ExtHostContext, ExtHostNotebookEditorsShape, ICellEditOperationDto, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
-import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -43,16 +42,12 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	constructor(
 		extHostContext: IExtHostContext,
-		notebooksAndEditors: MainThreadNotebooksAndEditors,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILogService private readonly _logService: ILogService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookEditors);
-
-		notebooksAndEditors.onDidAddEditors(this._handleEditorsAdded, this, this._disposables);
-		notebooksAndEditors.onDidRemoveEditors(this._handleEditorsRemoved, this, this._disposables);
 
 		this._editorService.onDidActiveEditorChange(() => this._updateEditorViewColumns(), this, this._disposables);
 		this._editorGroupService.onDidRemoveGroup(() => this._updateEditorViewColumns(), this, this._disposables);
@@ -64,7 +59,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		dispose(this._mainThreadEditors.values());
 	}
 
-	private _handleEditorsAdded(editors: readonly INotebookEditor[]): void {
+	handleEditorsAdded(editors: readonly INotebookEditor[]): void {
 
 		for (const editor of editors) {
 
@@ -82,7 +77,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		}
 	}
 
-	private _handleEditorsRemoved(editorIds: readonly string[]): void {
+	handleEditorsRemoved(editorIds: readonly string[]): void {
 		for (const id of editorIds) {
 			this._mainThreadEditors.get(id)?.dispose();
 			this._mainThreadEditors.delete(id);
