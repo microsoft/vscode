@@ -94,7 +94,7 @@ class ModelTracker extends Disposable {
 	) {
 		super();
 		this._knownVersionId = this._model.getVersionId();
-		this._register(this._model.onDidChangeContent((e) => {
+		this._store.add(this._model.onDidChangeContent((e) => {
 			this._knownVersionId = e.versionId;
 			this._proxy.$acceptModelChanged(this._model.uri, e, this._textFileService.isDirty(this._model.uri));
 			if (this.isCaughtUpWithContentChanges()) {
@@ -103,15 +103,15 @@ class ModelTracker extends Disposable {
 		}));
 	}
 
-	public isCaughtUpWithContentChanges(): boolean {
+	isCaughtUpWithContentChanges(): boolean {
 		return (this._model.getVersionId() === this._knownVersionId);
 	}
 }
 
 export class MainThreadDocuments extends Disposable implements MainThreadDocumentsShape {
 
-	private _onIsCaughtUpWithContentChanges = this._register(new Emitter<URI>());
-	public readonly onIsCaughtUpWithContentChanges = this._onIsCaughtUpWithContentChanges.event;
+	private _onIsCaughtUpWithContentChanges = this._store.add(new Emitter<URI>());
+	readonly onIsCaughtUpWithContentChanges = this._onIsCaughtUpWithContentChanges.event;
 
 	private readonly _proxy: ExtHostDocumentsShape;
 	private readonly _modelTrackers = new ResourceMap<ModelTracker>();
@@ -130,24 +130,24 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	) {
 		super();
 
-		this._modelReferenceCollection = this._register(new BoundModelReferenceCollection(_uriIdentityService.extUri));
+		this._modelReferenceCollection = this._store.add(new BoundModelReferenceCollection(_uriIdentityService.extUri));
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 
-		this._register(_modelService.onModelLanguageChanged(this._onModelModeChanged, this));
+		this._store.add(_modelService.onModelLanguageChanged(this._onModelModeChanged, this));
 
-		this._register(_textFileService.files.onDidSave(e => {
+		this._store.add(_textFileService.files.onDidSave(e => {
 			if (this._shouldHandleFileEvent(e.model.resource)) {
 				this._proxy.$acceptModelSaved(e.model.resource);
 			}
 		}));
-		this._register(_textFileService.files.onDidChangeDirty(m => {
+		this._store.add(_textFileService.files.onDidChangeDirty(m => {
 			if (this._shouldHandleFileEvent(m.resource)) {
 				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
 			}
 		}));
 
-		this._register(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+		this._store.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
 			const isMove = e.operation === FileOperation.MOVE;
 			if (isMove || e.operation === FileOperation.DELETE) {
 				for (const pair of e.files) {
@@ -160,13 +160,13 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		}));
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		dispose(this._modelTrackers.values());
 		this._modelTrackers.clear();
 		super.dispose();
 	}
 
-	public isCaughtUpWithContentChanges(resource: URI): boolean {
+	isCaughtUpWithContentChanges(resource: URI): boolean {
 		const tracker = this._modelTrackers.get(resource);
 		if (tracker) {
 			return tracker.isCaughtUpWithContentChanges();
@@ -206,14 +206,15 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	// --- from extension host process
 
-	$trySaveDocument(uri: UriComponents): Promise<boolean> {
-		return this._textFileService.save(URI.revive(uri)).then(target => !!target);
+	async $trySaveDocument(uri: UriComponents): Promise<boolean> {
+		const target = await this._textFileService.save(URI.revive(uri));
+		return Boolean(target);
 	}
 
-	$tryOpenDocument(uriData: UriComponents): Promise<URI> {
+	async $tryOpenDocument(uriData: UriComponents): Promise<URI> {
 		const inputUri = URI.revive(uriData);
 		if (!inputUri.scheme || !(inputUri.fsPath || inputUri.authority)) {
-			return Promise.reject(new Error(`Invalid uri. Scheme and authority or path must be set.`));
+			new Error(`Invalid uri. Scheme and authority or path must be set.`);
 		}
 
 		const canonicalUri = this._uriIdentityService.asCanonicalUri(inputUri);
@@ -229,58 +230,54 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 				break;
 		}
 
-		return promise.then(documentUri => {
-			if (!documentUri) {
-				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}`));
-			} else if (!extUri.isEqual(documentUri, canonicalUri)) {
-				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Actual document opened as ${documentUri.toString()}`));
-			} else if (!this._modelTrackers.has(canonicalUri)) {
-				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Files above 50MB cannot be synchronized with extensions.`));
-			} else {
-				return canonicalUri;
-			}
-		}, err => {
-			return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: ${toErrorMessage(err)}`));
-		});
+		let documentUri: URI | undefined;
+		try {
+			documentUri = await promise;
+		} catch (err) {
+			throw new Error(`cannot open ${canonicalUri.toString()}. Detail: ${toErrorMessage(err)}`);
+		}
+		if (!documentUri) {
+			throw new Error(`cannot open ${canonicalUri.toString()}`);
+		} else if (!extUri.isEqual(documentUri, canonicalUri)) {
+			throw new Error(`cannot open ${canonicalUri.toString()}. Detail: Actual document opened as ${documentUri.toString()}`);
+		} else if (!this._modelTrackers.has(canonicalUri)) {
+			throw new Error(`cannot open ${canonicalUri.toString()}. Detail: Files above 50MB cannot be synchronized with extensions.`);
+		} else {
+			return canonicalUri;
+		}
 	}
 
 	$tryCreateDocument(options?: { language?: string; content?: string }): Promise<URI> {
 		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
 	}
 
-	private _handleAsResourceInput(uri: URI): Promise<URI> {
-		return this._textModelResolverService.createModelReference(uri).then(ref => {
-			this._modelReferenceCollection.add(uri, ref, ref.object.textEditorModel.getValueLength());
-			return ref.object.textEditorModel.uri;
-		});
+	private async _handleAsResourceInput(uri: URI): Promise<URI> {
+		const ref = await this._textModelResolverService.createModelReference(uri);
+		this._modelReferenceCollection.add(uri, ref, ref.object.textEditorModel.getValueLength());
+		return ref.object.textEditorModel.uri;
 	}
 
-	private _handleUntitledScheme(uri: URI): Promise<URI> {
+	private async _handleUntitledScheme(uri: URI): Promise<URI> {
 		const asLocalUri = toLocalResource(uri, this._environmentService.remoteAuthority, this._pathService.defaultUriScheme);
-		return this._fileService.exists(asLocalUri).then(exists => {
-			if (exists) {
-				// don't create a new file ontop of an existing file
-				return Promise.reject(new Error('file already exists'));
-			}
-			return this._doCreateUntitled(Boolean(uri.path) ? uri : undefined);
-		});
+		const exists = await this._fileService.exists(asLocalUri);
+		if (exists) {
+			// don't create a new file ontop of an existing file
+			return Promise.reject(new Error('file already exists'));
+		}
+		return await this._doCreateUntitled(Boolean(uri.path) ? uri : undefined);
 	}
 
-	private _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
-		return this._textFileService.untitled.resolve({
+	private async _doCreateUntitled(associatedResource?: URI, languageId?: string, initialValue?: string): Promise<URI> {
+		const model = await this._textFileService.untitled.resolve({
 			associatedResource,
 			languageId,
 			initialValue
-		}).then(model => {
-			const resource = model.resource;
-
-			if (!this._modelTrackers.has(resource)) {
-				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
-			}
-
-			this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
-
-			return resource;
 		});
+		const resource = model.resource;
+		if (!this._modelTrackers.has(resource)) {
+			throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
+		}
+		this._proxy.$acceptDirtyStateChanged(resource, true); // mark as dirty
+		return resource;
 	}
 }
