@@ -57,7 +57,7 @@ export class MainThreadEditorTabs {
 			editorId,
 			kind: tabKind,
 			additionalResourcesAndViewIds: [],
-			isPinned: group.isPinned(editor),
+			isPinned: group.isSticky(editor),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
@@ -213,7 +213,7 @@ export class MainThreadEditorTabs {
 			this._createTabsModel();
 			return;
 		}
-		tab.isPinned = group.isPinned(editor);
+		tab.isPinned = group.isSticky(editorIndex);
 	}
 
 	/**
