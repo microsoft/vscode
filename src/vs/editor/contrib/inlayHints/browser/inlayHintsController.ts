@@ -283,6 +283,7 @@ export class InlayHintsController implements IEditorContribution {
 			if (!part) {
 				return;
 			}
+			e.event.preventDefault();
 			await part.item.resolve(CancellationToken.None);
 			if (part.item.hint.command) {
 				await this._invokeCommand(part.item.hint.command, part.item);
