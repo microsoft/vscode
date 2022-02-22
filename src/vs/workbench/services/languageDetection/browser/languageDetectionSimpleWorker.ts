@@ -87,7 +87,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			return this._regexpModel;
 		} catch (e) {
 			this._regexpLoadFailed = true;
-			console.warn('error loading language detection model', e);
+			// console.warn('error loading language detection model', e);
 			return;
 		}
 	}
