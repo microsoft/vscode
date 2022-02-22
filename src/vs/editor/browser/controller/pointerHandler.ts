@@ -8,7 +8,7 @@ import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
-import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
@@ -77,6 +77,7 @@ export class PointerEventHandler extends MouseHandler {
 
 				leftButton: false,
 				middleButton: false,
+				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
 			});
 		}
 	}
