@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/contextkeys';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/contextkeys';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -388,6 +388,28 @@ registerAction2(class extends Action2 {
 	}
 	run(accessor: ServicesAccessor) {
 		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.PANEL_PART);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.closeAuxiliaryBar',
+			title: { value: localize('closeSidePanel', "Close Side Panel"), original: 'Close Side Panel' },
+			category: CATEGORIES.View,
+			icon: closeIcon,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: AuxiliaryBarVisibleContext,
+			}, {
+				id: MenuId.AuxiliaryBarTitle,
+				group: 'navigation',
+				order: 2
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.AUXILIARYBAR_PART);
 	}
 });
 
