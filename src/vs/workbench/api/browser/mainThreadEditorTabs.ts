@@ -49,7 +49,7 @@ export class MainThreadEditorTabs {
 	private _buildTabObject(editor: EditorInput, group: IEditorGroup): IEditorTabDto {
 		// Even though the id isn't a diff / sideBySide on the main side we need to let the ext host know what type of editor it is
 		const editorId = editor.editorId;
-		const tabKind = editor instanceof DiffEditorInput ? TabKind.DIFF : editor instanceof SideBySideEditorInput ? TabKind.SIDEBYSIDE : TabKind.SINGULAR;
+		const tabKind = editor instanceof DiffEditorInput ? TabKind.Diff : editor instanceof SideBySideEditorInput ? TabKind.SidebySide : TabKind.Singular;
 		const tab: IEditorTabDto = {
 			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 			label: editor.getName(),

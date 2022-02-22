@@ -626,10 +626,10 @@ export interface IEditorTabGroupDto {
 }
 
 export enum TabKind {
-	SINGULAR = 0,
-	DIFF = 1,
-	SIDEBYSIDE = 2,
-	OTHER = 3
+	Singular = 0,
+	Diff = 1,
+	SidebySide = 2,
+	Other = 3
 }
 
 export interface IEditorTabDto {
