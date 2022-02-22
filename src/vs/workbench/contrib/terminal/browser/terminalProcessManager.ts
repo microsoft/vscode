@@ -462,7 +462,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				env['ZDOTDIR'] = resolved;
 			}
 			if (env?.['VSCODE_SHELL_LOGIN'] && shellLaunchConfig.env?.['VSCODE_SHELL_LOGIN']) {
-				this._logService.info('vscode shell login');
 				shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = env?.['VSCODE_SHELL_LOGIN'];
 			}
 			// Always resolve the injected arguments on local processes
