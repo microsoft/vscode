@@ -27,6 +27,10 @@ import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browse
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -41,6 +45,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { IOpenerService, NullOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryServiceShape } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -158,7 +163,16 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 		}
 		serviceIdentifiers.push(id);
 	};
+	const defineInstance = <T>(id: ServiceIdentifier<T>, instance: T) => {
+		if (!services.has(id)) {
+			services.set(id, instance);
+		}
+		serviceIdentifiers.push(id);
+	};
 
+	define(IAccessibilityService, TestAccessibilityService);
+	define(IClipboardService, TestClipboardService);
+	defineInstance(IOpenerService, NullOpenerService);
 	define(INotificationService, TestNotificationService);
 	define(IDialogService, TestDialogService);
 	define(IUndoRedoService, UndoRedoService);

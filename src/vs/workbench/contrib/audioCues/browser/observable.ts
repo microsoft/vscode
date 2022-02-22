@@ -499,7 +499,7 @@ export namespace LazyDerived {
 	export const Observer = LazyDerivedObserver;
 }
 
-export function fromPromise<T>(promise: Promise<T>): IObservable<{ value?: T }> {
+export function observableFromPromise<T>(promise: Promise<T>): IObservable<{ value?: T }> {
 	const observable = new ObservableValue<{ value?: T }>({}, 'promiseValue');
 	promise.then((value) => {
 		observable.set({ value }, undefined);
@@ -507,7 +507,7 @@ export function fromPromise<T>(promise: Promise<T>): IObservable<{ value?: T }> 
 	return observable;
 }
 
-export function fromEvent<T, TArgs = unknown>(
+export function observableFromEvent<T, TArgs = unknown>(
 	event: Event<TArgs>,
 	getValue: (args: TArgs | undefined) => T
 ): IObservable<T> {
@@ -567,7 +567,7 @@ class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 	}
 }
 
-export namespace fromEvent {
+export namespace observableFromEvent {
 	export const Observer = FromEventObservable;
 }
 

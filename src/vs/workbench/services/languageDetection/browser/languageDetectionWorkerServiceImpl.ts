@@ -19,10 +19,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/browser/services/editorWorkerService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
+const regexpModuleLocation = '../../../../../../node_modules/vscode-regexp-languagedetection';
+const regexpModuleLocationAsar = '../../../../../../node_modules.asar/vscode-regexp-languagedetection';
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
 const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
+	static readonly preferredLanguagesConfig = 'workbench.editor.languageDetectionPreferredLanguages';
 
 	_serviceBrand: undefined;
 
@@ -51,6 +54,9 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 			this._environmentService.isBuilt && !isWeb
 				? FileAccess.asBrowserUri(`${moduleLocationAsar}/model/group1-shard1of1.bin`, require).toString(true)
 				: FileAccess.asBrowserUri(`${moduleLocation}/model/group1-shard1of1.bin`, require).toString(true),
+			this._environmentService.isBuilt && !isWeb
+				? FileAccess.asBrowserUri(`${regexpModuleLocationAsar}/dist/index.js`, require).toString(true)
+				: FileAccess.asBrowserUri(`${regexpModuleLocation}/dist/index.js`, require).toString(true),
 			languageConfigurationService
 		);
 	}
@@ -63,11 +69,16 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		if (!language) {
 			return undefined;
 		}
+		if (this._languageService.isRegisteredLanguageId(language)) {
+			return language;
+		}
 		return this._languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
 	}
 
 	async detectLanguage(resource: URI): Promise<string | undefined> {
-		const language = await this._languageDetectionWorkerClient.detectLanguage(resource);
+		// in ~~the future~~ this should read form recently opened editors, installed extensions, workspace files, etc. For now, just a config.
+		const preferredLanguages = this._configurationService.getValue<string[]>(LanguageDetectionService.preferredLanguagesConfig) ?? [];
+		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, preferredLanguages);
 		if (language) {
 			return this.getLanguageId(language);
 		}
@@ -126,6 +137,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		private readonly _indexJsUri: string,
 		private readonly _modelJsonUri: string,
 		private readonly _weightsUri: string,
+		private readonly _regexpModelUri: string,
 		languageConfigurationService: ILanguageConfigurationService,
 	) {
 		super(modelService, true, 'languageDetectionWorkerService', languageConfigurationService);
@@ -160,6 +172,8 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 				return this.getModelJsonUri();
 			case 'getWeightsUri':
 				return this.getWeightsUri();
+			case 'getRegexpModelUri':
+				return this.getRegexpModelUri();
 			case 'sendTelemetryEvent':
 				return this.sendTelemetryEvent(args[0], args[1], args[2]);
 			default:
@@ -179,6 +193,10 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		return this._weightsUri;
 	}
 
+	async getRegexpModelUri() {
+		return this._regexpModelUri;
+	}
+
 	async sendTelemetryEvent(languages: string[], confidences: number[], timeSpent: number): Promise<void> {
 		this._telemetryService.publicLog2<ILanguageDetectionStats, LanguageDetectionStatsClassification>(LanguageDetectionStatsId, {
 			languages: languages.join(','),
@@ -187,9 +205,9 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		});
 	}
 
-	public async detectLanguage(resource: URI): Promise<string | undefined> {
+	public async detectLanguage(resource: URI, userPreferredLanguages: string[]): Promise<string | undefined> {
 		await this._withSyncedResources([resource]);
-		return (await this._getProxy()).detectLanguage(resource.toString());
+		return (await this._getProxy()).detectLanguage(resource.toString(), userPreferredLanguages);
 	}
 }
 

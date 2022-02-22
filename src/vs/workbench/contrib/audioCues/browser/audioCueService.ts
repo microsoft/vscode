@@ -9,7 +9,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { fromEvent, IObservable, LazyDerived } from 'vs/workbench/contrib/audioCues/browser/observable';
+import { observableFromEvent, IObservable, LazyDerived } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 
@@ -24,7 +24,7 @@ export interface IAudioCueService {
 export class AudioCueService extends Disposable implements IAudioCueService {
 	readonly _serviceBrand: undefined;
 
-	private readonly screenReaderAttached = fromEvent(
+	private readonly screenReaderAttached = observableFromEvent(
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => this.accessibilityService.isScreenReaderOptimized()
 	);
@@ -37,12 +37,14 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	public async playAudioCue(cue: AudioCue): Promise<void> {
-		await this.playSound(cue.sound);
+		if (this.isEnabled(cue).get()) {
+			await this.playSound(cue.sound);
+		}
 	}
 
 	private async playSound(sound: Sound): Promise<void> {
 		const url = FileAccess.asBrowserUri(
-			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}.opus`,
+			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`,
 			require
 		).toString();
 		const audio = new Audio(url);
@@ -61,7 +63,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 	}
 
 	private readonly isEnabledCache = new Cache((cue: AudioCue) => {
-		const settingObservable = fromEvent(
+		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
 				e.affectsConfiguration(cue.settingsKey)
 			),
@@ -109,9 +111,10 @@ export class Sound {
 	}
 
 
-	public static readonly error = Sound.register({ fileName: 'error' });
-	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas' });
-	public static readonly break = Sound.register({ fileName: 'break' });
+	public static readonly error = Sound.register({ fileName: 'error.opus' });
+	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.opus' });
+	public static readonly break = Sound.register({ fileName: 'break.opus' });
+	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.opus' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -155,7 +158,7 @@ export class AudioCue {
 	});
 	public static readonly inlineSuggestion = AudioCue.register({
 		name: localize('audioCues.lineHasInlineSuggestion.name', 'Line has Inline Suggestion Available'),
-		sound: Sound.break,
+		sound: Sound.quickFixes,
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
 
@@ -163,6 +166,12 @@ export class AudioCue {
 		name: 'Debugger Stopped On Breakpoint',
 		sound: Sound.break,
 		settingsKey: 'audioCues.debuggerStoppedOnBreakpoint',
+	});
+
+	public static readonly noInlayHints = AudioCue.register({
+		name: localize('audioCues.noInlayHints', 'No Inlay Hints available for the current line'),
+		sound: Sound.error,
+		settingsKey: 'audioCues.noInlayHints'
 	});
 
 	private constructor(

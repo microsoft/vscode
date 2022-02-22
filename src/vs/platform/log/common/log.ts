@@ -6,7 +6,7 @@
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isWindows } from 'vs/base/common/platform';
+import { isCI, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -605,5 +605,13 @@ export function LogLevelToString(logLevel: LogLevel): string {
 		case LogLevel.Error: return 'error';
 		case LogLevel.Critical: return 'critical';
 		case LogLevel.Off: return 'off';
+	}
+}
+
+export function logCi(logService: ILogService, message: string, ...args: any[]): void {
+	if (isCI) {
+		logService.info.call(logService, message, ...args);
+	} else {
+		logService.trace.call(logService, message, ...args);
 	}
 }

@@ -12,7 +12,7 @@ import { getZoomFactor } from 'vs/base/browser/browser';
 import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
@@ -28,14 +28,14 @@ import { trim } from 'vs/base/common/strings';
 import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, prepend } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicButtonLabel, template } from 'vs/base/common/labels';
+import { template } from 'vs/base/common/labels';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, IMenu, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -43,13 +43,8 @@ import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { getIconRegistry, registerIcon } from 'vs/platform/theme/common/iconRegistry';
-
-const layoutControlIcon = registerIcon('layout-control', Codicon.layout, localize('layoutControlIcon', "Icon for the layout control menu found in the title bar."));
+import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -79,7 +74,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
 	protected windowControls: HTMLElement | undefined;
-	private layoutToolbar: ActionBar | undefined;
+	private layoutToolbar: ToolBar | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
 	private titleBarStyle: 'native' | 'custom';
 
@@ -101,7 +96,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
@@ -412,20 +406,11 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 
 			const layoutDropdownContainer = append(this.windowControls, $('div.layout-dropdown-container'));
-			this.layoutToolbar = new ActionBar(layoutDropdownContainer,
-				{
-					ariaLabel: localize('layoutMenu', "Configure Layout"),
-					actionViewItemProvider: action => {
-						if (action instanceof SubmenuAction) {
-							return new DropdownMenuActionViewItem(action, action.actions, this.contextMenuService, {
-								classNames: ThemeIcon.asClassNameArray(layoutControlIcon),
-								anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
-								keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
-							});
-						}
-						return undefined;
-					}
-				});
+			this.layoutToolbar = new ToolBar(layoutDropdownContainer, this.contextMenuService, {
+				actionViewItemProvider: action => {
+					return createActionViewItem(this.instantiationService, action);
+				}
+			});
 
 
 			const menu = this._register(this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService));
@@ -437,15 +422,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				const actions: IAction[] = [];
 				const toDispose = createAndFillInContextMenuActions(menu, undefined, { primary: [], secondary: actions });
 
-				this.layoutToolbar.clear();
-				this.layoutToolbar.push(new SubmenuAction('stenir', localize('layoutMenu', "Configure Layout"), actions.map(action => {
-					if (action instanceof MenuItemAction) {
-						(action as IAction).label = mnemonicButtonLabel(typeof action.item.title === 'string'
-							? action.item.title
-							: action.item.title.mnemonicTitle ?? action.item.title.value, true);
-					}
-					return action;
-				})));
+				this.layoutToolbar.setActions(actions);
 
 				toDispose.dispose();
 			};
@@ -472,7 +449,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				return;
 			}
 
-			if (e.target && this.layoutToolbar && isAncestor(e.target as HTMLElement, this.layoutToolbar.getContainer())) {
+			if (e.target && this.layoutToolbar && isAncestor(e.target as HTMLElement, this.layoutToolbar.getElement())) {
 				return;
 			}
 

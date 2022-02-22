@@ -25,7 +25,6 @@ import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
@@ -53,7 +52,6 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@ILabelService labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
@@ -64,7 +62,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IProductService productService: IProductService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, keybindingService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
+		super(contextMenuService, configurationService, editorService, environmentService, contextService, instantiationService, themeService, labelService, storageService, layoutService, menuService, contextKeyService, hostService, productService);
 
 		this.environmentService = environmentService;
 	}

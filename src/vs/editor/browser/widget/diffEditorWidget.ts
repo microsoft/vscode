@@ -379,6 +379,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._options.maxComputationTime;
 	}
 
+	public get renderSideBySide(): boolean {
+		return this._options.renderSideBySide;
+	}
+
 	public getContentHeight(): number {
 		return this._modifiedEditor.getContentHeight();
 	}
@@ -1096,6 +1100,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (!this._options.renderSideBySide) {
 			// never wrap hidden editor
 			result.wordWrapOverride1 = 'off';
+			result.wordWrapOverride2 = 'off';
 		} else {
 			result.wordWrapOverride1 = this._options.diffWordWrap;
 		}
