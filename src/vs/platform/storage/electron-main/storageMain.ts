@@ -335,3 +335,10 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		}
 	}
 }
+
+export class InMemoryStorageMain extends BaseStorageMain {
+
+	protected async doCreate(): Promise<IStorage> {
+		return new Storage(new InMemoryStorageDatabase());
+	}
+}
