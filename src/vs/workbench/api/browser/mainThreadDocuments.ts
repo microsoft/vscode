@@ -11,7 +11,6 @@ import { ITextModel, shouldSynchronizeModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService, FileOperation } from 'vs/platform/files/common/files';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { ExtHostContext, ExtHostDocumentsShape, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -120,7 +119,6 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
 
 	constructor(
-		documentsAndEditors: MainThreadDocumentsAndEditors,
 		extHostContext: IExtHostContext,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
@@ -137,8 +135,6 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 
-		this._register(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
-		this._register(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
 		this._register(_modelService.onModelLanguageChanged(this._onModelModeChanged, this));
 
 		this._register(_textFileService.files.onDidSave(e => {
@@ -184,7 +180,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		return !!model && shouldSynchronizeModel(model);
 	}
 
-	private _onModelAdded(model: ITextModel): void {
+	handleModelAdded(model: ITextModel): void {
 		// Same filter as in mainThreadEditorsTracker
 		if (!shouldSynchronizeModel(model)) {
 			// don't synchronize too large models
@@ -202,7 +198,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		this._proxy.$acceptModelLanguageChanged(model.uri, model.getLanguageId());
 	}
 
-	private _onModelRemoved(modelUrl: URI): void {
+	handleModelRemoved(modelUrl: URI): void {
 		if (!this._modelIsSynced.has(modelUrl)) {
 			return;
 		}
