@@ -186,13 +186,17 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		};
 	}
 
-	protected _pickRunningLocation(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation {
-		const result = ExtensionService.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference, Boolean(this._environmentService.remoteAuthority), this._enableLocalWebWorker);
+	protected _pickRunningLocation(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isNotebook: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation {
+		const result = ExtensionService.pickRunningLocation(extensionKinds, isInstalledLocally, isNotebook, isInstalledRemotely, preference, Boolean(this._environmentService.remoteAuthority), this._enableLocalWebWorker);
 		this._logService.trace(`pickRunningLocation for ${extensionId.value}, extension kinds: [${extensionKinds.join(', ')}], isInstalledLocally: ${isInstalledLocally}, isInstalledRemotely: ${isInstalledRemotely}, preference: ${extensionRunningPreferenceToString(preference)} => ${extensionRunningLocationToString(result)}`);
 		return result;
 	}
 
-	public static pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference, hasRemoteExtHost: boolean, hasWebWorkerExtHost: boolean): ExtensionRunningLocation {
+	public static pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isNotebook: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference, hasRemoteExtHost: boolean, hasWebWorkerExtHost: boolean): ExtensionRunningLocation {
+		if (isNotebook) {
+			return ExtensionRunningLocation.NotebookProcess;
+		}
+
 		const result: ExtensionRunningLocation[] = [];
 		for (const extensionKind of extensionKinds) {
 			if (extensionKind === 'ui' && isInstalledLocally) {
@@ -234,8 +238,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHosts(isInitialStart: boolean): IExtensionHost[] {
 		const result: IExtensionHost[] = [];
 
-		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalProcess));
+		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, ExtensionHostKind.LocalProcess, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalProcess));
 		result.push(localProcessExtHost);
+
+		const notebookProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, ExtensionHostKind.LocalNotebook, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.NotebookProcess));
+		result.push(notebookProcessExtHost);
 
 		if (this._enableLocalWebWorker) {
 			const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, this._lazyLocalWebWorker, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalWebWorker));
@@ -475,10 +482,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		// remove non-UI extensions from the local extensions
 		const localProcessExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalProcess);
+		const notebookProcessExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.NotebookProcess);
 		const localWebWorkerExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
 		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
 
-		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
+		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(notebookProcessExtensions).concat(localWebWorkerExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
 			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
 		}
@@ -501,6 +509,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
 		if (localProcessExtensionHost) {
 			localProcessExtensionHost.start(localProcessExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
+		}
+
+		const localNotebookExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalNotebook);
+		if (localNotebookExtensionHost) {
+			localNotebookExtensionHost.start(notebookProcessExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
 		}
 
 		const localWebWorkerExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalWebWorker);

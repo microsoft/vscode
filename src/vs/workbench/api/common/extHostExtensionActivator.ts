@@ -219,9 +219,10 @@ export class ExtensionsActivator implements IDisposable {
 	}
 
 	public activateByEvent(activationEvent: string, startup: boolean): Promise<void> {
-		if (this._alreadyActivatedEvents[activationEvent]) {
-			return NO_OP_VOID_PROMISE;
-		}
+		// if (this._alreadyActivatedEvents[activationEvent]) {
+		// 	return NO_OP_VOID_PROMISE;
+		// }
+		console.log(activationEvent);
 		const activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
 		return this._activateExtensions(activateExtensions.map(e => ({
 			id: e.identifier,

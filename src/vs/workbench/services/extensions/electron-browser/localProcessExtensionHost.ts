@@ -105,7 +105,6 @@ class ExtensionHostProcess {
 
 export class LocalProcessExtensionHost implements IExtensionHost {
 
-	public readonly kind = ExtensionHostKind.LocalProcess;
 	public readonly remoteAuthority = null;
 	public readonly lazyStart = false;
 
@@ -135,6 +134,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	private readonly _extensionHostLogFile: URI;
 
 	constructor(
+		readonly kind: ExtensionHostKind,
 		private readonly _initDataProvider: ILocalProcessExtensionHostDataProvider,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,

@@ -390,7 +390,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 			return Promise.resolve(new EmptyExtension(ExtensionActivationTimes.NONE));
 		}
 
-		this._logService.info(`ExtensionService#_doActivateExtension ${extensionDescription.identifier.value}, startup: ${reason.startup}, activationEvent: '${reason.activationEvent}'${extensionDescription.identifier.value !== reason.extensionId.value ? `, root cause: ${reason.extensionId.value}` : ``}`);
+		this._logService.info(`ExtensionService#_doActivateExtension ${this._hostUtils.pid} ${extensionDescription.identifier.value}, startup: ${reason.startup}, activationEvent: '${reason.activationEvent}'${extensionDescription.identifier.value !== reason.extensionId.value ? `, root cause: ${reason.extensionId.value}` : ``}`);
 		this._logService.flush();
 
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
@@ -777,11 +777,15 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	public $startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
+		console.log(this._hostUtils.pid, 'start extension host', enabledExtensionIds);
+
 		this._registry.keepOnly(enabledExtensionIds);
 		return this._startExtensionHost();
 	}
 
 	public $activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		console.log(this._hostUtils.pid, 'Extension host receive an activateByEvent', activationEvent, activationKind);
+
 		if (activationKind === ActivationKind.Immediate) {
 			return this._activateByEvent(activationEvent, false);
 		}

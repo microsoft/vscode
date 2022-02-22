@@ -189,7 +189,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._runningLocationClassifier = new ExtensionRunningLocationClassifier(
 			(extension) => this._getExtensionKind(extension),
-			(extensionId, extensionKinds, isInstalledLocally, isInstalledRemotely, preference) => this._pickRunningLocation(extensionId, extensionKinds, isInstalledLocally, isInstalledRemotely, preference)
+			(extensionId, extensionKinds, isInstalledLocally, isNotebook, isInstalledRemotely, preference) => this._pickRunningLocation(extensionId, extensionKinds, isInstalledLocally, isNotebook, isInstalledRemotely, preference)
 		);
 
 		// help the file service to activate providers by activating extensions by file system event
@@ -264,7 +264,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return this._extensionManifestPropertiesService.getExtensionKind(extensionDescription);
 	}
 
-	protected abstract _pickRunningLocation(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation;
+	protected abstract _pickRunningLocation(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isNotebook: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation;
 
 	protected _getExtensionHostManager(kind: ExtensionHostKind): IExtensionHostManager | null {
 		for (const extensionHostManager of this._extensionHostManagers) {
@@ -392,7 +392,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		for (const extension of toAdd) {
 			const extensionKind = this._getExtensionKind(extension);
 			const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
-			const runningLocation = this._pickRunningLocation(extension.identifier, extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
+			const runningLocation = this._pickRunningLocation(extension.identifier, extensionKind, !isRemote, (extension.categories ?? []).indexOf('Notebooks') >= 0, isRemote, ExtensionRunningPreference.None);
 			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), runningLocation);
 		}
 		groupAdd(ExtensionHostKind.LocalProcess, ExtensionRunningLocation.LocalProcess);
@@ -429,7 +429,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const extensionKind = this._getExtensionKind(extension);
 		const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
-		const runningLocation = this._pickRunningLocation(extension.identifier, extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
+		const runningLocation = this._pickRunningLocation(extension.identifier, extensionKind, !isRemote, (extension.categories ?? []).indexOf('Notebooks') >= 0, isRemote, ExtensionRunningPreference.None);
 		if (runningLocation === ExtensionRunningLocation.None) {
 			return false;
 		}
@@ -666,6 +666,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			if (localProcessExtensionHost) {
 				await localProcessExtensionHost.ready();
 			}
+
+			const notebookProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalNotebook);
+			if (notebookProcessExtensionHost) {
+				await notebookProcessExtensionHost.ready();
+			}
 		} finally {
 			lock.dispose();
 		}
@@ -687,10 +692,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			// Record the fact that this activationEvent was requested (in case of a restart)
 			this._allRequestedActivateEvents.add(activationEvent);
 
-			if (!this._registry.containsActivationEvent(activationEvent)) {
-				// There is no extension that is interested in this activation event
-				return NO_OP_VOID_PROMISE;
-			}
+			// if (!this._registry.containsActivationEvent(activationEvent)) {
+			// 	// There is no extension that is interested in this activation event
+			// 	return NO_OP_VOID_PROMISE;
+			// }
 
 			return this._activateByEvent(activationEvent, activationKind);
 		} else {
@@ -1098,7 +1103,7 @@ class ExtensionInfo {
 class ExtensionRunningLocationClassifier {
 	constructor(
 		private readonly getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[],
-		private readonly pickRunningLocation: (extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference) => ExtensionRunningLocation,
+		private readonly pickRunningLocation: (extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isNotebook: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference) => ExtensionRunningLocation,
 	) {
 	}
 
@@ -1143,7 +1148,7 @@ class ExtensionRunningLocationClassifier {
 				preference = ExtensionRunningPreference.Remote;
 			}
 
-			runningLocation.set(ext.key, this.pickRunningLocation(ext.identifier, ext.kind, isInstalledLocally, isInstalledRemotely, preference));
+			runningLocation.set(ext.key, this.pickRunningLocation(ext.identifier, ext.kind, isInstalledLocally, (ext.local?.desc.categories ?? []).indexOf('Notebooks') >= 0, isInstalledRemotely, preference));
 		});
 
 		return runningLocation;

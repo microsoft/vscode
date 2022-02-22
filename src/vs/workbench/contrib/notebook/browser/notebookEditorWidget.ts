@@ -1306,6 +1306,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			this._localStore.add(this._webview.webview.onDidBlur(() => {
+				console.log('webview blur');
 				this._outputFocus.set(false);
 				this.updateEditorFocus();
 
@@ -1313,6 +1314,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}));
 
 			this._localStore.add(this._webview.webview.onDidFocus(() => {
+				console.log('webview focus');
+
 				this._outputFocus.set(true);
 				this.updateEditorFocus();
 				this._webviewFocused = true;

@@ -206,6 +206,7 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 		return this._actual.$extensionTestsExit(code);
 	}
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		console.log('Extension host send an activateByEvent', activationEvent, activationKind);
 		return this._actual.$activateByEvent(activationEvent, activationKind);
 	}
 	activate(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
