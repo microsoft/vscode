@@ -456,11 +456,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (shellIntegration.enableShellIntegration) {
 			shellLaunchConfig.args = shellIntegration.args;
 			if (env?.['ZDOTDIR']) {
-				shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
 				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolved = await this._configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, env['ZDOTDIR']);
 				env['ZDOTDIR'] = resolved;
+			}
+			if (env?.['VSCODE_SHELL_LOGIN'] && shellLaunchConfig.env?.['VSCODE_SHELL_LOGIN']) {
+				this._logService.info('vscode shell login');
+				shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = env?.['VSCODE_SHELL_LOGIN'];
 			}
 			// Always resolve the injected arguments on local processes
 			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
