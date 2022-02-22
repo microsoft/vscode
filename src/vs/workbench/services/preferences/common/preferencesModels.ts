@@ -80,12 +80,21 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		}
 
 		filterMatches.sort((a, b) => {
-			// Sort by match type if the match types are not equal.
-			// The priority of the match type is given by the SettingMatchType enum.
-			// If they're equal, fall back to the "stable sort" counter score.
 			if (a.matchType !== b.matchType) {
+				// Sort by match type if the match types are not the same.
+				// The priority of the match type is given by the SettingMatchType enum.
 				return b.matchType - a.matchType;
 			} else {
+				// The match types are the same.
+				// See if the settings belong to the same extension and have an order.
+				// If yes, use that order (ascending). Otherwise, fall back.
+				if (a.setting.extensionInfo && b.setting.extensionInfo
+					&& a.setting.extensionInfo.id === b.setting.extensionInfo.id
+					&& (a.setting.order !== undefined || b.setting.order !== undefined)) {
+					const aOrder = a.setting.order ?? Number.MAX_SAFE_INTEGER;
+					const bOrder = b.setting.order ?? Number.MAX_SAFE_INTEGER;
+					return aOrder - bOrder;
+				}
 				return b.score - a.score;
 			}
 		});
