@@ -7924,7 +7924,7 @@ declare module 'vscode' {
 		/**
 		 * Controls whether forms are enabled in the webview content or not.
 		 *
-		 * Defaults to true if {@link WebViewOptions.enableScripts scripts are enabled}. Otherwise defaults to false.
+		 * Defaults to true if {@link WebviewOptions.enableScripts scripts are enabled}. Otherwise defaults to false.
 		 * Explicitly setting this property to either true or false overrides the default.
 		 */
 		readonly enableForms?: boolean;
