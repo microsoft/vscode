@@ -545,7 +545,7 @@ var requirejs = (function() {
 				} else {
 					console.warn('Command links are disabled in untrusted workspaces');
 				}
-			} else if (matchesScheme(link, Schemas.vscodeNotebookCell) || matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
+			} else if (matchesSomeScheme(link, Schemas.vscodeNotebookCell, Schemas.http, Schemas.https, Schemas.mailto)) {
 				this.openerService.open(link, { fromUserGesture: true, allowContributedOpeners: true, allowCommands: true });
 			}
 		}));
