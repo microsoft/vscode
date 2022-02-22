@@ -13,7 +13,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ILogService, logCi } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -642,7 +642,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	async kill(code?: number): Promise<void> {
-		logCi(this.logService, 'Lifecycle#kill()');
+		this.logService.trace('Lifecycle#kill()');
 
 		// Give main process participants a chance to orderly shutdown
 		await this.fireOnWillShutdown(ShutdownReason.KILL);
@@ -671,16 +671,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 							whenWindowClosed = Promise.resolve();
 						}
 
-						logCi(this.logService, 'Lifecycle#kill() - window.destroy()');
 						window.destroy();
 						await whenWindowClosed;
-						logCi(this.logService, 'Lifecycle#kill() - window closed');
 					}
 				}
 			})()
 		]);
-
-		logCi(this.logService, `Lifecycle#kill() - app.exit(${code})`);
 
 		// Now exit either after 1s or all windows destroyed
 		app.exit(code);
