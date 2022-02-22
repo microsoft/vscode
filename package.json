@@ -72,7 +72,7 @@
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.3",
     "jschardet": "3.0.0",
-    "keytar": "7.6.0",
+    "keytar": "7.9.0",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.3",
     "native-keymap": "3.2.1",
