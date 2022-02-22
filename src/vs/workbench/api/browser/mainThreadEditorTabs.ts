@@ -57,6 +57,7 @@ export class MainThreadEditorTabs {
 			editorId,
 			kind: tabKind,
 			additionalResourcesAndViewIds: [],
+			isPinned: group.isPinned(editor),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
@@ -182,6 +183,12 @@ export class MainThreadEditorTabs {
 		this._groupModel.get(groupId)!.activeTab = activeTab;
 	}
 
+	/**
+	 * Called when the dirty indicator on the tab changes
+	 * @param groupId The id of the group the tab is in
+	 * @param editorIndex The index of the tab
+	 * @param editor The editor input represented by the tab
+	 */
 	private _onDidTabDirty(groupId: number, editorIndex: number, editor: EditorInput) {
 		const tab = this._groupModel.get(groupId)?.tabs[editorIndex];
 		// Something wrong with the model staate so we rebuild
@@ -190,6 +197,23 @@ export class MainThreadEditorTabs {
 			return;
 		}
 		tab.isDirty = editor.isDirty();
+	}
+
+	/**
+	 * Called when the tab is pinned / unpinned
+	 * @param groupId The id of the group the tab is in
+	 * @param editorIndex The index of the tab
+	 * @param editor The editor input represented by the tab
+	 */
+	private _onDidTabStickyChange(groupId: number, editorIndex: number, editor: EditorInput) {
+		const group = this._editorGroupsService.getGroup(groupId);
+		const tab = this._groupModel.get(groupId)?.tabs[editorIndex];
+		// Something wrong with the model staate so we rebuild
+		if (!group || !tab) {
+			this._createTabsModel();
+			return;
+		}
+		tab.isPinned = group.isPinned(editor);
 	}
 
 	/**
@@ -223,28 +247,31 @@ export class MainThreadEditorTabs {
 	}
 
 	// TODOD @lramos15 Remove this after done finishing the tab model code
-	// private _eventToString(event: IEditorsChangeEvent): string {
-	// 	let eventString = '';
-	// 	switch (event.kind) {
-	// 		case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
-	// 		case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
-	// 		case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
-	// 		case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
-	// 		case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
-	// 		case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
-	// 		case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
-	// 		case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
-	// 		default: eventString += 'UNKNOWN'; break;
-	// 	}
-	// 	return eventString;
-	// }
+	private _eventToString(event: IEditorsChangeEvent): string {
+		let eventString = '';
+		switch (event.kind) {
+			case GroupModelChangeKind.GROUP_INDEX: eventString += 'GROUP_INDEX'; break;
+			case GroupModelChangeKind.EDITOR_ACTIVE: eventString += 'EDITOR_ACTIVE'; break;
+			case GroupModelChangeKind.EDITOR_PIN: eventString += 'EDITOR_PIN'; break;
+			case GroupModelChangeKind.EDITOR_OPEN: eventString += 'EDITOR_OPEN'; break;
+			case GroupModelChangeKind.EDITOR_CLOSE: eventString += 'EDITOR_CLOSE'; break;
+			case GroupModelChangeKind.EDITOR_MOVE: eventString += 'EDITOR_MOVE'; break;
+			case GroupModelChangeKind.EDITOR_LABEL: eventString += 'EDITOR_LABEL'; break;
+			case GroupModelChangeKind.GROUP_ACTIVE: eventString += 'GROUP_ACTIVE'; break;
+			case GroupModelChangeKind.GROUP_LOCKED: eventString += 'GROUP_LOCKED'; break;
+			case GroupModelChangeKind.EDITOR_DIRTY: eventString += 'EDITOR_DIRTY'; break;
+			case GroupModelChangeKind.EDITOR_STICKY: eventString += 'EDITOR_STICKY'; break;
+			default: eventString += `UNKNOWN: ${event.kind}`; break;
+		}
+		return eventString;
+	}
 
 	/**
 	 * The main handler for the tab events
 	 * @param events The list of events to process
 	 */
 	private _updateTabsModel(event: IEditorsChangeEvent): void {
+		console.log(this._eventToString(event));
 		switch (event.kind) {
 			case GroupModelChangeKind.GROUP_ACTIVE:
 				if (event.groupId === this._editorGroupsService.activeGroup.id) {
@@ -276,6 +303,11 @@ export class MainThreadEditorTabs {
 			case GroupModelChangeKind.EDITOR_DIRTY:
 				if (event.editorIndex !== undefined && event.editor !== undefined) {
 					this._onDidTabDirty(event.groupId, event.editorIndex, event.editor);
+					break;
+				}
+			case GroupModelChangeKind.EDITOR_STICKY:
+				if (event.editorIndex !== undefined && event.editor !== undefined) {
+					this._onDidTabStickyChange(event.groupId, event.editorIndex, event.editor);
 					break;
 				}
 			default:

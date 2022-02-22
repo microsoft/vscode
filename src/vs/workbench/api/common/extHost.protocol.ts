@@ -638,6 +638,7 @@ export interface IEditorTabDto {
 	resource?: UriComponents;
 	editorId?: string;
 	isActive: boolean;
+	isPinned: boolean;
 	isDirty: boolean;
 	kind: TabKind;
 	additionalResourcesAndViewIds: { resource?: UriComponents; viewId?: string }[];

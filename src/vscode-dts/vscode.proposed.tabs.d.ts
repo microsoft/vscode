@@ -63,6 +63,11 @@ declare module 'vscode' {
 		readonly isDirty: boolean;
 
 		/**
+		 * Whether or not the tab is pinned
+		 */
+		readonly isPinned: boolean;
+
+		/**
 		 * Indicates the type of tab it is.
 		 */
 		readonly kind: TabKind;
