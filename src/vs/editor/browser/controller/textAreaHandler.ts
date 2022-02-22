@@ -81,18 +81,20 @@ class VisibleTextAreaData {
 		}
 	}
 
-	updatePresentation(tokenPresentation: ITokenPresentation | null): ITokenPresentation {
-		if (tokenPresentation) {
-			this._previousPresentation = tokenPresentation;
-		}
+	definePresentation(tokenPresentation: ITokenPresentation | null): ITokenPresentation {
 		if (!this._previousPresentation) {
-			this._previousPresentation = {
-				foreground: ColorId.DefaultForeground,
-				italic: false,
-				bold: false,
-				underline: false,
-				strikethrough: false,
-			};
+			// To avoid flickering, once set, always reuse a presentation throughout the entire IME session
+			if (tokenPresentation) {
+				this._previousPresentation = tokenPresentation;
+			} else {
+				this._previousPresentation = {
+					foreground: ColorId.DefaultForeground,
+					italic: false,
+					bold: false,
+					underline: false,
+					strikethrough: false,
+				};
+			}
 		}
 		return this._previousPresentation;
 	}
@@ -669,7 +671,7 @@ export class TextAreaHandler extends ViewPart {
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
 				const textareaSpansSingleToken = (startTokenIndex === endTokenIndex);
-				const presentation = this._visibleTextArea.updatePresentation(
+				const presentation = this._visibleTextArea.definePresentation(
 					(textareaSpansSingleToken ? viewLineData.tokens.getPresentation(startTokenIndex) : null)
 				);
 
