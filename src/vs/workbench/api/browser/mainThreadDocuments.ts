@@ -115,7 +115,6 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 
 	private readonly _proxy: ExtHostDocumentsShape;
 	private readonly _modelTrackers = new ResourceMap<ModelTracker>();
-	private readonly _modelIsSynced = new ResourceMap<void>();
 	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
 
 	constructor(
@@ -186,23 +185,21 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 			// don't synchronize too large models
 			return;
 		}
-		this._modelIsSynced.set(model.uri, undefined);
 		this._modelTrackers.set(model.uri, new ModelTracker(model, this._onIsCaughtUpWithContentChanges, this._proxy, this._textFileService));
 	}
 
 	private _onModelModeChanged(event: { model: ITextModel; oldLanguageId: string }): void {
 		let { model } = event;
-		if (!this._modelIsSynced.has(model.uri)) {
+		if (!this._modelTrackers.has(model.uri)) {
 			return;
 		}
 		this._proxy.$acceptModelLanguageChanged(model.uri, model.getLanguageId());
 	}
 
 	handleModelRemoved(modelUrl: URI): void {
-		if (!this._modelIsSynced.has(modelUrl)) {
+		if (!this._modelTrackers.has(modelUrl)) {
 			return;
 		}
-		this._modelIsSynced.delete(modelUrl);
 		this._modelTrackers.get(modelUrl)!.dispose();
 		this._modelTrackers.delete(modelUrl);
 	}
@@ -237,7 +234,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}`));
 			} else if (!extUri.isEqual(documentUri, canonicalUri)) {
 				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Actual document opened as ${documentUri.toString()}`));
-			} else if (!this._modelIsSynced.has(canonicalUri)) {
+			} else if (!this._modelTrackers.has(canonicalUri)) {
 				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Files above 50MB cannot be synchronized with extensions.`));
 			} else {
 				return canonicalUri;
@@ -277,7 +274,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 		}).then(model => {
 			const resource = model.resource;
 
-			if (!this._modelIsSynced.has(resource)) {
+			if (!this._modelTrackers.has(resource)) {
 				throw new Error(`expected URI ${resource.toString()} to have come to LIFE`);
 			}
 
