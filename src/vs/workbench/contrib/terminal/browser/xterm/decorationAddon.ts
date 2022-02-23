@@ -61,6 +61,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
+				if (this._placeholderDecoration?.element) {
+					this._applyStyles(this._placeholderDecoration.element);
+				}
 				for (const decoration of this._decorations) {
 					if (decoration[1].decoration?.element) {
 						this._applyStyles(decoration[1].decoration.element, decoration[1].exitCode);
@@ -157,7 +160,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					this._decorations.set(decoration.marker.id, { decoration, disposables, exitCode: command.exitCode });
 				}
 			}
-			if (target.clientWidth! > 0) {
+			if (!target.classList.contains(DecorationSelector.Codicon)) {
+				// must be inlined to override the inlined styles from xterm
+				target.style.width = '16px';
+				target.style.height = '16px';
 				this._applyStyles(target, command.exitCode);
 			}
 		});
@@ -168,9 +174,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _applyStyles(target: HTMLElement, exitCode?: number): void {
-		// must be inlined to override the inlined styles from xterm
-		target.style.width = '16px';
-		target.style.height = '16px';
 		for (const classes of target.classList) {
 			target.classList.remove(classes);
 		}
