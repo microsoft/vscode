@@ -245,12 +245,12 @@
 	position: relative;
 }
 
+/* Set padding for these two to zero for now, otherwise the ends of the lists get cut off. */
 .settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element {
-	padding-top: 14px;
+	padding-top: 0px;
 }
-
 .settings-editor > .settings-body .settings-toc-container .monaco-scrollable-element {
-	padding-top: 14px;
+	padding-top: 0px;
 }
 
 .settings-editor > .settings-body .settings-toc-wrapper {

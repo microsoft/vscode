@@ -109,6 +109,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
+			this._terminalGroupService.onDidShow(() => this.refresh()),
 			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),

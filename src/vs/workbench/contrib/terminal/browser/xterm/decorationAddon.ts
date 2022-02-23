@@ -102,7 +102,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
-		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command));
+		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command, true));
 	}
 
 
@@ -137,6 +137,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			decoration.onRender(target => {
 				this._applyStyles(target);
 				target.classList.add(DecorationSelector.DefaultColor);
+				target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconDefault)}`);
 			});
 			this._placeholderDecoration = decoration;
 			return decoration;

@@ -2007,7 +2007,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			left: number,
 		) {
 			this.element = document.createElement('div');
-			this.element.setAttribute('tabindex', '-1');
 			this.element.id = outputId;
 			this.element.classList.add('output');
 			this.element.style.position = 'absolute';

@@ -552,7 +552,7 @@ export class Git {
 			this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
 
 			// stdout
-			if (args.length > 0 && this.commandsToLog.includes(args[0]) && bufferResult.stdout.length > 0) {
+			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
 				this.log(`${bufferResult.stdout}\n`);
 			}
 

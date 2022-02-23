@@ -1843,8 +1843,8 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IVerti
 
 		if (this._sashPosition !== sashPosition) {
 			this._sashPosition = sashPosition;
-			this._sash.layout();
 		}
+		this._sash.layout();
 
 		return this._sashPosition;
 	}

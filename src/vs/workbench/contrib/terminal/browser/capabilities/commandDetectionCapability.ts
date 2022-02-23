@@ -96,6 +96,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	handleCommandStart(): void {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 
 		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
@@ -109,7 +110,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				}
 			});
 		}
-		this._onCommandStarted.fire({ marker: this._currentCommand.promptStartMarker! } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 

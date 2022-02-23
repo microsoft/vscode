@@ -1799,6 +1799,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	activeGroupIndex: number = 0;
 	onDidChangeActiveGroup = Event.None;
 	onDidDisposeGroup = Event.None;
+	onDidShow = Event.None;
 	onDidChangeGroups = Event.None;
 	onDidChangePanelOrientation = Event.None;
 	onDidDisposeInstance = Event.None;
