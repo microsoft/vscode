@@ -6,7 +6,6 @@
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { IRange } from 'vs/base/common/range';
@@ -14,11 +13,9 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
-import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import * as languages from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationInjectedTextOptions } from 'vs/editor/common/model/textModel';
@@ -27,14 +24,10 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ClickLinkGesture, ClickLinkMouseEvent } from 'vs/editor/contrib/gotoSymbol/browser/link/clickLinkGesture';
 import { InlayHintAnchor, InlayHintItem, InlayHintsFragments } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
-import { InlayHintsAccessibility } from 'vs/editor/contrib/inlayHints/browser/inlayHintsAccessibility';
 import { goToDefinitionWithLocation, showGoToContextMenu } from 'vs/editor/contrib/inlayHints/browser/inlayHintsLocations';
-import { localize } from 'vs/nls';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as colors from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -81,6 +74,10 @@ export class RenderedInlayHintLabelPart {
 	}
 }
 
+class ActiveInlayHintInfo {
+	constructor(readonly part: RenderedInlayHintLabelPart, readonly hasTriggerModifier: boolean) { }
+}
+
 // --- controller
 
 export class InlayHintsController implements IEditorContribution {
@@ -98,9 +95,8 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _debounceInfo: IFeatureDebounceInformation;
 	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem; classNameRef: IDisposable }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
-	private readonly _accessibility: InlayHintsAccessibility;
 
-	private _activeInlayHintPart?: RenderedInlayHintLabelPart;
+	private _activeInlayHintPart?: ActiveInlayHintInfo;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -111,7 +107,6 @@ export class InlayHintsController implements IEditorContribution {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
-		this._accessibility = _instaService.createInstance(InlayHintsAccessibility, _editor);
 		this._debounceInfo = _featureDebounce.for(_languageFeaturesService.inlayHintsProvider, 'InlayHint', { min: 25 });
 		this._disposables.add(_languageFeaturesService.inlayHintsProvider.onDidChange(() => this._update()));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -229,28 +224,32 @@ export class InlayHintsController implements IEditorContribution {
 		const store = new DisposableStore();
 		const gesture = store.add(new ClickLinkGesture(this._editor));
 
-		let removeHighlight = () => { };
+		// let removeHighlight = () => { };
+
+		const sessionStore = new DisposableStore();
+		store.add(sessionStore);
 
 		store.add(gesture.onMouseMoveOrRelevantKeyDown(e => {
 			const [mouseEvent] = e;
 			const labelPart = this._getInlayHintLabelPart(mouseEvent);
 			const model = this._editor.getModel();
 
-			if (!labelPart || !mouseEvent.hasTriggerModifier || !model) {
-				removeHighlight();
+			if (!labelPart || !model) {
+				sessionStore.clear();
 				return;
 			}
 
+			// resolve the item
+			const cts = new CancellationTokenSource();
+			sessionStore.add(toDisposable(() => cts.dispose(true)));
+			labelPart.item.resolve(cts.token);
+
 			// render link => when the modifier is pressed and when there is a command or location
-			if (mouseEvent.hasTriggerModifier && (labelPart.part.command || labelPart.part.location)) {
+			if ((labelPart.part.command || labelPart.part.location)) {
 
-				// resolve the item
-				const cts = new CancellationTokenSource();
-				labelPart.item.resolve(cts.token);
+				this._activeInlayHintPart = new ActiveInlayHintInfo(labelPart, mouseEvent.hasTriggerModifier);
 
-				this._activeInlayHintPart = labelPart;
-
-				const lineNumber = this._activeInlayHintPart.item.hint.position.lineNumber;
+				const lineNumber = labelPart.item.hint.position.lineNumber;
 				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
 				const lineHints = new Set<InlayHintItem>();
 				for (const data of this._decorationsMetadata.values()) {
@@ -259,14 +258,13 @@ export class InlayHintsController implements IEditorContribution {
 					}
 				}
 				this._updateHintsDecorators([range], Array.from(lineHints));
-				removeHighlight = () => {
-					cts.dispose(true);
+				sessionStore.add(toDisposable(() => {
 					this._activeInlayHintPart = undefined;
 					this._updateHintsDecorators([range], Array.from(lineHints));
-				};
+				}));
 			}
 		}));
-		store.add(gesture.onCancel(removeHighlight));
+		store.add(gesture.onCancel(() => sessionStore.clear()));
 		store.add(gesture.onExecute(async e => {
 			const label = this._getInlayHintLabelPart(e);
 			if (label) {
@@ -292,6 +290,7 @@ export class InlayHintsController implements IEditorContribution {
 			if (!part) {
 				return;
 			}
+			e.event.preventDefault();
 			await part.item.resolve(CancellationToken.None);
 			if (part.item.hint.command) {
 				await this._invokeCommand(part.item.hint.command, part.item);
@@ -438,11 +437,13 @@ export class InlayHintsController implements IEditorContribution {
 
 				this._fillInColors(cssProperties, item.hint);
 
-				if ((part.command || part.location) && this._activeInlayHintPart?.item === item && this._activeInlayHintPart.index === i) {
+				if ((part.command || part.location) && this._activeInlayHintPart?.part.item === item && this._activeInlayHintPart.part.index === i) {
 					// active link!
 					cssProperties.textDecoration = 'underline';
-					cssProperties.cursor = 'pointer';
-					cssProperties.color = themeColorFromId(colors.editorActiveLinkForeground);
+					if (this._activeInlayHintPart.hasTriggerModifier) {
+						cssProperties.color = themeColorFromId(colors.editorActiveLinkForeground);
+						cssProperties.cursor = 'pointer';
+					}
 				}
 
 				if (isFirst && isLast) {
@@ -536,28 +537,20 @@ export class InlayHintsController implements IEditorContribution {
 
 	// --- accessibility
 
-	startInlayHintsReading(): void {
+	getInlayHintsForLine(line: number): InlayHintItem[] {
 		if (!this._editor.hasModel()) {
-			return;
+			return [];
 		}
-		const line = this._editor.getPosition().lineNumber;
 		const set = new Set<languages.InlayHint>();
-		const items: InlayHintItem[] = [];
+		const result: InlayHintItem[] = [];
 		for (let deco of this._editor.getLineDecorations(line)) {
 			const data = this._decorationsMetadata.get(deco.id);
 			if (data && !set.has(data.item.hint)) {
 				set.add(data.item.hint);
-				items.push(data.item);
+				result.push(data.item);
 			}
 		}
-		if (set.size > 0) {
-			this._accessibility.read(line, items);
-		}
-	}
-
-	stopInlayHintsReading(): void {
-		this._accessibility.reset();
-		this._editor.focus();
+		return result;
 	}
 }
 
@@ -568,47 +561,6 @@ function fixSpace(str: string): string {
 	return str.replace(/[ \t]/g, noBreakWhitespace);
 }
 
-registerAction2(class StartReadHints extends EditorAction2 {
-
-	constructor() {
-		super({
-			id: 'inlayHints.startReadingLineWithHint',
-			title: localize('read.title', 'Read Line With Inline Hints'),
-			precondition: EditorContextKeys.hasInlayHintsProvider,
-			f1: true
-		});
-	}
-
-	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const ctrl = InlayHintsController.get(editor);
-		if (ctrl) {
-			ctrl.startInlayHintsReading();
-		}
-	}
-});
-
-registerAction2(class StopReadHints extends EditorAction2 {
-
-	constructor() {
-		super({
-			id: 'inlayHints.stopReadingLineWithHint',
-			title: localize('stop.title', 'Stop Inlay Hints Reading'),
-			precondition: InlayHintsAccessibility.IsReading,
-			f1: true,
-			keybinding: {
-				weight: KeybindingWeight.EditorContrib,
-				primary: KeyCode.Escape
-			}
-		});
-	}
-
-	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		const ctrl = InlayHintsController.get(editor);
-		if (ctrl) {
-			ctrl.stopInlayHintsReading();
-		}
-	}
-});
 
 
 CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<languages.InlayHint[]> => {

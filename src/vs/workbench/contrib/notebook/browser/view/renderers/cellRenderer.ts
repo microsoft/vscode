@@ -121,6 +121,37 @@ abstract class AbstractCellRenderer {
 		templateData.elementDisposables.add(new CellDecorations(templateData.rootContainer, templateData.decorationContainer, element));
 		templateData.elementDisposables.add(templateData.instantiationService.createInstance(CellContextKeyManager, this.notebookEditor, element));
 	}
+
+	protected addCommonCollapseListeners(templateData: BaseCellRenderTemplate): IDisposable {
+		const collapsedPartListener = DOM.addDisposableListener(templateData.cellInputCollapsedContainer, DOM.EventType.DBLCLICK, e => {
+			const cell = templateData.currentRenderedCell;
+			if (!cell || !this.notebookEditor.hasModel()) {
+				return;
+			}
+
+			if (cell.isInputCollapsed) {
+				cell.isInputCollapsed = false;
+			} else {
+				cell.isOutputCollapsed = false;
+			}
+		});
+
+		const clickHandler = DOM.addDisposableListener(templateData.cellInputCollapsedContainer, DOM.EventType.CLICK, e => {
+			const cell = templateData.currentRenderedCell;
+			if (!cell || !this.notebookEditor.hasModel()) {
+				return;
+			}
+
+			const element = e.target as HTMLElement;
+
+			if (element && element.classList && element.classList.contains('expandInputIcon')) {
+				// clicked on the expand icon
+				cell.isInputCollapsed = false;
+			}
+		});
+
+		return combinedDisposable(collapsedPartListener, clickHandler);
+	}
 }
 
 export class MarkupCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkupCellViewModel, MarkdownCellRenderTemplate> {
@@ -203,6 +234,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		};
 
 		this.commonRenderTemplate(templateData);
+		templateDisposables.add(this.addCommonCollapseListeners(templateData));
 
 		return templateData;
 	}
@@ -541,34 +573,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		});
 
-		const collapsedPartListener = DOM.addDisposableListener(templateData.cellInputCollapsedContainer, DOM.EventType.DBLCLICK, e => {
-			const cell = templateData.currentRenderedCell;
-			if (!cell || !this.notebookEditor.hasModel()) {
-				return;
-			}
+		const commonDisposables = this.addCommonCollapseListeners(templateData);
 
-			if (cell.isInputCollapsed) {
-				cell.isInputCollapsed = false;
-			} else {
-				cell.isOutputCollapsed = false;
-			}
-		});
-
-		const clickHandler = DOM.addDisposableListener(templateData.cellInputCollapsedContainer, DOM.EventType.CLICK, e => {
-			const cell = templateData.currentRenderedCell;
-			if (!cell || !this.notebookEditor.hasModel()) {
-				return;
-			}
-
-			const element = e.target as HTMLElement;
-
-			if (element && element.classList && element.classList.contains('expandInputIcon')) {
-				// clicked on the expand icon
-				cell.isInputCollapsed = false;
-			}
-		});
-
-		return combinedDisposable(dragHandleListener, collapsedPartListener, clickHandler);
+		return combinedDisposable(dragHandleListener, commonDisposables);
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {

@@ -3672,7 +3672,7 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 				'editor.guides.highlightActiveBracketPair': {
 					type: 'boolean',
 					default: defaults.highlightActiveBracketPair,
-					description: nls.localize('editor.guides.highlightActiveBracketPair', "Controls whether bracket pair guides are enabled or not.")
+					description: nls.localize('editor.guides.highlightActiveBracketPair', "Controls whether the editor should highlight the active bracket pair.")
 				},
 				'editor.guides.indentation': {
 					type: 'boolean',

@@ -559,6 +559,8 @@ class MouseDownOperation extends Disposable {
 
 			leftButton: this._mouseState.leftButton,
 			middleButton: this._mouseState.middleButton,
+
+			onInjectedText: position.type === MouseTargetType.CONTENT_TEXT && position.detail.injectedText !== null
 		});
 	}
 }

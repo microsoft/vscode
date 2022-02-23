@@ -423,11 +423,11 @@
 	top: 50%;
 }
 
-.terminal-command-decoration:not(.skipped):hover {
+.terminal-command-decoration:not(.default):hover {
 	cursor: pointer;
 	border-radius: 5px;
 }
 
-.terminal-command-decoration.skipped {
+.terminal-command-decoration.default {
 	pointer-events: none;
 }

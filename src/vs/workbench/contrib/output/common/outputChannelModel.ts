@@ -65,7 +65,7 @@ class OutputFileListener extends Disposable {
 	}
 
 	private async doWatch(): Promise<void> {
-		const stat = await this.fileService.resolve(this.file, { resolveMetadata: true });
+		const stat = await this.fileService.stat(this.file);
 		if (stat.etag !== this.etag) {
 			this.etag = stat.etag;
 			this._onDidContentChange.fire(stat.size);

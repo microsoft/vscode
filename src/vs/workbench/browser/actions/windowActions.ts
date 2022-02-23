@@ -232,9 +232,11 @@ abstract class BaseOpenRecentAction extends Action2 {
 
 export class OpenRecentAction extends BaseOpenRecentAction {
 
+	static ID = 'workbench.action.openRecent';
+
 	constructor() {
 		super({
-			id: 'workbench.action.openRecent',
+			id: OpenRecentAction.ID,
 			title: {
 				value: localize('openRecent', "Open Recent..."),
 				mnemonicTitle: localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More..."),
@@ -286,7 +288,7 @@ class ToggleFullScreenAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "&&Full Screen"),
 				original: 'Toggle Full Screen'
 			},
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -320,7 +322,7 @@ export class ReloadWindowAction extends Action2 {
 		super({
 			id: ReloadWindowAction.ID,
 			title: { value: localize('reloadWindow', "Reload Window"), original: 'Reload Window' },
-			category: CATEGORIES.Developer.value,
+			category: CATEGORIES.Developer,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 50,
@@ -347,7 +349,7 @@ class ShowAboutDialogAction extends Action2 {
 				mnemonicTitle: localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About"),
 				original: 'About'
 			},
-			category: CATEGORIES.Help.value,
+			category: CATEGORIES.Help,
 			f1: true,
 			menu: {
 				id: MenuId.MenubarHelpMenu,

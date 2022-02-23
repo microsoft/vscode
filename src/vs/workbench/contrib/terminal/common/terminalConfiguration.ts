@@ -106,17 +106,17 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.ShellIntegrationCommandIcon]: {
 			type: 'string',
 			default: 'primitive-dot',
-			description: localize('terminal.integrated.shellIntegration.commandIcon', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to '' to hide the icon.")
+			description: localize('terminal.integrated.shellIntegration.commandIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to '' to hide the icon.")
 		},
 		[TerminalSettingId.ShellIntegrationCommandIconError]: {
 			type: 'string',
 			default: 'error-small',
 			description: localize('terminal.integrated.shellIntegration.commandIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to '' to hide the icon.")
 		},
-		[TerminalSettingId.ShellIntegrationCommandIconSkipped]: {
+		[TerminalSettingId.ShellIntegrationCommandIconDefault]: {
 			type: 'string',
 			default: 'circle-outline',
-			description: localize('terminal.integrated.shellIntegration.commandIconSkipped', "Controls the icon that will be used for skipped/empty commands. Set to '' to hide the icon.")
+			description: localize('terminal.integrated.shellIntegration.commandIconDefault', "Controls the icon that will be used for skipped/empty commands. Set to '' to hide the icon.")
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
@@ -149,7 +149,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.EnableMultiLinePasteWarning]: {
-			description: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal."),
+			markdownDescription: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal. The dialog does not show when:\n\n- Bracketed paste mode is enabled (the shell supports multi-line paste natively)\n- The paste is handled by the shell's readline (in the case of pwsh)"),
 			type: 'boolean',
 			default: true
 		},

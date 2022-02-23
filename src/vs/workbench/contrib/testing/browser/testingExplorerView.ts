@@ -712,11 +712,7 @@ export class TestingExplorerViewModel extends Disposable {
 		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testProfileService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => [
-				...actions.value.primary,
-				new Separator(),
-				...actions.value.secondary,
-			],
+			getActions: () => actions.value.secondary,
 			getActionsContext: () => element,
 			onHide: () => actions.dispose(),
 			actionRunner: this.actionRunner,

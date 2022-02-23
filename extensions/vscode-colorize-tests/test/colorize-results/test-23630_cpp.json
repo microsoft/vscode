@@ -7,7 +7,8 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -18,7 +19,8 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -29,7 +31,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -40,7 +43,8 @@
 			"light_plus": "entity.name.function.preprocessor: #0000FF",
 			"dark_vs": "entity.name.function.preprocessor: #569CD6",
 			"light_vs": "entity.name.function.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -51,7 +55,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -62,7 +67,8 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -73,7 +79,8 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -84,7 +91,8 @@
 			"light_plus": "meta.preprocessor: #0000FF",
 			"dark_vs": "meta.preprocessor: #569CD6",
 			"light_vs": "meta.preprocessor: #0000FF",
-			"hc_black": "meta.preprocessor: #569CD6"
+			"hc_black": "meta.preprocessor: #569CD6",
+			"hc_light": "meta.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -95,7 +103,8 @@
 			"light_plus": "entity.name.function.preprocessor: #0000FF",
 			"dark_vs": "entity.name.function.preprocessor: #569CD6",
 			"light_vs": "entity.name.function.preprocessor: #0000FF",
-			"hc_black": "entity.name.function: #DCDCAA"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function.preprocessor: #0000FF"
 		}
 	},
 	{
@@ -106,7 +115,8 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #AF00DB"
 		}
 	},
 	{
@@ -117,7 +127,8 @@
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
-			"hc_black": "keyword.control: #C586C0"
+			"hc_black": "keyword.control: #C586C0",
+			"hc_light": "keyword.control: #AF00DB"
 		}
 	}
 ]

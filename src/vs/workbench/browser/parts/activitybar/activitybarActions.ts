@@ -60,7 +60,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		this.activity = activity;
 	}
 
-	override async run(event: any | { preserveFocus: boolean }): Promise<void> {
+	override async run(event: { preserveFocus: boolean }): Promise<void> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return; // do not run on right click
 		}
