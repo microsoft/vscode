@@ -51,7 +51,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._register({
@@ -65,6 +65,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandIcon) ||
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandIconDefault) ||
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandIconError)) {
+				for (const decoration of this._decorations) {
+					if (decoration[1].decoration?.element) {
+						this._applyStyles(decoration[1].decoration.element);
+					}
+				}
+			}
+		});
 	}
 
 	private _clearDecorations(): void {
