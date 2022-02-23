@@ -16,12 +16,12 @@ import {
 	autorun,
 	autorunDelta,
 	constObservable,
-	debouncedObservable,
 	derivedObservable,
 	observableFromEvent,
 	observableFromPromise,
 	IObservable,
 	wasEventTriggeredRecently,
+	debouncedObservable,
 } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { ITextModel } from 'vs/editor/common/model';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';

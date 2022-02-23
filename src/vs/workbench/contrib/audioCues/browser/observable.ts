@@ -572,13 +572,14 @@ export namespace observableFromEvent {
 	export const Observer = FromEventObservable;
 }
 
-export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T> {
-	const debouncedObservable = new ObservableValue(observable.get(), 'debounced');
+export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
+	const debouncedObservable = new ObservableValue<T | undefined>(undefined, 'debounced');
 
 	let timeout: any = undefined;
 
 	disposableStore.add(autorun(reader => {
 		const value = observable.read(reader);
+
 		if (timeout) {
 			clearTimeout(timeout);
 		}
@@ -587,6 +588,7 @@ export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: n
 				debouncedObservable.set(value, tx);
 			});
 		}, debounceMs);
+
 	}, 'debounce'));
 
 	return debouncedObservable;
