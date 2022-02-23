@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, env, ProgressLocation, Uri, window, RelativePattern, workspace } from 'vscode';
+import { commands, env, ProgressLocation, Uri, window, RelativePattern, workspace, QuickPickOptions } from 'vscode';
 import * as nls from 'vscode-nls';
 import { getOctokit } from './auth';
 import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git';
@@ -160,6 +160,26 @@ async function getPullRequestTemplates(repository: Repository): Promise<Uri[]> {
 
 	const allResults = [...templatesPattern1, ...templatesPattern2, ...templatesPattern3, ...templatesPattern4];
 	return allResults;
+}
+
+async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | undefined> {
+	const templatesSorted = [...templates];
+	templatesSorted.sort((a, b) => a.path.localeCompare(b.path));
+
+	const quickPickItemFromUri = (x: Uri) => ({ label: x.path, template: x });
+	const quickPickItems = [
+		{
+			label: localize('no pr template', "No template"),
+			picked: true,
+			template: undefined,
+		},
+		...templatesSorted.map(quickPickItemFromUri)
+	];
+	const quickPickOptions: QuickPickOptions = {
+		placeHolder: localize('select pr template', "Select the Pull Request template")
+	};
+	const pickedTemplate = await window.showQuickPick(quickPickItems, quickPickOptions);
+	return pickedTemplate?.template;
 }
 
 export class GithubPushErrorHandler implements PushErrorHandler {
