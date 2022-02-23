@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { TextDecoder } from 'util';
 import { commands, env, ProgressLocation, Uri, window, RelativePattern, workspace, QuickPickOptions } from 'vscode';
 import * as nls from 'vscode-nls';
 import { getOctokit } from './auth';
@@ -103,10 +104,21 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 					title = commit.message.replace(/\n.*$/m, '');
 				}
 
+				let body: string | undefined;
+
+				const templates = await getPullRequestTemplates(repository);
+				if (0 < templates.length) {
+					const pickedTemplate = await pickPullRequestTemplate(templates);
+					if (pickedTemplate) {
+						body = new TextDecoder('utf-8').decode(await workspace.fs.readFile(pickedTemplate));
+					}
+				}
+
 				const res = await octokit.pulls.create({
 					owner,
 					repo,
 					title,
+					body,
 					head: `${ghRepository.owner.login}:${remoteName}`,
 					base: remoteName
 				});
