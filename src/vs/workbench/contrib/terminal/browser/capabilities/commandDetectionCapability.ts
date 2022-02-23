@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
@@ -95,8 +96,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	handleCommandStart(): void {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
-		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 
 		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
@@ -109,6 +108,16 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 					}
 				}
 			});
+			// HACK: Fire command started on the following frame on Windows to allow the cursor
+			// position to update as conpty often prints the sequence on a different line to the
+			// actual line the command started on.
+			timeout(0).then(() => {
+				this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+				this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
+			});
+		} else {
+			this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+			this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 		}
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
