@@ -62,6 +62,13 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 	}
 
+	private readonly obsoleteAudioCuesEnabled = observableFromEvent(
+		Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
+			e.affectsConfiguration('audioCues.enabled')
+		),
+		() => this.configurationService.getValue<'on' | 'off' | 'auto'>('audioCues.enabled')
+	);
+
 	private readonly isEnabledCache = new Cache((cue: AudioCue) => {
 		const settingObservable = observableFromEvent(
 			Event.filter(this.configurationService.onDidChangeConfiguration, (e) =>
@@ -71,11 +78,21 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		);
 		return new LazyDerived(reader => {
 			const setting = settingObservable.read(reader);
-			if (setting === 'auto') {
-				return this.screenReaderAttached.read(reader);
-			} else if (setting === 'on') {
+			if (
+				setting === 'on' ||
+				(setting === 'auto' && this.screenReaderAttached.read(reader))
+			) {
 				return true;
 			}
+
+			const obsoleteSetting = this.obsoleteAudioCuesEnabled.read(reader);
+			if (
+				obsoleteSetting === 'on' ||
+				(obsoleteSetting === 'auto' && this.screenReaderAttached.read(reader))
+			) {
+				return true;
+			}
+
 			return false;
 		}, 'audio cue enabled');
 	});
