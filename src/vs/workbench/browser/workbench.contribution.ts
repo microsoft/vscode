@@ -375,7 +375,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'tags': ['experimental'],
 				'default': false,
-				'description': localize('layoutControlEnabled', "Controls whether the layout controls in the custom title bar is enabled."),
+				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
 			},
 			'workbench.experimental.layoutControl.type': {
 				'type': 'string',
