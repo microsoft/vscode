@@ -58,7 +58,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 		this._configurationService.onDidChangeConfiguration(e => {
-			console.log('changed', e.affectedKeys);
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
