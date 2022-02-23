@@ -5,6 +5,7 @@
 
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export async function buildTelemetryMessage(appRoot: string, extensionsPath?: string): Promise<string> {
 	const mergedTelemetry = Object.create(null);
@@ -51,4 +52,8 @@ export async function buildTelemetryMessage(appRoot: string, extensionsPath?: st
 	mergeTelemetry(contents, 'vscode-extensions');
 
 	return JSON.stringify(mergedTelemetry, null, 4);
+}
+
+export function getPiiPathsFromEnvironment(environmentService: INativeEnvironmentService): string[] {
+	return [environmentService.appRoot, environmentService.extensionsPath, environmentService.userHome.fsPath, environmentService.tmpDir.fsPath, environmentService.userDataPath];
 }

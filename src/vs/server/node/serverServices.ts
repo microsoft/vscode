@@ -67,6 +67,7 @@ import { ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serve
 import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
+import { getPiiPathsFromEnvironment } from 'vs/platform/telemetry/node/telemetry';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -124,7 +125,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const config: ITelemetryServiceConfig = {
 			appenders: [appInsightsAppender],
 			commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, productService.msftInternalDomains, environmentService.installSourcePath, 'remoteAgent'),
-			piiPaths: [environmentService.appRoot]
+			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
 		let injectedTelemetryLevel: TelemetryLevel | undefined = undefined;

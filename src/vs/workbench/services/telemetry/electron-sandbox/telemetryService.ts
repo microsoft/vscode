@@ -17,6 +17,7 @@ import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } fro
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IFileService } from 'vs/platform/files/common/files';
+import { getPiiPathsFromEnvironment } from 'vs/platform/telemetry/node/telemetry';
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
@@ -40,7 +41,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const config: ITelemetryServiceConfig = {
 				appenders: [new TelemetryAppenderClient(channel)],
 				commonProperties: resolveWorkbenchCommonProperties(storageService, fileService, environmentService.os.release, environmentService.os.hostname, productService.commit, productService.version, environmentService.machineId, productService.msftInternalDomains, environmentService.installSourcePath, environmentService.remoteAuthority),
-				piiPaths: [environmentService.appRoot, environmentService.extensionsPath],
+				piiPaths: getPiiPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true
 			};
 

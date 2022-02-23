@@ -99,6 +99,7 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 import { DiskFileSystemProviderClient, LOCAL_FILE_SYSTEM_CHANNEL_NAME } from 'vs/platform/files/common/diskFileSystemProviderClient';
 import { InspectProfilingService as V8InspectProfilingService } from 'vs/platform/profiling/node/profilingService';
 import { IV8InspectProfilingService } from 'vs/platform/profiling/common/profiling';
+import { getPiiPathsFromEnvironment } from 'vs/platform/telemetry/node/telemetry';
 
 class SharedProcessMain extends Disposable {
 
@@ -268,7 +269,7 @@ class SharedProcessMain extends Disposable {
 		if (supportsTelemetry(productService, environmentService)) {
 			const logAppender = new TelemetryLogAppender(loggerService, environmentService);
 			appenders.push(logAppender);
-			const { appRoot, extensionsPath, installSourcePath } = environmentService;
+			const { installSourcePath } = environmentService;
 
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
@@ -290,7 +291,7 @@ class SharedProcessMain extends Disposable {
 				appenders,
 				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
-				piiPaths: [appRoot, extensionsPath]
+				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService);
 		} else {
 			telemetryService = NullTelemetryService;

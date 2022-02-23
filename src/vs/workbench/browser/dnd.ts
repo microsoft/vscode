@@ -34,7 +34,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITreeDataTransfer } from 'vs/workbench/common/views';
-import { selectionFragment } from 'vs/platform/opener/common/opener';
+import { extractSelection } from 'vs/platform/opener/common/opener';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
@@ -141,11 +141,11 @@ function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string |
 		const resourcesRaw: string[] = JSON.parse(rawResourcesData);
 		for (const resourceRaw of resourcesRaw) {
 			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
-				const resource = URI.parse(resourceRaw);
+				const { selection, uri } = extractSelection(URI.parse(resourceRaw));
 				editors.push({
-					resource,
+					resource: uri,
 					options: {
-						selection: selectionFragment(resource)
+						selection
 					}
 				});
 			}
@@ -407,8 +407,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		if (isEditorIdentifier(resourceOrEditor)) {
 			editor = resourceOrEditor.editor.toUntyped({ preserveViewState: resourceOrEditor.groupId });
 		} else if (URI.isUri(resourceOrEditor)) {
-			const selection = selectionFragment(resourceOrEditor);
-			editor = { resource: resourceOrEditor, options: selection ? { selection } : undefined };
+			const { selection, uri } = extractSelection(resourceOrEditor);
+			editor = { resource: uri, options: selection ? { selection } : undefined };
 		} else if (!resourceOrEditor.isDirectory) {
 			editor = { resource: resourceOrEditor.resource };
 		}
