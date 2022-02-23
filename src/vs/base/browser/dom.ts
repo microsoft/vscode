@@ -18,8 +18,6 @@ import * as platform from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 
-export { addMatchMediaChangeListener } from 'vs/base/browser/browser';
-
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.firstChild.remove();
