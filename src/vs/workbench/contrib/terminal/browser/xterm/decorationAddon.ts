@@ -21,8 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { fromNow } from 'vs/base/common/date';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { editorGutterDeletedBackground, editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -246,8 +245,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const successColor = theme.getColor(editorGutterModifiedBackground);
-	const errorColor = theme.getColor(editorGutterDeletedBackground);
+	const successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
+	const errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
 	const defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
 	const hoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 
