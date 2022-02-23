@@ -111,20 +111,23 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			picker.ariaLabel = descriptor?.placeholder;
 		}
 
-		// Add toggle for multiselect mode
-		picker.customButton = true;
-		picker.canSelectMany = false;
-		picker.customHover = nls.localize('quickAccessToggle', "Toggle Multi-Select Mode");
-		const setCustomLabel = () => {
-			//picker.customLabel = picker.canSelectMany ? '$(check)' : '$(check-all)';
-			picker.customLabel = picker.canSelectMany ? '$(file)' : '$(files)';
-		};
-		setCustomLabel();
-		picker.onDidCustom(() => {
-			picker.selectedItems = [];
-			picker.canSelectMany = !picker.canSelectMany;
+		// Add toggle for file picker multiselect mode
+		if (value === '') {
+			picker.customButton = true;
+			picker.canSelectMany = false;
+			picker.customHover = nls.localize('quickAccessToggle', "Toggle Multi-Select Mode");
+			const setCustomLabel = () => {
+				//picker.customLabel = picker.canSelectMany ? '$(check)' : '$(check-all)';
+				picker.customLabel = picker.canSelectMany ? '$(file)' : '$(files)';
+			};
 			setCustomLabel();
-		});
+			picker.onDidCustom(() => {
+				picker.selectedItems = [];
+				picker.canSelectMany = !picker.canSelectMany;
+				setCustomLabel();
+				picker.focusOnInput();
+			});
+		}
 
 		// Pick mode: setup a promise that can be resolved
 		// with the selected items and prevent execution
