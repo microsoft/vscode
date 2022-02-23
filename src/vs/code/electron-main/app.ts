@@ -76,7 +76,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { getPiiPathsFromEnvironment, getTelemetryLevel, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getTelemetryLevel, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
@@ -99,6 +99,7 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { getPiiPathsFromEnvironment } from 'vs/platform/telemetry/node/telemetry';
 
 /**
  * The main VS Code application. There will only ever be one instance,
