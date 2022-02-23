@@ -103,20 +103,20 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'view',
 			description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 		},
-		[TerminalSettingId.ShellIntegrationCommandIconSuccess]: {
+		[TerminalSettingId.ShellIntegrationDecorationIconSuccess]: {
 			type: 'string',
 			default: 'primitive-dot',
-			markdownDescription: localize('terminal.integrated.shellIntegration.commandIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.commandDecorationsEnabled#`")
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
 		},
-		[TerminalSettingId.ShellIntegrationCommandIconError]: {
+		[TerminalSettingId.ShellIntegrationDecorationIconError]: {
 			type: 'string',
 			default: 'error-small',
-			markdownDescription: localize('terminal.integrated.shellIntegration.commandIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.commandDecorationsEnabled#`.")
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`.")
 		},
-		[TerminalSettingId.ShellIntegrationCommandIcon]: {
+		[TerminalSettingId.ShellIntegrationDecorationIcon]: {
 			type: 'string',
 			default: 'circle-outline',
-			markdownDescription: localize('terminal.integrated.shellIntegration.commandIcon', "Controls the icon that will be used for skipped/empty commands. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.commandDecorationsEnabled#`")
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIcon', "Controls the icon that will be used for skipped/empty commands. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
@@ -537,9 +537,9 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
-		[TerminalSettingId.ShellIntegrationCommandDecorationsEnabled]: {
+		[TerminalSettingId.ShellIntegrationDecorationsEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.commandDecorationsEnabled', "When shell integration is enabled, adds a decoration for each command."),
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationsEnabled', "When shell integration is enabled, adds a decoration for each command."),
 			type: 'boolean',
 			default: true
 		},

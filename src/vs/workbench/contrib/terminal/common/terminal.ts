@@ -292,7 +292,6 @@ export interface ITerminalConfiguration {
 	autoReplies: { [key: string]: string };
 	shellIntegration?: {
 		enabled: boolean;
-		commandDecorationsEnabled: boolean;
 	};
 }
 

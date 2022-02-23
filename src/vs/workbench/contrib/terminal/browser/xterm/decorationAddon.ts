@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalCommand, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -48,7 +48,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	constructor(
 		private readonly _capabilities: ITerminalCapabilityStore,
-		terminalConfigHelper: ITerminalConfigHelper,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
@@ -60,16 +59,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandIcon) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandIconSuccess) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandIconError)) {
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
 				for (const decoration of this._decorations) {
 					if (decoration[1].decoration?.element) {
 						this._applyStyles(decoration[1].decoration.element, decoration[1].exitCode);
 					}
 				}
-			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationCommandDecorationsEnabled)) {
-				if (!terminalConfigHelper.config.shellIntegration?.commandDecorationsEnabled) {
+			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				if (!this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
 					this._commandStartedListener?.dispose();
 					this._commandFinishedListener?.dispose();
 					this._clearDecorations();
@@ -152,7 +151,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			decoration.onRender(target => {
 				this._applyStyles(target);
 				target.classList.add(DecorationSelector.DefaultColor);
-				target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIcon)}`);
+				target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
 			});
 			this._placeholderDecoration = decoration;
 			return decoration;
@@ -183,12 +182,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		target.style.height = '16px';
 		if (exitCode === undefined) {
 			target.classList.add(DecorationSelector.DefaultColor);
-			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIcon)}`);
+			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
 		} else if (exitCode) {
 			target.classList.add(DecorationSelector.ErrorColor);
-			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconError)}`);
+			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconError)}`);
 		} else {
-			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconSuccess)}`);
+			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconSuccess)}`);
 		}
 	}
 

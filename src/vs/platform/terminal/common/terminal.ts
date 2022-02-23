@@ -103,11 +103,11 @@ export const enum TerminalSettingId {
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 	AutoReplies = 'terminal.integrated.autoReplies',
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
-	ShellIntegrationCommandDecorationsEnabled = 'terminal.integrated.shellIntegration.commandDecorationsEnabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
-	ShellIntegrationCommandIcon = 'terminal.integrated.shellIntegration.commandIcon',
-	ShellIntegrationCommandIconError = 'terminal.integrated.shellIntegration.commandIconError',
-	ShellIntegrationCommandIconSuccess = 'terminal.integrated.shellIntegration.commandIconSuccess',
+	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationDecorationIcon = 'terminal.integrated.shellIntegration.decorationIcon',
+	ShellIntegrationDecorationIconError = 'terminal.integrated.shellIntegration.decorationIconError',
+	ShellIntegrationDecorationIconSuccess = 'terminal.integrated.shellIntegration.decorationIconSuccess',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
