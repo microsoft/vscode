@@ -76,7 +76,7 @@ add-zsh-hook preexec preexec
 
 # Show the welcome message
 if [ -z "${VSCODE_SHELL_HIDE_WELCOME-}" ]; then
-	echo "\033[1;32mShell integration activated!\033[0m"
+	echo "\033[1;32mShell integration activated\033[0m"
 else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi

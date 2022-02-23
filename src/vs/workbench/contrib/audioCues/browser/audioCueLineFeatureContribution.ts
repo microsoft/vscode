@@ -16,12 +16,12 @@ import {
 	autorun,
 	autorunDelta,
 	constObservable,
-	debouncedObservable,
 	derivedObservable,
 	observableFromEvent,
 	observableFromPromise,
 	IObservable,
 	wasEventTriggeredRecently,
+	debouncedObservable,
 } from 'vs/workbench/contrib/audioCues/browser/observable';
 import { ITextModel } from 'vs/editor/common/model';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
@@ -107,7 +107,7 @@ export class AudioCueLineFeatureContribution
 				return editor.getPosition()?.lineNumber;
 			}
 		);
-		const debouncedLineNumber = debouncedObservable(curLineNumber, 100, store);
+		const debouncedLineNumber = debouncedObservable(curLineNumber, 300, store);
 
 		const isTyping = wasEventTriggeredRecently(
 			editorModel.onDidChangeContent.bind(editorModel),
