@@ -85,6 +85,7 @@ import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { IDiagnosticsService, NullDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { WebUserDataSyncEnablementService } from 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 
 registerSingleton(IUserDataSyncEnablementService, WebUserDataSyncEnablementService);
@@ -103,6 +104,7 @@ registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(ITimerService, TimerService);
 registerSingleton(IConfigurationResolverService, ConfigurationResolverService, true);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, true);
+registerSingleton(IDiagnosticsService, NullDiagnosticsService, true);
 
 //#endregion
 
@@ -180,6 +182,7 @@ import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/url
 import type { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/updateService';
 // eslint-disable-next-line no-duplicate-imports
 import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
+
 
 export {
 
