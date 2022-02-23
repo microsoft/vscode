@@ -28,7 +28,7 @@ const enum DecorationSelector {
 	ErrorColor = 'error',
 	DefaultColor = 'default',
 	Codicon = 'codicon',
-	XtermScreen = 'xterm-screen'
+	XtermDecoration = 'xterm-decoration'
 }
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number }
@@ -150,11 +150,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!decoration) {
 			return undefined;
 		}
-
 		decoration.onRender(target => {
-			if (target && !this._decorations.get(decoration.marker.id)) {
+			if (target) {
 				const disposables = command.exitCode === undefined ? [] : [this._createContextMenu(target, command), ...this._createHover(target, command)];
-				this._decorations.set(decoration.marker.id, { decoration, disposables, exitCode: command.exitCode });
+				if (!beforeCommandExecution) {
+					this._decorations.set(decoration.marker.id, { decoration, disposables, exitCode: command.exitCode });
+				}
 			}
 			if (target.clientWidth! > 0) {
 				this._applyStyles(target, command.exitCode);
@@ -173,7 +174,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		for (const classes of target.classList) {
 			target.classList.remove(classes);
 		}
-		target.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon);
+		target.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 		if (exitCode === undefined) {
 			target.classList.add(DecorationSelector.DefaultColor);
 			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
