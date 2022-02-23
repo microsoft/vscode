@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ICustomEndpointTelemetryService, ITelemetryData, ITelemetryEndpoint, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
@@ -246,4 +246,8 @@ function flatKeys(result: string[], prefix: string, value: { [key: string]: any 
 	} else {
 		result.push(prefix);
 	}
+}
+
+export function getPiiPathsFromEnvironment(environmentService: INativeEnvironmentService): string[] {
+	return [environmentService.appRoot, environmentService.extensionsPath, environmentService.userHome.fsPath, environmentService.tmpDir.fsPath, environmentService.userDataPath];
 }
