@@ -19,7 +19,6 @@ import { ByteSize } from 'vs/platform/files/common/files';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export interface VersionInfo {
 	vscodeVersion: string;
@@ -39,15 +38,7 @@ interface ConfigFilePatterns {
 	relativePathPattern?: RegExp;
 }
 
-const worksapceStatsCache = new Map<string, Promise<WorkspaceStats>>();
-export async function collectWorkspaceStats(folder: string, filter: string[], limit?: number): Promise<WorkspaceStats> {
-	const cacheKey = `${folder}::${filter.join(':')}`;
-	console.log(cacheKey);
-	const cached = worksapceStatsCache.get(cacheKey);
-	if (cached) {
-		return cached;
-	}
-
+export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
 	const configFilePatterns: ConfigFilePatterns[] = [
 		{ tag: 'grunt.js', filePattern: /^gruntfile\.js$/i },
 		{ tag: 'gulp.js', filePattern: /^gulpfile\.js$/i },
@@ -73,7 +64,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[], li
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
 
-	const MAX_FILES = limit ?? 20000;
+	const MAX_FILES = 20000;
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
@@ -144,22 +135,17 @@ export async function collectWorkspaceStats(folder: string, filter: string[], li
 		});
 	}
 
-	const statsPromise = Promises.withAsyncBody<WorkspaceStats>(async (resolve) => {
-		const token: { count: number; maxReached: boolean } = { count: 0, maxReached: false };
+	const token: { count: number; maxReached: boolean } = { count: 0, maxReached: false };
 
-		await collect(folder, folder, filter, token);
-		const launchConfigs = await collectLaunchConfigs(folder);
-		resolve({
-			configFiles: asSortedItems(configFiles),
-			fileTypes: asSortedItems(fileTypes),
-			fileCount: token.count,
-			maxFilesReached: token.maxReached,
-			launchConfigFiles: launchConfigs
-		});
-	});
-
-	worksapceStatsCache.set(cacheKey, statsPromise);
-	return statsPromise;
+	await collect(folder, folder, filter, token);
+	const launchConfigs = await collectLaunchConfigs(folder);
+	return {
+		configFiles: asSortedItems(configFiles),
+		fileTypes: asSortedItems(fileTypes),
+		fileCount: token.count,
+		maxFilesReached: token.maxReached,
+		launchConfigFiles: launchConfigs
+	};
 }
 
 function asSortedItems(items: Map<string, number>): WorkspaceStatItem[] {
@@ -508,22 +494,6 @@ export class DiagnosticsService implements IDiagnosticsService {
 		if (Array.isArray(item.children)) {
 			item.children.forEach(child => this.formatProcessItem(mainPid, mapPidToWindowTitle, output, child, indent + 1));
 		}
-	}
-
-	public async getWorkspaceFileExtensions(workspace: IWorkspace): Promise<{ extensions: string[] }> {
-		const items = new Set<string>();
-		for (const { uri } of workspace.folders) {
-			const folderUri = URI.revive(uri);
-			if (folderUri.scheme !== Schemas.file) {
-				continue;
-			}
-			const folder = folderUri.fsPath;
-			try {
-				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git'], 1000);
-				stats.fileTypes.forEach(item => items.add(item.name));
-			} catch { }
-		}
-		return { extensions: [...items] };
 	}
 
 	public async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> {
