@@ -48,8 +48,9 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IDiagnosticsService private readonly _diagnosticsService: IDiagnosticsService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		// @todo: jkearl: IDiagnosticsService not available in remote/web contexts.
+		// @IDiagnosticsService private readonly _diagnosticsService: IDiagnosticsService,
+		// @IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IModelService modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -82,14 +83,14 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 	private resolveWorkspaceLanguageIds() {
 		this.hasResolvedWorkspaceLanguageIds = true;
-		this._diagnosticsService.getWorkspaceFileExtensions(this._workspaceContextService.getWorkspace()).then(fileExtensions => {
-			fileExtensions.extensions.forEach(ext => {
-				const langId = this.getLanguageId(ext);
-				if (langId) {
-					this.workspaceLanguageIds.add(langId);
-				}
-			});
-		});
+		// this._diagnosticsService.getWorkspaceFileExtensions(this._workspaceContextService.getWorkspace()).then(fileExtensions => {
+		// 	fileExtensions.extensions.forEach(ext => {
+		// 		const langId = this.getLanguageId(ext);
+		// 		if (langId) {
+		// 			this.workspaceLanguageIds.add(langId);
+		// 		}
+		// 	});
+		// });
 	}
 
 	public isEnabledForLanguage(languageId: string): boolean {
