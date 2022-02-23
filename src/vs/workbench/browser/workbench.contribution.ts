@@ -99,14 +99,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
-			'workbench.editor.languageDetectionPreferredLanguages': {
-				type: 'array',
-				default: ['cpp', 'csharp', 'css', 'html', 'java', 'javascript', 'json', 'markdown', 'php', 'python', 'typescript', 'yaml',],
-				items: {
-					type: 'string',
-					enum: ['bat', 'c', 'coffeescript', 'cpp', 'csharp', 'css', 'go', 'html', 'java', 'javascript', 'json', 'lua', 'markdown', 'objective-c', 'perl', 'php', 'powershell', 'python', 'r', 'ruby', 'rust', 'scala', 'sh', 'sql', 'swift', 'typescript', 'yaml',],
-				},
-				description: localize('workbench.editor.languageDetectionPreferredLanguages', "Configures languages automatic language detection will prefer to select for a given document. This applies primarily to short documents where there is insufficient data to confidently predict a language."),
+			'workbench.editor.historyBasedLanguageDetection': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',

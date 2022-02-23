@@ -9,7 +9,7 @@ import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
-type RegexpModel = { detect: (inp: string, potentialLangs: string[]) => string | undefined };
+type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>) => string | undefined };
 
 /**
  * Called on the worker side
@@ -34,7 +34,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	private _modelOperations: ModelOperations | undefined;
 	private _loadFailed: boolean = false;
 
-	public async detectLanguage(uri: string, userPreferredLanguages: string[]): Promise<string | undefined> {
+	public async detectLanguage(uri: string, langBiases?: Record<string, number>): Promise<string | undefined> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
 		const stopWatch = new StopWatch(true);
@@ -51,10 +51,11 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
 			return languages[0];
 		}
-
-		const regexpDetection = await this.runRegexpModel(documentTextSample, userPreferredLanguages);
-		if (regexpDetection) {
-			return regexpDetection;
+		if (langBiases) {
+			const regexpDetection = await this.runRegexpModel(documentTextSample, langBiases);
+			if (regexpDetection) {
+				return regexpDetection;
+			}
 		}
 
 		return undefined;
@@ -92,11 +93,11 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		}
 	}
 
-	private async runRegexpModel(content: string, userPreferredLanguages: string[]): Promise<string | undefined> {
+	private async runRegexpModel(content: string, langBiases: Record<string, number>): Promise<string | undefined> {
 		const regexpModel = await this.getRegexpModel();
 		if (!regexpModel) { return; }
 
-		const detected = regexpModel.detect(content, userPreferredLanguages);
+		const detected = regexpModel.detect(content, langBiases);
 		return detected;
 	}
 
