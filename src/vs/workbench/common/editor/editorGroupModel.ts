@@ -916,11 +916,13 @@ export class EditorGroupModel extends Disposable {
 			}
 		}
 
+		const strictEquals = editor === candidate;
+
 		if (options?.strictEquals) {
-			return editor === candidate;
+			return strictEquals;
 		}
 
-		return editor.matches(candidate);
+		return strictEquals || editor.matches(candidate);
 	}
 
 	get isLocked(): boolean {

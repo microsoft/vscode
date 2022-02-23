@@ -46,7 +46,7 @@ export class MainThreadEditorTabs {
 	 * @param group The group the tab is in
 	 * @returns A tab object
 	 */
-	private _buildTabObject(editor: EditorInput, group: IEditorGroup): IEditorTabDto {
+	private _buildTabObject(group: IEditorGroup, editor: EditorInput, editorIndex: number): IEditorTabDto {
 		// Even though the id isn't a diff / sideBySide on the main side we need to let the ext host know what type of editor it is
 		const editorId = editor.editorId;
 		const tabKind = editor instanceof DiffEditorInput ? TabKind.Diff : editor instanceof SideBySideEditorInput ? TabKind.SidebySide : TabKind.Singular;
@@ -57,7 +57,7 @@ export class MainThreadEditorTabs {
 			editorId,
 			kind: tabKind,
 			additionalResourcesAndViewIds: [],
-			isPinned: group.isSticky(editor),
+			isPinned: group.isSticky(editorIndex),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
@@ -127,15 +127,15 @@ export class MainThreadEditorTabs {
 		const tabs = this._groupModel.get(groupId)?.tabs;
 		if (tabs) {
 			// Splice tab into group at index editorIndex
-			tabs.splice(editorIndex, 0, this._buildTabObject(editorInput, group));
+			tabs.splice(editorIndex, 0, this._buildTabObject(group, editorInput, editorIndex));
 		}
 	}
 
 	/**
- * Called when a tab is closed
- * @param groupId The id of the group the tab is being removed from
- * @param editorIndex The index of the editor within that group
- */
+	 * Called when a tab is closed
+	 * @param groupId The id of the group the tab is being removed from
+	 * @param editorIndex The index of the editor within that group
+	 */
 	private _onDidTabClose(groupId: number, editorIndex: number) {
 		const group = this._editorGroupsService.getGroup(groupId);
 		const tabs = this._groupModel.get(groupId)?.tabs;
@@ -231,14 +231,14 @@ export class MainThreadEditorTabs {
 				activeTab: undefined,
 				tabs: []
 			};
-			for (const editor of group.editors) {
-				const tab = this._buildTabObject(editor, group);
+			group.editors.forEach((editor, editorIndex) => {
+				const tab = this._buildTabObject(group, editor, editorIndex);
 				// Mark the tab active within the group
 				if (tab.isActive) {
 					currentTabGroupModel.activeTab = tab;
 				}
 				tabs.push(tab);
-			}
+			});
 			currentTabGroupModel.tabs = tabs;
 			this._tabGroupModel.push(currentTabGroupModel);
 			this._groupModel.set(group.id, currentTabGroupModel);
