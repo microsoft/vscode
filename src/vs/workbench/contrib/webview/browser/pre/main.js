@@ -878,10 +878,9 @@ onDomReady(() => {
 				}
 
 				const contentDocument = assertIsDefined(newFrame.contentDocument);
-				if (contentDocument.readyState !== 'loading') {
+				if (contentDocument.location.pathname === '/fake.html' && contentDocument.readyState !== 'loading') {
 					clearInterval(interval);
-					// Workaround for https://bugs.webkit.org/show_bug.cgi?id=236624
-					setTimeout(() => onFrameLoaded(contentDocument), 50);
+					onFrameLoaded(contentDocument);
 				}
 			}, 10);
 		} else {
