@@ -559,13 +559,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
-				(this.rootContainer.style as any).height = `${100.0 * getZoomFactor()}%`;
-				(this.rootContainer.style as any).width = `${100.0 * getZoomFactor()}%`;
-				(this.rootContainer.style as any).transform = `scale(${1 / getZoomFactor()})`;
+				this.rootContainer.style.height = `${100.0 * getZoomFactor()}%`;
+				this.rootContainer.style.width = `${100.0 * getZoomFactor()}%`;
+				this.rootContainer.style.transform = `scale(${1 / getZoomFactor()})`;
 			} else {
-				(this.rootContainer.style as any).height = '100%';
-				(this.rootContainer.style as any).width = '100%';
-				(this.rootContainer.style as any).transform = '';
+				this.rootContainer.style.height = '100%';
+				this.rootContainer.style.width = '100%';
+				this.rootContainer.style.transform = '';
 			}
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());
