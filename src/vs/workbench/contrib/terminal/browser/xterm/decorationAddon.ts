@@ -59,6 +59,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
 		this._configurationService.onDidChangeConfiguration(e => {
+			console.log('changed', e.affectedKeys);
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
@@ -175,11 +176,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _applyStyles(target: HTMLElement, exitCode?: number): void {
-		target.classList.add(DecorationSelector.CommandDecoration);
-		target.classList.add(DecorationSelector.Codicon);
 		// must be inlined to override the inlined styles from xterm
 		target.style.width = '16px';
 		target.style.height = '16px';
+		for (const classes of target.classList) {
+			target.classList.remove(classes)
+		}
+		target.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon);
 		if (exitCode === undefined) {
 			target.classList.add(DecorationSelector.DefaultColor);
 			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
