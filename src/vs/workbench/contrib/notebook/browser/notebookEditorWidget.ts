@@ -1705,7 +1705,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private _allowScrollBeyondLastLine() {
-		return this._scrollBeyondLastLine && !this.isEmbedded;
+		return this._scrollBeyondLastLine;
 	}
 
 	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement): void {
