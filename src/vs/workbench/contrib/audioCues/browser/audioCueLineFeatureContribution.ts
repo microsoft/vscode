@@ -107,7 +107,7 @@ export class AudioCueLineFeatureContribution
 				return editor.getPosition()?.lineNumber;
 			}
 		);
-		const debouncedLineNumber = debouncedObservable(curLineNumber, 100, store);
+		const debouncedLineNumber = debouncedObservable(curLineNumber, 300, store);
 
 		const isTyping = wasEventTriggeredRecently(
 			editorModel.onDidChangeContent.bind(editorModel),
