@@ -180,7 +180,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		target.style.width = '16px';
 		target.style.height = '16px';
 		for (const classes of target.classList) {
-			target.classList.remove(classes)
+			target.classList.remove(classes);
 		}
 		target.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon);
 		if (exitCode === undefined) {
