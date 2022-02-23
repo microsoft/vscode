@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, env, ProgressLocation, Uri, window } from 'vscode';
+import { commands, env, ProgressLocation, Uri, window, RelativePattern, workspace } from 'vscode';
 import * as nls from 'vscode-nls';
 import { getOctokit } from './auth';
 import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git';
@@ -126,6 +126,40 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 			}
 		}
 	})();
+}
+
+async function getPullRequestTemplates(repository: Repository): Promise<Uri[]> {
+	/**
+	 * Places a PR template can be:
+	 * - At the root, the docs folder, or the.github folder, named pull_request_template.md or PULL_REQUEST_TEMPLATE.md
+	 * - At the same folder locations under a PULL_REQUEST_TEMPLATE folder with any name
+	 *
+	 * NOTE This method is a modified copy of a method with same name at microsoft/vscode-pull-request-github repository:
+	 *   https://github.com/microsoft/vscode-pull-request-github/blob/0a0c3c6c21c0b9c2f4d5ffbc3f8c6a825472e9e6/src/github/folderRepositoryManager.ts#L1061
+	 *
+	 */
+	const pattern1 = '{pull_request_template,PULL_REQUEST_TEMPLATE}.md';
+	const templatesPattern1 = await workspace.findFiles(
+		new RelativePattern(repository.rootUri, pattern1)
+	);
+
+	const pattern2 = '{docs,.github}/{pull_request_template,PULL_REQUEST_TEMPLATE}.md';
+	const templatesPattern2 = await workspace.findFiles(
+		new RelativePattern(repository.rootUri, pattern2), null
+	);
+
+	const pattern3 = 'PULL_REQUEST_TEMPLATE/*.md';
+	const templatesPattern3 = await workspace.findFiles(
+		new RelativePattern(repository.rootUri, pattern3)
+	);
+
+	const pattern4 = '{docs,.github}/PULL_REQUEST_TEMPLATE/*.md';
+	const templatesPattern4 = await workspace.findFiles(
+		new RelativePattern(repository.rootUri, pattern4), null
+	);
+
+	const allResults = [...templatesPattern1, ...templatesPattern2, ...templatesPattern3, ...templatesPattern4];
+	return allResults;
 }
 
 export class GithubPushErrorHandler implements PushErrorHandler {
