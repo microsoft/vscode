@@ -18,25 +18,42 @@ import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/browser/services/editorWorkerService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { LRUCache } from 'vs/base/common/map';
 
 const regexpModuleLocation = '../../../../../../node_modules/vscode-regexp-languagedetection';
 const regexpModuleLocationAsar = '../../../../../../node_modules.asar/vscode-regexp-languagedetection';
 const moduleLocation = '../../../../../../node_modules/@vscode/vscode-languagedetection';
 const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-languagedetection';
+
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
-	static readonly preferredLanguagesConfig = 'workbench.editor.languageDetectionPreferredLanguages';
+	static readonly historyBasedEnablementConfig = 'workbench.editor.historyBasedLanguageDetection';
+	static readonly openedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages';
 
 	_serviceBrand: undefined;
 
 	private _languageDetectionWorkerClient: LanguageDetectionWorkerClient;
 
+	private hasResolvedWorkspaceLanguageIds = false;
+	private workspaceLanguageIds = new Set<string>();
+	private sessionOpenedLanguageIds = new Set<string>();
+	private historicalGlobalOpenedLanguageIds = new LRUCache<string, true>(10);
+	private historicalWorkspaceOpenedLanguageIds = new LRUCache<string, true>(10);
+
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IDiagnosticsService private readonly _diagnosticsService: IDiagnosticsService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IModelService modelService: IModelService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
@@ -59,6 +76,20 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				: FileAccess.asBrowserUri(`${regexpModuleLocation}/dist/index.js`, require).toString(true),
 			languageConfigurationService
 		);
+
+		this.initEditorOpenedListeners(storageService);
+	}
+
+	private resolveWorkspaceLanguageIds() {
+		this.hasResolvedWorkspaceLanguageIds = true;
+		this._diagnosticsService.getWorkspaceFileExtensions(this._workspaceContextService.getWorkspace()).then(fileExtensions => {
+			fileExtensions.extensions.forEach(ext => {
+				const langId = this.getLanguageId(ext);
+				if (langId) {
+					this.workspaceLanguageIds.add(langId);
+				}
+			});
+		});
 	}
 
 	public isEnabledForLanguage(languageId: string): boolean {
@@ -75,14 +106,61 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		return this._languageService.guessLanguageIdByFilepathOrFirstLine(URI.file(`file.${language}`)) ?? undefined;
 	}
 
+	private getLanguageBiases(): Record<string, number> {
+		const biases: Record<string, number> = {};
+
+		// Give different weight to the biases depending on relevance of source
+		this.sessionOpenedLanguageIds.forEach(lang =>
+			biases[lang] = (biases[lang] ?? 0) + 4);
+
+		this.workspaceLanguageIds.forEach(lang =>
+			biases[lang] = (biases[lang] ?? 0) + 3);
+
+		[...this.historicalWorkspaceOpenedLanguageIds.keys()].forEach(lang =>
+			biases[lang] = (biases[lang] ?? 0) + 2);
+
+		[...this.historicalGlobalOpenedLanguageIds.keys()].forEach(lang =>
+			biases[lang] = (biases[lang] ?? 0) + 1);
+
+		return biases;
+	}
+
 	async detectLanguage(resource: URI): Promise<string | undefined> {
-		// in ~~the future~~ this should read form recently opened editors, installed extensions, workspace files, etc. For now, just a config.
-		const preferredLanguages = this._configurationService.getValue<string[]>(LanguageDetectionService.preferredLanguagesConfig) ?? [];
-		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, preferredLanguages);
+		const useHistory = this._configurationService.getValue<string[]>(LanguageDetectionService.historyBasedEnablementConfig);
+		if (useHistory && !this.hasResolvedWorkspaceLanguageIds) {
+			// dont block on this, let further re-triggers get any new values
+			this.resolveWorkspaceLanguageIds();
+		}
+		const biases = useHistory ? this.getLanguageBiases() : undefined;
+		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, biases);
+
 		if (language) {
 			return this.getLanguageId(language);
 		}
 		return undefined;
+	}
+
+	private initEditorOpenedListeners(storageService: IStorageService) {
+		try {
+			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.openedLanguagesStorageKey, StorageScope.GLOBAL, '[]'));
+			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistroyData);
+		} catch { }
+
+		try {
+			const workspaceLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.openedLanguagesStorageKey, StorageScope.WORKSPACE, '[]'));
+			this.historicalGlobalOpenedLanguageIds.fromJSON(workspaceLangHistroyData);
+		} catch { }
+
+		this._register(this._editorService.onDidActiveEditorChange(() => {
+			const activeLanguage = this._editorService.activeTextEditorLanguageId;
+			if (activeLanguage) {
+				this.sessionOpenedLanguageIds.add(activeLanguage);
+				this.historicalGlobalOpenedLanguageIds.set(activeLanguage, true);
+				this.historicalWorkspaceOpenedLanguageIds.set(activeLanguage, true);
+				storageService.store(LanguageDetectionService.openedLanguagesStorageKey, JSON.stringify(this.historicalGlobalOpenedLanguageIds.toJSON()), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				storageService.store(LanguageDetectionService.openedLanguagesStorageKey, JSON.stringify(this.historicalWorkspaceOpenedLanguageIds.toJSON()), StorageScope.WORKSPACE, StorageTarget.USER);
+			}
+		}));
 	}
 }
 
@@ -205,9 +283,9 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		});
 	}
 
-	public async detectLanguage(resource: URI, userPreferredLanguages: string[]): Promise<string | undefined> {
+	public async detectLanguage(resource: URI, langBiases?: Record<string, number>): Promise<string | undefined> {
 		await this._withSyncedResources([resource]);
-		return (await this._getProxy()).detectLanguage(resource.toString(), userPreferredLanguages);
+		return (await this._getProxy()).detectLanguage(resource.toString(), langBiases);
 	}
 }
 
