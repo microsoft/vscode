@@ -380,6 +380,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.experimental.layoutControl.type': {
 				'type': 'string',
 				'enum': ['menu', 'toggles', 'both'],
+				'enumDescriptions': [
+					localize('layoutcontrol.type.menu', "Shows a single button with a dropdown of layout options."),
+					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
+					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
+				],
 				'tags': ['experimental'],
 				'default': 'menu',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
