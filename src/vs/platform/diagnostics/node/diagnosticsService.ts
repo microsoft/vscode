@@ -40,9 +40,8 @@ interface ConfigFilePatterns {
 }
 
 const worksapceStatsCache = new Map<string, Promise<WorkspaceStats>>();
-export async function collectWorkspaceStats(folder: string, filter: string[], limit?: number): Promise<WorkspaceStats> {
+export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
 	const cacheKey = `${folder}::${filter.join(':')}`;
-	console.log(cacheKey);
 	const cached = worksapceStatsCache.get(cacheKey);
 	if (cached) {
 		return cached;
@@ -73,7 +72,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[], li
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
 
-	const MAX_FILES = limit ?? 20000;
+	const MAX_FILES = 20000;
 
 	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
@@ -519,7 +518,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 			}
 			const folder = folderUri.fsPath;
 			try {
-				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git'], 1000);
+				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
 				stats.fileTypes.forEach(item => items.add(item.name));
 			} catch { }
 		}
