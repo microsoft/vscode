@@ -1260,7 +1260,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 					quickPick.activeItems = quickPick.items.filter(item => (item as CustomizeLayoutItem).id === selectedItem?.id) as IQuickPickItem[];
 				}
 
-				quickInputService.focus();
+				setTimeout(() => quickInputService.focus(), 0);
 			}
 		}));
 
