@@ -126,16 +126,16 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 		// Give different weight to the biases depending on relevance of source
 		this.sessionOpenedLanguageIds.forEach(lang =>
-			biases[lang] = (biases[lang] ?? 0) + 7);
+			biases[lang] = (biases[lang] ?? 0) + 9);
 
 		this.workspaceLanguageIds.forEach(lang =>
-			biases[lang] = (biases[lang] ?? 0) + 5);
+			biases[lang] = (biases[lang] ?? 0) + 7);
 
 		[...this.historicalWorkspaceOpenedLanguageIds.keys()].forEach(lang =>
-			biases[lang] = (biases[lang] ?? 0) + 3);
+			biases[lang] = (biases[lang] ?? 0) + 5);
 
 		[...this.historicalGlobalOpenedLanguageIds.keys()].forEach(lang =>
-			biases[lang] = (biases[lang] ?? 0) + 1);
+			biases[lang] = (biases[lang] ?? 0) + 3);
 
 		this._logService.trace('Session Languages:', JSON.stringify([...this.sessionOpenedLanguageIds]));
 		this._logService.trace('Workspace Languages:', JSON.stringify([...this.workspaceLanguageIds]));
