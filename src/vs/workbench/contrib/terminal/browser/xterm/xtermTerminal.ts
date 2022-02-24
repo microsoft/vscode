@@ -155,6 +155,11 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._commandTrackerAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+		if (this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) && this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+			this._createDecorationAddon(capabilities);
+		}
+	}
+	private _createDecorationAddon(capabilities: ITerminalCapabilityStore): void {
 		const decorationAddon = this._instantiationService.createInstance(DecorationAddon, capabilities);
 		decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
 		this.raw.loadAddon(decorationAddon);

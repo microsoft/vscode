@@ -43,26 +43,37 @@ self.close = () => console.trace(`'close' has been blocked`);
 const nativePostMessage = postMessage.bind(self);
 self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 
-const nativeFetch = fetch.bind(self);
-self.fetch = function (input, init) {
-	if (input instanceof Request) {
-		// Request object - massage not supported
-		return nativeFetch(input, init);
-	}
-	if (/^file:/i.test(String(input))) {
-		input = FileAccess.asBrowserUri(URI.parse(String(input))).toString(true);
-	}
-	return nativeFetch(input, init);
-};
+function shouldTransformUri(uri: string): boolean {
+	// In principle, we could convert any URI, but we have concerns
+	// that parsing https URIs might end up decoding escape characters
+	// and result in an unintended transformation
+	return /^(file|vscode-remote):/i.test(uri);
+}
 
-self.XMLHttpRequest = class extends XMLHttpRequest {
-	override open(method: string, url: string | URL, async?: boolean, username?: string | null, password?: string | null): void {
-		if (/^file:/i.test(url.toString())) {
-			url = FileAccess.asBrowserUri(URI.parse(url.toString())).toString(true);
+const nativeFetch = fetch.bind(self);
+function patchFetching(asBrowserUri: (uri: URI) => Promise<URI>) {
+	self.fetch = async function (input, init) {
+		if (input instanceof Request) {
+			// Request object - massage not supported
+			return nativeFetch(input, init);
 		}
-		return super.open(method, url, async ?? true, username, password);
-	}
-};
+		if (shouldTransformUri(String(input))) {
+			input = (await asBrowserUri(URI.parse(String(input)))).toString(true);
+		}
+		return nativeFetch(input, init);
+	};
+
+	self.XMLHttpRequest = class extends XMLHttpRequest {
+		override open(method: string, url: string | URL, async?: boolean, username?: string | null, password?: string | null): void {
+			(async () => {
+				if (shouldTransformUri(url.toString())) {
+					url = (await asBrowserUri(URI.parse(url.toString()))).toString(true);
+				}
+				super.open(method, url, async ?? true, username, password);
+			})();
+		}
+	};
+}
 
 self.importScripts = () => { throw new Error(`'importScripts' has been blocked`); };
 
@@ -85,6 +96,11 @@ if ((<any>self).Worker) {
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
 		if (/^file:/i.test(stringUrl.toString())) {
 			stringUrl = FileAccess.asBrowserUri(URI.parse(stringUrl.toString())).toString(true);
+		} else if (/^vscode-remote:/i.test(stringUrl.toString())) {
+			// Supporting transformation of vscode-remote URIs requires an async call to the main thread,
+			// but we cannot do this call from within the embedded Worker, and the only way out would be
+			// to use templating instead of a function in the web api (`resourceUriProvider`)
+			throw new Error(`Creating workers from remote extensions is currently not supported.`);
 		}
 
 		// IMPORTANT: bootstrapFn is stringified and injected as worker blob-url. Because of that it CANNOT
@@ -243,6 +259,8 @@ export function create(): { onmessage: (message: any) => void } {
 					null,
 					message.data
 				);
+
+				patchFetching(uri => extHostMain.asBrowserUri(uri));
 
 				onTerminate = (reason: string) => extHostMain.terminate(reason);
 			});

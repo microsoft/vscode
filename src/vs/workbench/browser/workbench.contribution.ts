@@ -99,6 +99,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
+			'workbench.editor.historyBasedLanguageDetection': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
+			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
 				'enum': ['left', 'right', 'off'],
@@ -370,7 +375,19 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'tags': ['experimental'],
 				'default': false,
-				'description': localize('layoutControlEnabled', "Controls whether the layout control button in the custom title bar is enabled."),
+				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
+			},
+			'workbench.experimental.layoutControl.type': {
+				'type': 'string',
+				'enum': ['menu', 'toggles', 'both'],
+				'enumDescriptions': [
+					localize('layoutcontrol.type.menu', "Shows a single button with a dropdown of layout options."),
+					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
+					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
+				],
+				'tags': ['experimental'],
+				'default': 'menu',
+				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
 		}
 	});

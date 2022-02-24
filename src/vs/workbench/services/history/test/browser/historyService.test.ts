@@ -224,6 +224,24 @@ suite('HistoryService', function () {
 		assertTextSelection(new Selection(120, 8, 120, 18), pane);
 	});
 
+	test('back / forward: selection changes with JUMP or NAVIGATION source are not merged (#143833)', async function () {
+		const [, historyService, editorService] = await createServices();
+
+		const resource = toResource.call(this, '/path/index.txt');
+
+		const pane = await editorService.openEditor({ resource, options: { pinned: true } }) as TestTextFileEditor;
+
+		await setTextSelection(historyService, pane, new Selection(2, 2, 2, 10), EditorPaneSelectionChangeReason.USER);
+		await setTextSelection(historyService, pane, new Selection(5, 3, 5, 20), EditorPaneSelectionChangeReason.JUMP);
+		await setTextSelection(historyService, pane, new Selection(6, 3, 6, 20), EditorPaneSelectionChangeReason.NAVIGATION);
+
+		await historyService.goBack(GoFilter.NONE);
+		assertTextSelection(new Selection(5, 3, 5, 20), pane);
+
+		await historyService.goBack(GoFilter.NONE);
+		assertTextSelection(new Selection(2, 2, 2, 10), pane);
+	});
+
 	test('back / forward: edit selection changes', async function () {
 		const [, historyService, editorService] = await createServices();
 

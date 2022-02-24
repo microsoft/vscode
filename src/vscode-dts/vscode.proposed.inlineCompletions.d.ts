@@ -13,7 +13,7 @@ declare module 'vscode' {
 		 *
 		 *  @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		// todo@API what are the rules when multiple providers apply
+		// TODO@API what are the rules when multiple providers apply
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
 	}
 
@@ -48,7 +48,7 @@ declare module 'vscode' {
 		readonly selectedCompletionInfo: SelectedCompletionInfo | undefined;
 	}
 
-	// todo@API is this to express a possible future outcome of the text document?
+	// TODO@API strongly consider to use vscode.TextEdit instead
 	export interface SelectedCompletionInfo {
 		range: Range;
 		text: string;
@@ -59,6 +59,9 @@ declare module 'vscode' {
 	/**
 	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
 	 */
+	// TODO@API align with CodeActionTriggerKind
+	// (1) rename Explicit to Invoke
+	// (2) swap order of Invoke and Automatic
 	export enum InlineCompletionTriggerKind {
 		/**
 		 * Completion was triggered automatically while editing.
@@ -76,6 +79,8 @@ declare module 'vscode' {
 	/**
 	 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
 	*/
+	// TODO@API We could keep this and allow for `vscode.Command` instances that explain
+	// the result. That would replace the existing proposed menu-identifier and be more LSP friendly
 	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
 		items: T[];
 
@@ -96,6 +101,7 @@ declare module 'vscode' {
 		 * However, any indentation of the text to replace does not matter for the subword constraint.
 		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
 		*/
+		// TODO@API support vscode.SnippetString in addition to string, see CompletionItem#insertText
 		insertText?: string;
 
 		/**
@@ -122,7 +128,7 @@ declare module 'vscode' {
 		constructor(insertText: string, range?: Range, command?: Command);
 	}
 
-	// TODO@API validate it is being used, iff so move to a different proposal
+
 
 	export interface InlineCompletionItem {
 		/**

@@ -304,7 +304,8 @@ export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalF
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;
 	/** Fires when a group is created, disposed of, or shown (in the case of a background group). */
 	readonly onDidChangeGroups: Event<void>;
-
+	/** Fires when the panel has been shown and expanded, so has non-zero dimensions. */
+	readonly onDidShow: Event<void>;
 	readonly onDidChangePanelOrientation: Event<Orientation>;
 
 	createGroup(shellLaunchConfig?: IShellLaunchConfig): ITerminalGroup;

@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IRange } from 'vs/editor/common/core/range';
-import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, IDiffEditorViewState, IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 
 export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEditor, scrollType: ScrollType): boolean {
+	let applied = false;
 
-	// First try viewstate
-	if (options.viewState) {
-		editor.restoreViewState(options.viewState as IEditorViewState);
+	// Restore view state if any
+	const viewState = massageEditorViewState(options);
+	if (viewState) {
+		editor.restoreViewState(viewState);
 
-		return true;
+		applied = true;
 	}
 
-	// Otherwise check for selection
-	else if (options.selection) {
+	// Restore selection if any
+	if (options.selection) {
 		const range: IRange = {
 			startLineNumber: options.selection.startLineNumber,
 			startColumn: options.selection.startColumn,
@@ -42,8 +44,35 @@ export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEdi
 			editor.revealRangeInCenter(range, scrollType);
 		}
 
-		return true;
+		applied = true;
 	}
 
-	return false;
+	return applied;
+}
+
+function massageEditorViewState(options: ITextEditorOptions): IEditorViewState | undefined {
+
+	// Without a selection or view state, just return immediately
+	if (!options.selection || !options.viewState) {
+		return options.viewState as IEditorViewState | undefined;
+	}
+
+	// Diff editor: since we have an explicit selection, clear the
+	// cursor state from the modified side where the selection
+	// applies. This avoids a redundant selection change event.
+	const candidateDiffViewState = options.viewState as IDiffEditorViewState;
+	if (candidateDiffViewState.modified) {
+		candidateDiffViewState.modified.cursorState = [];
+
+		return candidateDiffViewState;
+	}
+
+	// Code editor: since we have an explicit selection, clear the
+	// cursor state. This avoids a redundant selection change event.
+	const candidateEditorViewState = options.viewState as ICodeEditorViewState;
+	if (candidateEditorViewState.cursorState) {
+		candidateEditorViewState.cursorState = [];
+	}
+
+	return candidateEditorViewState;
 }

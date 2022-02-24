@@ -1262,7 +1262,6 @@ class InlayHintsAdapter {
 			label: '', // fill-in below
 			cacheId: id,
 			tooltip: typeConvert.MarkdownString.fromStrict(hint.tooltip),
-			command: hint.command && this._commands.toInternal(hint.command, disposables),
 			position: typeConvert.Position.from(hint.position),
 			kind: hint.kind && typeConvert.InlayHintKind.from(hint.kind),
 			paddingLeft: hint.paddingLeft,

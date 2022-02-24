@@ -813,6 +813,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	getExtensions(extensionInfos: IExtensionInfo[], token: CancellationToken): Promise<IExtension[]>;
 	getExtensions(extensionInfos: IExtensionInfo[], options: IExtensionQueryOptions, token: CancellationToken): Promise<IExtension[]>;
 	async getExtensions(extensionInfos: IExtensionInfo[], arg1: any, arg2?: any): Promise<IExtension[]> {
+		extensionInfos.forEach(e => e.preRelease = e.preRelease ?? this.preferPreReleases);
+
 		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, arg1, arg2);
 		this.syncInstalledExtensionsWithGallery(galleryExtensions);
@@ -943,6 +945,22 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						case 'web':
 							/* Choose local web extension if exists */
 							if (extension.server === this.extensionManagementServerService.localExtensionManagementServer) {
+								return true;
+							}
+							return false;
+					}
+				}
+				return false;
+			});
+		}
+
+		if (!extension && this.extensionManagementServerService.webExtensionManagementServer) {
+			extension = extensionsToChoose.find(extension => {
+				for (const extensionKind of extensionKinds) {
+					switch (extensionKind) {
+						case 'web':
+							/* Choose web extension if exists */
+							if (extension.server === this.extensionManagementServerService.webExtensionManagementServer) {
 								return true;
 							}
 							return false;

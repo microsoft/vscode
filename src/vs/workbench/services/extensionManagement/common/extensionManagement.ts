@@ -16,6 +16,12 @@ export interface IExtensionManagementServer {
 	readonly extensionManagementService: IExtensionManagementService;
 }
 
+export const enum ExtensionInstallLocation {
+	Local = 1,
+	Remote,
+	Web
+}
+
 export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
 export interface IExtensionManagementServerService {
 	readonly _serviceBrand: undefined;
@@ -23,6 +29,7 @@ export interface IExtensionManagementServerService {
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null;
 	readonly webExtensionManagementServer: IExtensionManagementServer | null;
 	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null;
+	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null;
 }
 
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };

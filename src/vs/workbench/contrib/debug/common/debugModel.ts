@@ -48,7 +48,8 @@ export class ExpressionContainer implements IExpressionContainer {
 		public namedVariables: number | undefined = 0,
 		public indexedVariables: number | undefined = 0,
 		public memoryReference: string | undefined = undefined,
-		private startOfVariables: number | undefined = 0
+		private startOfVariables: number | undefined = 0,
+		public presentationHint: DebugProtocol.VariablePresentationHint | undefined = undefined
 	) { }
 
 	get reference(): number | undefined {
@@ -58,6 +59,30 @@ export class ExpressionContainer implements IExpressionContainer {
 	set reference(value: number | undefined) {
 		this._reference = value;
 		this.children = undefined; // invalidate children cache
+	}
+
+	async evaluateLazy(): Promise<void> {
+		if (typeof this.reference === 'undefined') {
+			return;
+		}
+
+		const response = await this.session!.variables(this.reference, this.threadId, undefined, undefined, undefined);
+		if (!response || !response.body || !response.body.variables || response.body.variables.length !== 1) {
+			return;
+		}
+
+		const dummyVar = response.body.variables[0];
+		this.reference = dummyVar.variablesReference;
+		this._value = dummyVar.value;
+		this.namedVariables = dummyVar.namedVariables;
+		this.indexedVariables = dummyVar.indexedVariables;
+		this.memoryReference = dummyVar.memoryReference;
+		this.presentationHint = dummyVar.presentationHint;
+		// Also call overridden method to adopt subclass props
+		this.adoptLazyResponse(dummyVar);
+	}
+
+	protected adoptLazyResponse(response: DebugProtocol.Variable): void {
 	}
 
 	getChildren(): Promise<IExpression[]> {
@@ -116,7 +141,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	get hasChildren(): boolean {
 		// only variables with reference > 0 have children.
-		return !!this.reference && this.reference > 0;
+		return !!this.reference && this.reference > 0 && !this.presentationHint?.lazy;
 	}
 
 	private async fetchVariables(start: number | undefined, count: number | undefined, filter: 'indexed' | 'named' | undefined): Promise<Variable[]> {
@@ -161,7 +186,8 @@ export class ExpressionContainer implements IExpressionContainer {
 		expression: string,
 		session: IDebugSession | undefined,
 		stackFrame: IStackFrame | undefined,
-		context: string): Promise<boolean> {
+		context: string,
+		keepLazyVars = false): Promise<boolean> {
 
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
@@ -180,6 +206,12 @@ export class ExpressionContainer implements IExpressionContainer {
 				this.indexedVariables = response.body.indexedVariables;
 				this.memoryReference = response.body.memoryReference;
 				this.type = response.body.type || this.type;
+				this.presentationHint = response.body.presentationHint;
+
+				if (!keepLazyVars && response.body.presentationHint?.lazy) {
+					await this.evaluateLazy();
+				}
+
 				return true;
 			}
 			return false;
@@ -217,8 +249,8 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string): Promise<void> {
-		this.available = await this.evaluateExpression(this.name, session, stackFrame, context);
+	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean): Promise<void> {
+		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars);
 	}
 
 	override toString(): string {
@@ -251,14 +283,14 @@ export class Variable extends ExpressionContainer implements IExpression {
 		namedVariables: number | undefined,
 		indexedVariables: number | undefined,
 		memoryReference: string | undefined,
-		public presentationHint: DebugProtocol.VariablePresentationHint | undefined,
+		presentationHint: DebugProtocol.VariablePresentationHint | undefined,
 		type: string | undefined = undefined,
 		public variableMenuContext: string | undefined = undefined,
 		public available = true,
 		startOfVariables = 0,
 		idDuplicationIndex = '',
 	) {
-		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables);
+		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, memoryReference, startOfVariables, presentationHint);
 		this.value = value || '';
 		this.type = type;
 	}
@@ -292,6 +324,10 @@ export class Variable extends ExpressionContainer implements IExpression {
 
 	override toString(): string {
 		return this.name ? `${this.name}: ${this.value}` : this.value;
+	}
+
+	protected override adoptLazyResponse(response: DebugProtocol.Variable): void {
+		this.evaluateName = response.evaluateName;
 	}
 
 	toDebugProtocolObject(): DebugProtocol.Variable {
