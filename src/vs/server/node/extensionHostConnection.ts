@@ -15,7 +15,7 @@ import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net'
 import { getResolvedShellEnv } from 'vs/platform/terminal/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
-import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMessage } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';

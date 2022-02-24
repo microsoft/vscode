@@ -14,7 +14,7 @@ import * as languageConfiguration from 'vs/editor/common/languages/languageConfi
 import { score } from 'vs/editor/common/languageSelector';
 import * as files from 'vs/platform/files/common/files';
 import { ExtHostContext, MainContext, CandidatePortSource, ExtHostLogLevelServiceShape, TabKind } from 'vs/workbench/api/common/extHost.protocol';
-import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { UIKind } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';

@@ -13,7 +13,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape, MainThreadTelemetryShape, MainThreadWorkspaceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionHostInitData } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';

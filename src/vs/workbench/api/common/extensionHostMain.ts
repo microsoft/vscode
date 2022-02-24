@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionHostInitData } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';

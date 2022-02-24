@@ -74,6 +74,11 @@ export interface IExtHostReadyMessage {
 	type: 'VSCODE_EXTHOST_IPC_READY';
 }
 
+export interface IExtHostNamedPipeReadyMessage {
+	type: 'VSCODE_EXTHOST_NAMED_PIPE_READY';
+	pipeName: string;
+}
+
 export interface IExtHostSocketMessage {
 	type: 'VSCODE_EXTHOST_IPC_SOCKET';
 	initialDataChunk: string;

@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { createMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCode, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { createMessageOfType, MessageType, isMessageOfType, ExtensionHostExitCode, IExtensionHostInitData, UIKind } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';

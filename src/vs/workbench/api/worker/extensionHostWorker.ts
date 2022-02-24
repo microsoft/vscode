@@ -6,7 +6,7 @@
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
-import { isMessageOfType, MessageType, createMessageOfType, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { isMessageOfType, MessageType, createMessageOfType, IExtensionHostInitData } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { ExtensionHostMain } from 'vs/workbench/api/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { NestedWorker } from 'vs/workbench/services/extensions/worker/polyfillNestedWorker';

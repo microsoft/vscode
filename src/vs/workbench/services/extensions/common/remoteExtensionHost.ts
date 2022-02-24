@@ -26,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { createMessageOfType, isMessageOfType, MessageType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { createMessageOfType, isMessageOfType, MessageType, IExtensionHostInitData, UIKind } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { ExtensionHostKind, ExtensionHostLogFileName, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';

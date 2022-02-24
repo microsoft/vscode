@@ -28,7 +28,7 @@ export interface IExtensionHostStarter {
 	onDynamicExit(id: string): Event<{ code: number; signal: string }>;
 
 	createExtensionHost(): Promise<{ id: string }>;
-	start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number }>;
+	start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; pipeName: string }>;
 	enableInspectPort(id: string): Promise<boolean>;
 	kill(id: string): Promise<void>;
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Server, Socket, createServer } from 'net';
+import { Socket, createConnection } from 'net';
 import { findFreePort } from 'vs/base/node/ports';
-import { createRandomIPCHandle, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 
 import * as nls from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
@@ -28,7 +28,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { isUntitledWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { MessageType, createMessageOfType, isMessageOfType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { MessageType, createMessageOfType, isMessageOfType, IExtensionHostInitData, UIKind } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
@@ -90,7 +90,7 @@ class ExtensionHostProcess {
 		this._id = id;
 	}
 
-	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number }> {
+	public start(opts: IExtensionHostProcessOptions): Promise<{ pid: number; pipeName: string }> {
 		return this._extensionHostStarter.start(this._id, opts);
 	}
 
@@ -126,7 +126,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	private _terminating: boolean;
 
 	// Resources, in order they get acquired/created when .start() is called:
-	private _namedPipeServer: Server | null;
 	private _inspectPort: number | null;
 	private _extensionHostProcess: ExtensionHostProcess | null;
 	private _extensionHostConnection: Socket | null;
@@ -159,7 +158,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		this._lastExtensionHostError = null;
 		this._terminating = false;
 
-		this._namedPipeServer = null;
 		this._inspectPort = null;
 		this._extensionHostProcess = null;
 		this._extensionHostConnection = null;
@@ -201,10 +199,9 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		if (!this._messageProtocol) {
 			this._messageProtocol = Promise.all([
 				this._extensionHostStarter.createExtensionHost(),
-				this._tryListenOnPipe(),
 				this._tryFindDebugPort(),
 				this._shellEnvironmentService.getShellEnv(),
-			]).then(([extensionHostCreationResult, pipeName, portNumber, processEnv]) => {
+			]).then(([extensionHostCreationResult, portNumber, processEnv]) => {
 
 				this._extensionHostProcess = new ExtensionHostProcess(extensionHostCreationResult.id, this._extensionHostStarter);
 
@@ -213,7 +210,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: true,
 					VSCODE_LOG_NATIVE: this._isExtensionDevHost,
-					VSCODE_IPC_HOOK_EXTHOST: pipeName,
 					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 					VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose)
 				});
@@ -340,7 +336,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// Initialize extension host process with hand shakes
-				return this._tryExtHostHandshake(opts).then((protocol) => {
+				return this._startAndPerformExtHostHandshake(opts).then((protocol) => {
 					clearTimeout(startupTimeoutHandle);
 					return protocol;
 				});
@@ -348,24 +344,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		}
 
 		return this._messageProtocol;
-	}
-
-	/**
-	 * Start a server (`this._namedPipeServer`) that listens on a named pipe and return the named pipe name.
-	 */
-	private _tryListenOnPipe(): Promise<string> {
-		return new Promise<string>((resolve, reject) => {
-			const pipeName = createRandomIPCHandle();
-
-			this._namedPipeServer = createServer();
-			this._namedPipeServer.on('error', reject);
-			this._namedPipeServer.listen(pipeName, () => {
-				if (this._namedPipeServer) {
-					this._namedPipeServer.removeListener('error', reject);
-				}
-				resolve(pipeName);
-			});
-		});
 	}
 
 	/**
@@ -398,102 +376,86 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		return port || 0;
 	}
 
-	private _tryExtHostHandshake(opts: IExtensionHostProcessOptions): Promise<PersistentProtocol> {
+	private async _startAndPerformExtHostHandshake(opts: IExtensionHostProcessOptions): Promise<PersistentProtocol> {
 
+		const sw = StopWatch.create(false);
+		const { pipeName } = await this._extensionHostProcess!.start(opts);
+		const startDuration = sw.elapsed();
+
+		if (platform.isCI) {
+			this._logService.info(`IExtensionHostStarter.start() took ${startDuration} ms.`);
+		}
+
+		const protocol = await this._connectToExtensionHost(pipeName);
+		return this._performExtHostHandshake(protocol);
+	}
+
+	private _connectToExtensionHost(pipeName: string): Promise<PersistentProtocol> {
+		return new Promise((resolve, reject) => {
+			const socket = createConnection(pipeName, () => {
+				socket.off('error', reject);
+
+				// !!! We need to add a 'data' listener immediately to the
+				// socket to avoid missing any events.
+				resolve(new PersistentProtocol(new NodeSocket(socket, 'renderer-exthost')));
+			});
+			socket.on('error', reject);
+		});
+	}
+
+	private _performExtHostHandshake(protocol: PersistentProtocol): Promise<PersistentProtocol> {
+
+		// 1) wait for the incoming `ready` event and send the initialization data.
+		// 2) wait for the incoming `initialized` event.
 		return new Promise<PersistentProtocol>((resolve, reject) => {
 
-			// Wait for the extension host to connect to our named pipe
-			// and wrap the socket in the message passing protocol
-			let handle = setTimeout(() => {
-				if (this._namedPipeServer) {
-					this._namedPipeServer.close();
-					this._namedPipeServer = null;
+			let timeoutHandle: NodeJS.Timer;
+			const installTimeoutCheck = () => {
+				timeoutHandle = setTimeout(() => {
+					reject('The local extenion host took longer than 60s to send its ready message.');
+				}, 60 * 1000);
+			};
+			const uninstallTimeoutCheck = () => {
+				clearTimeout(timeoutHandle);
+			};
+
+			// Wait 60s for the ready message
+			installTimeoutCheck();
+
+			const disposable = protocol.onMessage(msg => {
+
+				if (isMessageOfType(msg, MessageType.Ready)) {
+
+					// 1) Extension Host is ready to receive messages, initialize it
+					uninstallTimeoutCheck();
+
+					this._createExtHostInitData().then(data => {
+
+						// Wait 60s for the initialized message
+						installTimeoutCheck();
+
+						protocol.send(VSBuffer.fromString(JSON.stringify(data)));
+					});
+					return;
 				}
-				reject('The local extension host took longer than 60s to connect.');
-			}, 60 * 1000);
 
-			this._namedPipeServer!.on('connection', socket => {
+				if (isMessageOfType(msg, MessageType.Initialized)) {
 
-				clearTimeout(handle);
-				if (this._namedPipeServer) {
-					this._namedPipeServer.close();
-					this._namedPipeServer = null;
+					// 2) Extension Host is initialized
+					uninstallTimeoutCheck();
+
+					// stop listening for messages here
+					disposable.dispose();
+
+					// Register log channel for exthost log
+					Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'extHostLog', label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
+
+					// release this promise
+					resolve(protocol);
+					return;
 				}
-				this._extensionHostConnection = socket;
 
-				// using a buffered message protocol here because between now
-				// and the first time a `then` executes some messages might be lost
-				// unless we immediately register a listener for `onMessage`.
-				resolve(new PersistentProtocol(new NodeSocket(this._extensionHostConnection, 'renderer-exthost')));
-			});
-
-			// Now that the named pipe listener is installed, start the ext host process
-			const sw = StopWatch.create(false);
-			this._extensionHostProcess!.start(opts).then(() => {
-				const duration = sw.elapsed();
-				if (platform.isCI) {
-					this._logService.info(`IExtensionHostStarter.start() took ${duration} ms.`);
-				}
-			}, (err) => {
-				// Starting the ext host process resulted in an error
-				reject(err);
-			});
-
-		}).then((protocol) => {
-
-			// 1) wait for the incoming `ready` event and send the initialization data.
-			// 2) wait for the incoming `initialized` event.
-			return new Promise<PersistentProtocol>((resolve, reject) => {
-
-				let timeoutHandle: NodeJS.Timer;
-				const installTimeoutCheck = () => {
-					timeoutHandle = setTimeout(() => {
-						reject('The local extenion host took longer than 60s to send its ready message.');
-					}, 60 * 1000);
-				};
-				const uninstallTimeoutCheck = () => {
-					clearTimeout(timeoutHandle);
-				};
-
-				// Wait 60s for the ready message
-				installTimeoutCheck();
-
-				const disposable = protocol.onMessage(msg => {
-
-					if (isMessageOfType(msg, MessageType.Ready)) {
-
-						// 1) Extension Host is ready to receive messages, initialize it
-						uninstallTimeoutCheck();
-
-						this._createExtHostInitData().then(data => {
-
-							// Wait 60s for the initialized message
-							installTimeoutCheck();
-
-							protocol.send(VSBuffer.fromString(JSON.stringify(data)));
-						});
-						return;
-					}
-
-					if (isMessageOfType(msg, MessageType.Initialized)) {
-
-						// 2) Extension Host is initialized
-						uninstallTimeoutCheck();
-
-						// stop listening for messages here
-						disposable.dispose();
-
-						// Register log channel for exthost log
-						Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).registerChannel({ id: 'extHostLog', label: nls.localize('extension host Log', "Extension Host"), file: this._extensionHostLogFile, log: true });
-
-						// release this promise
-						resolve(protocol);
-						return;
-					}
-
-					console.error(`received unexpected message during handshake phase from the extension host: `, msg);
-				});
-
+				console.error(`received unexpected message during handshake phase from the extension host: `, msg);
 			});
 
 		});
@@ -672,10 +634,6 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	}
 
 	private _cleanResources(): void {
-		if (this._namedPipeServer) {
-			this._namedPipeServer.close();
-			this._namedPipeServer = null;
-		}
 		if (this._extensionHostConnection) {
 			this._extensionHostConnection.end();
 			this._extensionHostConnection = null;

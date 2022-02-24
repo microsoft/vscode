@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, fork } from 'child_process';
+import { ChildProcess, fork, Serializable } from 'child_process';
 import { StringDecoder } from 'string_decoder';
 import { Promises, timeout } from 'vs/base/common/async';
 import { SerializedError, transformErrorForSerialization } from 'vs/base/common/errors';
@@ -15,6 +15,7 @@ import * as platform from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
+import { IExtHostNamedPipeReadyMessage } from 'vs/platform/extensions/common/extensionHostProtocol';
 
 export interface IExtensionHostStarterWorkerHost {
 	logInfo(message: string): Promise<void>;
@@ -47,7 +48,7 @@ class ExtensionHostProcess extends Disposable {
 		super();
 	}
 
-	start(opts: IExtensionHostProcessOptions): { pid: number } {
+	start(opts: IExtensionHostProcessOptions): Promise<{ pid: number; pipeName: string }> {
 		if (platform.isCI) {
 			this._host.logInfo(`Calling fork to start extension host...`);
 		}
@@ -87,7 +88,27 @@ class ExtensionHostProcess extends Disposable {
 			this._onExit.fire({ pid, code, signal });
 		});
 
-		return { pid };
+		return this._waitForPipeName(this._process);
+	}
+
+	private _waitForPipeName(process: ChildProcess): Promise<{ pid: number; pipeName: string }> {
+		return new Promise((resolve, reject) => {
+
+			const timeoutHandle = setTimeout(() => {
+				reject('The extension host process took longer than 60s to send the pipe name.');
+			}, 60 * 1000);
+
+			const pipeNameListener = (msg: Serializable) => {
+				if (msg && (msg as IExtHostNamedPipeReadyMessage).type === 'VSCODE_EXTHOST_NAMED_PIPE_READY') {
+					clearTimeout(timeoutHandle);
+					process.off('message', pipeNameListener);
+					resolve({ pid: process.pid!, pipeName: (msg as IExtHostNamedPipeReadyMessage).pipeName });
+				}
+			};
+
+			process.on('message', pipeNameListener);
+
+		});
 	}
 
 	enableInspectPort(): boolean {
@@ -198,7 +219,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return { id };
 	}
 
-	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number }> {
+	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; pipeName: string }> {
 		return this._getExtHost(id).start(opts);
 	}
 

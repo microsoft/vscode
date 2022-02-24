@@ -62,7 +62,7 @@ import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/workbench/services/authentication/common/authentication';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IStaticWorkspaceData } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createProxyIdentifier, Dto, IRPCProtocol, SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';

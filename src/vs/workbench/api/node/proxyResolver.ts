@@ -10,7 +10,7 @@ import * as tls from 'tls';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionHostInitData } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';

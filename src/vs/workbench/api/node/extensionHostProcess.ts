@@ -11,9 +11,9 @@ import { isCancellationError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import { createRandomIPCHandle, NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import product from 'vs/platform/product/common/product';
-import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode, IExtensionHostInitData, IExtHostNamedPipeReadyMessage } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { ExtensionHostMain, IExitFn } from 'vs/workbench/api/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IURITransformer } from 'vs/base/common/uriIpc';
@@ -102,7 +102,64 @@ let onTerminate = function (reason: string) {
 	nativeExit();
 };
 
+/**
+ * Create a named pipe server at a random pipe name and start listening.
+ */
+function _createNamedPipeServer(): Promise<{ pipeName: string; namedPipeServer: net.Server }> {
+	return new Promise((resolve, reject) => {
+		const pipeName = createRandomIPCHandle();
+		const namedPipeServer = net.createServer();
+		namedPipeServer.on('error', reject);
+		namedPipeServer.listen(pipeName, () => {
+			namedPipeServer.removeListener('error', reject);
+			resolve({ pipeName, namedPipeServer });
+		});
+	});
+}
+
+/**
+ * Wait for a single connection on a server and make sure to not miss any 'data' events.
+ */
+function _waitForOneConnection(server: net.Server): Promise<PersistentProtocol> {
+	return new Promise((resolve, reject) => {
+		const connectionListener = (socket: net.Socket) => {
+			// Remove the listener
+			server.off('connection', connectionListener);
+
+			// This socket will drive our lifecycle
+			socket.on('close', () => {
+				onTerminate('renderer closed the socket');
+			});
+
+			// !!! We need to add a 'data' listener immediately to the
+			// socket to avoid missing any events.
+			resolve(new PersistentProtocol(new NodeSocket(socket, 'exthost-renderer')));
+		};
+		server.on('connection', connectionListener);
+	});
+}
+
+async function _createExtHostProtocolUsingNamedPipeServer(): Promise<PersistentProtocol> {
+	const { pipeName, namedPipeServer } = await _createNamedPipeServer();
+
+	// First make sure to have a 'connection' listener installed
+	const connectionPromise = _waitForOneConnection(namedPipeServer);
+
+	// Let our spawner know that we are ready for a connection and communicate the pipe name
+	const req: IExtHostNamedPipeReadyMessage = { type: 'VSCODE_EXTHOST_NAMED_PIPE_READY', pipeName };
+	process.send!(req);
+
+	// Now wait for the renderer connection
+	const persistentProtocol = await connectionPromise;
+
+	// Stop up the named pipe server
+	namedPipeServer.close();
+
+	return persistentProtocol;
+}
+
 function _createExtHostProtocol(): Promise<PersistentProtocol> {
+
 	if (process.env.VSCODE_EXTHOST_WILL_SEND_SOCKET) {
 
 		return new Promise<PersistentProtocol>((resolve, reject) => {
@@ -174,20 +231,8 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 
 	} else {
 
-		const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST!;
+		return _createExtHostProtocolUsingNamedPipeServer();
 
-		return new Promise<PersistentProtocol>((resolve, reject) => {
-
-			const socket = net.createConnection(pipeName, () => {
-				socket.removeListener('error', reject);
-				resolve(new PersistentProtocol(new NodeSocket(socket, 'extHost-renderer')));
-			});
-			socket.once('error', reject);
-
-			socket.on('close', () => {
-				onTerminate('renderer closed the socket');
-			});
-		});
 	}
 }
 

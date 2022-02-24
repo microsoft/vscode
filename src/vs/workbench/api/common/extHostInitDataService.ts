@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { IExtensionHostInitData } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IExtHostInitDataService = createDecorator<IExtHostInitDataService>('IExtHostInitDataService');

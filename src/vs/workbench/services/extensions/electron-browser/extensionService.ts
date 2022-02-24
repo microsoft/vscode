@@ -40,7 +40,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ILogService } from 'vs/platform/log/common/log';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Schemas } from 'vs/base/common/network';
-import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { ExtensionHostExitCode } from 'vs/platform/extensions/common/extensionHostProtocol';
 import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';

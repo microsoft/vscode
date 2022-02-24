@@ -139,7 +139,7 @@ export class WorkerMainProcessExtensionHostStarter implements IDisposable, IExte
 		return proxy.createExtensionHost();
 	}
 
-	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number }> {
+	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; pipeName: string }> {
 		const sw = StopWatch.create(false);
 		const proxy = await this._worker.getProxyObject();
 		if (this._shutdown) {
