@@ -29,7 +29,6 @@ export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };
 
 export const SET_ROOT_FOLDER_COMMAND_ID = 'setRootFolder';
-export const SET_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('setFolderInWorkspace', "Open Folder in Workspace..."), original: 'Open Folder in Workspace...' };
 
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
 
