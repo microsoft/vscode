@@ -693,7 +693,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.splitView = new SplitView(this.bodyContainer, {
 			orientation: Orientation.HORIZONTAL,
-			proportionalLayout: false
+			proportionalLayout: true
 		});
 		const startingWidth = this.storageService.getNumber('settingsEditor2.splitViewWidth', StorageScope.GLOBAL, SettingsEditor2.TOC_RESET_WIDTH);
 		this.splitView.addView({
