@@ -31,6 +31,10 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 			return undefined;
 		}
 
+		if (!vscode.workspace.getConfiguration(document.languageId, document).get('validate.enable', true)) {
+			return undefined;
+		}
+
 		const response = await this.client.interruptGetErr(async () => {
 			await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
 
