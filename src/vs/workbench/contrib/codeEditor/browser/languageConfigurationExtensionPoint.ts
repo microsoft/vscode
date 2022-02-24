@@ -110,7 +110,7 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		}));
 	}
 
-	private _loadConfigurationsForMode(languageId: string): void {
+	private async _loadConfigurationsForMode(languageId: string): Promise<void> {
 		const configurationFiles = this._languageService.getConfigurationFiles(languageId);
 		const configurationHash = hash(configurationFiles.map(uri => uri.toString()));
 
@@ -119,11 +119,15 @@ export class LanguageConfigurationFileHandler extends Disposable {
 		}
 		this._done.set(languageId, configurationHash);
 
-		configurationFiles.forEach((configFileLocation) => this._handleConfigFile(languageId, configFileLocation));
+		const configs = await Promise.all(configurationFiles.map(configFile => this._readConfigFile(configFile)));
+		for (const config of configs) {
+			this._handleConfig(languageId, config);
+		}
 	}
 
-	private _handleConfigFile(languageId: string, configFileLocation: URI): void {
-		this._extensionResourceLoaderService.readExtensionResource(configFileLocation).then((contents) => {
+	private async _readConfigFile(configFileLocation: URI): Promise<ILanguageConfiguration> {
+		try {
+			const contents = await this._extensionResourceLoaderService.readExtensionResource(configFileLocation);
 			const errors: ParseError[] = [];
 			let configuration = <ILanguageConfiguration>parse(contents, errors);
 			if (errors.length) {
@@ -133,10 +137,11 @@ export class LanguageConfigurationFileHandler extends Disposable {
 				console.error(nls.localize('formatError', "{0}: Invalid format, JSON object expected.", configFileLocation.toString()));
 				configuration = {};
 			}
-			this._handleConfig(languageId, configuration);
-		}, (err) => {
+			return configuration;
+		} catch (err) {
 			console.error(err);
-		});
+			return {};
+		}
 	}
 
 	private _extractValidCommentRule(languageId: string, configuration: ILanguageConfiguration): CommentRule | undefined {
