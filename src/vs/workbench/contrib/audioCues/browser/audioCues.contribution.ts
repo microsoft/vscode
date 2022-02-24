@@ -34,7 +34,7 @@ const audioCueFeatureBase: IConfigurationPropertySchema = {
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'properties': {
 		'audioCues.enabled': {
-			deprecationMessage: 'Deprecated. Use the specific setting for each audio cue instead (`audioCues.*`).',
+			markdownDeprecationMessage: 'Deprecated. Use the specific setting for each audio cue instead (`audioCues.*`).',
 		},
 		'audioCues.lineHasBreakpoint': {
 			'description': localize('audioCues.lineHasBreakpoint', "Plays a sound when the active line has a breakpoint."),
