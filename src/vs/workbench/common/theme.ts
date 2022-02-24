@@ -382,7 +382,7 @@ export const STATUS_BAR_BORDER = registerColor('statusBar.border', {
 	hc: contrastBorder
 }, localize('statusBarBorder', "Status bar border color separating to the sidebar and editor. The status bar is shown in the bottom of the window."));
 
-export const STATUS_BAR_FOCUS_BORDER = registerColor('statusBarItem.focusBorder', {
+export const STATUS_BAR_FOCUS_BORDER = registerColor('statusBar.focusBorder', {
 	dark: STATUS_BAR_FOREGROUND,
 	light: STATUS_BAR_FOREGROUND,
 	hc: null,
