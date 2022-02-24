@@ -166,6 +166,12 @@ export class WatchExpressionsView extends ViewPane {
 				horizontalScrolling = undefined;
 			}
 		}));
+
+		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(e => {
+			if (e instanceof Variable && this.tree.hasNode(e)) {
+				this.tree.updateChildren(e, false, true);
+			}
+		}));
 	}
 
 	override layoutBody(height: number, width: number): void {
