@@ -1231,6 +1231,9 @@ export class TestLifecycleService implements ILifecycleService {
 	private readonly _onBeforeShutdownError = new Emitter<BeforeShutdownErrorEvent>();
 	get onBeforeShutdownError(): Event<BeforeShutdownErrorEvent> { return this._onBeforeShutdownError.event; }
 
+	private readonly _onShutdownVeto = new Emitter<void>();
+	get onShutdownVeto(): Event<void> { return this._onShutdownVeto.event; }
+
 	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 

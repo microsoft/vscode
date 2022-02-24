@@ -185,6 +185,11 @@ export interface ILifecycleService {
 	readonly onBeforeShutdown: Event<BeforeShutdownEvent>;
 
 	/**
+	 * Fired when the shutdown was prevented by a component giving veto.
+	 */
+	readonly onShutdownVeto: Event<void>;
+
+	/**
 	 * Fired when an error happened during `onBeforeShutdown` veto handling.
 	 * In this case the shutdown operation will not proceed because this is
 	 * an unexpected condition that is treated like a veto.
@@ -233,6 +238,7 @@ export const NullLifecycleService: ILifecycleService = {
 
 	onBeforeShutdown: Event.None,
 	onBeforeShutdownError: Event.None,
+	onShutdownVeto: Event.None,
 	onWillShutdown: Event.None,
 	onDidShutdown: Event.None,
 

@@ -43,6 +43,9 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 			if (veto) {
 				this.logService.trace('[lifecycle] onBeforeUnload prevented via veto');
 
+				// Indicate as event
+				this._onShutdownVeto.fire();
+
 				ipcRenderer.send(reply.cancelChannel, windowId);
 			}
 
