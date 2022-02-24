@@ -17,9 +17,9 @@
 		"window.activeBorder": "#0F4A85",
 		"window.inactiveBorder": "#0F4A85",
 
-		"textBlockQuote.background": "#0000",
+		"textBlockQuote.background": "#f2f2f2",
 		"textBlockQuote.border": "#292929",
-		"textCodeBlock.background": "#0000",
+		"textCodeBlock.background": "#f2f2f2",
 		"textLink.activeForeground": "#0F4A85",
 		"textLink.foreground": "#0F4A85",
 		"textPreformat.foreground": "#292929",
