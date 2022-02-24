@@ -804,7 +804,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					const buttons: IQuickInputButton[] = [{
 						iconClass,
 						tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-						alwaysVisible: true
+						alwaysVisible: false
 					}];
 					// Merge consecutive commands
 					const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
