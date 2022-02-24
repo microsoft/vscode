@@ -101,11 +101,12 @@ async function start() {
 		const remoteExtensionHostAgentServer = await getRemoteExtensionHostAgentServer();
 		return remoteExtensionHostAgentServer.handleServerError(err);
 	});
-	const host = parsedArgs['host'] || (parsedArgs['compatibility'] !== '1.63' ? 'localhost' : undefined);
+
+	const host = sanitizeStringArg(parsedArgs['host']) || (parsedArgs['compatibility'] !== '1.63' ? 'localhost' : undefined);
 	const nodeListenOptions = (
 		parsedArgs['socket-path']
-			? { path: parsedArgs['socket-path'] }
-			: { host, port: await parsePort(host, parsedArgs['port'], parsedArgs['pick-port']) }
+			? { path: sanitizeStringArg(parsedArgs['socket-path']) }
+			: { host, port: await parsePort(host, sanitizeStringArg(parsedArgs['port']), sanitizeStringArg(parsedArgs['pick-port'])) }
 	);
 	server.listen(nodeListenOptions, async () => {
 		let output = Array.isArray(product.serverGreeting) ? `\n\n${product.serverGreeting.join('\n')}\n\n` : ``;
@@ -143,6 +144,16 @@ async function start() {
 			_remoteExtensionHostAgentServer.dispose();
 		}
 	});
+}
+/**
+ * @param {any} val
+ * @returns {string | undefined}
+ */
+function sanitizeStringArg(val) {
+	if (Array.isArray(val)) { // if an argument is passed multiple times, minimist creates an array
+		val = val.pop(); // take the last item
+	}
+	return typeof val === 'string' ? val : undefined;
 }
 
 /**
