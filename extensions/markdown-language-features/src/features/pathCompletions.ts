@@ -275,7 +275,8 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 
 			const isDir = type === vscode.FileType.Directory;
 			yield {
-				label: isDir ? encodeURIComponent(name) + '/' : encodeURIComponent(name),
+				label: isDir ? name + '/' : name,
+				insertText: isDir ? encodeURIComponent(name) + '/' : encodeURIComponent(name),
 				kind: isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File,
 				range: {
 					inserting: insertRange,
