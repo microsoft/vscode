@@ -9,7 +9,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, hasWorkspac
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { MenuRegistry, MenuId, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, OpenFolderWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/common/contextkeys';
@@ -201,6 +201,26 @@ export class AddRootFolderAction extends Action2 {
 	}
 }
 
+export class SetRootFolderAction extends Action2 {
+
+	static readonly ID = 'workbench.action.setRootFolder';
+
+	constructor() {
+		super({
+			id: SetRootFolderAction.ID,
+			title: SET_ROOT_FOLDER_LABEL,
+			category: workspacesCategory,
+			precondition: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace'))
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+
+		return commandService.executeCommand(SET_ROOT_FOLDER_COMMAND_ID);
+	}
+}
+
 class RemoveRootFolderAction extends Action2 {
 
 	static readonly ID = 'workbench.action.removeRootFolder';
@@ -293,6 +313,7 @@ class DuplicateWorkspaceInNewWindowAction extends Action2 {
 // --- Actions Registration
 
 registerAction2(AddRootFolderAction);
+registerAction2(SetRootFolderAction);
 registerAction2(RemoveRootFolderAction);
 registerAction2(OpenFileAction);
 registerAction2(OpenFolderAction);
@@ -330,8 +351,9 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	command: {
 		// When we do not support opening folders/workspaces
 		// but we are in a workspace context, we add a
-		// "Open Folder" action that adds the folder as workspace
-		id: AddRootFolderAction.ID,
+		// "Open Folder" action that sets the folder as root
+		// into the workspace
+		id: SetRootFolderAction.ID,
 		title: localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")
 	},
 	order: 2,
