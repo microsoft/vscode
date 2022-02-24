@@ -273,7 +273,7 @@ flakySuite('PFS', function () {
 			const linkTarget = await Promises.readlink(targetLinkMD5JSFolderLinked);
 			assert.strictEqual(linkTarget, targetLinkMD5JSFolder);
 
-			await Promises.rm(targetLinkTestFolder);
+			await Promises.rmdir(targetLinkTestFolder, { recursive: true });
 		}
 
 		// Copy with `preserveSymlinks: false` and verify result

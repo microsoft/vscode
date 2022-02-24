@@ -120,16 +120,12 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		}
 
 		localSocket.on('end', () => {
-			if (localSocket.localAddress) {
-				this._socketsDispose.delete(localSocket.localAddress);
-			}
+			this._socketsDispose.delete(localSocket.localAddress);
 			remoteSocket.end();
 		});
 		localSocket.on('close', () => remoteSocket.end());
 		localSocket.on('error', () => {
-			if (localSocket.localAddress) {
-				this._socketsDispose.delete(localSocket.localAddress);
-			}
+			this._socketsDispose.delete(localSocket.localAddress);
 			remoteSocket.destroy();
 		});
 
@@ -141,13 +137,11 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 		localSocket.pipe(remoteSocket);
 		remoteSocket.pipe(localSocket);
-		if (localSocket.localAddress) {
-			this._socketsDispose.set(localSocket.localAddress, () => {
-				// Need to end instead of unpipe, otherwise whatever is connected locally could end up "stuck" with whatever state it had until manually exited.
-				localSocket.end();
-				remoteSocket.end();
-			});
-		}
+		this._socketsDispose.set(localSocket.localAddress, () => {
+			// Need to end instead of unpipe, otherwise whatever is connected locally could end up "stuck" with whatever state it had until manually exited.
+			localSocket.end();
+			remoteSocket.end();
+		});
 	}
 }
 

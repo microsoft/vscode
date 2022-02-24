@@ -124,7 +124,7 @@ class SharedProcessWorkerProcess extends Disposable {
 	}
 
 	spawn(): void {
-		Logger.trace('Forking worker process');
+		Logger.trace(`Forking worker process (env: ${JSON.stringify(this.environment.env)})`);
 
 		// Fork module via bootstrap-fork for AMD support
 		this.child = fork(
@@ -194,6 +194,7 @@ class SharedProcessWorkerProcess extends Disposable {
 	private getEnv(): NodeJS.ProcessEnv {
 		const env: NodeJS.ProcessEnv = {
 			...deepClone(process.env),
+			...this.environment.env,
 			VSCODE_AMD_ENTRYPOINT: this.configuration.process.moduleId,
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',

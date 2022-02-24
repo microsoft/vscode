@@ -60,6 +60,7 @@ else
 
 	# Configuration for more verbose output
 	export VSCODE_CLI=1
+	export ELECTRON_ENABLE_STACK_DUMPING=1
 	export ELECTRON_ENABLE_LOGGING=1
 
 	# Running from a build, we need to enable the vscode-test-resolver extension
