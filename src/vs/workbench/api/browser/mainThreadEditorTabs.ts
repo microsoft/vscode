@@ -7,7 +7,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -70,18 +70,18 @@ export class MainThreadEditorTabs {
 
 
 	private _tabToUntypedEditorInput(tab: IEditorTabDto): IUntypedEditorInput {
-		if (tab.editorId !== 'diff' && tab.editorId !== 'sideBySide') {
+		if (tab.kind !== TabKind.Diff && tab.kind !== TabKind.SidebySide) {
 			return { resource: URI.revive(tab.resource), options: { override: tab.editorId } };
-		} else if (tab.editorId === 'sideBySide') {
+		} else if (tab.kind === TabKind.SidebySide) {
 			return {
 				primary: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
 				secondary: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1].viewId } }
 			};
 		} else {
-			// For now only text diff editor are supported
+			// Diff case
 			return {
-				modified: { resource: URI.revive(tab.resource), options: { override: DEFAULT_EDITOR_ASSOCIATION.id } },
-				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }
+				modified: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
+				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1]?.viewId } }
 			};
 		}
 	}
