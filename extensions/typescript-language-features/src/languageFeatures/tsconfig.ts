@@ -58,10 +58,12 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 			resourceUri: document.uri,
 			extendsValue: extendsValue
 		};
-		return new vscode.DocumentLink(
+
+		const link = new vscode.DocumentLink(
 			this.getRange(document, extendsNode),
-			vscode.Uri.parse(`command:${openExtendsLinkCommandId}?${JSON.stringify(args)}`)
-		);
+			vscode.Uri.parse(`command:${openExtendsLinkCommandId}?${JSON.stringify(args)}`));
+		link.tooltip = localize('documentLink.tooltip', 'Follow link');
+		return link;
 	}
 
 	private getFilesLinks(document: vscode.TextDocument, root: jsonc.Node) {
