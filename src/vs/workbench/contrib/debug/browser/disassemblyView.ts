@@ -44,7 +44,7 @@ import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
 	isBreakpointSet: boolean;
-	isBreakpointEnaled: boolean;
+	isBreakpointEnabled: boolean;
 	instruction: DebugProtocol.DisassembledInstruction;
 	instructionAddress?: bigint;
 }
@@ -53,7 +53,7 @@ interface IDisassembledInstructionEntry {
 const disassemblyNotAvailable: IDisassembledInstructionEntry = {
 	allowBreakpoint: false,
 	isBreakpointSet: false,
-	isBreakpointEnaled: false,
+	isBreakpointEnabled: false,
 	instruction: {
 		address: '-1',
 		instruction: localize('instructionNotAvailable', "Disassembly not available.")
@@ -234,7 +234,7 @@ export class DisassemblyView extends EditorPane {
 						const index = this.getIndexFromAddress(bp.instructionReference);
 						if (index >= 0) {
 							this._disassembledInstructions!.row(index).isBreakpointSet = true;
-							this._disassembledInstructions!.row(index).isBreakpointEnaled = bp.enabled;
+							this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
 							changed = true;
 						}
 					}
@@ -254,8 +254,8 @@ export class DisassemblyView extends EditorPane {
 					if (bp instanceof InstructionBreakpoint) {
 						const index = this.getIndexFromAddress(bp.instructionReference);
 						if (index >= 0) {
-							if (this._disassembledInstructions!.row(index).isBreakpointEnaled !== bp.enabled) {
-								this._disassembledInstructions!.row(index).isBreakpointEnaled = bp.enabled;
+							if (this._disassembledInstructions!.row(index).isBreakpointEnabled !== bp.enabled) {
+								this._disassembledInstructions!.row(index).isBreakpointEnabled = bp.enabled;
 								changed = true;
 							}
 						}
@@ -378,7 +378,7 @@ export class DisassemblyView extends EditorPane {
 					}
 				}
 
-				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, isBreakpointEnaled: !!found?.enabled, instruction: instruction });
+				newEntries.push({ allowBreakpoint: true, isBreakpointSet: found !== undefined, isBreakpointEnabled: !!found?.enabled, instruction: instruction });
 			}
 
 			const specialEntriesToRemove = this._disassembledInstructions.length === 1 ? 1 : 0;
@@ -558,7 +558,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		icon.classList.remove(this._breakpointHintIcon);
 
 		if (element?.isBreakpointSet) {
-			if (element.isBreakpointEnaled) {
+			if (element.isBreakpointEnabled) {
 				icon.classList.add(this._breakpointIcon);
 				icon.classList.remove(this._breakpointDisabledIcon);
 			} else {
