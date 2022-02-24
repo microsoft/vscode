@@ -10,7 +10,6 @@ const performance = require('perf_hooks').performance;
 const product = require('../product.json');
 const readline = require('readline');
 const http = require('http');
-const { alias } = require('optimist');
 
 perf.mark('code/server/start');
 // @ts-ignore
@@ -65,6 +64,10 @@ async function start() {
 	if (Array.isArray(product.serverLicense) && product.serverLicense.length) {
 		console.log(product.serverLicense.join('\n'));
 		if (product.serverLicensePrompt && parsedArgs['accept-server-license-terms'] !== true) {
+			if (hasStdinWithoutTty()) {
+				console.log('To accept the license terms, start the server with --accept-server-license-terms');
+				process.exit();
+			}
 			try {
 				const accept = await prompt(product.serverLicensePrompt);
 				if (!accept) {
@@ -279,6 +282,15 @@ function loadCode() {
 		}
 		require('./bootstrap-amd').load('vs/server/node/server.main', resolve, reject);
 	});
+}
+
+function hasStdinWithoutTty() {
+	try {
+		return !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
+	} catch (error) {
+		// Windows workaround for https://github.com/nodejs/node/issues/11656
+	}
+	return false;
 }
 
 /**
