@@ -111,7 +111,7 @@ async function start() {
 			: { host, port: await parsePort(host, sanitizeStringArg(parsedArgs['port']), sanitizeStringArg(parsedArgs['pick-port'])) }
 	);
 	server.listen(nodeListenOptions, async () => {
-		let output = Array.isArray(product.serverGreeting) ? `\n\n${product.serverGreeting.join('\n')}\n\n` : ``;
+		let output = Array.isArray(product.serverGreeting) && product.serverGreeting.length ? `\n\n${product.serverGreeting.join('\n')}\n\n` : ``;
 
 		if (typeof nodeListenOptions.port === 'number' && parsedArgs['print-ip-address']) {
 			const ifaces = os.networkInterfaces();
@@ -129,6 +129,7 @@ async function start() {
 			throw new Error('Unexpected server address');
 		}
 
+		output += `Server bound to ${typeof address === 'string' ? address : `${address.address}:${address.port} (${address.family})`}\n`;
 		// Do not change this line. VS Code looks for this in the output.
 		output += `Extension host agent listening on ${typeof address === 'string' ? address : address.port}\n`;
 		console.log(output);
