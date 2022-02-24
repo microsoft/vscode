@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TextDecoder } from 'util';
-import { commands, env, ProgressLocation, Uri, window, RelativePattern, workspace, QuickPickOptions } from 'vscode';
+import { commands, env, ProgressLocation, Uri, window, workspace, QuickPickOptions, FileType } from 'vscode';
 import * as nls from 'vscode-nls';
 import { getOctokit } from './auth';
 import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git';
+import path = require('path');
 
 const localize = nls.loadMessageBundle();
 
@@ -141,7 +142,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 	})();
 }
 
-async function findPullRequestTemplates(repositoryRootUri: Uri): Promise<Uri[]> {
+export async function findPullRequestTemplates(repositoryRootUri: Uri): Promise<Uri[]> {
 	/**
 	 * Places a PR template can be:
 	 * - At the root, the docs folder, or the.github folder, named pull_request_template.md or PULL_REQUEST_TEMPLATE.md
@@ -151,27 +152,41 @@ async function findPullRequestTemplates(repositoryRootUri: Uri): Promise<Uri[]> 
 	 *   https://github.com/microsoft/vscode-pull-request-github/blob/0a0c3c6c21c0b9c2f4d5ffbc3f8c6a825472e9e6/src/github/folderRepositoryManager.ts#L1061
 	 *
 	 */
-	const pattern1 = '{pull_request_template,PULL_REQUEST_TEMPLATE}.md';
-	const templatesPattern1 = await workspace.findFiles(
-		new RelativePattern(repository.rootUri, pattern1)
-	);
 
-	const pattern2 = '{docs,.github}/{pull_request_template,PULL_REQUEST_TEMPLATE}.md';
-	const templatesPattern2 = await workspace.findFiles(
-		new RelativePattern(repository.rootUri, pattern2), null
-	);
+	const filesToLookFor = [
+		'pull_request_template.md',
+		'PULL_REQUEST_TEMPLATE.md',
+		'docs/pull_request_template.md',
+		'docs/PULL_REQUEST_TEMPLATE.md',
+		'.github/PULL_REQUEST_TEMPLATE.md',
+		'.github/PULL_REQUEST_TEMPLATE.md',
+	];
 
-	const pattern3 = 'PULL_REQUEST_TEMPLATE/*.md';
-	const templatesPattern3 = await workspace.findFiles(
-		new RelativePattern(repository.rootUri, pattern3)
-	);
+	const dirsToLookIn = [
+		'PULL_REQUEST_TEMPLATE',
+		'docs/PULL_REQUEST_TEMPLATE',
+		'.github/PULL_REQUEST_TEMPLATE'
+	];
 
-	const pattern4 = '{docs,.github}/PULL_REQUEST_TEMPLATE/*.md';
-	const templatesPattern4 = await workspace.findFiles(
-		new RelativePattern(repository.rootUri, pattern4), null
-	);
+	const assertMarkdownFile = async function (relativePath: string): Promise<Uri[]> {
+		const uri = Uri.joinPath(repositoryRootUri, relativePath);
+		const statResult = await workspace.fs.stat(uri);
+		return statResult.type & FileType.File ? [uri] : [];
+	};
 
-	return [...templatesPattern1, ...templatesPattern2, ...templatesPattern3, ...templatesPattern4];
+	const findMarkdownFilesInDir = async function (relativePath: string): Promise<Uri[]> {
+		const dir = Uri.joinPath(repositoryRootUri, relativePath);
+		const files = await workspace.fs.readDirectory(dir);
+		const mdFiles = files.filter(x => x[1] & FileType.File && path.extname(x[0]) === '.md');
+		return mdFiles.map(x => Uri.joinPath(dir, x[0]));
+	};
+
+	const promises = [
+		...filesToLookFor.map(x => assertMarkdownFile(x)),
+		...dirsToLookIn.map(x => findMarkdownFilesInDir(x))
+	];
+	const results = await Promise.allSettled(promises);
+	return results.flatMap(x => x.status === 'fulfilled' && x.value || []);
 }
 
 async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | undefined> {
