@@ -170,8 +170,7 @@ async function getPullRequestTemplates(repository: Repository): Promise<Uri[]> {
 		new RelativePattern(repository.rootUri, pattern4), null
 	);
 
-	const allResults = [...templatesPattern1, ...templatesPattern2, ...templatesPattern3, ...templatesPattern4];
-	return allResults;
+	return [...templatesPattern1, ...templatesPattern2, ...templatesPattern3, ...templatesPattern4];
 }
 
 async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | undefined> {
