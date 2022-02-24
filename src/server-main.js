@@ -10,6 +10,7 @@ const performance = require('perf_hooks').performance;
 const product = require('../product.json');
 const readline = require('readline');
 const http = require('http');
+const { alias } = require('optimist');
 
 perf.mark('code/server/start');
 // @ts-ignore
@@ -21,7 +22,8 @@ async function start() {
 	// Do a quick parse to determine if a server or the cli needs to be started
 	const parsedArgs = minimist(process.argv.slice(2), {
 		boolean: ['start-server', 'list-extensions', 'print-ip-address', 'help', 'version', 'accept-server-license-terms'],
-		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility']
+		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility'],
+		alias: { help: 'h', version: 'v' }
 	});
 
 	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
