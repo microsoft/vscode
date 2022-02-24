@@ -189,7 +189,7 @@ export async function findPullRequestTemplates(repositoryRootUri: Uri): Promise<
 	return results.flatMap(x => x.status === 'fulfilled' && x.value || []);
 }
 
-async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | undefined> {
+export async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | undefined> {
 	const quickPickItemFromUri = (x: Uri) => ({ label: x.path, template: x });
 	const quickPickItems = [
 		{
