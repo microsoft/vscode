@@ -211,8 +211,8 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		inputBox.select();
 
 		const done = once((success: boolean, finishEditing: boolean) => {
-			nameElement.style.display = 'initial';
-			valueElement.style.display = 'initial';
+			nameElement.style.display = '';
+			valueElement.style.display = '';
 			inputBoxContainer.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
