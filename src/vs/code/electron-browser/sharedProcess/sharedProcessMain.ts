@@ -198,7 +198,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ILogService, logService);
 
 		// Worker
-		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService, productService, environmentService);
+		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
 		services.set(ISharedProcessWorkerService, this.sharedProcessWorkerService);
 
 		// Files
