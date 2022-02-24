@@ -32,6 +32,7 @@ const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-l
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
 	static readonly historyBasedEnablementConfig = 'workbench.editor.historyBasedLanguageDetection';
+	static readonly preferHistoryConfig = 'workbench.editor.preferHistoryBasedLanguageDetection'; // hidden
 	static readonly openedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages';
 
 	_serviceBrand: undefined;
@@ -127,12 +128,13 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 	async detectLanguage(resource: URI): Promise<string | undefined> {
 		const useHistory = this._configurationService.getValue<string[]>(LanguageDetectionService.historyBasedEnablementConfig);
+		const preferHistory = this._configurationService.getValue<boolean>(LanguageDetectionService.preferHistoryConfig);
 		if (useHistory && !this.hasResolvedWorkspaceLanguageIds) {
 			// dont block on this, let further re-triggers get any new values
 			this.resolveWorkspaceLanguageIds();
 		}
 		const biases = useHistory ? this.getLanguageBiases() : undefined;
-		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, biases);
+		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, biases, preferHistory);
 
 		if (language) {
 			return this.getLanguageId(language);
@@ -283,9 +285,9 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		});
 	}
 
-	public async detectLanguage(resource: URI, langBiases?: Record<string, number>): Promise<string | undefined> {
+	public async detectLanguage(resource: URI, langBiases: Record<string, number> | undefined, preferHistory: boolean): Promise<string | undefined> {
 		await this._withSyncedResources([resource]);
-		return (await this._getProxy()).detectLanguage(resource.toString(), langBiases);
+		return (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory);
 	}
 }
 
