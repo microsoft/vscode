@@ -11945,10 +11945,6 @@ vscode-proxy-agent@^0.12.0:
   optionalDependencies:
     vscode-windows-ca-certs "^0.3.0"
 
-"vscode-regexp-languagedetection@https://github.com/microsoft/vscode-regexp-languagedetection.git#da3176ddcdabbdaacbaa0fc895170c2ed0ff6916":
-  version "1.0.0"
-  resolved "https://github.com/microsoft/vscode-regexp-languagedetection.git#da3176ddcdabbdaacbaa0fc895170c2ed0ff6916"
-
 vscode-regexpp@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/vscode-regexpp/-/vscode-regexpp-3.1.0.tgz#42d059b6fffe99bd42939c0d013f632f0cad823f"

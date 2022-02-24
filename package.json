@@ -83,7 +83,6 @@
     "v8-inspect-profiler": "^0.1.0",
     "vscode-oniguruma": "1.6.1",
     "vscode-proxy-agent": "^0.12.0",
-    "vscode-regexp-languagedetection": "https://github.com/microsoft/vscode-regexp-languagedetection.git#da3176ddcdabbdaacbaa0fc895170c2ed0ff6916",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "6.0.0",
     "xterm": "4.18.0-beta.12",
