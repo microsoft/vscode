@@ -241,6 +241,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private pendingWillShutdownPromise: Promise<void> | undefined = undefined;
 
+	private readonly mapWindowIdToPendingUnload = new Map<number, Promise<boolean>>();
+
 	private readonly phaseWhen = new Map<LifecycleMainPhase, Barrier>();
 
 	constructor(
@@ -469,7 +471,24 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		}
 	}
 
-	async unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
+	unload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
+
+		// Ensure there is only 1 unload running at the same time
+		const pendingUnloadPromise = this.mapWindowIdToPendingUnload.get(window.id);
+		if (pendingUnloadPromise) {
+			return pendingUnloadPromise;
+		}
+
+		// Start unload and remember in map until finished
+		const unloadPromise = this.doUnload(window, reason).finally(() => {
+			this.mapWindowIdToPendingUnload.delete(window.id);
+		});
+		this.mapWindowIdToPendingUnload.set(window.id, unloadPromise);
+
+		return unloadPromise;
+	}
+
+	private async doUnload(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
 
 		// Always allow to unload a window that is not yet ready
 		if (!window.isReady) {
