@@ -4658,11 +4658,6 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString | undefined;
 
 		/**
-		 * Optional command that will be the default gesture of this inlay hint.
-		 */
-		command?: Command;
-
-		/**
 		 * The kind of this hint. The inlay hint kind defines the appearance of this inlay hint.
 		 */
 		kind?: InlayHintKind;
