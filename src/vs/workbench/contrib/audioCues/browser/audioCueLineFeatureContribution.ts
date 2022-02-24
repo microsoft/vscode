@@ -153,15 +153,13 @@ export class AudioCueLineFeatureContribution
 
 		store.add(
 			autorunDelta('Play Audio Cue', state, ({ lastValue, newValue }) => {
-				for (const feature of this.features) {
-					if (
+				const newFeatures = this.features.filter(
+					feature =>
 						newValue?.featureStates.get(feature) &&
-						(!lastValue?.featureStates?.get(feature) ||
-							newValue.lineNumber !== lastValue.lineNumber)
-					) {
-						this.audioCueService.playAudioCue(feature.audioCue);
-					}
-				}
+						(!lastValue?.featureStates?.get(feature) || newValue.lineNumber !== lastValue.lineNumber)
+				);
+
+				this.audioCueService.playAudioCues(newFeatures.map(f => f.audioCue));
 			})
 		);
 	}

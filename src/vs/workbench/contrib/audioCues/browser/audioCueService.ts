@@ -18,6 +18,7 @@ export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
 	playAudioCue(cue: AudioCue): Promise<void>;
+	playAudioCues(cues: AudioCue[]): Promise<void>;
 	isEnabled(cue: AudioCue): IObservable<boolean>;
 
 	playSound(cue: Sound): Promise<void>;
@@ -42,6 +43,12 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		if (this.isEnabled(cue).get()) {
 			await this.playSound(cue.sound);
 		}
+	}
+
+	public async playAudioCues(cues: AudioCue[]): Promise<void> {
+		// Some audio cues might reuse sounds. Don't play the same sound twice.
+		const sounds = new Set(cues.filter(cue => this.isEnabled(cue).get()).map(cue => cue.sound));
+		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound)));
 	}
 
 	public async playSound(sound: Sound): Promise<void> {
