@@ -108,6 +108,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 
 				const templates = await getPullRequestTemplates(repository);
 				if (templates.length > 0) {
+					templates.sort((a, b) => a.path.localeCompare(b.path));
 					const pickedTemplate = await pickPullRequestTemplate(templates);
 					if (pickedTemplate) {
 						body = new TextDecoder('utf-8').decode(await workspace.fs.readFile(pickedTemplate));
