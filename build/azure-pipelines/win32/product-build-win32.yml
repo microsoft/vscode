@@ -5,7 +5,7 @@ steps:
 
   - task: UsePythonVersion@0
     inputs:
-      versionSpec: "2.x"
+      versionSpec: "3.x"
       addToPath: true
 
   - task: AzureKeyVault@1

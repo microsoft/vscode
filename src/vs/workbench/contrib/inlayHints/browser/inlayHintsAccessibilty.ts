@@ -5,31 +5,45 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorAction2, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Command } from 'vs/editor/common/languages';
 import { InlayHintItem } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
+import { InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { localize } from 'vs/nls';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Link } from 'vs/platform/opener/browser/link';
+import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
 
 
-export class InlayHintsAccessibility {
+export class InlayHintsAccessibility implements IEditorContribution {
 
 	static readonly IsReading = new RawContextKey<boolean>('isReadingLineWithInlayHints', false, { type: 'boolean', description: localize('isReadingLineWithInlayHints', "Whether the current line and its inlay hints are currently focused") });
 
+	static readonly ID: string = 'editor.contrib.InlayHintsAccessibility';
+
+	static get(editor: ICodeEditor): InlayHintsAccessibility | undefined {
+		return editor.getContribution<InlayHintsAccessibility>(InlayHintsAccessibility.ID) ?? undefined;
+	}
+
 	private readonly _ariaElement: HTMLSpanElement;
 	private readonly _ctxIsReading: IContextKey<boolean>;
-
 
 	private _sessionDispoosables = new DisposableStore();
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		this._ariaElement = document.createElement('span');
@@ -47,13 +61,13 @@ export class InlayHintsAccessibility {
 		this._ariaElement.remove();
 	}
 
-	reset(): void {
+	private _reset(): void {
 		dom.clearNode(this._ariaElement);
 		this._sessionDispoosables.clear();
 		this._ctxIsReading.reset();
 	}
 
-	async read(line: number, hints: InlayHintItem[]) {
+	private async _read(line: number, hints: InlayHintItem[]) {
 
 		this._sessionDispoosables.clear();
 
@@ -81,6 +95,8 @@ export class InlayHintsAccessibility {
 		const newChildren: (string | HTMLElement)[] = [];
 
 		let start = 0;
+		let tooLongToRead = false;
+
 		for (const item of hints) {
 
 			// text
@@ -88,6 +104,13 @@ export class InlayHintsAccessibility {
 			if (part.length > 0) {
 				newChildren.push(part);
 				start = item.hint.position.column - 1;
+			}
+
+			// check length
+			if (start > 750) {
+				newChildren.push('…');
+				tooLongToRead = true;
+				break;
 			}
 
 			// hint
@@ -113,15 +136,17 @@ export class InlayHintsAccessibility {
 		}
 
 		// trailing text
-		newChildren.push(model.getValueInRange({ startLineNumber: line, startColumn: start + 1, endLineNumber: line, endColumn: Number.MAX_SAFE_INTEGER }));
-		dom.reset(this._ariaElement, ...newChildren);
+		if (!tooLongToRead) {
+			newChildren.push(model.getValueInRange({ startLineNumber: line, startColumn: start + 1, endLineNumber: line, endColumn: Number.MAX_SAFE_INTEGER }));
+		}
 
+		dom.reset(this._ariaElement, ...newChildren);
 		this._ariaElement.focus();
 		this._ctxIsReading.set(true);
 
 		// reset on blur
 		this._sessionDispoosables.add(dom.addDisposableListener(this._ariaElement, 'focusout', () => {
-			this.reset();
+			this._reset();
 		}));
 	}
 
@@ -132,4 +157,68 @@ export class InlayHintsAccessibility {
 			query: encodeURIComponent(JSON.stringify(command.arguments))
 		}).toString();
 	}
+
+
+	startInlayHintsReading(): void {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		const line = this._editor.getPosition().lineNumber;
+		const hints = InlayHintsController.get(this._editor)?.getInlayHintsForLine(line);
+		if (!hints || hints.length === 0) {
+			this._audioCueService.playAudioCue(AudioCue.noInlayHints);
+		} else {
+			this._read(line, hints);
+		}
+	}
+
+	stopInlayHintsReading(): void {
+		this._reset();
+		this._editor.focus();
+	}
 }
+
+
+registerAction2(class StartReadHints extends EditorAction2 {
+
+	constructor() {
+		super({
+			id: 'inlayHints.startReadingLineWithHint',
+			title: localize('read.title', 'Read Line With Inline Hints'),
+			precondition: EditorContextKeys.hasInlayHintsProvider,
+			f1: true
+		});
+	}
+
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		const ctrl = InlayHintsAccessibility.get(editor);
+		if (ctrl) {
+			ctrl.startInlayHintsReading();
+		}
+	}
+});
+
+registerAction2(class StopReadHints extends EditorAction2 {
+
+	constructor() {
+		super({
+			id: 'inlayHints.stopReadingLineWithHint',
+			title: localize('stop.title', 'Stop Inlay Hints Reading'),
+			precondition: InlayHintsAccessibility.IsReading,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyCode.Escape
+			}
+		});
+	}
+
+	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
+		const ctrl = InlayHintsAccessibility.get(editor);
+		if (ctrl) {
+			ctrl.stopInlayHintsReading();
+		}
+	}
+});
+
+registerEditorContribution(InlayHintsAccessibility.ID, InlayHintsAccessibility);

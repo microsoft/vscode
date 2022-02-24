@@ -87,14 +87,19 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 		return Array.isArray(element) || element.hasChildren;
 	}
 
-	getChildren(element: ExplorerItem | ExplorerItem[]): Promise<ExplorerItem[]> {
+	getChildren(element: ExplorerItem | ExplorerItem[]): ExplorerItem[] | Promise<ExplorerItem[]> {
 		if (Array.isArray(element)) {
-			return Promise.resolve(element);
+			return element;
 		}
 
 		const wasError = element.isError;
 		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
-		const promise = element.fetchChildren(sortOrder).then(
+		const children = element.fetchChildren(sortOrder);
+		if (Array.isArray(children)) {
+			// fast path when children are known sync (i.e. nested children)
+			return children;
+		}
+		const promise = children.then(
 			children => {
 				// Clear previous error decoration on root folder
 				if (element instanceof ExplorerItem && element.isRoot && !element.isError && wasError && this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {

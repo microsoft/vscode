@@ -1,3 +1,7 @@
+# ---------------------------------------------------------------------------------------------
+#   Copyright (c) Microsoft Corporation. All rights reserved.
+#   Licensed under the MIT License. See License.txt in the project root for license information.
+# ---------------------------------------------------------------------------------------------
 
 if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 	. ~/.bashrc
@@ -15,24 +19,40 @@ else
 fi
 
 IN_COMMAND_EXECUTION="1"
+LAST_HISTORY_ID=$(history 1 | awk '{print $1;}')
+
 prompt_start() {
-	printf "\033]133;A\007"
+	printf "\033]633;A\007"
 }
 
 prompt_end() {
-	printf "\033]133;B\007"
+	printf "\033]633;B\007"
 }
 
 update_cwd() {
-	printf "\033]1337;CurrentDir=%s\007" "$PWD"
+	printf "\033]633;P;Cwd=%s\007" "$PWD"
 }
 
 command_output_start() {
-	printf "\033]133;C\007"
+	printf "\033]633;C\007"
+}
+
+continuation_start() {
+	printf "\033]633;F\007"
+}
+
+continuation_end() {
+	printf "\033]633;G\007"
 }
 
 command_complete() {
-	printf "\033]133;D;%s\007" "$STATUS"
+	local HISTORY_ID=$(history 1 | awk '{print $1;}')
+	if [[ "$HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
+		printf "\033]633;D\007"
+	else
+		printf "\033]633;D;%s\007" "$STATUS"
+		LAST_HISTORY_ID=$HISTORY_ID
+	fi
 	update_cwd
 }
 
@@ -40,10 +60,10 @@ update_prompt() {
 	PRIOR_PROMPT="$PS1"
 	IN_COMMAND_EXECUTION=""
 	PS1="$(prompt_start)$PREFIX$PS1$(prompt_end)"
+	PS2="$(continuation_start)$PS2$(continuation_end)"
 }
 
 precmd() {
-	local STATUS="$?"
 	command_complete "$STATUS"
 
 	# in command execution
@@ -61,24 +81,25 @@ preexec() {
 }
 
 update_prompt
-export ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
-
-prompt_cmd() {
+prompt_cmd_original() {
+	STATUS="$?"
+	$ORIGINAL_PROMPT_COMMAND
 	precmd
 }
-original_prompt_cmd() {
-	${ORIGINAL_PROMPT_COMMAND}
-	prompt_cmd
+prompt_cmd() {
+	STATUS="$?"
+	precmd
 }
-if [ -n "$ORIGINAL_PROMPT_COMMAND" ]; then
-	export PROMPT_COMMAND=original_prompt_cmd
+ORIGINAL_PROMPT_COMMAND=$PROMPT_COMMAND
+if [[ -n "$ORIGINAL_PROMPT_COMMAND" && "$ORIGINAL_PROMPT_COMMAND" != "prompt_cmd" ]]; then
+	PROMPT_COMMAND=prompt_cmd_original
 else
-	export PROMPT_COMMAND=prompt_cmd
+	PROMPT_COMMAND=prompt_cmd
 fi
 
 trap 'preexec' DEBUG
 if [ -z "$VSCODE_SHELL_HIDE_WELCOME" ]; then
-	echo -e "\033[1;32mShell integration activated!\033[0m"
+	echo -e "\033[1;32mShell integration activated\033[0m"
 else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi

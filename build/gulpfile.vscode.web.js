@@ -209,13 +209,6 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			gulp.src('resources/server/code-512.png', { base: 'resources/server' })
 		);
 
-		// TODO@bpasero remove me in Feb
-		const legacyMain = es.merge(
-			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.js').pipe(rename('out/vs/workbench/workbench.web.api.js')).pipe(replace('workbench.web.main', 'workbench.web.api')),
-			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.css').pipe(rename('out/vs/workbench/workbench.web.api.css')),
-			gulp.src(sourceFolderName + '/vs/workbench/workbench.web.main.nls.js').pipe(rename('out/vs/workbench/workbench.web.api.nls.js')).pipe(replace('workbench.web.main', 'workbench.web.api'))
-		);
-
 		let all = es.merge(
 			packageJsonStream,
 			license,
@@ -223,8 +216,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 			deps,
 			favicon,
 			manifest,
-			pwaicons,
-			legacyMain
+			pwaicons
 		);
 
 		let result = all

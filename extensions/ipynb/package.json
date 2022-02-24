@@ -13,7 +13,7 @@
 		"notebookEditorEdit"
 	],
 	"activationEvents": [
-		"onNotebook:jupyter-notebook"
+		"*"
 	],
 	"extensionKind": [
 		"workspace",
@@ -28,25 +28,14 @@
 		}
 	},
 	"contributes": {
-		"languages": [
+		"commands": [
 			{
-				"id": "jupyter",
-				"aliases": [
-					"Jupyter (JSON)"
-				],
-				"extensions": [
-					".ipynb"
-				]
-			}
-		],
-		"grammars": [
+				"command": "ipynb.newUntitledIpynb",
+				"title": "Jupyter Notebook"
+			},
 			{
-				"language": "jupyter",
-				"scopeName": "source.jupyter",
-				"path": "./syntaxes/jupyter.tmLanguage.json",
-				"embeddedLanguages": {
-					"source.json": "json"
-				}
+				"command": "ipynb.openIpynbInNotebookEditor",
+				"title": "Open ipynb file in notebook editor"
 			}
 		],
 		"notebooks": [
@@ -60,7 +49,25 @@
 				],
 				"priority": "default"
 			}
-		]
+		],
+		"menus": {
+			"file/newFile": [
+				{
+					"command": "ipynb.newUntitledIpynb",
+					"when": "!jupyterEnabled"
+				}
+			],
+			"commandPalette": [
+				{
+					"command": "ipynb.newUntitledIpynb",
+					"when": "false"
+				},
+				{
+					"command": "ipynb.openIpynbInNotebookEditor",
+					"when": "false"
+				}
+			]
+		}
 	},
 	"scripts": {
 		"compile": "npx gulp compile-extension:ipynb",

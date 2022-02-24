@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { BracketPairsTree } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree';
 import { BracketInfo, BracketPairInfo, BracketPairWithMinIndentationInfo, IBracketPairsTextModelPart, IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ignoreBracketsInToken } from 'vs/editor/common/languages/supports';
 import { RichEditBrackets, BracketsUtils, RichEditBracket } from 'vs/editor/common/languages/supports/richEditBrackets';
@@ -35,16 +35,6 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 	) {
 		super();
 
-		this._register(textModel.onDidChangeOptions(e => {
-			this.bracketPairsTree.clear();
-			this.updateBracketPairsTree();
-		}));
-
-		this._register(textModel.onDidChangeLanguage(e => {
-			this.bracketPairsTree.clear();
-			this.updateBracketPairsTree();
-		}));
-
 		this._register(
 			this.languageConfigurationService.onDidChange(e => {
 				if (!e.languageId || this.bracketPairsTree.value?.object.didLanguageChange(e.languageId)) {
@@ -54,6 +44,32 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 			})
 		);
 	}
+
+	//#region TextModel events
+
+	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void {
+		this.bracketPairsTree.clear();
+		this.updateBracketPairsTree();
+	}
+
+	public handleDidChangeLanguage(e: IModelLanguageChangedEvent): void {
+		this.bracketPairsTree.clear();
+		this.updateBracketPairsTree();
+	}
+
+	public handleDidChangeContent(change: IModelContentChangedEvent) {
+		this.bracketPairsTree.value?.object.handleContentChanged(change);
+	}
+
+	public handleDidChangeBackgroundTokenizationState(): void {
+		this.bracketPairsTree.value?.object.handleDidChangeBackgroundTokenizationState();
+	}
+
+	public handleDidChangeTokens(e: IModelTokensChangedEvent): void {
+		this.bracketPairsTree.value?.object.handleDidChangeTokens(e);
+	}
+
+	//#endregion
 
 	private updateBracketPairsTree() {
 		if (this.bracketsRequested && this.isDocumentSupported) {
@@ -78,10 +94,6 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 				this.onDidChangeEmitter.fire();
 			}
 		}
-	}
-
-	public handleContentChanged(change: IModelContentChangedEvent) {
-		this.bracketPairsTree.value?.object.handleContentChanged(change);
 	}
 
 	/**

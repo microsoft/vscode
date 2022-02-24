@@ -66,7 +66,6 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void {
 		if (this.isResourceEnabled(resource) !== enabled) {
 			const resourceEnablementKey = getEnablementKey(resource);
-			this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(resourceEnablementKey, { enabled });
 			this.storeResourceEnablement(resourceEnablementKey, enabled);
 		}
 	}

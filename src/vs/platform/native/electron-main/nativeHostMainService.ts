@@ -21,7 +21,7 @@ import { virtualMachineHint } from 'vs/base/node/id';
 import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { localize } from 'vs/nls';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';

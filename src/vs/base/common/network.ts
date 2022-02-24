@@ -173,6 +173,11 @@ class FileAccessImpl {
 	asBrowserUri(uri: URI): URI;
 	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
 	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+		if (URI.isUri(uriOrModule) && platform.isWebWorker) {
+			// In the web worker, only paths can be safely converted to browser URIs.
+			// Other resources such as extension resources need to go to the main thread for conversion.
+			console.warn(`FileAccess.asBrowserUri should not be used in the web worker!`);
+		}
 		const uri = this.toUri(uriOrModule, moduleIdToUrl);
 
 		// Handle remote URIs via `RemoteAuthorities`
@@ -188,7 +193,7 @@ class FileAccessImpl {
 				// ...and we run in native environments
 				platform.isNative ||
 				// ...or web worker extensions on desktop
-				(typeof platform.globals.importScripts === 'function' && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
+				(platform.isWebWorker && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
 			)
 		) {
 			return uri.with({

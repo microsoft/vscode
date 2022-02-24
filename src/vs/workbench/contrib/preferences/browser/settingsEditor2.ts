@@ -89,6 +89,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.settings2';
 	private static NUM_INSTANCES: number = 0;
+	private static SEARCH_DEBOUNCE: number = 200;
 	private static SETTING_UPDATE_FAST_DEBOUNCE: number = 200;
 	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
 	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
@@ -167,6 +168,7 @@ export class SettingsEditor2 extends EditorPane {
 	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
 
+	private searchInputDelayer: Delayer<void>;
 	private updatedConfigSchemaDelayer: Delayer<void>;
 
 	private settingFastUpdateDelayer: Delayer<void>;
@@ -189,6 +191,7 @@ export class SettingsEditor2 extends EditorPane {
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings = false;
 
+	/** Persist the search query upon reloads */
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
 
 	private tocFocusedElement: SettingsTreeGroupElement | null = null;
@@ -222,6 +225,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
 		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
 
+		this.searchInputDelayer = new Delayer<void>(SettingsEditor2.SEARCH_DEBOUNCE);
 		this.updatedConfigSchemaDelayer = new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER);
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
@@ -259,7 +263,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.modelDisposables = this._register(new DisposableStore());
 	}
 
-	override get minimumWidth(): number { return 375; }
+	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
 	override get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
 	// these setters need to exist because this extends from EditorPane
@@ -556,7 +560,7 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(this.searchWidget.onInputDidChange(() => {
 			const searchVal = this.searchWidget.getValue();
 			clearInputAction.enabled = !!searchVal;
-			this.onSearchInputChanged();
+			this.searchInputDelayer.trigger(() => this.onSearchInputChanged());
 		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
@@ -1520,16 +1524,24 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTree.layout(tocTreeHeight);
 
 		this.splitView.el.style.height = `${settingsTreeHeight}px`;
-		const firstViewVisible = dimension.width >= SettingsEditor2.NARROW_TOTAL_WIDTH;
 
 		// We call layout first so the splitView has an idea of how much
 		// space it has, otherwise setViewVisible results in the first panel
 		// showing up at the minimum size whenever the Settings editor
 		// opens for the first time.
 		this.splitView.layout(this.bodyContainer.clientWidth);
+
+		const firstViewWasVisible = this.splitView.isViewVisible(0);
+		const firstViewVisible = this.bodyContainer.clientWidth >= SettingsEditor2.NARROW_TOTAL_WIDTH;
+
 		this.splitView.setViewVisible(0, firstViewVisible);
+		// If the first view is again visible, and we have enough space, immediately set the
+		// editor to use the reset width rather than the cached min width
+		if (!firstViewWasVisible && firstViewVisible && this.bodyContainer.clientWidth >= SettingsEditor2.EDITOR_MIN_WIDTH + SettingsEditor2.TOC_RESET_WIDTH) {
+			this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
+		}
 		this.splitView.style({
-			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder)! : Color.transparent
+			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder) ?? Color.transparent : Color.transparent
 		});
 	}
 
@@ -1540,6 +1552,8 @@ export class SettingsEditor2 extends EditorPane {
 			if (this.group && this.input) {
 				this.editorMemento.saveEditorState(this.group, this.input, { searchQuery, target });
 			}
+		} else if (this.group && this.input) {
+			this.editorMemento.clearEditorState(this.input, this.group);
 		}
 
 		super.saveState();

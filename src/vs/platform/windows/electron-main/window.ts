@@ -16,7 +16,7 @@ import { getMarks, mark } from 'vs/base/common/performance';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';

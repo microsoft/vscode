@@ -459,14 +459,14 @@ export class CloseOneEditorAction extends Action {
 		if (typeof editorIndex === 'number') {
 			const editorAtIndex = group.getEditorByIndex(editorIndex);
 			if (editorAtIndex) {
-				await group.closeEditor(editorAtIndex);
+				await group.closeEditor(editorAtIndex, { preserveFocus: context?.preserveFocus });
 				return;
 			}
 		}
 
 		// Otherwise close active editor in group
 		if (group.activeEditor) {
-			await group.closeEditor(group.activeEditor);
+			await group.closeEditor(group.activeEditor, { preserveFocus: context?.preserveFocus });
 			return;
 		}
 	}

@@ -7,7 +7,7 @@ import { BrowserWindow, Rectangle } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';

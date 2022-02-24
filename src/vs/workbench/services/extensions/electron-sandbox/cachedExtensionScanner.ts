@@ -11,16 +11,15 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { joinPath, originalFSPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import * as pfs from 'vs/base/node/pfs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
-import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { Translations, ILog, ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IExtensionScannerHost, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 interface IExtensionCacheData {
 	input: ExtensionScannerInput;
@@ -53,15 +52,52 @@ export class CachedExtensionScanner {
 	constructor(
 		@INotificationService private readonly _notificationService: INotificationService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
-		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IHostService private readonly _hostService: IHostService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
 			this._scannedExtensionsResolve = resolve;
 			this._scannedExtensionsReject = reject;
 		});
-		this.translationConfig = CachedExtensionScanner._readTranslationConfig();
+		this.translationConfig = this._readTranslationConfig();
+	}
+
+	private _createExtensionScannerHost(log: ILog): IExtensionScannerHost {
+		return {
+			log: log,
+			readFile: async (filename) => {
+				try {
+					const contents = await this._fileService.readFile(URI.file(filename), { atomic: true });
+					return contents.value.toString();
+				} catch (err) {
+					if (toFileOperationResult(err) === FileOperationResult.FILE_NOT_FOUND) {
+						const nodeLikeError = new Error(`File not found`);
+						(<any>nodeLikeError).code = 'ENOENT';
+						throw nodeLikeError;
+					}
+					throw err;
+				}
+			},
+			existsFile: async (filename) => {
+				try {
+					const stat = await this._fileService.resolve(URI.file(filename));
+					return stat.isFile;
+				} catch (err) {
+					return false;
+				}
+			},
+			readDirsInDir: async (dirPath) => {
+				const stat = await this._fileService.resolve(URI.file(dirPath));
+				const result: string[] = [];
+				for (const child of (stat.children || [])) {
+					if (child.isDirectory) {
+						result.push(child.name);
+					}
+				}
+				return result;
+			}
+		};
 	}
 
 	public async scanSingleExtension(path: string, isBuiltin: boolean, log: ILog): Promise<IExtensionDescription | null> {
@@ -70,16 +106,16 @@ export class CachedExtensionScanner {
 		const version = this._productService.version;
 		const commit = this._productService.commit;
 		const date = this._productService.date;
-		const devMode = !!process.env['VSCODE_DEV'];
+		const devMode = !this._environmentService.isBuilt;
 		const locale = platform.language;
 		const input = new ExtensionScannerInput(version, date, commit, locale, devMode, path, isBuiltin, false, translations);
-		return ExtensionScanner.scanSingleExtension(input, log);
+		return ExtensionScanner.scanSingleExtension(input, this._createExtensionScannerHost(log));
 	}
 
 	public async startScanningExtensions(log: ILog): Promise<void> {
 		try {
 			const translations = await this.translationConfig;
-			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._hostService, this._notificationService, this._environmentService, this._extensionEnablementService, this._productService, log, translations);
+			const { system, user, development } = await this._scanInstalledExtensions(log, translations);
 			const r = dedupExtensions(system, user, development, log);
 			this._scannedExtensionsResolve(r);
 		} catch (err) {
@@ -87,13 +123,13 @@ export class CachedExtensionScanner {
 		}
 	}
 
-	private static async _validateExtensionsCache(hostService: IHostService, notificationService: INotificationService, environmentService: INativeWorkbenchEnvironmentService, cacheKey: string, input: ExtensionScannerInput): Promise<void> {
-		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
+	private async _validateExtensionsCache(cacheKey: string, input: ExtensionScannerInput): Promise<void> {
+		const cacheFolder = path.join(this._environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
-		const expected = JSON.parse(JSON.stringify(await ExtensionScanner.scanExtensions(input, new NullLogger())));
+		const expected = JSON.parse(JSON.stringify(await ExtensionScanner.scanExtensions(input, this._createExtensionScannerHost(new NullLogger()))));
 
-		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
+		const cacheContents = await this._readExtensionCache(cacheKey);
 		if (!cacheContents) {
 			// Cache has been deleted by someone else, which is perfectly fine...
 			return;
@@ -106,29 +142,29 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			await pfs.Promises.rm(cacheFile, pfs.RimRafMode.MOVE);
+			await this._fileService.del(URI.file(cacheFile));
 		} catch (err) {
 			errors.onUnexpectedError(err);
 			console.error(err);
 		}
 
-		notificationService.prompt(
+		this._notificationService.prompt(
 			Severity.Error,
 			nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window."),
 			[{
 				label: nls.localize('reloadWindow', "Reload Window"),
-				run: () => hostService.reload()
+				run: () => this._hostService.reload()
 			}]
 		);
 	}
 
-	private static async _readExtensionCache(environmentService: INativeWorkbenchEnvironmentService, cacheKey: string): Promise<IExtensionCacheData | null> {
-		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
+	private async _readExtensionCache(cacheKey: string): Promise<IExtensionCacheData | null> {
+		const cacheFolder = path.join(this._environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			const cacheRawContents = await pfs.Promises.readFile(cacheFile, 'utf8');
-			return JSON.parse(cacheRawContents);
+			const cacheRawContents = await this._fileService.readFile(URI.file(cacheFile));
+			return JSON.parse(cacheRawContents.value.toString());
 		} catch (err) {
 			// That's ok...
 		}
@@ -136,42 +172,44 @@ export class CachedExtensionScanner {
 		return null;
 	}
 
-	private static async _writeExtensionCache(environmentService: INativeWorkbenchEnvironmentService, cacheKey: string, cacheContents: IExtensionCacheData): Promise<void> {
-		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
+	private async _writeExtensionCache(cacheKey: string, cacheContents: IExtensionCacheData): Promise<void> {
+		const cacheFolder = path.join(this._environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			await pfs.Promises.mkdir(cacheFolder, { recursive: true });
+			await this._fileService.createFolder(URI.file(cacheFolder));
 		} catch (err) {
 			// That's ok...
 		}
 
 		try {
-			await pfs.Promises.writeFile(cacheFile, JSON.stringify(cacheContents));
+			await this._fileService.writeFile(URI.file(cacheFile), VSBuffer.fromString(JSON.stringify(cacheContents)));
 		} catch (err) {
 			// That's ok...
 		}
 	}
 
-	private static async _scanExtensionsWithCache(hostService: IHostService, notificationService: INotificationService, environmentService: INativeWorkbenchEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription[]> {
+	private async _scanExtensionsWithCache(cacheKey: string, input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription[]> {
 		if (input.devMode) {
 			// Do not cache when running out of sources...
-			return ExtensionScanner.scanExtensions(input, log);
+			return ExtensionScanner.scanExtensions(input, this._createExtensionScannerHost(log));
 		}
 
 		try {
-			const folderStat = await pfs.Promises.stat(input.absoluteFolderPath);
-			input.mtime = folderStat.mtime.getTime();
+			const folderStat = await this._fileService.stat(URI.file(input.absoluteFolderPath));
+			if (typeof folderStat.mtime === 'number') {
+				input.mtime = folderStat.mtime;
+			}
 		} catch (err) {
 			// That's ok...
 		}
 
-		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
+		const cacheContents = await this._readExtensionCache(cacheKey);
 		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, input)) {
 			// Validate the cache asynchronously after 5s
 			setTimeout(async () => {
 				try {
-					await this._validateExtensionsCache(hostService, notificationService, environmentService, cacheKey, input);
+					await this._validateExtensionsCache(cacheKey, input);
 				} catch (err) {
 					errors.onUnexpectedError(err);
 				}
@@ -184,24 +222,24 @@ export class CachedExtensionScanner {
 		}
 
 		const counterLogger = new CounterLogger(log);
-		const result = await ExtensionScanner.scanExtensions(input, counterLogger);
+		const result = await ExtensionScanner.scanExtensions(input, this._createExtensionScannerHost(counterLogger));
 		if (counterLogger.errorCnt === 0) {
 			// Nothing bad happened => cache the result
 			const cacheContents: IExtensionCacheData = {
 				input: input,
 				result: result
 			};
-			await this._writeExtensionCache(environmentService, cacheKey, cacheContents);
+			await this._writeExtensionCache(cacheKey, cacheContents);
 		}
 
 		return result;
 	}
 
-	private static async _readTranslationConfig(): Promise<Translations> {
+	private async _readTranslationConfig(): Promise<Translations> {
 		if (platform.translationsConfigFile) {
 			try {
-				const content = await pfs.Promises.readFile(platform.translationsConfigFile, 'utf8');
-				return JSON.parse(content) as Translations;
+				const content = await this._fileService.readFile(URI.file(platform.translationsConfigFile));
+				return JSON.parse(content.value.toString()) as Translations;
 			} catch (err) {
 				// no problemo
 			}
@@ -209,26 +247,18 @@ export class CachedExtensionScanner {
 		return Object.create(null);
 	}
 
-	private static _scanInstalledExtensions(
-		hostService: IHostService,
-		notificationService: INotificationService,
-		environmentService: INativeWorkbenchEnvironmentService,
-		extensionEnablementService: IWorkbenchExtensionEnablementService,
-		productService: IProductService,
+	private _scanInstalledExtensions(
 		log: ILog,
 		translations: Translations
 	): Promise<{ system: IExtensionDescription[]; user: IExtensionDescription[]; development: IExtensionDescription[] }> {
 
-		const version = productService.version;
-		const commit = productService.commit;
-		const date = productService.date;
-		const devMode = !!process.env['VSCODE_DEV'];
+		const version = this._productService.version;
+		const commit = this._productService.commit;
+		const date = this._productService.date;
+		const devMode = !this._environmentService.isBuilt;
 		const locale = platform.language;
 
 		const builtinExtensions = this._scanExtensionsWithCache(
-			hostService,
-			notificationService,
-			environmentService,
 			BUILTIN_MANIFEST_CACHE_FILE,
 			new ExtensionScannerInput(version, date, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
 			log
@@ -237,35 +267,33 @@ export class CachedExtensionScanner {
 		let finalBuiltinExtensions: Promise<IExtensionDescription[]> = builtinExtensions;
 
 		if (devMode) {
-			const builtInExtensions = Promise.resolve<IBuiltInExtension[]>(productService.builtInExtensions || []);
+			const builtInExtensions = Promise.resolve<IBuiltInExtension[]>(this._productService.builtInExtensions || []);
 
-			const controlFilePath = joinPath(environmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json').fsPath;
-			const controlFile = pfs.Promises.readFile(controlFilePath, 'utf8')
-				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
+			const controlFilePath = joinPath(this._environmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json').fsPath;
+			const controlFile = this._fileService.readFile(URI.file(controlFilePath))
+				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw.value.toString()), () => ({} as any));
 
 			const input = new ExtensionScannerInput(version, date, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
 			const extraBuiltinExtensions = Promise.all([builtInExtensions, controlFile])
 				.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
-				.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
+				.then(resolver => ExtensionScanner.scanExtensions(input, this._createExtensionScannerHost(log), resolver));
 
 			finalBuiltinExtensions = ExtensionScanner.mergeBuiltinExtensions(builtinExtensions, extraBuiltinExtensions);
 		}
 
 		const userExtensions = (this._scanExtensionsWithCache(
-			hostService,
-			notificationService,
-			environmentService,
 			USER_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, date, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
+			new ExtensionScannerInput(version, date, commit, locale, devMode, this._environmentService.extensionsPath, false, false, translations),
 			log
 		));
 
 		// Always load developed extensions while extensions development
 		let developedExtensions: Promise<IExtensionDescription[]> = Promise.resolve([]);
-		if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI) {
-			const extDescsP = environmentService.extensionDevelopmentLocationURI.filter(extLoc => extLoc.scheme === Schemas.file).map(extLoc => {
+		if (this._environmentService.isExtensionDevelopment && this._environmentService.extensionDevelopmentLocationURI) {
+			const extDescsP = this._environmentService.extensionDevelopmentLocationURI.filter(extLoc => extLoc.scheme === Schemas.file).map(extLoc => {
 				return ExtensionScanner.scanOneOrMultipleExtensions(
-					new ExtensionScannerInput(version, date, commit, locale, devMode, originalFSPath(extLoc), false, true, translations), log
+					new ExtensionScannerInput(version, date, commit, locale, devMode, originalFSPath(extLoc), false, true, translations),
+					this._createExtensionScannerHost(log)
 				);
 			});
 			developedExtensions = Promise.all(extDescsP).then((extDescArrays: IExtensionDescription[][]) => {

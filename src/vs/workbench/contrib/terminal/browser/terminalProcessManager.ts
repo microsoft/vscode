@@ -243,20 +243,39 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
-						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, this.os);
+						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration?.enabled || false, shellLaunchConfig, this.os);
 						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
-						if (this.shellIntegrationAttempted) {
-							shellLaunchConfig.args = shellIntegration.args;
-							// resolve the injected arguments
-							await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
-								remoteAuthority: this.remoteAuthority,
-								os: this.os
-							});
+						if (this.shellIntegrationAttempted && shellIntegration.args) {
+							const remoteEnv = await this._remoteAgentService.getEnvironment();
+							if (!remoteEnv) {
+								this._logService.warn('Could not fetch remote environment');
+							} else {
+								if (Array.isArray(shellIntegration.args)) {
+									// Resolve the arguments manually using the remote server install directory
+									const appRoot = remoteEnv.appRoot;
+									let appRootOsPath = remoteEnv.appRoot.fsPath;
+									if (OS === OperatingSystem.Windows && remoteEnv.os !== OperatingSystem.Windows) {
+										// Local Windows, remote POSIX
+										appRootOsPath = appRoot.path.replace(/\\/g, '/');
+									} else if (OS !== OperatingSystem.Windows && remoteEnv.os === OperatingSystem.Windows) {
+										// Local POSIX, remote Windows
+										appRootOsPath = appRoot.path.replace(/\//g, '\\');
+									}
+									for (let i = 0; i < shellIntegration.args.length; i++) {
+										shellIntegration.args[i] = shellIntegration.args[i].replace('${execInstallFolder}', appRootOsPath);
+									}
+								}
+								shellLaunchConfig.args = shellIntegration.args;
+							}
 						}
 						//TODO: fix
 						if (env?.['VSCODE_SHELL_LOGIN']) {
 							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
 							shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = '1';
+						}
+						if (env?.['ZDOTDIR']) {
+							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+							shellLaunchConfig.env['ZDOTDIR'] = env['ZDOTDIR'].replace('${execInstallFolder}', remoteEnv.appRoot.fsPath);
 						}
 
 						newProcess = await backend.createProcess(
@@ -433,10 +452,17 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, OS);
+		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration?.enabled || false, shellLaunchConfig, OS);
 		if (shellIntegration.enableShellIntegration) {
 			shellLaunchConfig.args = shellIntegration.args;
-			// resolve the injected arguments
+			if (env?.['ZDOTDIR']) {
+				shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
+				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
+				const resolved = await this._configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, env['ZDOTDIR']);
+				env['ZDOTDIR'] = resolved;
+			}
+			// Always resolve the injected arguments on local processes
 			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 				remoteAuthority: undefined,
 				os: OS
@@ -581,7 +607,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		if (!this._process) {
-			throw new Error('Cannot refresh property when process is undefined');
+			throw new Error('Cannot refresh property when process is not set');
 		}
 		return this._process.refreshProperty(type);
 	}

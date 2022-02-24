@@ -229,13 +229,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._webviewTransparentCover = DOM.append(this._list.rowsContainer, $('.webview-cover'));
 		this._webviewTransparentCover.style.display = 'none';
 
-		this._register(DOM.addStandardDisposableGenericMouseDownListner(this._overflowContainer, (e: StandardMouseEvent) => {
+		this._register(DOM.addStandardDisposableGenericMouseDownListener(this._overflowContainer, (e: StandardMouseEvent) => {
 			if (e.target.classList.contains('slider') && this._webviewTransparentCover) {
 				this._webviewTransparentCover.style.display = 'block';
 			}
 		}));
 
-		this._register(DOM.addStandardDisposableGenericMouseUpListner(this._overflowContainer, () => {
+		this._register(DOM.addStandardDisposableGenericMouseUpListener(this._overflowContainer, () => {
 			if (this._webviewTransparentCover) {
 				// no matter when
 				this._webviewTransparentCover.style.display = 'none';

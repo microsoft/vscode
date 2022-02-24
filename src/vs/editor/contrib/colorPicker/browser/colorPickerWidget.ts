@@ -158,7 +158,7 @@ class SaturationBox extends Disposable {
 
 		this.layout();
 
-		this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableGenericMouseDownListener(this.domNode, e => this.onMouseDown(e)));
 		this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
 		this.monitor = null;
 	}
@@ -173,7 +173,7 @@ class SaturationBox extends Disposable {
 
 		this.monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
+		const mouseUpListener = dom.addDisposableGenericMouseUpListener(document, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			if (this.monitor) {
@@ -258,7 +258,7 @@ abstract class Strip extends Disposable {
 		this.slider = dom.append(this.domNode, $('.slider'));
 		this.slider.style.top = `0px`;
 
-		this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableGenericMouseDownListener(this.domNode, e => this.onMouseDown(e)));
 		this.layout();
 	}
 
@@ -280,7 +280,7 @@ abstract class Strip extends Disposable {
 
 		monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
+		const mouseUpListener = dom.addDisposableGenericMouseUpListener(document, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			monitor.stopMonitoring(true);

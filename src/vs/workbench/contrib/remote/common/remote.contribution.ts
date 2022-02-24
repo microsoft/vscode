@@ -27,6 +27,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -155,11 +157,63 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 	}
 }
 
+class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
+
+	constructor(
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+	) {
+		if (this._environmentService.remoteAuthority) {
+			this._checkInitialRemoteConnectionHealth();
+		}
+	}
+
+	private async _checkInitialRemoteConnectionHealth(): Promise<void> {
+		try {
+			await this._remoteAgentService.getRawEnvironment();
+
+			type RemoteConnectionSuccessClassification = {
+				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			};
+			type RemoteConnectionSuccessEvent = {
+				web: boolean;
+				remoteName: string | undefined;
+			};
+			this._telemetryService.publicLog2<RemoteConnectionSuccessEvent, RemoteConnectionSuccessClassification>('remoteConnectionSuccess', {
+				web: isWeb,
+				remoteName: getRemoteName(this._environmentService.remoteAuthority)
+			});
+
+		} catch (err) {
+
+			type RemoteConnectionFailureClassification = {
+				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			};
+			type RemoteConnectionFailureEvent = {
+				web: boolean;
+				remoteName: string | undefined;
+				message: string;
+			};
+			this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
+				web: isWeb,
+				remoteName: getRemoteName(this._environmentService.remoteAuthority),
+				message: err ? err.message : ''
+			});
+
+		}
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Ready);
 
 const enableDiagnostics = true;
 

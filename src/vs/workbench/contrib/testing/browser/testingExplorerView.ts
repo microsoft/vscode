@@ -594,7 +594,9 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this._register(this.storageService.onWillSaveState(({ reason }) => {
 			if (reason === WillSaveStateReason.SHUTDOWN) {
-				this.lastViewState.store(this.tree.getViewState());
+				this.lastViewState.store(this.tree.getViewState({
+					getId: e => e instanceof TestItemTreeElement ? e.test.item.extId : '',
+				}));
 			}
 		}));
 
@@ -710,11 +712,7 @@ export class TestingExplorerViewModel extends Disposable {
 		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testProfileService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => [
-				...actions.value.primary,
-				new Separator(),
-				...actions.value.secondary,
-			],
+			getActions: () => actions.value.secondary,
 			getActionsContext: () => element,
 			onHide: () => actions.dispose(),
 			actionRunner: this.actionRunner,

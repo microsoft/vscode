@@ -14,7 +14,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -72,6 +72,7 @@ export class HideTestAction extends Action2 {
 			title: localize('hideTest', 'Hide Test'),
 			menu: {
 				id: MenuId.TestItem,
+				group: 'builtin@2',
 				when: TestingContextKeys.testItemIsHidden.isEqualTo(false)
 			},
 		});
@@ -113,6 +114,20 @@ export class UnhideTestAction extends Action2 {
 	}
 }
 
+const testItemInlineAndInContext = (order: ActionOrder, when?: ContextKeyExpression) => [
+	{
+		id: MenuId.TestItem,
+		group: 'inline',
+		order,
+		when,
+	}, {
+		id: MenuId.TestItem,
+		group: 'builtin@1',
+		order,
+		when,
+	}
+];
+
 export class DebugAction extends Action2 {
 	public static readonly ID = 'testing.debug';
 	constructor() {
@@ -120,12 +135,7 @@ export class DebugAction extends Action2 {
 			id: DebugAction.ID,
 			title: localize('debug test', 'Debug Test'),
 			icon: icons.testingDebugIcon,
-			menu: {
-				id: MenuId.TestItem,
-				group: 'inline',
-				order: ActionOrder.Debug,
-				when: TestingContextKeys.hasDebuggableTests.isEqualTo(true),
-			},
+			menu: testItemInlineAndInContext(ActionOrder.Debug, TestingContextKeys.hasDebuggableTests.isEqualTo(true)),
 		});
 	}
 
@@ -147,6 +157,7 @@ export class RunUsingProfileAction extends Action2 {
 			menu: {
 				id: MenuId.TestItem,
 				order: ActionOrder.RunUsing,
+				group: 'builtin@2',
 				when: TestingContextKeys.hasNonDefaultProfile.isEqualTo(true),
 			},
 		});
@@ -185,12 +196,7 @@ export class RunAction extends Action2 {
 			id: RunAction.ID,
 			title: localize('run test', 'Run Test'),
 			icon: icons.testingRunIcon,
-			menu: {
-				id: MenuId.TestItem,
-				group: 'inline',
-				order: ActionOrder.Run,
-				when: TestingContextKeys.hasRunnableTests.isEqualTo(true),
-			},
+			menu: testItemInlineAndInContext(ActionOrder.Run, TestingContextKeys.hasRunnableTests.isEqualTo(true)),
 		});
 	}
 
@@ -649,12 +655,7 @@ export class GoToTest extends Action2 {
 			id: GoToTest.ID,
 			title: localize('testing.editFocusedTest', "Go to Test"),
 			icon: Codicon.goToFile,
-			menu: {
-				id: MenuId.TestItem,
-				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
-				order: ActionOrder.GoToTest,
-				group: 'inline',
-			},
+			menu: testItemInlineAndInContext(ActionOrder.GoToTest, TestingContextKeys.testItemHasUri.isEqualTo(true)),
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
 				when: FocusedViewContext.isEqualTo(Testing.ExplorerViewId),

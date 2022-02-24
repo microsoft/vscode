@@ -242,6 +242,13 @@ export interface IExtensionService {
 	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
 
 	/**
+	 * Determine if `activateByEvent(activationEvent)` has resolved already.
+	 *
+	 * i.e. the activation event is finished and all interested extensions are already active.
+	 */
+	activationEventIsDone(activationEvent: string): boolean;
+
+	/**
 	 * An promise that resolves when the installed extensions are registered after
 	 * their extension points got handled.
 	 */
@@ -357,6 +364,7 @@ export class NullExtensionService implements IExtensionService {
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
+	activationEventIsDone(_activationEvent: string): boolean { return false; }
 	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
 	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
 	getExtension() { return Promise.resolve(undefined); }

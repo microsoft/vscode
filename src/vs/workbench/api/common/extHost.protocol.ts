@@ -257,7 +257,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {
-	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean }): Promise<void>;
+	$registerTreeViewDataProvider(treeViewId: string, options: { showCollapseAll: boolean; canSelectMany: boolean; dropMimeTypes: string[]; dragMimeTypes: string[]; hasHandleDrag: boolean; hasHandleDrop: boolean }): Promise<void>;
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): Promise<void>;
 	$reveal(treeViewId: string, itemInfo: { item: ITreeItem; parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void>;
 	$setMessage(treeViewId: string, message: string): void;
@@ -625,12 +625,22 @@ export interface IEditorTabGroupDto {
 	groupId: number;
 }
 
+export enum TabKind {
+	Singular = 0,
+	Diff = 1,
+	SidebySide = 2,
+	Other = 3
+}
+
 export interface IEditorTabDto {
 	viewColumn: EditorGroupColumn;
 	label: string;
 	resource?: UriComponents;
 	editorId?: string;
 	isActive: boolean;
+	isPinned: boolean;
+	isDirty: boolean;
+	kind: TabKind;
 	additionalResourcesAndViewIds: { resource?: UriComponents; viewId?: string }[];
 }
 
@@ -1032,6 +1042,7 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: SerializedError, missingExtensionDependency: MissingExtensionDependency | null): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
 	$setPerformanceMarks(marks: performance.PerformanceMark[]): Promise<void>;
+	$asBrowserUri(uri: UriComponents): Promise<UriComponents>;
 }
 
 export interface SCMProviderFeatures {

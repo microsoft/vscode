@@ -67,11 +67,12 @@ class ToggleWordWrapAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		if (!canToggleWordWrap(editor)) {
+		const codeEditorService = accessor.get(ICodeEditorService);
+
+		if (!canToggleWordWrap(codeEditorService, editor)) {
 			return;
 		}
 
-		const codeEditorService = accessor.get(ICodeEditorService);
 		const model = editor.getModel();
 
 		// Read the current state
@@ -90,6 +91,29 @@ class ToggleWordWrapAction extends EditorAction {
 		// Write the new state
 		// (this will cause an event and the controller will apply the state)
 		writeTransientState(model, newState, codeEditorService);
+
+		// if we are in a diff editor, update the other editor (if possible)
+		if (editor.getOption(EditorOption.inDiffEditor)) {
+			// this editor belongs to a diff editor
+			for (const diffEditor of codeEditorService.listDiffEditors()) {
+				const originalEditor = diffEditor.getOriginalEditor();
+				const modifiedEditor = diffEditor.getModifiedEditor();
+				if (originalEditor === editor) {
+					if (canToggleWordWrap(codeEditorService, modifiedEditor)) {
+						writeTransientState(modifiedEditor.getModel(), newState, codeEditorService);
+						diffEditor.updateOptions({});
+					}
+					break;
+				}
+				if (modifiedEditor === editor) {
+					if (canToggleWordWrap(codeEditorService, originalEditor)) {
+						writeTransientState(originalEditor.getModel(), newState, codeEditorService);
+						diffEditor.updateOptions({});
+					}
+					break;
+				}
+			}
+		}
 	}
 }
 
@@ -133,7 +157,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		}));
 
 		const ensureWordWrapSettings = () => {
-			if (!canToggleWordWrap(this._editor)) {
+			if (!canToggleWordWrap(this._codeEditorService, this._editor)) {
 				return;
 			}
 
@@ -157,7 +181,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 	}
 }
 
-function canToggleWordWrap(editor: ICodeEditor | null): editor is IActiveCodeEditor {
+function canToggleWordWrap(codeEditorService: ICodeEditorService, editor: ICodeEditor | null): editor is IActiveCodeEditor {
 	if (!editor) {
 		return false;
 	}
@@ -174,6 +198,16 @@ function canToggleWordWrap(editor: ICodeEditor | null): editor is IActiveCodeEdi
 		// in output editor
 		return false;
 	}
+	if (editor.getOption(EditorOption.inDiffEditor)) {
+		// this editor belongs to a diff editor
+		for (const diffEditor of codeEditorService.listDiffEditors()) {
+			if (diffEditor.getOriginalEditor() === editor && !diffEditor.renderSideBySide) {
+				// this editor is the left side of an inline diff editor
+				return false;
+			}
+		}
+	}
+
 	return true;
 }
 
@@ -220,7 +254,7 @@ class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
 	}
 
 	private _updateFromCodeEditor(): void {
-		if (!canToggleWordWrap(this._activeEditor)) {
+		if (!canToggleWordWrap(this._codeEditorService, this._activeEditor)) {
 			return this._setValues(false, false);
 		} else {
 			const wrappingInfo = this._activeEditor.getOption(EditorOption.wrappingInfo);

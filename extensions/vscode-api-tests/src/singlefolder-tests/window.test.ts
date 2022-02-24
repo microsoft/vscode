@@ -371,8 +371,7 @@ suite('vscode API - window', () => {
 	});
 
 	//#region Tabs API tests
-	// eslint-disable-next-line code-no-test-only
-	test.only('Tabs - move tab', async function () {
+	test('Tabs - move tab', async function () {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
@@ -393,9 +392,43 @@ suite('vscode API - window', () => {
 		assert.strictEqual(group2Tabs.length, 1);
 
 		await group1Tabs[0].move(1, ViewColumn.One);
-		console.log('Tab moved - Integration test');
 	});
-	/*
+
+	test('Tabs - vscode.open & vscode.diff', async function () {
+		// Simple function to get the active tab
+		const getActiveTab = () => {
+			return window.tabGroups.all.find(g => g.isActive)?.activeTab;
+		};
+
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
+
+		const commandFile = await createRandomFile();
+		await commands.executeCommand('vscode.open', commandFile, ViewColumn.Three);
+		// Ensure active tab is correct after calling vscode.opn
+		assert.strictEqual(getActiveTab()?.viewColumn, ViewColumn.Three);
+
+		const leftDiff = await createRandomFile();
+		const rightDiff = await createRandomFile();
+		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Four, preview: false });
+		assert.strictEqual(getActiveTab()?.viewColumn, ViewColumn.Four);
+
+		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
+		assert.strictEqual(tabs.length, 5);
+		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
+		assert.strictEqual(tabs[1].resource?.toString(), docB.uri.toString());
+		assert.strictEqual(tabs[2].resource?.toString(), docC.uri.toString());
+		assert.strictEqual(tabs[3].resource?.toString(), commandFile.toString());
+
+	});
+
 	test('Tabs - Ensure tabs getter is correct', async function () {
 		// Reduce test timeout as this test should be quick, so even with 3 retries it will be under 60s.
 		this.timeout(10000);
@@ -418,7 +451,7 @@ suite('vscode API - window', () => {
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
 
-		const tabs = window.tabs;
+		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
 		assert.strictEqual(tabs.length, 5);
 
 		// All resources should match the text documents as they're the only tabs currently open
@@ -436,6 +469,7 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
 	});
 
+	/*
 	test('Tabs - ensure active tab is correct', async () => {
 
 		const [docA, docB, docC] = await Promise.all([
