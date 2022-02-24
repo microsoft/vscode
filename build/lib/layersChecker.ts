@@ -106,8 +106,7 @@ const RULES = [
 
 	// Common: vs/platform/window/common/window.ts
 	{
-		target: '**/vs/platform/windows/common/windows.ts',
-		allowedTypes: CORE_TYPES,
+		target: '**/vs/platform/window/common/window.ts',
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
