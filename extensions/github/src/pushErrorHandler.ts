@@ -106,7 +106,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 
 				let body: string | undefined;
 
-				const templates = await getPullRequestTemplates(repository);
+				const templates = await findPullRequestTemplates(repository.rootUri);
 				if (templates.length > 0) {
 					templates.sort((a, b) => a.path.localeCompare(b.path));
 					const pickedTemplate = await pickPullRequestTemplate(templates);
@@ -141,7 +141,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 	})();
 }
 
-async function getPullRequestTemplates(repository: Repository): Promise<Uri[]> {
+async function findPullRequestTemplates(repositoryRootUri: Uri): Promise<Uri[]> {
 	/**
 	 * Places a PR template can be:
 	 * - At the root, the docs folder, or the.github folder, named pull_request_template.md or PULL_REQUEST_TEMPLATE.md
