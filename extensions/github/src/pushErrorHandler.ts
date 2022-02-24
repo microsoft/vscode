@@ -174,9 +174,6 @@ async function getPullRequestTemplates(repository: Repository): Promise<Uri[]> {
 }
 
 async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | undefined> {
-	const templatesSorted = [...templates];
-	templatesSorted.sort((a, b) => a.path.localeCompare(b.path));
-
 	const quickPickItemFromUri = (x: Uri) => ({ label: x.path, template: x });
 	const quickPickItems = [
 		{
@@ -184,7 +181,7 @@ async function pickPullRequestTemplate(templates: Uri[]): Promise<Uri | undefine
 			picked: true,
 			template: undefined,
 		},
-		...templatesSorted.map(quickPickItemFromUri)
+		...templates.map(quickPickItemFromUri)
 	];
 	const quickPickOptions: QuickPickOptions = {
 		placeHolder: localize('select pr template', "Select the Pull Request template")
