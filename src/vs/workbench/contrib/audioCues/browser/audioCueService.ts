@@ -19,6 +19,8 @@ export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
 	playAudioCue(cue: AudioCue): Promise<void>;
 	isEnabled(cue: AudioCue): IObservable<boolean>;
+
+	playSound(cue: Sound): Promise<void>;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -42,7 +44,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 	}
 
-	private async playSound(sound: Sound): Promise<void> {
+	public async playSound(sound: Sound): Promise<void> {
 		const url = FileAccess.asBrowserUri(
 			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`,
 			require
