@@ -179,10 +179,10 @@ export class AudioCue {
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
 
-	public static readonly debuggerStoppedOnBreakpoint = AudioCue.register({
-		name: localize('audioCues.debuggerStoppedOnBreakpoint.name', 'Debugger Stopped on Breakpoint'),
+	public static readonly onDebugBreak = AudioCue.register({
+		name: localize('audioCues.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
 		sound: Sound.break,
-		settingsKey: 'audioCues.debuggerStoppedOnBreakpoint',
+		settingsKey: 'audioCues.onDebugBreak',
 	});
 
 	public static readonly noInlayHints = AudioCue.register({
