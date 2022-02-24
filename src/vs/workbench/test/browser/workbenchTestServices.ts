@@ -1251,6 +1251,7 @@ export class TestLifecycleService implements ILifecycleService {
 			join: p => {
 				this.shutdownJoiners.push(p);
 			},
+			force: () => { /* No-Op in tests */ },
 			reason
 		});
 	}
@@ -1288,6 +1289,8 @@ export class TestWillShutdownEvent implements WillShutdownEvent {
 	join(promise: Promise<void>, id: string): void {
 		this.value.push(promise);
 	}
+
+	force() { /* No-Op in tests */ }
 }
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
