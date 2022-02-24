@@ -13,26 +13,71 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ILogService, logCi } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
-export interface WindowLoadEvent {
+interface WindowLoadEvent {
+
+	/**
+	 * The window that is loaded to a new workspace.
+	 */
 	window: ICodeWindow;
+
+	/**
+	 * The workspace the window is loaded into.
+	 */
 	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+
+	/**
+	 * More details why the window loads to a new workspace.
+	 */
 	reason: LoadReason;
 }
 
-export interface WindowUnloadEvent {
+interface WindowUnloadEvent {
+
+	/**
+	 * The window that is unloading.
+	 */
 	window: ICodeWindow;
+
+	/**
+	 * More details why the window is unloading.
+	 */
 	reason: UnloadReason;
+
+	/**
+	 * A way to join the unloading of the window and optionally
+	 * veto the unload to finish.
+	 */
 	veto(value: boolean | Promise<boolean>): void;
 }
 
+export const enum ShutdownReason {
+
+	/**
+	 * The application exits normally.
+	 */
+	QUIT = 1,
+
+	/**
+	 * The application exits abnormally and is being
+	 * killed with an exit code (e.g. from integration
+	 * test run)
+	 */
+	KILL
+}
+
 export interface ShutdownEvent {
+
+	/**
+	 * More details why the application is shutting down.
+	 */
+	reason: ShutdownReason;
 
 	/**
 	 * Allows to join the shutdown. The promise can be a long running operation but it
@@ -237,7 +282,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// the onWillShutdown() event directly because there is no veto
 			// to be expected.
 			if (isMacintosh && this.windowCounter === 0) {
-				this.fireOnWillShutdown();
+				this.fireOnWillShutdown(ShutdownReason.QUIT);
 			}
 		};
 		app.addListener('before-quit', beforeQuitListener);
@@ -265,7 +310,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			e.preventDefault();
 
 			// Start shutdown sequence
-			const shutdownPromise = this.fireOnWillShutdown();
+			const shutdownPromise = this.fireOnWillShutdown(ShutdownReason.QUIT);
 
 			// Wait until shutdown is signaled to be complete
 			shutdownPromise.finally(() => {
@@ -283,7 +328,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 	}
 
-	private fireOnWillShutdown(): Promise<void> {
+	private fireOnWillShutdown(reason: ShutdownReason): Promise<void> {
 		if (this.pendingWillShutdownPromise) {
 			return this.pendingWillShutdownPromise; // shutdown is already running
 		}
@@ -293,6 +338,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		const joiners: Promise<void>[] = [];
 
 		this._onWillShutdown.fire({
+			reason,
 			join(promise) {
 				joiners.push(promise);
 			}
@@ -409,7 +455,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			// we are on macOS where it is perfectly fine to close the last window and
 			// the application continues running (unless quit was actually requested)
 			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
-				this.fireOnWillShutdown();
+				this.fireOnWillShutdown(ShutdownReason.QUIT);
 			}
 		});
 	}
@@ -596,10 +642,10 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	async kill(code?: number): Promise<void> {
-		logCi(this.logService, 'Lifecycle#kill()');
+		this.logService.trace('Lifecycle#kill()');
 
 		// Give main process participants a chance to orderly shutdown
-		await this.fireOnWillShutdown();
+		await this.fireOnWillShutdown(ShutdownReason.KILL);
 
 		// From extension tests we have seen issues where calling app.exit()
 		// with an opened window can lead to native crashes (Linux). As such,
@@ -625,16 +671,12 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 							whenWindowClosed = Promise.resolve();
 						}
 
-						logCi(this.logService, 'Lifecycle#kill() - window.destroy()');
 						window.destroy();
 						await whenWindowClosed;
-						logCi(this.logService, 'Lifecycle#kill() - window closed');
 					}
 				}
 			})()
 		]);
-
-		logCi(this.logService, `Lifecycle#kill() - app.exit(${code})`);
 
 		// Now exit either after 1s or all windows destroyed
 		app.exit(code);

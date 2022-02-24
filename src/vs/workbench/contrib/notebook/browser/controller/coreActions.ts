@@ -20,7 +20,7 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { flatten } from 'vs/base/common/arrays';
 import { TypeConstraint } from 'vs/base/common/types';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 
 // Kernel Command
 export const SELECT_KERNEL_ID = '_notebook.selectKernel';

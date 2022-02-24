@@ -778,8 +778,12 @@ class ManualSyncTask extends Disposable implements IManualSyncTask {
 
 	private async getUserDataSyncConfiguration(): Promise<IUserDataSyncConfiguration> {
 		const local = this.configurationService.getValue<IUserDataSyncConfiguration>(USER_DATA_SYNC_CONFIGURATION_SCOPE);
-		const remote = await (<SettingsSynchroniser>this.synchronisers.find(synchronizer => synchronizer instanceof SettingsSynchroniser)).getRemoteUserDataSyncConfiguration(this.manifest);
-		return { ...local, ...remote };
+		const settingsSynchronizer = this.synchronisers.find(synchronizer => synchronizer instanceof SettingsSynchroniser);
+		if (settingsSynchronizer) {
+			const remote = await (<SettingsSynchroniser>settingsSynchronizer).getRemoteUserDataSyncConfiguration(this.manifest);
+			return { ...local, ...remote };
+		}
+		return local;
 	}
 
 	private toSyncResourcePreview(syncResource: SyncResource, preview: ISyncResourcePreview): [SyncResource, ISyncResourcePreview] {

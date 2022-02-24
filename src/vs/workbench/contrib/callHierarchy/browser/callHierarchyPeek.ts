@@ -368,7 +368,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 		await this._tree.setInput(model, viewState);
 
-		const root = <ITreeNode<callHTree.Call>>this._tree.getNode(model).children[0];
+		const root = <ITreeNode<callHTree.Call, FuzzyScore>>this._tree.getNode(model).children[0];
 		await this._tree.expand(root.element);
 
 		if (root.children.length === 0) {

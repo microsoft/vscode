@@ -579,7 +579,7 @@ export class SimpleFileDialog {
 				this.badPath = value;
 				return UpdateResult.InvalidPath;
 			} else {
-				const inputUriDirname = resources.dirname(valueUri);
+				let inputUriDirname = resources.dirname(valueUri);
 				const currentFolderWithoutSep = resources.removeTrailingPathSeparator(resources.addTrailingPathSeparator(this.currentFolder));
 				const inputUriDirnameWithoutSep = resources.removeTrailingPathSeparator(resources.addTrailingPathSeparator(inputUriDirname));
 				if (!resources.extUriIgnorePathCase.isEqual(currentFolderWithoutSep, inputUriDirnameWithoutSep)
@@ -593,6 +593,10 @@ export class SimpleFileDialog {
 					}
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory) {
 						this.badPath = undefined;
+						// At this point we know it's a directory and can add the trailing path separator
+						if (!this.endsWithSlash(inputUriDirname.path)) {
+							inputUriDirname = resources.addTrailingPathSeparator(inputUriDirname);
+						}
 						return await this.updateItems(inputUriDirname, false, resources.basename(valueUri)) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 					}
 				}
@@ -836,7 +840,7 @@ export class SimpleFileDialog {
 				// The file/directory doesn't exist
 			}
 			const newValue = trailing ? this.pathAppend(newFolder, trailing) : this.pathFromUri(newFolder, true);
-			this.currentFolder = resources.addTrailingPathSeparator(newFolder, this.separator);
+			this.currentFolder = this.endsWithSlash(newFolder.path) ? newFolder : resources.addTrailingPathSeparator(newFolder, this.separator);
 			this.userEnteredPathSegment = trailing ? trailing : '';
 
 			return this.createItems(folderStat, this.currentFolder, token).then(items => {

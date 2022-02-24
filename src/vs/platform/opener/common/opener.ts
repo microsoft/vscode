@@ -137,7 +137,14 @@ export function matchesSomeScheme(target: URI | string, ...schemes: string[]): b
 	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
-export function withSelectionFragment(uri: URI, selection: ITextEditorSelection): URI {
+/**
+ * Encodes selection into the `URI`.
+ *
+ * IMPORTANT: you MUST use `extractSelection` to separate the selection
+ * again from the original `URI` before passing the `URI` into any
+ * component that is not aware of selections.
+ */
+export function withSelection(uri: URI, selection: ITextEditorSelection): URI {
 	return uri.with({ fragment: `${selection.startLineNumber},${selection.startColumn}${selection.endLineNumber ? `-${selection.endLineNumber}${selection.endColumn ? `,${selection.endColumn}` : ''}` : ''}` });
 }
 
@@ -151,9 +158,9 @@ export function withSelectionFragment(uri: URI, selection: ITextEditorSelection)
  * file:///some/file.js#73,84-83,52
  * file:///some/file.js#L73,84-L83,52
  */
-export function selectionFragment(target: URI): ITextEditorSelection | undefined {
+export function extractSelection(uri: URI): { selection: ITextEditorSelection | undefined; uri: URI } {
 	let selection: ITextEditorSelection | undefined = undefined;
-	const match = /^L?(\d+)(?:,(\d+))?(-L?(\d+)(?:,(\d+))?)?/.exec(target.fragment);
+	const match = /^L?(\d+)(?:,(\d+))?(-L?(\d+)(?:,(\d+))?)?/.exec(uri.fragment);
 	if (match) {
 		selection = {
 			startLineNumber: parseInt(match[1]),
@@ -161,6 +168,7 @@ export function selectionFragment(target: URI): ITextEditorSelection | undefined
 			endLineNumber: match[4] ? parseInt(match[4]) : undefined,
 			endColumn: match[4] ? (match[5] ? parseInt(match[5]) : 1) : undefined
 		};
+		uri = uri.with({ fragment: '' });
 	}
-	return selection;
+	return { selection, uri };
 }

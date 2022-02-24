@@ -1274,7 +1274,6 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				part.command = { command: 'cmd', title: 'part' };
 				const hint = new types.InlayHint(new types.Position(10, 11), [part]);
 				hint.tooltip = 'hint_tooltip';
-				hint.command = { command: 'cmd', title: 'hint' };
 				hint.paddingLeft = true;
 				hint.paddingRight = false;
 				return [hint];
@@ -1303,8 +1302,6 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(second.paddingLeft, true);
 		assert.strictEqual(second.paddingRight, false);
 		assert.strictEqual(second.tooltip, 'hint_tooltip');
-		assert.strictEqual(second.command?.command, 'cmd');
-		assert.strictEqual(second.command?.title, 'hint');
 
 		const label = (<types.InlayHintLabelPart[]>second.label)[0];
 		assertType(label instanceof types.InlayHintLabelPart);

@@ -626,10 +626,10 @@ export interface IEditorTabGroupDto {
 }
 
 export enum TabKind {
-	SINGULAR = 0,
-	DIFF = 1,
-	SIDEBYSIDE = 2,
-	OTHER = 3
+	Singular = 0,
+	Diff = 1,
+	SidebySide = 2,
+	Other = 3
 }
 
 export interface IEditorTabDto {
@@ -638,6 +638,7 @@ export interface IEditorTabDto {
 	resource?: UriComponents;
 	editorId?: string;
 	isActive: boolean;
+	isPinned: boolean;
 	isDirty: boolean;
 	kind: TabKind;
 	additionalResourcesAndViewIds: { resource?: UriComponents; viewId?: string }[];
@@ -1041,6 +1042,7 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: SerializedError, missingExtensionDependency: MissingExtensionDependency | null): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
 	$setPerformanceMarks(marks: performance.PerformanceMark[]): Promise<void>;
+	$asBrowserUri(uri: UriComponents): Promise<UriComponents>;
 }
 
 export interface SCMProviderFeatures {

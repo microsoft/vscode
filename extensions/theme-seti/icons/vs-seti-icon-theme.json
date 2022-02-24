@@ -1551,6 +1551,8 @@
 		"bazel": "_bazel",
 		"build": "_bazel",
 		"workspace": "_bazel",
+		"bazelignore": "_bazel",
+		"bazelversion": "_bazel",
 		"h": "_c_1",
 		"aspx": "_html",
 		"ascx": "_html_1",
@@ -1633,6 +1635,7 @@
 		"nim": "_nim",
 		"nims": "_nim",
 		"github-issues": "_github",
+		"ipynb": "_notebook",
 		"njk": "_nunjucks",
 		"nunjucks": "_nunjucks",
 		"nunjs": "_nunjucks",
@@ -1858,7 +1861,6 @@
 		"handlebars": "_mustache",
 		"html": "_html_3",
 		"properties": "_java",
-		"jupyter": "_notebook",
 		"java": "_java",
 		"javascriptreact": "_react",
 		"javascript": "_javascript",
@@ -1931,6 +1933,8 @@
 			"bazel": "_bazel_light",
 			"build": "_bazel_light",
 			"workspace": "_bazel_light",
+			"bazelignore": "_bazel_light",
+			"bazelversion": "_bazel_light",
 			"h": "_c_1_light",
 			"aspx": "_html_light",
 			"ascx": "_html_1_light",
@@ -2013,6 +2017,7 @@
 			"nim": "_nim_light",
 			"nims": "_nim_light",
 			"github-issues": "_github_light",
+			"ipynb": "_notebook_light",
 			"njk": "_nunjucks_light",
 			"nunjucks": "_nunjucks_light",
 			"nunjs": "_nunjucks_light",
@@ -2172,7 +2177,6 @@
 			"handlebars": "_mustache_light",
 			"html": "_html_3_light",
 			"properties": "_java_light",
-			"jupyter": "_notebook_light",
 			"java": "_java_light",
 			"javascriptreact": "_react_light",
 			"javascript": "_javascript_light",
@@ -2296,5 +2300,5 @@
 			"npm-debug.log": "_npm_ignored_light"
 		}
 	},
-	"version": "https://github.com/jesseweed/seti-ui/commit/529789dc4eee3e2fdc5985f082ee58adfb97696c"
+	"version": "https://github.com/jesseweed/seti-ui/commit/921e46b4c378059032c2a9247a6cc96d0f9e57b4"
 }

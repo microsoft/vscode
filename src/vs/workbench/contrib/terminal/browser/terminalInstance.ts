@@ -783,7 +783,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				for (const entry of commands) {
 					// trim off any whitespace and/or line endings
 					const label = entry.command.trim();
-					if (label.length === 0) {
+					if (label.length === 0 || commandMap.has(label)) {
 						continue;
 					}
 					let description = fromNow(entry.timestamp, true);

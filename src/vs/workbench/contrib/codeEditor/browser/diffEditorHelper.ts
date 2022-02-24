@@ -13,6 +13,7 @@ import { IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 
 const enum WidgetState {
 	Hidden,
@@ -38,25 +39,26 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		this._helperWidgetListener = null;
 		this._state = WidgetState.Hidden;
 
+		if (!(this._diffEditor instanceof EmbeddedDiffEditorWidget)) {
+			this._register(this._diffEditor.onDidUpdateDiff(() => {
+				const diffComputationResult = this._diffEditor.getDiffComputationResult();
+				this._setState(this._deduceState(diffComputationResult));
 
-		this._register(this._diffEditor.onDidUpdateDiff(() => {
-			const diffComputationResult = this._diffEditor.getDiffComputationResult();
-			this._setState(this._deduceState(diffComputationResult));
-
-			if (diffComputationResult && diffComputationResult.quitEarly) {
-				this._notificationService.prompt(
-					Severity.Warning,
-					nls.localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
-					[{
-						label: nls.localize('removeTimeout', "Remove Limit"),
-						run: () => {
-							this._configurationService.updateValue('diffEditor.maxComputationTime', 0);
-						}
-					}],
-					{}
-				);
-			}
-		}));
+				if (diffComputationResult && diffComputationResult.quitEarly) {
+					this._notificationService.prompt(
+						Severity.Warning,
+						nls.localize('hintTimeout', "The diff algorithm was stopped early (after {0} ms.)", this._diffEditor.maxComputationTime),
+						[{
+							label: nls.localize('removeTimeout', "Remove Limit"),
+							run: () => {
+								this._configurationService.updateValue('diffEditor.maxComputationTime', 0);
+							}
+						}],
+						{}
+					);
+				}
+			}));
+		}
 	}
 
 	private _deduceState(diffComputationResult: IDiffComputationResult | null): WidgetState {

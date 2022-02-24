@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabKind } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -1276,13 +1276,13 @@ export class Repository implements Disposable {
 		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
 		diffEditorTabsToClose.push(...tabs
 			.filter(t =>
-				t.resource && t.resource.scheme === 'git' && t.viewId === 'diff' &&
+				t.resource && t.resource.scheme === 'git' && t.kind === TabKind.Diff &&
 				indexResources.some(r => pathEquals(r, t.resource!.fsPath))));
 
 		// Working Tree
 		diffEditorTabsToClose.push(...tabs
 			.filter(t =>
-				t.resource && t.resource.scheme === 'file' && t.viewId === 'diff' &&
+				t.resource && t.resource.scheme === 'file' && t.kind === TabKind.Diff &&
 				workingTreeResources.some(r => pathEquals(r, t.resource!.fsPath)) &&
 				t.additionalResourcesAndViewIds.find(r => r.resource!.scheme === 'git')));
 

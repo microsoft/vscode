@@ -69,5 +69,5 @@ function Global:PSConsoleHostReadLine {
 
 # Show the welcome message
 if ($HideWelcome -eq $False) {
-	Write-Host "`e[1mShell integration activated!`e[0m" -ForegroundColor Green
+	Write-Host "`e[1mShell integration activated`e[0m" -ForegroundColor Green
 }

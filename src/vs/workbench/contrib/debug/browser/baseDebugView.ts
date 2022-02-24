@@ -112,6 +112,7 @@ export function renderVariable(variable: Variable, data: IVariableTemplateData, 
 	}
 
 	data.expression.classList.toggle('lazy', !!variable.presentationHint?.lazy);
+	data.lazyButton.title = variable.presentationHint?.lazy ? variable.value : '';
 	renderExpressionValue(variable, data.value, {
 		showChanged,
 		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
@@ -211,8 +212,8 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		inputBox.select();
 
 		const done = once((success: boolean, finishEditing: boolean) => {
-			nameElement.style.display = 'initial';
-			valueElement.style.display = 'initial';
+			nameElement.style.display = '';
+			valueElement.style.display = '';
 			inputBoxContainer.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);

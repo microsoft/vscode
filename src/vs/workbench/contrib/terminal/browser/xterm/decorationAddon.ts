@@ -21,18 +21,17 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { fromNow } from 'vs/base/common/date';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { editorGutterDeletedBackground, editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
-import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
 	ErrorColor = 'error',
 	DefaultColor = 'default',
 	Codicon = 'codicon',
-	XtermScreen = 'xterm-screen'
+	XtermDecoration = 'xterm-decoration'
 }
 
-interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[] }
+interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon {
 	protected _terminal: Terminal | undefined;
@@ -51,28 +50,45 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
-		this._register({
-			dispose: () => {
-				this._commandStartedListener?.dispose();
-				this._commandFinishedListener?.dispose();
-				this._clearDecorations();
-			}
-		});
 		this._attachToCommandCapability();
 		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
+				if (this._placeholderDecoration?.element) {
+					this._applyStyles(this._placeholderDecoration.element);
+				}
+				for (const decoration of this._decorations) {
+					if (decoration[1].decoration?.element) {
+						this._applyStyles(decoration[1].decoration.element, decoration[1].exitCode);
+					}
+				}
+			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				if (!this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+					this._commandStartedListener?.dispose();
+					this._commandFinishedListener?.dispose();
+					this._clearDecorations();
+				}
+			}
+		});
 	}
 
 	private _clearDecorations(): void {
-		for (const [, decorationDisposables] of Object.entries(this._decorations)) {
-			decorationDisposables.decoration.dispose();
-			dispose(decorationDisposables.disposables);
+		this._placeholderDecoration?.dispose();
+		this._placeholderDecoration?.marker.dispose();
+		for (const value of this._decorations.values()) {
+			value.decoration.dispose();
+			value.decoration.marker.dispose();
+			dispose(value.disposables);
 		}
 		this._decorations.clear();
+		this.dispose();
 	}
 
 	private _attachToCommandCapability(): void {
@@ -102,7 +118,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
-		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command));
+		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command, true));
 	}
 
 
@@ -115,6 +131,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 		this._commandFinishedListener = capability.onCommandFinished(command => {
+			if (this._placeholderDecoration?.marker.id) {
+				this._decorations.delete(this._placeholderDecoration?.marker.id);
+			}
 			this._placeholderDecoration?.dispose();
 			this.registerCommandDecoration(command);
 		});
@@ -129,51 +148,45 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!command.marker) {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
-		if (beforeCommandExecution) {
-			const decoration = this._terminal.registerDecoration({ marker: command.marker });
-			if (!decoration) {
-				return undefined;
-			}
-			decoration.onRender(target => {
-				this._applyStyles(target);
-				target.classList.add(DecorationSelector.DefaultColor);
-			});
-			this._placeholderDecoration = decoration;
-			return decoration;
-		}
 
 		const decoration = this._terminal.registerDecoration({ marker: command.marker });
 		if (!decoration) {
 			return undefined;
 		}
-
 		decoration.onRender(target => {
-			if (target && !this._decorations.get(decoration.marker.id)) {
+			if (target) {
 				const disposables = command.exitCode === undefined ? [] : [this._createContextMenu(target, command), ...this._createHover(target, command)];
-				this._decorations.set(decoration.marker.id, { decoration, disposables });
-			}
-			if (target.clientWidth! > 0) {
-				this._applyStyles(target);
-				if (command.exitCode === undefined) {
-					target.classList.add(DecorationSelector.DefaultColor);
-					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconDefault)}`);
-				} else if (command.exitCode) {
-					target.classList.add(DecorationSelector.ErrorColor);
-					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIconError)}`);
-				} else {
-					target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationCommandIcon)}`);
+				if (!beforeCommandExecution) {
+					this._decorations.set(decoration.marker.id, { decoration, disposables, exitCode: command.exitCode });
 				}
 			}
+			if (!target.classList.contains(DecorationSelector.Codicon)) {
+				// must be inlined to override the inlined styles from xterm
+				target.style.width = '16px';
+				target.style.height = '16px';
+				this._applyStyles(target, command.exitCode);
+			}
 		});
+		if (beforeCommandExecution) {
+			this._placeholderDecoration = decoration;
+		}
 		return decoration;
 	}
 
-	private _applyStyles(target: HTMLElement): void {
-		target.classList.add(DecorationSelector.CommandDecoration);
-		target.classList.add(DecorationSelector.Codicon);
-		// must be inlined to override the inlined styles from xterm
-		target.style.width = '16px';
-		target.style.height = '16px';
+	private _applyStyles(target: HTMLElement, exitCode?: number): void {
+		for (const classes of target.classList) {
+			target.classList.remove(classes);
+		}
+		target.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
+		if (exitCode === undefined) {
+			target.classList.add(DecorationSelector.DefaultColor);
+			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
+		} else if (exitCode) {
+			target.classList.add(DecorationSelector.ErrorColor);
+			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconError)}`);
+		} else {
+			target.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIconSuccess)}`);
+		}
 	}
 
 	private _createContextMenu(target: HTMLElement, command: ITerminalCommand): IDisposable {
@@ -234,8 +247,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const successColor = theme.getColor(editorGutterModifiedBackground);
-	const errorColor = theme.getColor(editorGutterDeletedBackground);
+	const successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
+	const errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
 	const defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
 	const hoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 

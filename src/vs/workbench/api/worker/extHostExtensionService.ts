@@ -12,7 +12,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { timeout } from 'vs/base/common/async';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
-import { FileAccess } from 'vs/base/common/network';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -57,12 +56,16 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 	}
 
 	protected async _loadCommonJSModule<T>(extensionId: ExtensionIdentifier | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
-
 		module = module.with({ path: ensureSuffix(module.path, '.js') });
 		if (extensionId) {
 			performance.mark(`code/extHost/willFetchExtensionCode/${extensionId.value}`);
 		}
-		const response = await fetch(FileAccess.asBrowserUri(module).toString(true));
+
+		// First resolve the extension entry point URI to something we can load using `fetch`
+		// This needs to be done on the main thread due to a potential `resourceUriProvider` (workbench api)
+		// which is only available in the main thread
+		const browserUri = URI.revive(await this._mainThreadExtensionsProxy.$asBrowserUri(module));
+		const response = await fetch(browserUri.toString(true));
 		if (extensionId) {
 			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
 		}

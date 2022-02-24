@@ -89,6 +89,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.settings2';
 	private static NUM_INSTANCES: number = 0;
+	private static SEARCH_DEBOUNCE: number = 200;
 	private static SETTING_UPDATE_FAST_DEBOUNCE: number = 200;
 	private static SETTING_UPDATE_SLOW_DEBOUNCE: number = 1000;
 	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
@@ -167,6 +168,7 @@ export class SettingsEditor2 extends EditorPane {
 	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private searchInProgress: CancellationTokenSource | null = null;
 
+	private searchInputDelayer: Delayer<void>;
 	private updatedConfigSchemaDelayer: Delayer<void>;
 
 	private settingFastUpdateDelayer: Delayer<void>;
@@ -223,6 +225,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
 		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
 
+		this.searchInputDelayer = new Delayer<void>(SettingsEditor2.SEARCH_DEBOUNCE);
 		this.updatedConfigSchemaDelayer = new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER);
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
@@ -557,7 +560,7 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(this.searchWidget.onInputDidChange(() => {
 			const searchVal = this.searchWidget.getValue();
 			clearInputAction.enabled = !!searchVal;
-			this.onSearchInputChanged();
+			this.searchInputDelayer.trigger(() => this.onSearchInputChanged());
 		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));

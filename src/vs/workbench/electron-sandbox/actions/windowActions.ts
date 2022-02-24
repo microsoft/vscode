@@ -95,7 +95,7 @@ export class ZoomInAction extends BaseZoomAction {
 				mnemonicTitle: localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In"),
 				original: 'Zoom In'
 			},
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -125,7 +125,7 @@ export class ZoomOutAction extends BaseZoomAction {
 				mnemonicTitle: localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out"),
 				original: 'Zoom Out'
 			},
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -159,7 +159,7 @@ export class ZoomResetAction extends BaseZoomAction {
 				mnemonicTitle: localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom"),
 				original: 'Reset Zoom'
 			},
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,

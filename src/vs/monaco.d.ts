@@ -16,7 +16,7 @@ declare namespace monaco {
 	export interface Environment {
 		globalAPI?: boolean;
 		baseUrl?: string;
-		getWorker?(workerId: string, label: string): Worker;
+		getWorker?(workerId: string, label: string): Promise<Worker> | Worker;
 		getWorkerUrl?(workerId: string, label: string): string;
 	}
 
@@ -5396,6 +5396,35 @@ declare namespace monaco.editor {
 declare namespace monaco.languages {
 
 
+	export interface IRelativePattern {
+		/**
+		 * A base file path to which this pattern will be matched against relatively.
+		 */
+		readonly base: string;
+		/**
+		 * A file glob pattern like `*.{ts,js}` that will be matched on file paths
+		 * relative to the base path.
+		 *
+		 * Example: Given a base of `/home/work/folder` and a file path of `/home/work/folder/index.js`,
+		 * the file glob pattern will match on `index.js`.
+		 */
+		readonly pattern: string;
+	}
+
+	export type LanguageSelector = string | LanguageFilter | ReadonlyArray<string | LanguageFilter>;
+
+	export interface LanguageFilter {
+		readonly language?: string;
+		readonly scheme?: string;
+		readonly pattern?: string | IRelativePattern;
+		readonly notebookType?: string;
+		/**
+		 * This provider is implemented in the UI thread.
+		 */
+		readonly hasAccessToAllModels?: boolean;
+		readonly exclusive?: boolean;
+	}
+
 	/**
 	 * Register information about a new language.
 	 */
@@ -5545,107 +5574,107 @@ declare namespace monaco.languages {
 	/**
 	 * Register a reference provider (used by e.g. reference search).
 	 */
-	export function registerReferenceProvider(languageId: string, provider: ReferenceProvider): IDisposable;
+	export function registerReferenceProvider(languageSelector: LanguageSelector, provider: ReferenceProvider): IDisposable;
 
 	/**
 	 * Register a rename provider (used by e.g. rename symbol).
 	 */
-	export function registerRenameProvider(languageId: string, provider: RenameProvider): IDisposable;
+	export function registerRenameProvider(languageSelector: LanguageSelector, provider: RenameProvider): IDisposable;
 
 	/**
 	 * Register a signature help provider (used by e.g. parameter hints).
 	 */
-	export function registerSignatureHelpProvider(languageId: string, provider: SignatureHelpProvider): IDisposable;
+	export function registerSignatureHelpProvider(languageSelector: LanguageSelector, provider: SignatureHelpProvider): IDisposable;
 
 	/**
 	 * Register a hover provider (used by e.g. editor hover).
 	 */
-	export function registerHoverProvider(languageId: string, provider: HoverProvider): IDisposable;
+	export function registerHoverProvider(languageSelector: LanguageSelector, provider: HoverProvider): IDisposable;
 
 	/**
 	 * Register a document symbol provider (used by e.g. outline).
 	 */
-	export function registerDocumentSymbolProvider(languageId: string, provider: DocumentSymbolProvider): IDisposable;
+	export function registerDocumentSymbolProvider(languageSelector: LanguageSelector, provider: DocumentSymbolProvider): IDisposable;
 
 	/**
 	 * Register a document highlight provider (used by e.g. highlight occurrences).
 	 */
-	export function registerDocumentHighlightProvider(languageId: string, provider: DocumentHighlightProvider): IDisposable;
+	export function registerDocumentHighlightProvider(languageSelector: LanguageSelector, provider: DocumentHighlightProvider): IDisposable;
 
 	/**
 	 * Register an linked editing range provider.
 	 */
-	export function registerLinkedEditingRangeProvider(languageId: string, provider: LinkedEditingRangeProvider): IDisposable;
+	export function registerLinkedEditingRangeProvider(languageSelector: LanguageSelector, provider: LinkedEditingRangeProvider): IDisposable;
 
 	/**
 	 * Register a definition provider (used by e.g. go to definition).
 	 */
-	export function registerDefinitionProvider(languageId: string, provider: DefinitionProvider): IDisposable;
+	export function registerDefinitionProvider(languageSelector: LanguageSelector, provider: DefinitionProvider): IDisposable;
 
 	/**
 	 * Register a implementation provider (used by e.g. go to implementation).
 	 */
-	export function registerImplementationProvider(languageId: string, provider: ImplementationProvider): IDisposable;
+	export function registerImplementationProvider(languageSelector: LanguageSelector, provider: ImplementationProvider): IDisposable;
 
 	/**
 	 * Register a type definition provider (used by e.g. go to type definition).
 	 */
-	export function registerTypeDefinitionProvider(languageId: string, provider: TypeDefinitionProvider): IDisposable;
+	export function registerTypeDefinitionProvider(languageSelector: LanguageSelector, provider: TypeDefinitionProvider): IDisposable;
 
 	/**
 	 * Register a code lens provider (used by e.g. inline code lenses).
 	 */
-	export function registerCodeLensProvider(languageId: string, provider: CodeLensProvider): IDisposable;
+	export function registerCodeLensProvider(languageSelector: LanguageSelector, provider: CodeLensProvider): IDisposable;
 
 	/**
 	 * Register a code action provider (used by e.g. quick fix).
 	 */
-	export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable;
+	export function registerCodeActionProvider(languageSelector: LanguageSelector, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable;
 
 	/**
 	 * Register a formatter that can handle only entire models.
 	 */
-	export function registerDocumentFormattingEditProvider(languageId: string, provider: DocumentFormattingEditProvider): IDisposable;
+	export function registerDocumentFormattingEditProvider(languageSelector: LanguageSelector, provider: DocumentFormattingEditProvider): IDisposable;
 
 	/**
 	 * Register a formatter that can handle a range inside a model.
 	 */
-	export function registerDocumentRangeFormattingEditProvider(languageId: string, provider: DocumentRangeFormattingEditProvider): IDisposable;
+	export function registerDocumentRangeFormattingEditProvider(languageSelector: LanguageSelector, provider: DocumentRangeFormattingEditProvider): IDisposable;
 
 	/**
 	 * Register a formatter than can do formatting as the user types.
 	 */
-	export function registerOnTypeFormattingEditProvider(languageId: string, provider: OnTypeFormattingEditProvider): IDisposable;
+	export function registerOnTypeFormattingEditProvider(languageSelector: LanguageSelector, provider: OnTypeFormattingEditProvider): IDisposable;
 
 	/**
 	 * Register a link provider that can find links in text.
 	 */
-	export function registerLinkProvider(languageId: string, provider: LinkProvider): IDisposable;
+	export function registerLinkProvider(languageSelector: LanguageSelector, provider: LinkProvider): IDisposable;
 
 	/**
 	 * Register a completion item provider (use by e.g. suggestions).
 	 */
-	export function registerCompletionItemProvider(languageId: string, provider: CompletionItemProvider): IDisposable;
+	export function registerCompletionItemProvider(languageSelector: LanguageSelector, provider: CompletionItemProvider): IDisposable;
 
 	/**
 	 * Register a document color provider (used by Color Picker, Color Decorator).
 	 */
-	export function registerColorProvider(languageId: string, provider: DocumentColorProvider): IDisposable;
+	export function registerColorProvider(languageSelector: LanguageSelector, provider: DocumentColorProvider): IDisposable;
 
 	/**
 	 * Register a folding range provider
 	 */
-	export function registerFoldingRangeProvider(languageId: string, provider: FoldingRangeProvider): IDisposable;
+	export function registerFoldingRangeProvider(languageSelector: LanguageSelector, provider: FoldingRangeProvider): IDisposable;
 
 	/**
 	 * Register a declaration provider
 	 */
-	export function registerDeclarationProvider(languageId: string, provider: DeclarationProvider): IDisposable;
+	export function registerDeclarationProvider(languageSelector: LanguageSelector, provider: DeclarationProvider): IDisposable;
 
 	/**
 	 * Register a selection range provider
 	 */
-	export function registerSelectionRangeProvider(languageId: string, provider: SelectionRangeProvider): IDisposable;
+	export function registerSelectionRangeProvider(languageSelector: LanguageSelector, provider: SelectionRangeProvider): IDisposable;
 
 	/**
 	 * Register a document semantic tokens provider. A semantic tokens provider will complement and enhance a
@@ -5654,7 +5683,7 @@ declare namespace monaco.languages {
 	 *
 	 * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
 	 */
-	export function registerDocumentSemanticTokensProvider(languageId: string, provider: DocumentSemanticTokensProvider): IDisposable;
+	export function registerDocumentSemanticTokensProvider(languageSelector: LanguageSelector, provider: DocumentSemanticTokensProvider): IDisposable;
 
 	/**
 	 * Register a document range semantic tokens provider. A semantic tokens provider will complement and enhance a
@@ -5663,17 +5692,17 @@ declare namespace monaco.languages {
 	 *
 	 * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
 	 */
-	export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: DocumentRangeSemanticTokensProvider): IDisposable;
+	export function registerDocumentRangeSemanticTokensProvider(languageSelector: LanguageSelector, provider: DocumentRangeSemanticTokensProvider): IDisposable;
 
 	/**
 	 * Register an inline completions provider.
 	 */
-	export function registerInlineCompletionsProvider(languageId: string, provider: InlineCompletionsProvider): IDisposable;
+	export function registerInlineCompletionsProvider(languageSelector: LanguageSelector, provider: InlineCompletionsProvider): IDisposable;
 
 	/**
 	 * Register an inlay hints provider.
 	 */
-	export function registerInlayHintsProvider(languageId: string, provider: InlayHintsProvider): IDisposable;
+	export function registerInlayHintsProvider(languageSelector: LanguageSelector, provider: InlayHintsProvider): IDisposable;
 
 	/**
 	 * Contains additional diagnostic information about the context in which

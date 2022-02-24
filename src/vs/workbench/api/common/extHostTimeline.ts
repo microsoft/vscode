@@ -14,7 +14,7 @@ import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extH
 import { ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isString } from 'vs/base/common/types';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {

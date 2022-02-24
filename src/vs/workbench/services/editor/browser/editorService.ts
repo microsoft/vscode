@@ -912,9 +912,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				for (const targetGroup of targetGroups) {
 					const resolvedEditor = await this.editorResolverService.resolveEditor({ resource: result.resource, }, targetGroup);
 					const group = this.editorGroupService.getGroup(targetGroup);
-					if (resolvedEditor !== ResolvedStatus.ABORT && isEditorInputWithOptionsAndGroup(resolvedEditor)) {
+					if (isEditorInputWithOptionsAndGroup(resolvedEditor)) {
 						// dispose the previous result before replacing with the resolved editor
-						saveResults.pop()?.dispose();
+						saveResults.pop();
 						saveResults.push(resolvedEditor.editor);
 						await group?.replaceEditors([{ editor, replacement: resolvedEditor.editor, options: editorOptions }]);
 					} else {
