@@ -89,8 +89,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	private _refreshClasses(): void {
 		this._updateClasses(this._placeholderDecoration?.element);
-		for (const decoration of this._decorations) {
-			this._updateClasses(decoration[1].decoration.element, decoration[1].exitCode);
+		for (const decoration of this._decorations.values()) {
+			this._updateClasses(decoration.decoration.element, decoration.exitCode);
 		}
 	}
 
