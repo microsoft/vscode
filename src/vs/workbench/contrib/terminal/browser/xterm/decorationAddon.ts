@@ -195,12 +195,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		const fontSize = this._configurationService.inspect(TerminalSettingId.FontSize).value;
 		const defaultFontSize = this._configurationService.inspect(TerminalSettingId.FontSize).defaultValue;
-		if (typeof fontSize === 'number' && typeof defaultFontSize === 'number') {
+		const lineHeight = this._configurationService.inspect(TerminalSettingId.LineHeight).value;
+		if (typeof fontSize === 'number' && typeof defaultFontSize === 'number' && typeof lineHeight === 'number') {
 			const scalar = (fontSize / defaultFontSize) <= 1 ? (fontSize / defaultFontSize) : 1;
 
 			// must be inlined to override the inlined styles from xterm
 			element.style.width = `${scalar * DecorationStyles.DefaultDimension}px`;
-			element.style.height = `${scalar * DecorationStyles.DefaultDimension}px`;
+			element.style.height = `${scalar * DecorationStyles.DefaultDimension * lineHeight}px`;
 			element.style.fontSize = `${scalar * DecorationStyles.DefaultDimension}px`;
 
 			// the first split terminal in the panel has more room
