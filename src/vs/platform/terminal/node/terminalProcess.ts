@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
+import { promises as fs } from 'fs';
 import type * as pty from 'node-pty';
+import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -182,6 +185,17 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const firstError = results.find(r => r !== undefined);
 		if (firstError) {
 			return firstError;
+		}
+
+		// Handle zsh shell integration - Set $ZDOTDIR to a temp dir and create $ZDOTDIR/.zshrc
+		if (this.shellLaunchConfig.env?.['_ZDOTDIR'] === '1') {
+			const zdotdir = path.join(tmpdir(), 'vscode-zsh');
+			await fs.mkdir(zdotdir, { recursive: true });
+			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh');
+			await fs.copyFile(source, path.join(zdotdir, '.zshrc'));
+			this._ptyOptions.env = this._ptyOptions.env || {};
+			this._ptyOptions.env['ZDOTDIR'] = zdotdir;
+			delete this._ptyOptions.env['_ZDOTDIR'];
 		}
 
 		try {
