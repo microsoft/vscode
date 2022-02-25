@@ -29,7 +29,7 @@ const enum DecorationSelector {
 	DefaultColor = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
-	FirstSplitContainer = '.monaco-split-view2.horizontal .split-view-view:first-child .xterm .xterm-decoration-container'
+	FirstSplitContainer = '.pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm'
 }
 
 const enum DecorationStyles {
@@ -64,6 +64,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._register(this._contextMenuService.onDidShowContextMenu(() => this._contextMenuVisible = true));
 		this._register(this._contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 		this._hoverDelayer = this._register(new Delayer(this._configurationService.getValue('workbench.hover.delay')));
+
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
@@ -93,6 +94,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 		});
+	}
+
+	public refresh(): void {
+		for (const decoration of this._decorations) {
+			if (decoration[1].decoration?.element) {
+				decoration[1].decoration.element.classList.remove(DecorationSelector.Codicon);
+				this._applyStyles(decoration[1].decoration.element, decoration[1].exitCode);
+			}
+		}
 	}
 
 	private _clearDecorations(): void {
@@ -188,7 +198,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					target.style.fontSize = `${scalar * DecorationStyles.DefaultDimension}px`;
 
 					// the first split terminal in the panel has more room
-					if (document.querySelectorAll(DecorationSelector.FirstSplitContainer)[0] === target.parentElement) {
+					if (target.closest(DecorationSelector.FirstSplitContainer)) {
 						target.style.marginLeft = `${scalar * DecorationStyles.MarginLeftFirstSplit}px`;
 					} else {
 						target.style.marginLeft = `${scalar * DecorationStyles.MarginLeft}px`;
