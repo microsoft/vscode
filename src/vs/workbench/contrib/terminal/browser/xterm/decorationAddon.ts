@@ -68,40 +68,29 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError) ||
-				e.affectsConfiguration(TerminalSettingId.FontSize)) {
-				if (e.affectedKeys.includes(TerminalSettingId.FontSize)) {
-					for (const decoration of this._decorations) {
-						if (decoration[1].decoration?.element) {
-							decoration[1].decoration.element.classList.remove(DecorationSelector.Codicon);
-							this._applyStyles(decoration[1].decoration.element, decoration[1].exitCode);
-						}
-					}
-				}
-				if (this._placeholderDecoration?.element) {
-					this._applyStyles(this._placeholderDecoration.element);
-				}
-				for (const decoration of this._decorations) {
-					if (decoration[1].decoration?.element) {
-						this._applyStyles(decoration[1].decoration.element, decoration[1].exitCode);
-					}
-				}
-			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				if (!this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-					this._commandStartedListener?.dispose();
-					this._commandFinishedListener?.dispose();
-					this._clearDecorations();
-				}
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
+				this._refreshClasses();
+			} else if (e.affectsConfiguration(TerminalSettingId.FontSize)) {
+				this.refreshLayouts();
+			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+				this._commandStartedListener?.dispose();
+				this._commandFinishedListener?.dispose();
+				this._clearDecorations();
 			}
 		});
 	}
 
-	public refresh(): void {
+	public refreshLayouts(): void {
+		this._updateLayout(this._placeholderDecoration?.element);
 		for (const decoration of this._decorations) {
-			if (decoration[1].decoration?.element) {
-				decoration[1].decoration.element.classList.remove(DecorationSelector.Codicon);
-				this._applyStyles(decoration[1].decoration.element, decoration[1].exitCode);
-			}
+			this._updateLayout(decoration[1].decoration.element);
+		}
+	}
+
+	private _refreshClasses(): void {
+		this._updateClasses(this._placeholderDecoration?.element);
+		for (const decoration of this._decorations) {
+			this._updateClasses(decoration[1].decoration.element, decoration[1].exitCode);
 		}
 	}
 
@@ -187,24 +176,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 			if (!target.classList.contains(DecorationSelector.Codicon)) {
-				const fontSize = this._configurationService.inspect(TerminalSettingId.FontSize).value;
-				const defaultFontSize = this._configurationService.inspect(TerminalSettingId.FontSize).defaultValue;
-				if (typeof fontSize === 'number' && typeof defaultFontSize === 'number') {
-					const scalar = (fontSize / defaultFontSize) <= 1 ? (fontSize / defaultFontSize) : 1;
-
-					// must be inlined to override the inlined styles from xterm
-					target.style.width = `${scalar * DecorationStyles.DefaultDimension}px`;
-					target.style.height = `${scalar * DecorationStyles.DefaultDimension}px`;
-					target.style.fontSize = `${scalar * DecorationStyles.DefaultDimension}px`;
-
-					// the first split terminal in the panel has more room
-					if (target.closest(DecorationSelector.FirstSplitContainer)) {
-						target.style.marginLeft = `${scalar * DecorationStyles.MarginLeftFirstSplit}px`;
-					} else {
-						target.style.marginLeft = `${scalar * DecorationStyles.MarginLeft}px`;
-					}
-				}
-				this._applyStyles(target, command.exitCode);
+				// first render
+				this._updateLayout(target);
+				this._updateClasses(target, command.exitCode);
 			}
 		});
 		if (beforeCommandExecution) {
@@ -213,7 +187,33 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		return decoration;
 	}
 
-	private _applyStyles(target: HTMLElement, exitCode?: number): void {
+	private _updateLayout(target?: HTMLElement): void {
+		if (!target) {
+			return;
+		}
+		const fontSize = this._configurationService.inspect(TerminalSettingId.FontSize).value;
+		const defaultFontSize = this._configurationService.inspect(TerminalSettingId.FontSize).defaultValue;
+		if (typeof fontSize === 'number' && typeof defaultFontSize === 'number') {
+			const scalar = (fontSize / defaultFontSize) <= 1 ? (fontSize / defaultFontSize) : 1;
+
+			// must be inlined to override the inlined styles from xterm
+			target.style.width = `${scalar * DecorationStyles.DefaultDimension}px`;
+			target.style.height = `${scalar * DecorationStyles.DefaultDimension}px`;
+			target.style.fontSize = `${scalar * DecorationStyles.DefaultDimension}px`;
+
+			// the first split terminal in the panel has more room
+			if (target.closest(DecorationSelector.FirstSplitContainer)) {
+				target.style.marginLeft = `${scalar * DecorationStyles.MarginLeftFirstSplit}px`;
+			} else {
+				target.style.marginLeft = `${scalar * DecorationStyles.MarginLeft}px`;
+			}
+		}
+	}
+
+	private _updateClasses(target?: HTMLElement, exitCode?: number): void {
+		if (!target) {
+			return;
+		}
 		for (const classes of target.classList) {
 			target.classList.remove(classes);
 		}

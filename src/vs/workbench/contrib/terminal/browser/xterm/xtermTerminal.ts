@@ -147,7 +147,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
 				this._updateTheme();
-				this._decorationAddon?.refresh();
+				this._decorationAddon?.refreshLayouts();
 			}
 		}));
 
