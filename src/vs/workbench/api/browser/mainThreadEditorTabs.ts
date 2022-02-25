@@ -74,12 +74,14 @@ export class MainThreadEditorTabs {
 			return { resource: URI.revive(tab.resource), options: { override: tab.editorId } };
 		} else if (tab.kind === TabKind.SidebySide) {
 			return {
+				options: { override: tab.editorId },
 				primary: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
 				secondary: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1].viewId } }
 			};
 		} else {
 			// Diff case
 			return {
+				options: { override: tab.editorId },
 				modified: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
 				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1]?.viewId } }
 			};
