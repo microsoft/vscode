@@ -12,7 +12,6 @@ import { cwd } from 'vs/base/common/process';
 import { assertIsDefined } from 'vs/base/common/types';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
@@ -36,25 +35,6 @@ interface WindowLoadEvent {
 	 * More details why the window loads to a new workspace.
 	 */
 	reason: LoadReason;
-}
-
-interface WindowUnloadEvent {
-
-	/**
-	 * The window that is unloading.
-	 */
-	window: ICodeWindow;
-
-	/**
-	 * More details why the window is unloading.
-	 */
-	reason: UnloadReason;
-
-	/**
-	 * A way to join the unloading of the window and optionally
-	 * veto the unload to finish.
-	 */
-	veto(value: boolean | Promise<boolean>): void;
 }
 
 export const enum ShutdownReason {
@@ -123,12 +103,6 @@ export interface ILifecycleMainService {
 	 * first time or a window reloading or changing to another URL.
 	 */
 	readonly onWillLoadWindow: Event<WindowLoadEvent>;
-
-	/**
-	 * An event that fires before a window is about to unload. Listeners can veto this event to prevent
-	 * the window from unloading.
-	 */
-	readonly onBeforeUnloadWindow: Event<WindowUnloadEvent>;
 
 	/**
 	 * An event that fires before a window closes. This event is fired after any veto has been dealt
@@ -219,9 +193,6 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private readonly _onBeforeCloseWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onBeforeCloseWindow = this._onBeforeCloseWindow.event;
-
-	private readonly _onBeforeUnloadWindow = this._register(new Emitter<WindowUnloadEvent>());
-	readonly onBeforeUnloadWindow = this._onBeforeUnloadWindow.event;
 
 	private _quitRequested = false;
 	get quitRequested(): boolean { return this._quitRequested; }
@@ -506,16 +477,6 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			return this.handleWindowUnloadVeto(veto);
 		}
 
-		// then check for vetos in the main side
-		veto = await this.onBeforeUnloadWindowInMain(window, windowUnloadReason);
-		if (veto) {
-			this.logService.trace(`Lifecycle#unload() - veto in main (window ID ${window.id})`);
-
-			return this.handleWindowUnloadVeto(veto);
-		}
-
-		this.logService.trace(`Lifecycle#unload() - no veto (window ID ${window.id})`);
-
 		// finally if there are no vetos, unload the renderer
 		await this.onWillUnloadWindowInRenderer(window, windowUnloadReason);
 
@@ -560,20 +521,6 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 			window.send('vscode:onBeforeUnload', { okChannel, cancelChannel, reason });
 		});
-	}
-
-	private onBeforeUnloadWindowInMain(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
-		const vetos: (boolean | Promise<boolean>)[] = [];
-
-		this._onBeforeUnloadWindow.fire({
-			reason,
-			window,
-			veto(value) {
-				vetos.push(value);
-			}
-		});
-
-		return handleVetos(vetos, err => this.logService.error(err));
 	}
 
 	private onWillUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Promise<void> {
