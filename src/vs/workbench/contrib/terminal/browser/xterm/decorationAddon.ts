@@ -22,7 +22,6 @@ import { fromNow } from 'vs/base/common/date';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { isMacintosh } from 'vs/base/common/platform';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -30,11 +29,11 @@ const enum DecorationSelector {
 	DefaultColor = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
-	FirstSplit = '.monaco-split-view2.horizontal .split-view-view:first-child .xterm .xterm-decoration-container'
+	FirstSplitContainer = '.monaco-split-view2.horizontal .split-view-view:first-child .xterm .xterm-decoration-container'
 }
 
 const enum DecorationStyles {
-	CodiconDimension = 16,
+	DefaultDimension = 16,
 	MarginLeftFirstSplit = -17,
 	MarginLeft = -12
 }
@@ -178,19 +177,21 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				}
 			}
 			if (!target.classList.contains(DecorationSelector.Codicon)) {
-				// must be inlined to override the inlined styles from xterm
 				const fontSize = this._configurationService.inspect(TerminalSettingId.FontSize).value;
-				const defaultFontSize = isMacintosh ? 12 : 14;
-				if (typeof fontSize === 'number') {
-					const scaledSize = fontSize / defaultFontSize;
-					const dimension = scaledSize <= 1 ? scaledSize : 1;
-					target.style.width = `${dimension * DecorationStyles.CodiconDimension}px`;
-					target.style.height = `${dimension * DecorationStyles.CodiconDimension}px`;
-					target.style.fontSize = `${dimension * DecorationStyles.CodiconDimension}px`;
-					if (document.querySelectorAll(DecorationSelector.FirstSplit)[0] === target.parentElement) {
-						target.style.marginLeft = `${dimension * DecorationStyles.MarginLeftFirstSplit}px`;
+				const defaultFontSize = this._configurationService.inspect(TerminalSettingId.FontSize).defaultValue;
+				if (typeof fontSize === 'number' && typeof defaultFontSize === 'number') {
+					const scalar = (fontSize / defaultFontSize) <= 1 ? (fontSize / defaultFontSize) : 1;
+
+					// must be inlined to override the inlined styles from xterm
+					target.style.width = `${scalar * DecorationStyles.DefaultDimension}px`;
+					target.style.height = `${scalar * DecorationStyles.DefaultDimension}px`;
+					target.style.fontSize = `${scalar * DecorationStyles.DefaultDimension}px`;
+
+					// the first split terminal in the panel has more room
+					if (document.querySelectorAll(DecorationSelector.FirstSplitContainer)[0] === target.parentElement) {
+						target.style.marginLeft = `${scalar * DecorationStyles.MarginLeftFirstSplit}px`;
 					} else {
-						target.style.marginLeft = `${dimension * DecorationStyles.MarginLeft}px`;
+						target.style.marginLeft = `${scalar * DecorationStyles.MarginLeft}px`;
 					}
 				}
 				this._applyStyles(target, command.exitCode);
