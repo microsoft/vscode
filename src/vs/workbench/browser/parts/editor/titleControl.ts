@@ -335,7 +335,7 @@ export abstract class TitleControl extends Themable {
 		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
-		const currentEditorLastContext = !!this.editorIsLastContext.get();
+		const currentEditorIsLastContext = !!this.editorIsLastContext.get();
 		this.editorIsLastContext.set(this.group.getIndexOfEditor(editor) + 1 === this.group.editors.length);
 		const currentStickyContext = !!this.editorStickyContext.get();
 		this.editorStickyContext.set(this.group.isSticky(editor));
@@ -368,7 +368,7 @@ export abstract class TitleControl extends Themable {
 				// restore previous contexts
 				this.resourceContext.set(currentResourceContext || null);
 				this.editorPinnedContext.set(currentPinnedContext);
-				this.editorIsLastContext.set(currentEditorLastContext);
+				this.editorIsLastContext.set(currentEditorIsLastContext);
 				this.editorStickyContext.set(currentStickyContext);
 				this.groupLockedContext.set(currentGroupLockedContext);
 				this.editorCanSplitInGroupContext.set(currentEditorCanSplitContext);
