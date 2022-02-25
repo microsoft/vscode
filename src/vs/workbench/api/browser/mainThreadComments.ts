@@ -409,8 +409,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
 		if (!commentsPanelAlreadyConstructed) {
 			this.registerView(commentsPanelAlreadyConstructed);
-			this.registerViewOpenedListener(commentsPanelAlreadyConstructed);
 		}
+		this.registerViewListeners(commentsPanelAlreadyConstructed);
 		this._commentService.setWorkspaceComments(String(handle), []);
 	}
 
@@ -513,24 +513,22 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 	}
 
-	/**
-	 * If the comments view has never been opened, the constructor for it has not yet run so it has
-	 * no listeners for comment threads being set or updated. Listen for the view opening for the
-	 * first time and send it comments then.
-	 */
-	private registerViewOpenedListener(commentsPanelAlreadyConstructed: boolean) {
-		if (!commentsPanelAlreadyConstructed && !this._openViewListener) {
+	private setComments() {
+		[...this._commentControllers.keys()].forEach(handle => {
+			let threads = this._commentControllers.get(handle)!.getAllComments();
+
+			if (threads.length) {
+				const providerId = this.getHandler(handle);
+				this._commentService.setWorkspaceComments(providerId, threads);
+			}
+		});
+	}
+
+	private registerViewOpenedListener() {
+		if (!this._openViewListener) {
 			this._openViewListener = this._viewsService.onDidChangeViewVisibility(e => {
 				if (e.id === COMMENTS_VIEW_ID && e.visible) {
-					[...this._commentControllers.keys()].forEach(handle => {
-						let threads = this._commentControllers.get(handle)!.getAllComments();
-
-						if (threads.length) {
-							const providerId = this.getHandler(handle);
-							this._commentService.setWorkspaceComments(providerId, threads);
-						}
-					});
-
+					this.setComments();
 					if (this._openViewListener) {
 						this._openViewListener.dispose();
 						this._openViewListener = null;
@@ -538,6 +536,31 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				}
 			});
 		}
+	}
+
+	/**
+	 * If the comments view has never been opened, the constructor for it has not yet run so it has
+	 * no listeners for comment threads being set or updated. Listen for the view opening for the
+	 * first time and send it comments then.
+	 */
+	private registerViewListeners(commentsPanelAlreadyConstructed: boolean) {
+		if (!commentsPanelAlreadyConstructed) {
+			this.registerViewOpenedListener();
+		}
+
+		this._register(this._viewDescriptorService.onDidChangeContainer(e => {
+			if (e.views.find(view => view.id === COMMENTS_VIEW_ID)) {
+				this.setComments();
+				this.registerViewOpenedListener();
+			}
+		}));
+		this._register(this._viewDescriptorService.onDidChangeContainerLocation(e => {
+			const commentsContainer = this._viewDescriptorService.getViewContainerByViewId(COMMENTS_VIEW_ID);
+			if (e.viewContainer.id === commentsContainer?.id) {
+				this.setComments();
+				this.registerViewOpenedListener();
+			}
+		}));
 	}
 
 	private getHandler(handle: number) {
