@@ -832,7 +832,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 						when: ContextKeyExpr.or(
 							ContextKeyExpr.and(
 								ContextKeyExpr.equals('viewContainer', viewContainer.id),
-								ContextKeyExpr.equals(`${viewContainer.id}.defaultViewContainerLocation`, false)
+								ContextKeyExpr.equals(`${viewContainer.id}.defaultViewContainerLocation`, false),
+								ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))
 							)
 						)
 					}],

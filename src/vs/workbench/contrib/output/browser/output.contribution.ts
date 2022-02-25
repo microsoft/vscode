@@ -68,7 +68,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	name: nls.localize('output', "Output"),
 	containerIcon: outputViewIcon,
 	canMoveView: true,
-	canToggleVisibility: false,
+	canToggleVisibility: true,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
 	openCommandActionDescriptor: {
 		id: 'workbench.action.output.toggleOutput',

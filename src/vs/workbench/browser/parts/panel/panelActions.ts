@@ -502,13 +502,7 @@ export class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
 				original: 'Move Panel Views To Side Panel'
 			},
 			category: CATEGORIES.View,
-			f1: true,
-			menu: [{
-				id: MenuId.ViewContainerTitleContext,
-				group: '3_workbench_layout_move',
-				order: 0,
-				when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Panel)),
-			}]
+			f1: true
 		});
 	}
 }

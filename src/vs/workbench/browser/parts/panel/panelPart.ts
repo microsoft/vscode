@@ -229,6 +229,12 @@ export abstract class BasePanelPart extends CompositePart<PaneComposite> impleme
 				}
 			}
 		}
+
+		const activePanel = this.getActivePaneComposite() as PaneComposite;
+		if (activePanel.getId() === compositeId) {
+			result.push(...activePanel.getContextMenuActions());
+		}
+
 		return result;
 	}
 
