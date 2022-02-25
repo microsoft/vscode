@@ -262,10 +262,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
 					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 				});
-				groupActiveEditorLastInGroupContext.set(this.model.indexOf(activeEditor) + 1 === this.count);
 			} else {
 				groupActiveEditorDirtyContext.set(false);
-				groupActiveEditorLastInGroupContext.set(false);
 			}
 		};
 
@@ -274,6 +272,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			switch (e.kind) {
 				case GroupModelChangeKind.GROUP_LOCKED:
 					groupLockedContext.set(this.isLocked);
+					break;
+				case GroupModelChangeKind.EDITOR_ACTIVE:
+				case GroupModelChangeKind.EDITOR_MOVE:
+					if (e.editor && e.editor === this.model.activeEditor) {
+						groupActiveEditorLastInGroupContext.set(this.model.indexOf(this.model.activeEditor) + 1 === this.model.count);
+					}
 					break;
 				case GroupModelChangeKind.EDITOR_PIN:
 					if (e.editor && e.editor === this.model.activeEditor) {
