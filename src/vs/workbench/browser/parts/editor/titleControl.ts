@@ -84,14 +84,13 @@ export abstract class TitleControl extends Themable {
 	private resourceContext: ResourceContextKey;
 
 	private editorPinnedContext: IContextKey<boolean>;
+	private editorIsLastContext: IContextKey<boolean>;
 	private editorStickyContext: IContextKey<boolean>;
 
 	private editorCanSplitInGroupContext: IContextKey<boolean>;
 	private sideBySideEditorContext: IContextKey<boolean>;
 
 	private groupLockedContext: IContextKey<boolean>;
-
-	private editorLastContext: IContextKey<boolean>;
 
 	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
 
@@ -119,14 +118,13 @@ export abstract class TitleControl extends Themable {
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 
 		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
-		this.editorLastContext = ActiveEditorLastInGroupContext.bindTo(contextKeyService);
+		this.editorIsLastContext = ActiveEditorLastInGroupContext.bindTo(contextKeyService);
 		this.editorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
 
 		this.editorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(contextKeyService);
 		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(contextKeyService);
 
 		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(contextKeyService);
-
 
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 		this.renderDropdownAsChildElement = false;
@@ -233,9 +231,8 @@ export abstract class TitleControl extends Themable {
 			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 
 			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
+			this.editorIsLastContext.set(activeEditor ? this.group.getIndexOfEditor(activeEditor) + 1 === this.group.editors.length : false);
 			this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
-
-			this.editorLastContext.set(activeEditor ? this.group.getIndexOfEditor(activeEditor) + 1 === this.group.editors.length : false);
 
 			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
 			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
@@ -338,6 +335,8 @@ export abstract class TitleControl extends Themable {
 		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
+		const currentEditorLastContext = !!this.editorIsLastContext.get();
+		this.editorIsLastContext.set(this.group.getIndexOfEditor(editor) + 1 === this.group.editors.length);
 		const currentStickyContext = !!this.editorStickyContext.get();
 		this.editorStickyContext.set(this.group.isSticky(editor));
 		const currentGroupLockedContext = !!this.groupLockedContext.get();
@@ -346,8 +345,6 @@ export abstract class TitleControl extends Themable {
 		this.editorCanSplitInGroupContext.set(editor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
 		const currentSideBySideEditorContext = !!this.sideBySideEditorContext.get();
 		this.sideBySideEditorContext.set(editor.typeId === SideBySideEditorInput.ID);
-		const currentEditorLastContext = !!this.editorLastContext.get();
-		this.editorLastContext.set(this.group.getIndexOfEditor(editor) + 1 === this.group.editors.length);
 
 		// Find target anchor
 		let anchor: HTMLElement | { x: number; y: number } = node;
@@ -371,11 +368,11 @@ export abstract class TitleControl extends Themable {
 				// restore previous contexts
 				this.resourceContext.set(currentResourceContext || null);
 				this.editorPinnedContext.set(currentPinnedContext);
+				this.editorIsLastContext.set(currentEditorLastContext);
 				this.editorStickyContext.set(currentStickyContext);
 				this.groupLockedContext.set(currentGroupLockedContext);
 				this.editorCanSplitInGroupContext.set(currentEditorCanSplitContext);
 				this.sideBySideEditorContext.set(currentSideBySideEditorContext);
-				this.editorLastContext.set(currentEditorLastContext);
 
 				// restore focus to active group
 				this.accessor.activeGroup.focus();
