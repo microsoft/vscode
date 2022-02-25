@@ -342,15 +342,18 @@ export class NativeWindow extends Disposable {
 		});
 	}
 
-	private onWillShutdown({ reason }: WillShutdownEvent): void {
+	private onWillShutdown({ reason, force }: WillShutdownEvent): void {
 		this.progressService.withProgress({
-			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more interactions now
-			delay: 800,							// delay so that it only appears when operation takes a long time
-			cancellable: false,					// do not allow to cancel
-			sticky: true,						// do not allow to dismiss
+			location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
+			buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
+			delay: 800,										// delay so that it only appears when operation takes a long time
+			cancellable: false,								// do not allow to cancel
+			sticky: true,									// do not allow to dismiss
 			title: this.toShutdownLabel(reason, false)
 		}, () => {
 			return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
+		}, () => {
+			force();
 		});
 	}
 
@@ -364,7 +367,7 @@ export class NativeWindow extends Disposable {
 				case ShutdownReason.RELOAD:
 					return localize('shutdownErrorReload', "An unexpected error prevented the window to reload");
 				case ShutdownReason.LOAD:
-					return localize('shutdownErrorLoad', "An unexpected error prevented to change the workspace of the window");
+					return localize('shutdownErrorLoad', "An unexpected error prevented to change the workspace");
 			}
 		}
 
@@ -377,6 +380,19 @@ export class NativeWindow extends Disposable {
 				return localize('shutdownTitleReload', "Reloading the window is taking longer than expected...");
 			case ShutdownReason.LOAD:
 				return localize('shutdownTitleLoad', "Changing the workspace is taking longer than expected...");
+		}
+	}
+
+	private toForceShutdownLabel(reason: ShutdownReason): string {
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				return localize('shutdownForceClose', "Close Anyway");
+			case ShutdownReason.QUIT:
+				return localize('shutdownForceQuit', "Quit Anyway");
+			case ShutdownReason.RELOAD:
+				return localize('shutdownForceReload', "Reload Anyway");
+			case ShutdownReason.LOAD:
+				return localize('shutdownForceLoad', "Change Anyway");
 		}
 	}
 

@@ -786,10 +786,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					if (label.length === 0 || commandMap.has(label)) {
 						continue;
 					}
-					let description = fromNow(entry.timestamp, true);
-					if (entry.cwd) {
-						description += ` @ ${entry.cwd}`;
-					}
+					let description = `${entry.cwd}`;
 					if (entry.exitCode) {
 						// Since you cannot get the last command's exit code on pwsh, just whether it failed
 						// or not, -1 is treated specially as simply failed
@@ -804,7 +801,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					const buttons: IQuickInputButton[] = [{
 						iconClass,
 						tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-						alwaysVisible: true
+						alwaysVisible: false
 					}];
 					// Merge consecutive commands
 					const lastItem = items.length > 0 ? items[items.length - 1] : undefined;

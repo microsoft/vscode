@@ -18,10 +18,10 @@ export interface ILanguageAssociation {
 	readonly extension?: string;
 	readonly filepattern?: string;
 	readonly firstline?: RegExp;
-	readonly userConfigured?: boolean;
 }
 
 interface ILanguageAssociationItem extends ILanguageAssociation {
+	readonly userConfigured: boolean;
 	readonly filenameLowercase?: string;
 	readonly extensionLowercase?: string;
 	readonly filepatternLowercase?: ParsedPattern;
@@ -33,12 +33,27 @@ let nonUserRegisteredAssociations: ILanguageAssociationItem[] = [];
 let userRegisteredAssociations: ILanguageAssociationItem[] = [];
 
 /**
- * Associate a language to the registry.
+ * Associate a language to the registry (platform).
+ * * **NOTE**: This association will lose over associations registered using `registerConfiguredLanguageAssociation`.
+ * * **NOTE**: Use `clearPlatformLanguageAssociations` to remove all associations registered using this function.
  */
-export function registerLanguageAssociation(association: ILanguageAssociation, warnOnOverwrite = false): void {
+export function registerPlatformLanguageAssociation(association: ILanguageAssociation, warnOnOverwrite = false): void {
+	_registerLanguageAssociation(association, false, warnOnOverwrite);
+}
+
+/**
+ * Associate a language to the registry (configured).
+ * * **NOTE**: This association will win over associations registered using `registerPlatformLanguageAssociation`.
+ * * **NOTE**: Use `clearConfiguredLanguageAssociations` to remove all associations registered using this function.
+ */
+export function registerConfiguredLanguageAssociation(association: ILanguageAssociation): void {
+	_registerLanguageAssociation(association, true, false);
+}
+
+function _registerLanguageAssociation(association: ILanguageAssociation, userConfigured: boolean, warnOnOverwrite: boolean): void {
 
 	// Register
-	const associationItem = toLanguageAssociationItem(association);
+	const associationItem = toLanguageAssociationItem(association, userConfigured);
 	registeredAssociations.push(associationItem);
 	if (!associationItem.userConfigured) {
 		nonUserRegisteredAssociations.push(associationItem);
@@ -72,7 +87,7 @@ export function registerLanguageAssociation(association: ILanguageAssociation, w
 	}
 }
 
-function toLanguageAssociationItem(association: ILanguageAssociation): ILanguageAssociationItem {
+function toLanguageAssociationItem(association: ILanguageAssociation, userConfigured: boolean): ILanguageAssociationItem {
 	return {
 		id: association.id,
 		mime: association.mime,
@@ -80,7 +95,7 @@ function toLanguageAssociationItem(association: ILanguageAssociation): ILanguage
 		extension: association.extension,
 		filepattern: association.filepattern,
 		firstline: association.firstline,
-		userConfigured: association.userConfigured,
+		userConfigured: userConfigured,
 		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
 		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
 		filepatternLowercase: association.filepattern ? parse(association.filepattern.toLowerCase()) : undefined,
@@ -89,17 +104,19 @@ function toLanguageAssociationItem(association: ILanguageAssociation): ILanguage
 }
 
 /**
- * Clear language associations from the registry.
+ * Clear language associations from the registry (platform).
  */
-export function clearLanguageAssociations(onlyUserConfigured?: boolean): void {
-	if (!onlyUserConfigured) {
-		registeredAssociations = [];
-		nonUserRegisteredAssociations = [];
-		userRegisteredAssociations = [];
-	} else {
-		registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
-		userRegisteredAssociations = [];
-	}
+export function clearPlatformLanguageAssociations(): void {
+	registeredAssociations = registeredAssociations.filter(a => a.userConfigured);
+	nonUserRegisteredAssociations = [];
+}
+
+/**
+ * Clear language associations from the registry (configured).
+ */
+export function clearConfiguredLanguageAssociations(): void {
+	registeredAssociations = registeredAssociations.filter(a => !a.userConfigured);
+	userRegisteredAssociations = [];
 }
 
 /**

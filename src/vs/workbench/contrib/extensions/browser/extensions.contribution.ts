@@ -624,7 +624,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: () => {
 				return Promise.all(this.extensionsWorkbenchService.outdated.map(async extension => {
 					try {
-						await this.extensionsWorkbenchService.install(extension);
+						await this.extensionsWorkbenchService.install(extension, extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined);
 					} catch (err) {
 						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, undefined, err));
 					}

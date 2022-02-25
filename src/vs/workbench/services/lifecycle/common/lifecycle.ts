@@ -20,6 +20,11 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
 export interface BeforeShutdownEvent {
 
 	/**
+	 * The reason why the application will be shutting down.
+	 */
+	readonly reason: ShutdownReason;
+
+	/**
 	 * Allows to veto the shutdown. The veto can be a long running operation but it
 	 * will block the application from closing.
 	 *
@@ -27,11 +32,6 @@ export interface BeforeShutdownEvent {
 	 * completes.
 	 */
 	veto(value: boolean | Promise<boolean>, id: string): void;
-
-	/**
-	 * The reason why the application will be shutting down.
-	 */
-	readonly reason: ShutdownReason;
 }
 
 export interface InternalBeforeShutdownEvent extends BeforeShutdownEvent {
@@ -75,6 +75,11 @@ export interface BeforeShutdownErrorEvent {
 export interface WillShutdownEvent {
 
 	/**
+	 * The reason why the application is shutting down.
+	 */
+	readonly reason: ShutdownReason;
+
+	/**
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 *
@@ -84,9 +89,10 @@ export interface WillShutdownEvent {
 	join(promise: Promise<void>, id: string): void;
 
 	/**
-	 * The reason why the application is shutting down.
+	 * Allows to enforce the shutdown, even when there are
+	 * pending `join` operations to complete.
 	 */
-	readonly reason: ShutdownReason;
+	force(): void;
 }
 
 export const enum ShutdownReason {

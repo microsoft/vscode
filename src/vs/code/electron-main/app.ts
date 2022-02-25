@@ -246,7 +246,7 @@ export class CodeApplication extends Disposable {
 
 		//#region Code Cache
 
-		type SessionWithCodeCachePathSupport = Session & {
+		type SessionWithCodeCachePathSupport = typeof Session & {
 			/**
 			 * Sets code cache directory. By default, the directory will be `Code Cache` under
 			 * the respective user data folder.
