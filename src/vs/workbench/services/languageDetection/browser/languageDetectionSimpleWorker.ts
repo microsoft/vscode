@@ -34,28 +34,47 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	private _modelOperations: ModelOperations | undefined;
 	private _loadFailed: boolean = false;
 
-	public async detectLanguage(uri: string, langBiases?: Record<string, number>): Promise<string | undefined> {
+	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean): Promise<string | undefined> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
 		const stopWatch = new StopWatch(true);
 		const documentTextSample = this.getTextForDetection(uri);
 		if (!documentTextSample) { return; }
 
-		for await (const language of this.detectLanguagesImpl(documentTextSample)) {
-			languages.push(language.languageId);
-			confidences.push(language.confidence);
-		}
-		stopWatch.stop();
-
-		if (languages.length) {
-			this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
-			return languages[0];
-		}
-		if (langBiases) {
-			const regexpDetection = await this.runRegexpModel(documentTextSample, langBiases);
-			if (regexpDetection) {
-				return regexpDetection;
+		const neuralResolver = async () => {
+			for await (const language of this.detectLanguagesImpl(documentTextSample)) {
+				languages.push(language.languageId);
+				confidences.push(language.confidence);
 			}
+			stopWatch.stop();
+
+			if (languages.length) {
+				this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
+				return languages[0];
+			}
+			return undefined;
+		};
+
+		const historicalResolver = async () => {
+			if (langBiases) {
+				const regexpDetection = await this.runRegexpModel(documentTextSample, langBiases);
+				if (regexpDetection) {
+					return regexpDetection;
+				}
+			}
+			return undefined;
+		};
+
+		if (preferHistory) {
+			const history = await historicalResolver();
+			if (history) { return history; }
+			const neural = await neuralResolver();
+			if (neural) { return neural; }
+		} else {
+			const neural = await neuralResolver();
+			if (neural) { return neural; }
+			const history = await historicalResolver();
+			if (history) { return history; }
 		}
 
 		return undefined;

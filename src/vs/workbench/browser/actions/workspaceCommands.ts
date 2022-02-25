@@ -28,6 +28,8 @@ import { ILocalizedString } from 'vs/platform/action/common/action';
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = { value: localize('addFolderToWorkspace', "Add Folder to Workspace..."), original: 'Add Folder to Workspace...' };
 
+export const SET_ROOT_FOLDER_COMMAND_ID = 'setRootFolder';
+
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
 
 // Command registration
@@ -61,18 +63,8 @@ CommandsRegistry.registerCommand({
 	id: ADD_ROOT_FOLDER_COMMAND_ID,
 	handler: async (accessor) => {
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		const dialogsService = accessor.get(IFileDialogService);
-		const pathService = accessor.get(IPathService);
 
-		const folders = await dialogsService.showOpenDialog({
-			openLabel: mnemonicButtonLabel(localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
-			title: localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
-			canSelectFolders: true,
-			canSelectMany: true,
-			defaultUri: await dialogsService.defaultFolderPath(),
-			availableFileSystems: [pathService.defaultUriScheme]
-		});
-
+		const folders = await selectWorkspaceFolders(accessor);
 		if (!folders || !folders.length) {
 			return;
 		}
@@ -80,6 +72,37 @@ CommandsRegistry.registerCommand({
 		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: removeTrailingPathSeparator(folder) })));
 	}
 });
+
+CommandsRegistry.registerCommand({
+	id: SET_ROOT_FOLDER_COMMAND_ID,
+	handler: async (accessor) => {
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+		const contextService = accessor.get(IWorkspaceContextService);
+
+		const folders = await selectWorkspaceFolders(accessor);
+		if (!folders || !folders.length) {
+			return;
+		}
+
+		await workspaceEditingService.updateFolders(0, contextService.getWorkspace().folders.length, folders.map(folder => ({ uri: removeTrailingPathSeparator(folder) })));
+	}
+});
+
+async function selectWorkspaceFolders(accessor: ServicesAccessor): Promise<URI[] | undefined> {
+	const dialogsService = accessor.get(IFileDialogService);
+	const pathService = accessor.get(IPathService);
+
+	const folders = await dialogsService.showOpenDialog({
+		openLabel: mnemonicButtonLabel(localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
+		title: localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
+		canSelectFolders: true,
+		canSelectMany: true,
+		defaultUri: await dialogsService.defaultFolderPath(),
+		availableFileSystems: [pathService.defaultUriScheme]
+	});
+
+	return folders;
+}
 
 CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
 	const quickInputService = accessor.get(IQuickInputService);

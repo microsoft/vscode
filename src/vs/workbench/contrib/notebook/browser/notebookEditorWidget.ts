@@ -2504,7 +2504,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			await this._resolveWebview();
 		}
 
-		if (!this._webview) {
+		if (!this._webview || !this._list.webviewElement) {
 			return;
 		}
 
@@ -2519,13 +2519,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
+		const top = !!webviewTop ? (0 - webviewTop) : 0;
+
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		await this._webview.showMarkupPreview({
 			mime: cell.mime,
 			cellHandle: cell.handle,
 			cellId: cell.id,
 			content: cell.getText(),
-			offset: cellTop,
+			offset: cellTop + top,
 			visible: true,
 		});
 	}

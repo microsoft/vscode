@@ -228,3 +228,10 @@ export class NotSupportedError extends Error {
 export class ExpectedError extends Error {
 	readonly isExpected = true;
 }
+
+/**
+ * Error that when thrown won't be logged in telemetry as an unhandled error.
+ */
+export class ErrorNoTelemetry extends Error {
+	readonly logTelemetry = false;
+}

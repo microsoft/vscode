@@ -1470,7 +1470,6 @@ export class InlayHint implements vscode.InlayHint {
 	kind?: vscode.InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;
-	command?: vscode.Command;
 
 	constructor(position: Position, label: string | InlayHintLabelPart[], kind?: vscode.InlayHintKind) {
 		this.position = position;

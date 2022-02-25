@@ -1231,6 +1231,9 @@ export class TestLifecycleService implements ILifecycleService {
 	private readonly _onBeforeShutdownError = new Emitter<BeforeShutdownErrorEvent>();
 	get onBeforeShutdownError(): Event<BeforeShutdownErrorEvent> { return this._onBeforeShutdownError.event; }
 
+	private readonly _onShutdownVeto = new Emitter<void>();
+	get onShutdownVeto(): Event<void> { return this._onShutdownVeto.event; }
+
 	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
@@ -1248,6 +1251,7 @@ export class TestLifecycleService implements ILifecycleService {
 			join: p => {
 				this.shutdownJoiners.push(p);
 			},
+			force: () => { /* No-Op in tests */ },
 			reason
 		});
 	}
@@ -1285,6 +1289,8 @@ export class TestWillShutdownEvent implements WillShutdownEvent {
 	join(promise: Promise<void>, id: string): void {
 		this.value.push(promise);
 	}
+
+	force() { /* No-Op in tests */ }
 }
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
