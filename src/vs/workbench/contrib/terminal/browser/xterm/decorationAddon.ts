@@ -70,7 +70,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
 				this._refreshClasses();
-			} else if (e.affectsConfiguration(TerminalSettingId.FontSize)) {
+			} else if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
 				this.refreshLayouts();
 			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
 				this._commandStartedListener?.dispose();
