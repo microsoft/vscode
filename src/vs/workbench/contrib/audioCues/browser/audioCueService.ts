@@ -138,6 +138,7 @@ export class Sound {
 
 
 	public static readonly error = Sound.register({ fileName: 'error.opus' });
+	public static readonly warning = Sound.register({ fileName: 'warning.opus' });
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.opus' });
 	public static readonly break = Sound.register({ fileName: 'break.opus' });
 	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.opus' });
@@ -169,7 +170,7 @@ export class AudioCue {
 	});
 	public static readonly warning = AudioCue.register({
 		name: localize('audioCues.lineHasWarning.name', 'Warning on Line'),
-		sound: Sound.error,
+		sound: Sound.warning,
 		settingsKey: 'audioCues.lineHasWarning',
 	});
 	public static readonly foldedArea = AudioCue.register({
