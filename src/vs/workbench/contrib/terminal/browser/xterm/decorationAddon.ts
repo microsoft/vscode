@@ -22,13 +22,21 @@ import { fromNow } from 'vs/base/common/date';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
 	ErrorColor = 'error',
 	DefaultColor = 'default',
 	Codicon = 'codicon',
-	XtermDecoration = 'xterm-decoration'
+	XtermDecoration = 'xterm-decoration',
+	FirstSplit = '.monaco-split-view2.horizontal .split-view-view:first-child .xterm .xterm-decoration-container'
+}
+
+const enum DecorationStyles {
+	CodiconDimension = 16,
+	MarginLeftFirstSplit = -17,
+	MarginLeft = -12
 }
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number }
@@ -60,7 +68,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
-				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError) ||
+				e.affectsConfiguration(TerminalSettingId.FontSize)) {
+				if (e.affectedKeys.includes(TerminalSettingId.FontSize)) {
+					for (const decoration of this._decorations) {
+						if (decoration[1].decoration?.element) {
+							decoration[1].decoration.element.classList.remove(DecorationSelector.Codicon);
+							this._applyStyles(decoration[1].decoration.element, decoration[1].exitCode);
+						}
+					}
+				}
 				if (this._placeholderDecoration?.element) {
 					this._applyStyles(this._placeholderDecoration.element);
 				}
@@ -162,8 +179,20 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			}
 			if (!target.classList.contains(DecorationSelector.Codicon)) {
 				// must be inlined to override the inlined styles from xterm
-				target.style.width = '16px';
-				target.style.height = '16px';
+				const fontSize = this._configurationService.inspect(TerminalSettingId.FontSize).value;
+				const defaultFontSize = isMacintosh ? 12 : 14;
+				if (typeof fontSize === 'number') {
+					const scaledSize = fontSize / defaultFontSize;
+					const dimension = scaledSize <= 1 ? scaledSize : 1;
+					target.style.width = `${dimension * DecorationStyles.CodiconDimension}px`;
+					target.style.height = `${dimension * DecorationStyles.CodiconDimension}px`;
+					target.style.fontSize = `${dimension * DecorationStyles.CodiconDimension}px`;
+					if (document.querySelectorAll(DecorationSelector.FirstSplit)[0] === target.parentElement) {
+						target.style.marginLeft = `${dimension * DecorationStyles.MarginLeftFirstSplit}px`;
+					} else {
+						target.style.marginLeft = `${dimension * DecorationStyles.MarginLeft}px`;
+					}
+				}
 				this._applyStyles(target, command.exitCode);
 			}
 		});
