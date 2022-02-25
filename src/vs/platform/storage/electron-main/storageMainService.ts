@@ -44,8 +44,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	declare readonly _serviceBrand: undefined;
 
-	private willShutdown: boolean = false;
-
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
@@ -82,8 +80,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		this._register(this.lifecycleMainService.onWillShutdown(e => {
 			this.logService.trace('storageMainService#onWillShutdown()');
 
-			this.willShutdown = true;
-
 			// Global Storage
 			e.join(this.globalStorage.close());
 
@@ -118,10 +114,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	private readonly mapWorkspaceToStorage = new Map<string, IStorageMain>();
 
 	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
-		if (this.willShutdown) {
-			throw new Error('Refusing to create workspace storage for application will shutdown.');
-		}
-
 		let workspaceStorage = this.mapWorkspaceToStorage.get(workspace.id);
 		if (!workspaceStorage) {
 			this.logService.trace(`StorageMainService: creating workspace storage (${workspace.id})`);

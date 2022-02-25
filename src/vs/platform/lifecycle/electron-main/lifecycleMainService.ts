@@ -599,8 +599,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		};
 		app.once('quit', quitListener);
 
-		// app.relaunch() does not quit automatically, so we quit first,
-		// check for vetoes and then relaunch from the app.on('quit') event
+		// `app.relaunch()` does not quit automatically, so we quit first,
+		// check for vetoes and then relaunch from the `app.on('quit')` event
 		const veto = await this.quit(true /* will restart */);
 		if (veto) {
 			app.removeListener('quit', quitListener);
@@ -623,10 +623,13 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		await Promise.race([
 
-			// still do not block more than 1s
+			// Still do not block more than 1s
 			timeout(1000),
 
-			// destroy any opened window
+			// Destroy any opened window: we do not unload windows here because
+			// there is a chance that the unload is veto'd or long running due
+			// to a participant within the window. this is not wanted when we
+			// are asked to kill the application.
 			(async () => {
 				for (const window of BrowserWindow.getAllWindows()) {
 					if (window && !window.isDestroyed()) {
