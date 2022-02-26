@@ -16,7 +16,7 @@ declare namespace monaco {
 	export interface Environment {
 		globalAPI?: boolean;
 		baseUrl?: string;
-		getWorker?(workerId: string, label: string): Worker;
+		getWorker?(workerId: string, label: string): Promise<Worker> | Worker;
 		getWorkerUrl?(workerId: string, label: string): string;
 	}
 
@@ -90,6 +90,8 @@ export type IModel = ITextModel;
 
 declare namespace monaco.languages {
 
+#include(vs/base/common/glob): IRelativePattern
+#include(vs/editor/common/languageSelector): LanguageSelector, LanguageFilter
 #includeAll(vs/editor/standalone/browser/standaloneLanguages;languages.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/languages/languageConfiguration):
 #includeAll(vs/editor/common/languages;IMarkerData=>editor.IMarkerData;ISingleEditOperation=>editor.ISingleEditOperation;model.=>editor.): Token

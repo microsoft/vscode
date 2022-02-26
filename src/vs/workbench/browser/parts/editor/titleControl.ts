@@ -67,8 +67,21 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 		super();
 	}
 
-	override run(action: IAction): Promise<void> {
-		return super.run(action, this.context);
+	override run(action: IAction, context?: { preserveFocus?: boolean }): Promise<void> {
+
+		// Even though we have a fixed context for editor commands,
+		// allow to preserve the context that is given to us in case
+		// it applies.
+
+		let mergedContext = this.context;
+		if (context?.preserveFocus) {
+			mergedContext = {
+				...this.context,
+				preserveFocus: true
+			};
+		}
+
+		return super.run(action, mergedContext);
 	}
 }
 

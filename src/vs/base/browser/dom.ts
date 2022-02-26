@@ -1638,11 +1638,6 @@ export function getCookieValue(name: string): string | undefined {
 	return match ? match.pop() : undefined;
 }
 
-export function addMatchMediaChangeListener(query: string, callback: () => void): void {
-	const mediaQueryList = window.matchMedia(query);
-	mediaQueryList.addEventListener('change', callback);
-}
-
 export const enum ZIndex {
 	SASH = 35,
 	SuggestWidget = 40,

@@ -362,15 +362,15 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private token: number = 0;
 	private startService(resendModels: boolean = false): ServerState.State {
-		this.info(`Starting TS Server `);
+		this.info(`Starting TS Server`);
 
 		if (this.isDisposed) {
-			this.info(`Not starting server. Disposed `);
+			this.info(`Not starting server: disposed`);
 			return ServerState.None;
 		}
 
 		if (this.hasServerFatallyCrashedTooManyTimes) {
-			this.info(`Not starting server. Too many crashes.`);
+			this.info(`Not starting server: too many crashes`);
 			return ServerState.None;
 		}
 

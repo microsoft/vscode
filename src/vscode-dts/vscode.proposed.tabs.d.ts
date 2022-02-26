@@ -8,10 +8,10 @@ declare module 'vscode' {
 	// https://github.com/Microsoft/vscode/issues/15178
 
 	export enum TabKind {
-		SINGULAR = 0,
-		DIFF = 1,
-		SIDEBYSIDE = 2,
-		OTHER = 3
+		Singular = 0,
+		Diff = 1,
+		SidebySide = 2,
+		Other = 3
 	}
 
 	/**
@@ -61,6 +61,11 @@ declare module 'vscode' {
 		 * Whether or not the dirty indicator is present on the tab
 		 */
 		readonly isDirty: boolean;
+
+		/**
+		 * Whether or not the tab is pinned
+		 */
+		readonly isPinned: boolean;
 
 		/**
 		 * Indicates the type of tab it is.

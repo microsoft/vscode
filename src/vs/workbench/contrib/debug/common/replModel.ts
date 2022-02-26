@@ -84,6 +84,10 @@ export class RawObjectReplElement implements IExpression {
 		return (Array.isArray(this.valueObj) && this.valueObj.length > 0) || (isObject(this.valueObj) && Object.getOwnPropertyNames(this.valueObj).length > 0);
 	}
 
+	evaluateLazy(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
 	getChildren(): Promise<IExpression[]> {
 		let result: IExpression[] = [];
 		if (Array.isArray(this.valueObj)) {

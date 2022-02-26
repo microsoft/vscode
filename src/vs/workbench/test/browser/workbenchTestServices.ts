@@ -23,7 +23,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -98,7 +98,7 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -148,7 +148,6 @@ import { env } from 'vs/base/common/process';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
@@ -456,8 +455,6 @@ export class TestEncodingOracle extends EncodingOracle {
 class TestEnvironmentServiceWithArgs extends BrowserWorkbenchEnvironmentService {
 	args = [];
 }
-
-export const TestProductService = { _serviceBrand: undefined, ...product };
 
 export const TestEnvironmentService = new TestEnvironmentServiceWithArgs('', undefined!, Object.create(null), TestProductService);
 
@@ -991,15 +988,16 @@ export class TestFileService implements IFileService {
 			isDirectory: false,
 			isSymbolicLink: false,
 			readonly: this.readonly,
-			name: basename(resource)
+			name: basename(resource),
+			children: undefined
 		});
 	}
 
-	stat(resource: URI): Promise<IFileStatWithMetadata> {
+	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
 		return this.resolve(resource, { resolveMetadata: true });
 	}
 
-	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IResolveFileResult[]> {
+	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {
 		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
 
 		return stats.map(stat => ({ stat, success: true }));
@@ -1070,7 +1068,8 @@ export class TestFileService implements IFileService {
 			isDirectory: false,
 			isSymbolicLink: false,
 			readonly: this.readonly,
-			name: basename(resource)
+			name: basename(resource),
+			children: undefined
 		});
 	}
 
@@ -1232,6 +1231,9 @@ export class TestLifecycleService implements ILifecycleService {
 	private readonly _onBeforeShutdownError = new Emitter<BeforeShutdownErrorEvent>();
 	get onBeforeShutdownError(): Event<BeforeShutdownErrorEvent> { return this._onBeforeShutdownError.event; }
 
+	private readonly _onShutdownVeto = new Emitter<void>();
+	get onShutdownVeto(): Event<void> { return this._onShutdownVeto.event; }
+
 	private readonly _onWillShutdown = new Emitter<WillShutdownEvent>();
 	get onWillShutdown(): Event<WillShutdownEvent> { return this._onWillShutdown.event; }
 
@@ -1249,6 +1251,7 @@ export class TestLifecycleService implements ILifecycleService {
 			join: p => {
 				this.shutdownJoiners.push(p);
 			},
+			force: () => { /* No-Op in tests */ },
 			reason
 		});
 	}
@@ -1286,6 +1289,8 @@ export class TestWillShutdownEvent implements WillShutdownEvent {
 	join(promise: Promise<void>, id: string): void {
 		this.value.push(promise);
 	}
+
+	force() { /* No-Op in tests */ }
 }
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {
@@ -1798,6 +1803,7 @@ export class TestTerminalGroupService implements ITerminalGroupService {
 	activeGroupIndex: number = 0;
 	onDidChangeActiveGroup = Event.None;
 	onDidDisposeGroup = Event.None;
+	onDidShow = Event.None;
 	onDidChangeGroups = Event.None;
 	onDidChangePanelOrientation = Event.None;
 	onDidDisposeInstance = Event.None;
@@ -1907,43 +1913,4 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> { return null; }
 	canNavigateValueSet(resource: URI): boolean { return false; }
 	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
-}
-
-export class TestClipboardService implements IClipboardService {
-
-	_serviceBrand: undefined;
-
-	private text: string | undefined = undefined;
-
-	async writeText(text: string, type?: string): Promise<void> {
-		this.text = text;
-	}
-
-	async readText(type?: string): Promise<string> {
-		return this.text ?? '';
-	}
-
-	private findText: string | undefined = undefined;
-
-	async readFindText(): Promise<string> {
-		return this.findText ?? '';
-	}
-
-	async writeFindText(text: string): Promise<void> {
-		this.findText = text;
-	}
-
-	private resources: URI[] | undefined = undefined;
-
-	async writeResources(resources: URI[]): Promise<void> {
-		this.resources = resources;
-	}
-
-	async readResources(): Promise<URI[]> {
-		return this.resources ?? [];
-	}
-
-	async hasResources(): Promise<boolean> {
-		return Array.isArray(this.resources) && this.resources.length > 0;
-	}
 }

@@ -9,7 +9,7 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
 import { Mimes } from 'vs/base/common/mime';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);

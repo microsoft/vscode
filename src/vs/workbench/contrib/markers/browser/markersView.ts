@@ -46,7 +46,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService, withSelectionFragment } from 'vs/platform/opener/common/opener';
+import { IOpenerService, withSelection } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -397,10 +397,10 @@ export class MarkersView extends ViewPane implements IMarkersView {
 						return element.resource;
 					}
 					if (element instanceof Marker) {
-						return withSelectionFragment(element.resource, element.range);
+						return withSelection(element.resource, element.range);
 					}
 					if (element instanceof RelatedInformation) {
-						return withSelectionFragment(element.raw.resource, element.raw);
+						return withSelection(element.raw.resource, element.raw);
 					}
 					return null;
 				}),

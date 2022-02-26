@@ -75,9 +75,9 @@ const serverResources = [
 	'out-build/vs/base/node/ps.sh',
 
 	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
-	'out-build/vs/workbench/contrib/terminal/browser/media/.zshrc',
 	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh',
 
 	'!**/test/**'
 ];

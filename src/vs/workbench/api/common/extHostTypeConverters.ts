@@ -1171,7 +1171,6 @@ export namespace InlayHint {
 			hint.kind && InlayHintKind.to(hint.kind)
 		);
 		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
-		res.command = hint.command && converter.fromInternal(hint.command);
 		res.paddingLeft = hint.paddingLeft;
 		res.paddingRight = hint.paddingRight;
 		return res;

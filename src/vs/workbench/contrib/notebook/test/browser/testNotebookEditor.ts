@@ -50,9 +50,10 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestClipboardService, TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ResourceMap } from 'vs/base/common/map';
+import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(

@@ -468,7 +468,6 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(resolved.readonly, false);
 		assert.strictEqual(resolved.isSymbolicLink, false);
 		assert.strictEqual(resolved.resource.toString(), resource.toString());
-		assert.strictEqual(resolved.children, undefined);
 		assert.ok(resolved.mtime! > 0);
 		assert.ok(resolved.ctime! > 0);
 		assert.ok(resolved.size! > 0);
@@ -481,7 +480,6 @@ flakySuite('Disk File Service', function () {
 		assert.ok(result);
 		assert.strictEqual(result.resource.toString(), resource.toString());
 		assert.strictEqual(result.name, 'resolver');
-		assert.strictEqual(result.children, undefined);
 		assert.ok(result.isDirectory);
 		assert.strictEqual(result.readonly, false);
 		assert.ok(result.mtime! > 0);

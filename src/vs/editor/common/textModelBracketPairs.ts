@@ -33,7 +33,7 @@ export interface IBracketPairsTextModelPart {
 	 * @param position The position at which to start the search.
 	 * @return The range of the matching bracket, or null if the bracket match was not found.
 	 */
-	findMatchingBracketUp(bracket: string, position: IPosition): Range | null;
+	findMatchingBracketUp(bracket: string, position: IPosition, maxDuration?: number): Range | null;
 
 	/**
 	 * Find the first bracket in the model before `position`.
@@ -60,7 +60,7 @@ export interface IBracketPairsTextModelPart {
 	 * find the matching bracket of that bracket and return the ranges of both brackets.
 	 * @param position The position at which to look for a bracket.
 	 */
-	matchBracket(position: IPosition): [Range, Range] | null;
+	matchBracket(position: IPosition, maxDuration?: number): [Range, Range] | null;
 }
 
 export interface IFoundBracket {
