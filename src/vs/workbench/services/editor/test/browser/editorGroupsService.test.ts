@@ -470,6 +470,8 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getEditorByIndex(1), inputInactive);
 		assert.strictEqual(group.getIndexOfEditor(input), 0);
 		assert.strictEqual(group.getIndexOfEditor(inputInactive), 1);
+		assert.strictEqual(group.isLast(input), false);
+		assert.strictEqual(group.isLast(inputInactive), true);
 
 		input.capabilities = EditorInputCapabilities.RequiresTrust;
 		assert.strictEqual(editorCapabilitiesCounter, 1);
