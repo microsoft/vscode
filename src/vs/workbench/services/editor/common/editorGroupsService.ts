@@ -549,6 +549,11 @@ export interface IEditorGroup {
 	getIndexOfEditor(editor: EditorInput): number;
 
 	/**
+	 * Whether the editor is the first in the group.
+	 */
+	isFirst(editor: EditorInput): boolean;
+
+	/**
 	 * Whether the editor is the last in the group.
 	 */
 	isLast(editor: EditorInput): boolean;

@@ -886,13 +886,12 @@ export class EditorGroupModel extends Disposable {
 		return [this.editors[index], index];
 	}
 
-	isLast(candidate: EditorInput): boolean {
-		const lastEditor = this.editors[this.editors.length - 1];
-		if (!lastEditor) {
-			return false;
-		}
+	isFirst(candidate: EditorInput | null): boolean {
+		return this.matches(this.editors[0], candidate);
+	}
 
-		return this.matches(lastEditor, candidate);
+	isLast(candidate: EditorInput | null): boolean {
+		return this.matches(this.editors[this.editors.length - 1], candidate);
 	}
 
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean {
