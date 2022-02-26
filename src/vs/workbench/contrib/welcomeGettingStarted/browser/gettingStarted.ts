@@ -476,13 +476,19 @@ export class GettingStartedPage extends EditorPane {
 	private mdCache = new ResourceMap<Promise<string>>();
 	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
 
-		const transformUris = (content: string): string => content.replace(/src="([^"]*)"/g, (_, src: string) => {
-			if (src.startsWith('https://')) { return `src="${src}"`; }
-
+		const transformUri = (src: string) => {
 			const path = joinPath(base, src);
-			const transformed = asWebviewUri(path).toString();
-			return `src="${transformed}"`;
-		});
+			return asWebviewUri(path).toString();
+		};
+		const transformUris = (content: string): string => content
+			.replace(/src="([^"]*)"/g, (_, src: string) => {
+				if (src.startsWith('https://')) { return `src="${src}"`; }
+				return `src="${transformUri(src)}"`;
+			})
+			.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, title: string, src: string) => {
+				if (src.startsWith('https://')) { return `![${title}](${src})`; }
+				return `![${title}](${transformUri(src)})`;
+			});
 
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
