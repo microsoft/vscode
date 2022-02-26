@@ -244,7 +244,7 @@ export abstract class TitleControl extends Themable {
 			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 
 			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
-			this.editorIsLastContext.set(activeEditor ? this.group.getIndexOfEditor(activeEditor) + 1 === this.group.editors.length : false);
+			this.editorIsLastContext.set(activeEditor ? this.group.isLast(activeEditor) : false);
 			this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
 
 			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
@@ -349,7 +349,7 @@ export abstract class TitleControl extends Themable {
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
 		const currentEditorIsLastContext = !!this.editorIsLastContext.get();
-		this.editorIsLastContext.set(this.group.getIndexOfEditor(editor) + 1 === this.group.editors.length);
+		this.editorIsLastContext.set(this.group.isLast(editor));
 		const currentStickyContext = !!this.editorStickyContext.get();
 		this.editorStickyContext.set(this.group.isSticky(editor));
 		const currentGroupLockedContext = !!this.groupLockedContext.get();

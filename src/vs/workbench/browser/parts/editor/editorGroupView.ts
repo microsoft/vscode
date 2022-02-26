@@ -276,7 +276,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				case GroupModelChangeKind.EDITOR_ACTIVE:
 				case GroupModelChangeKind.EDITOR_MOVE:
 					if (e.editor && e.editor === this.model.activeEditor) {
-						groupActiveEditorLastInGroupContext.set(this.model.indexOf(this.model.activeEditor) + 1 === this.model.count);
+						groupActiveEditorLastInGroupContext.set(this.model.isLast(this.model.activeEditor));
 					}
 					break;
 				case GroupModelChangeKind.EDITOR_PIN:
@@ -894,6 +894,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	getIndexOfEditor(editor: EditorInput): number {
 		return this.model.indexOf(editor);
+	}
+
+	isLast(editor: EditorInput): boolean {
+		return this.model.isLast(editor);
 	}
 
 	focus(): void {

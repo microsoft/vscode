@@ -549,6 +549,11 @@ export interface IEditorGroup {
 	getIndexOfEditor(editor: EditorInput): number;
 
 	/**
+	 * Whether the editor is the last in the group.
+	 */
+	isLast(editor: EditorInput): boolean;
+
+	/**
 	 * Open an editor in this group.
 	 *
 	 * @returns a promise that resolves around an IEditor instance unless
