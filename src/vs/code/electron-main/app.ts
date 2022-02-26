@@ -60,7 +60,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IIssueMainService, IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { LoggerChannel, LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
@@ -471,6 +471,16 @@ export class CodeApplication extends Disposable {
 
 		// Main process server (electron IPC based)
 		const mainProcessElectronServer = new ElectronIPCServer();
+		this.lifecycleMainService.onWillShutdown(e => {
+			if (e.reason === ShutdownReason.KILL) {
+				// When we go down abnormally, make sure to free up
+				// any IPC we accept from other windows to reduce
+				// the chance of doing work after we go down. Kill
+				// is special in that it does not orderly shutdown
+				// windows.
+				mainProcessElectronServer.dispose();
+			}
+		});
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');

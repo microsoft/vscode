@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IRange } from 'vs/editor/common/core/range';
-import { ICodeEditorViewState, IDiffEditorViewState, IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, IDiffEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
+import { isTextEditorViewState } from 'vs/workbench/common/editor';
 
 export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEditor, scrollType: ScrollType): boolean {
 	let applied = false;
 
 	// Restore view state if any
 	const viewState = massageEditorViewState(options);
-	if (viewState) {
+	if (isTextEditorViewState(viewState)) {
 		editor.restoreViewState(viewState);
 
 		applied = true;
@@ -50,11 +51,11 @@ export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEdi
 	return applied;
 }
 
-function massageEditorViewState(options: ITextEditorOptions): IEditorViewState | undefined {
+function massageEditorViewState(options: ITextEditorOptions): object | undefined {
 
 	// Without a selection or view state, just return immediately
 	if (!options.selection || !options.viewState) {
-		return options.viewState as IEditorViewState | undefined;
+		return options.viewState;
 	}
 
 	// Diff editor: since we have an explicit selection, clear the

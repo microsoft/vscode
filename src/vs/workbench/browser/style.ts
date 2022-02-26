@@ -144,7 +144,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	// Update body background color to ensure the home indicator area looks similar to the workbench
-	if (isIOS && isStandalone) {
+	if (isIOS && isStandalone()) {
 		collector.addRule(`body { background-color: ${workbenchBackground}; }`);
 	}
 

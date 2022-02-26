@@ -815,7 +815,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						description,
 						id: entry.timestamp.toString(),
 						command: entry,
-						buttons: (!entry.endMarker?.isDisposed && !entry.marker?.isDisposed && (entry.endMarker!.line - entry.marker!.line > 0)) ? buttons : undefined
+						buttons: entry.hasOutput ? buttons : undefined
 					});
 					commandMap.add(label);
 				}
@@ -1383,7 +1383,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	protected _createProcessManager(): TerminalProcessManager {
-		const processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
+		const processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper, this.shellLaunchConfig?.cwd);
 		this.capabilities.add(processManager.capabilities);
 		processManager.onProcessReady(async (e) => {
 			this._onProcessIdReady.fire(this);

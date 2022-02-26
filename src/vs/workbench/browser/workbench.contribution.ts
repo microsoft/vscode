@@ -101,7 +101,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.historyBasedLanguageDetection': {
 				type: 'boolean',
-				default: true,
+				default: false,
 				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
 			},
 			'workbench.editor.tabCloseButton': {
@@ -486,8 +486,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription':
 					isMacintosh ?
-						localize('openFilesInNewWindowMac', "Controls whether files should open in a new window. \nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
-						localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+						localize('openFilesInNewWindowMac', "Controls whether files should open in a new window when using a command line or file dialog.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
+						localize('openFilesInNewWindow', "Controls whether files should open in a new window when using a command line or file dialog.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 			},
 			'window.openFoldersInNewWindow': {
 				'type': 'string',
@@ -509,7 +509,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if a keybinding was detected. Note that detection may not be possible in some cases."),
 					localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation unless data loss is imminent.")
 				],
-				'default': isWeb && !isStandalone ? 'keyboardOnly' : 'never', // on by default in web, unless PWA
+				'default': isWeb && !isStandalone() ? 'keyboardOnly' : 'never', // on by default in web, unless PWA
 				'description': localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases."),
 				'scope': ConfigurationScope.APPLICATION,
 				'included': isWeb

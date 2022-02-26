@@ -32,7 +32,7 @@ import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/bro
 import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext } from 'vs/workbench/common/contextkeys';
+import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
@@ -97,6 +97,8 @@ export abstract class TitleControl extends Themable {
 	private resourceContext: ResourceContextKey;
 
 	private editorPinnedContext: IContextKey<boolean>;
+	private editorIsFirstContext: IContextKey<boolean>;
+	private editorIsLastContext: IContextKey<boolean>;
 	private editorStickyContext: IContextKey<boolean>;
 
 	private editorCanSplitInGroupContext: IContextKey<boolean>;
@@ -130,6 +132,8 @@ export abstract class TitleControl extends Themable {
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
 
 		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
+		this.editorIsFirstContext = ActiveEditorFirstInGroupContext.bindTo(contextKeyService);
+		this.editorIsLastContext = ActiveEditorLastInGroupContext.bindTo(contextKeyService);
 		this.editorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
 
 		this.editorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(contextKeyService);
@@ -237,13 +241,17 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts
 		this.contextKeyService.bufferChangeEvents(() => {
-			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+			const activeEditor = this.group.activeEditor;
 
-			this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
-			this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
+			this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 
-			this.editorCanSplitInGroupContext.set(this.group.activeEditor ? this.group.activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-			this.sideBySideEditorContext.set(this.group.activeEditor?.typeId === SideBySideEditorInput.ID);
+			this.editorPinnedContext.set(activeEditor ? this.group.isPinned(activeEditor) : false);
+			this.editorIsFirstContext.set(activeEditor ? this.group.isFirst(activeEditor) : false);
+			this.editorIsLastContext.set(activeEditor ? this.group.isLast(activeEditor) : false);
+			this.editorStickyContext.set(activeEditor ? this.group.isSticky(activeEditor) : false);
+
+			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
+			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
 
 			this.groupLockedContext.set(this.group.isLocked);
 		});
@@ -343,6 +351,10 @@ export abstract class TitleControl extends Themable {
 		this.resourceContext.set(withUndefinedAsNull(EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
+		const currentEditorIsFirstContext = !!this.editorIsFirstContext.get();
+		this.editorIsFirstContext.set(this.group.isFirst(editor));
+		const currentEditorIsLastContext = !!this.editorIsLastContext.get();
+		this.editorIsLastContext.set(this.group.isLast(editor));
 		const currentStickyContext = !!this.editorStickyContext.get();
 		this.editorStickyContext.set(this.group.isSticky(editor));
 		const currentGroupLockedContext = !!this.groupLockedContext.get();
@@ -374,6 +386,8 @@ export abstract class TitleControl extends Themable {
 				// restore previous contexts
 				this.resourceContext.set(currentResourceContext || null);
 				this.editorPinnedContext.set(currentPinnedContext);
+				this.editorIsFirstContext.set(currentEditorIsFirstContext);
+				this.editorIsLastContext.set(currentEditorIsLastContext);
 				this.editorStickyContext.set(currentStickyContext);
 				this.groupLockedContext.set(currentGroupLockedContext);
 				this.editorCanSplitInGroupContext.set(currentEditorCanSplitContext);

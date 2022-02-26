@@ -44,9 +44,15 @@
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .icon {
 	padding-top: 4px;
 	padding-right: 5px;
+	min-width: fit-content;
 }
 
-.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .count,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .count,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .user {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text {
 	display: flex;
 	flex: 1;
@@ -55,7 +61,9 @@
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .reply-detail,
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .timestamp {
-	display:flex;
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	font-size: 0.9em;
 	padding-right: 5px;
 	opacity: 0.8;

@@ -31,6 +31,7 @@ import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { URI } from 'vs/base/common/uri';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -57,7 +58,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	processState: ProcessState = ProcessState.Uninitialized;
 	ptyProcessReady: Promise<void>;
 	shellProcessId: number | undefined;
-	remoteAuthority: string | undefined;
+	readonly remoteAuthority: string | undefined;
 	os: OperatingSystem | undefined;
 	userHome: string | undefined;
 	isDisconnected: boolean = false;
@@ -114,6 +115,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	constructor(
 		private readonly _instanceId: number,
 		private readonly _configHelper: ITerminalConfigHelper,
+		cwd: string | URI | undefined,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -146,6 +148,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._onProcessData.fire(typeof ev !== 'string' ? ev : { data: beforeProcessDataEvent.data, trackCommit: false });
 			}
 		});
+
+		if (cwd && typeof cwd === 'object') {
+			this.remoteAuthority = getRemoteAuthority(cwd);
+		} else {
+			this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
+		}
 	}
 
 	override dispose(immediate: boolean = false): void {
@@ -194,11 +202,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._processType = ProcessType.PsuedoTerminal;
 			newProcess = shellLaunchConfig.customPtyImplementation(this._instanceId, cols, rows);
 		} else {
-			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
-				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
-			} else {
-				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
-			}
 			const backend = this._terminalInstanceService.getBackend(this.remoteAuthority);
 			if (!backend) {
 				throw new Error(`No terminal backend registered for remote authority '${this.remoteAuthority}'`);
@@ -273,9 +276,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
 							shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = '1';
 						}
-						if (env?.['ZDOTDIR']) {
+						if (env?.['_ZDOTDIR']) {
 							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
-							shellLaunchConfig.env['ZDOTDIR'] = env['ZDOTDIR'].replace('${execInstallFolder}', remoteEnv.appRoot.fsPath);
+							shellLaunchConfig.env['_ZDOTDIR'] = '1';
 						}
 
 						newProcess = await backend.createProcess(
@@ -455,12 +458,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration?.enabled || false, shellLaunchConfig, OS);
 		if (shellIntegration.enableShellIntegration) {
 			shellLaunchConfig.args = shellIntegration.args;
-			if (env?.['ZDOTDIR']) {
+			if (env?.['_ZDOTDIR']) {
 				shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
-				const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
-				const resolved = await this._configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, env['ZDOTDIR']);
-				env['ZDOTDIR'] = resolved;
+				shellLaunchConfig.env['_ZDOTDIR'] = '1';
 			}
 			// Always resolve the injected arguments on local processes
 			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {

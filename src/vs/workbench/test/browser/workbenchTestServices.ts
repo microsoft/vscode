@@ -842,6 +842,8 @@ export class TestEditorGroupView implements IEditorGroupView {
 	findEditors(_resource: URI): readonly EditorInput[] { return []; }
 	getEditorByIndex(_index: number): EditorInput { throw new Error('not implemented'); }
 	getIndexOfEditor(_editor: EditorInput): number { return -1; }
+	isFirst(editor: EditorInput): boolean { return false; }
+	isLast(editor: EditorInput): boolean { return false; }
 	openEditor(_editor: EditorInput, _options?: IEditorOptions): Promise<IEditorPane> { throw new Error('not implemented'); }
 	openEditors(_editors: EditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
 	isPinned(_editor: EditorInput): boolean { return false; }
