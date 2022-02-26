@@ -16,7 +16,7 @@ export function getNodeFSRequestService(): RequestService {
 		}
 	}
 	return {
-		getContent(location: string, encoding?: BufferEncoding) {
+		getContent(location: string, encoding?: string) {
 			ensureFileUri(location);
 			return new Promise((c, e) => {
 				const uri = Uri.parse(location);

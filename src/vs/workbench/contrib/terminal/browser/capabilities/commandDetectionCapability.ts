@@ -213,7 +213,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
-		this._currentCommand.previousCommandMarker?.dispose();
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
 		this._currentCommand = {};
 	}

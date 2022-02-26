@@ -376,6 +376,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message .codicon {
+	color: inherit;
 	margin-right: 4px;
 }
 

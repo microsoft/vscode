@@ -10,7 +10,7 @@ import { toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, EditorInputCapabilities, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -140,16 +140,11 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Restore view state (unless provided by options)
-			if (!options?.viewState) {
+			if (!isTextEditorViewState(options?.viewState)) {
 				const editorViewState = this.loadEditorViewState(input, context);
 				if (editorViewState) {
 					if (options?.selection) {
-						// If we have a selection, make sure to not
-						// restore any selection from the view state
-						// to ensure the right selection change event
-						// is fired and we avoid changing selections
-						// twice.
-						editorViewState.cursorState = [];
+						editorViewState.cursorState = []; // prevent duplicate selections via options
 					}
 
 					textEditor.restoreViewState(editorViewState);

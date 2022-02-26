@@ -141,6 +141,7 @@ module.exports.copyrightFilter = [
 	'!**/*.icns',
 	'!**/*.xml',
 	'!**/*.sh',
+	'!**/*.zsh',
 	'!**/*.txt',
 	'!**/*.xpm',
 	'!**/*.opts',

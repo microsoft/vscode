@@ -296,7 +296,9 @@ export class TerminalService implements ITerminalService {
 			this._onDidFocusInstance.fire(instance);
 			this._evaluateActiveInstance(host, instance);
 		});
-		host.onDidChangeInstanceCapability(this._onDidChangeInstanceCapability.fire, this.onDidChangeInstanceCapability);
+		host.onDidChangeInstanceCapability((instance) => {
+			this._onDidChangeInstanceCapability.fire(instance);
+		});
 		this._hostActiveTerminals.set(host, undefined);
 	}
 
