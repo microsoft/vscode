@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, DraggedTreeItemsIdentifier, extractTreeDropData, extractFilesDropData } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
@@ -19,8 +19,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 
 interface IDropOperation {
@@ -327,15 +325,22 @@ class DropOverlay extends Themable {
 		else if (isWeb && containsDragType(event, DataTransfers.FILES)) {
 			let targetGroup: IEditorGroupView | undefined = undefined;
 
-			const files = event.dataTransfer?.files;
+			const files = event.dataTransfer?.items;
 			if (files) {
-				this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
+				const filesData = (await this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, event))).filter(fileData => !fileData.isDirectory);
+				if (filesData.length) {
 					if (!targetGroup) {
 						targetGroup = ensureTargetGroup();
 					}
 
-					this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() }, targetGroup.id);
-				}));
+					this.editorService.openEditors(filesData.map(fileData => {
+						return {
+							resource: fileData.resource,
+							contents: fileData.contents?.toString(),
+							options: { pinned: true }
+						};
+					}), targetGroup.id);
+				}
 			}
 		}
 

@@ -38,6 +38,9 @@ import { extractSelection } from 'vs/platform/opener/common/opener';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
+import { DeferredPromise } from 'vs/base/common/async';
 
 //#region Editor / Resources DND
 
@@ -173,13 +176,77 @@ export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Prom
 	return editors;
 }
 
-export interface IFileDropData {
-	name: string;
-	data: VSBuffer;
+interface IFileTransferData {
+	resource: URI;
+	isDirectory?: boolean;
+	contents?: VSBuffer;
 }
 
-export function extractFilesDropData(accessor: ServicesAccessor, files: FileList, onResult: (file: IFileDropData) => void): void {
+export async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent): Promise<IFileTransferData[]> {
+
+	// Try to extract via `FileSystemHandle`
+	if (WebFileSystemAccess.supported(window)) {
+		const items = event.dataTransfer?.items;
+		if (items) {
+			return extractFileTransferData(accessor, items);
+		}
+	}
+
+	// Try to extract via `FileList`
+	const files = event.dataTransfer?.files;
+	if (!files) {
+		return [];
+	}
+
+	return extractFileListData(accessor, files);
+}
+
+async function extractFileTransferData(accessor: ServicesAccessor, items: DataTransferItemList): Promise<IFileTransferData[]> {
+	const fileSystemProvider = accessor.get(IFileService).getProvider(Schemas.file) as HTMLFileSystemProvider;
+
+	const results: DeferredPromise<IFileTransferData | undefined>[] = [];
+
+	for (let i = 0; i < items.length; i++) {
+		const file = items[i];
+		if (file) {
+			const result = new DeferredPromise<IFileTransferData | undefined>();
+			results.push(result);
+
+			(async () => {
+				try {
+					const handle = await file.getAsFileSystemHandle();
+					if (!handle) {
+						result.complete(undefined);
+						return;
+					}
+
+					if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
+						result.complete({
+							resource: await fileSystemProvider.registerFileHandle(handle),
+							isDirectory: false
+						});
+					} else if (WebFileSystemAccess.isFileSystemDirectoryHandle(handle)) {
+						result.complete({
+							resource: await fileSystemProvider.registerDirectoryHandle(handle),
+							isDirectory: true
+						});
+					} else {
+						result.complete(undefined);
+					}
+				} catch (error) {
+					result.complete(undefined);
+				}
+			})();
+		}
+	}
+
+	return coalesce(await Promise.all(results.map(result => result.p)));
+}
+
+export async function extractFileListData(accessor: ServicesAccessor, files: FileList): Promise<IFileTransferData[]> {
 	const dialogService = accessor.get(IDialogService);
+
+	const results: DeferredPromise<IFileTransferData | undefined>[] = [];
 
 	for (let i = 0; i < files.length; i++) {
 		const file = files.item(i);
@@ -191,24 +258,34 @@ export function extractFilesDropData(accessor: ServicesAccessor, files: FileList
 				continue;
 			}
 
-			// Read file fully and open as untitled editor
+			const result = new DeferredPromise<IFileTransferData | undefined>();
+			results.push(result);
+
 			const reader = new FileReader();
-			reader.readAsArrayBuffer(file);
+
+			reader.onerror = () => result.complete(undefined);
+			reader.onabort = () => result.complete(undefined);
+
 			reader.onload = async event => {
 				const name = file.name;
-				const result = withNullAsUndefined(event.target?.result);
-				if (typeof name !== 'string' || typeof result === 'undefined') {
+				const loadResult = withNullAsUndefined(event.target?.result);
+				if (typeof name !== 'string' || typeof loadResult === 'undefined') {
+					result.complete(undefined);
 					return;
 				}
 
-				// Yield result
-				onResult({
-					name,
-					data: typeof result === 'string' ? VSBuffer.fromString(result) : VSBuffer.wrap(new Uint8Array(result))
+				result.complete({
+					resource: URI.from({ scheme: Schemas.untitled, path: name }),
+					contents: typeof loadResult === 'string' ? VSBuffer.fromString(loadResult) : VSBuffer.wrap(new Uint8Array(loadResult))
 				});
 			};
+
+			// Start reading
+			reader.readAsArrayBuffer(file);
 		}
 	}
+
+	return coalesce(await Promise.all(results.map(result => result.p)));
 }
 
 export interface IResourcesDropHandlerOptions {
