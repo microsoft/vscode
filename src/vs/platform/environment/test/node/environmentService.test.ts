@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { URI } from 'vs/base/common/uri';
 import { parseExtensionHostPort } from 'vs/platform/environment/common/environmentService';
 import { OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -66,5 +70,32 @@ suite('EnvironmentService', () => {
 
 		const service2 = new NativeEnvironmentService(args, { _serviceBrand: undefined, ...product });
 		assert.notStrictEqual(service1.userDataPath, service2.userDataPath);
+	});
+
+	// https://github.com/microsoft/vscode/issues/118973
+	// https://github.com/microsoft/vscode/issues/129023
+	test('symlinked HOME is canonicalized', () => {
+		function setHome(home: string) {
+			if (process.platform === 'win32') {
+				process.env.USERPROFILE = home;
+			} else {
+				process.env.HOME = home;
+			}
+		}
+
+		const oldHome = os.homedir();
+		const pwd = process.cwd();
+		const symlinkedHome = path.join(pwd, 'symlinked');
+		const canonicalHome = path.join(pwd, 'canonical');
+		fs.mkdirSync(canonicalHome);
+		fs.symlinkSync(canonicalHome, symlinkedHome);
+		setHome(symlinkedHome);
+
+		const service1 = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
+		assert.deepStrictEqual(service1.userHome, URI.file(canonicalHome));
+
+		fs.rmSync(symlinkedHome, { recursive: true });
+		fs.rmdirSync(canonicalHome);
+		setHome(oldHome);
 	});
 });

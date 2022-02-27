@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { homedir, tmpdir } from 'os';
+import { realpathSync } from 'vs/base/node/extpath';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
@@ -13,7 +14,7 @@ export class NativeEnvironmentService extends AbstractNativeEnvironmentService {
 
 	constructor(args: NativeParsedArgs, productService: IProductService) {
 		super(args, {
-			homeDir: homedir(),
+			homeDir: realpathSync(homedir()),
 			tmpDir: tmpdir(),
 			userDataDir: getUserDataPath(args)
 		}, productService);
