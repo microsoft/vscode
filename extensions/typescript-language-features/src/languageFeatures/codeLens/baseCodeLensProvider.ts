@@ -72,6 +72,6 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 			results.push(range);
 		}
 
-		(item.childItems || []).forEach(child => this.walkNavTree(document, child, item, results));
+		item.childItems?.forEach(child => this.walkNavTree(document, child, item, results));
 	}
 }
