@@ -75,10 +75,6 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 		parent: Proto.NavigationTree | null,
 		results: vscode.Range[]
 	): void {
-		if (!item) {
-			return;
-		}
-
 		const range = this.extractSymbol(item, parent);
 		if (range) {
 			results.push(range);
