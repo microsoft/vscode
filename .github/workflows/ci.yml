@@ -13,7 +13,7 @@ on:
 jobs:
   windows:
     name: Windows
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
@@ -61,6 +61,8 @@ jobs:
           # update node-gyp to latest for support in detecting VS 2022 toolchain
           npm install -g node-gyp@latest
           # Resolve to node-gyp.js
+          # Remove this once node-version > 17.4.x or > 16.14.0,
+          # which ships with npm > 8.4.0 that has support for VS 2022 toolchain.
           $env:npm_config_node_gyp=$(Join-Path $(Get-Command node-gyp.cmd).Path "..\node_modules\node-gyp\bin\node-gyp.js" -Resolve)
           yarn --frozen-lockfile --network-timeout 180000
       - name: Create node_modules archive
