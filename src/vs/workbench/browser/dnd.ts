@@ -221,7 +221,10 @@ async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent
 }
 
 async function extractFileTransferData(accessor: ServicesAccessor, items: DataTransferItemList): Promise<IFileTransferData[]> {
-	const fileSystemProvider = accessor.get(IFileService).getProvider(Schemas.file) as HTMLFileSystemProvider;
+	const fileSystemProvider = accessor.get(IFileService).getProvider(Schemas.file);
+	if (!(fileSystemProvider instanceof HTMLFileSystemProvider)) {
+		return []; // only supported when running in web
+	}
 
 	const results: DeferredPromise<IFileTransferData | undefined>[] = [];
 
