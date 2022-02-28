@@ -474,7 +474,22 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private mdCache = new ResourceMap<Promise<string>>();
-	private async readAndCacheStepMarkdown(path: URI): Promise<string> {
+	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
+
+		const transformUri = (src: string) => {
+			const path = joinPath(base, src);
+			return asWebviewUri(path).toString();
+		};
+		const transformUris = (content: string): string => content
+			.replace(/src="([^"]*)"/g, (_, src: string) => {
+				if (src.startsWith('https://')) { return `src="${src}"`; }
+				return `src="${transformUri(src)}"`;
+			})
+			.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, title: string, src: string) => {
+				if (src.startsWith('https://')) { return `![${title}](${src})`; }
+				return `![${title}](${transformUri(src)})`;
+			});
+
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
 				try {
@@ -483,7 +498,7 @@ export class GettingStartedPage extends EditorPane {
 						return new Promise<string>(resolve => {
 							require([moduleId], content => {
 								const markdown = content.default();
-								resolve(renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true));
+								resolve(renderMarkdownDocument(transformUris(markdown), this.extensionService, this.languageService, true, true));
 							});
 						});
 					}
@@ -512,7 +527,7 @@ export class GettingStartedPage extends EditorPane {
 								: path);
 
 					const markdown = bytes.value.toString();
-					return renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true);
+					return renderMarkdownDocument(transformUris(markdown), this.extensionService, this.languageService, true, true);
 				} catch (e) {
 					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
 					return '';
@@ -772,17 +787,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {
-		const content = await this.readAndCacheStepMarkdown(path);
+		const content = await this.readAndCacheStepMarkdown(path, base);
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
-
-		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src: string) => {
-			if (src.startsWith('https://')) { return `src="${src}"`; }
-
-			const path = joinPath(base, src);
-			const transformed = asWebviewUri(path).toString();
-			return `src="${transformed}"`;
-		});
 
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 
@@ -854,7 +861,7 @@ export class GettingStartedPage extends EditorPane {
 			</head>
 			<body>
 				<vertically-centered>
-					${uriTranformedContent}
+					${content}
 				</vertically-centered>
 			</body>
 			<script nonce="${nonce}">
