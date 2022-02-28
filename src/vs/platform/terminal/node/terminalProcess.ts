@@ -19,7 +19,7 @@ import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
-import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 const enum ShutdownConstants {
@@ -188,13 +188,25 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		this._logService.info('options', this._options);
+		let injection: IShellIntegrationInjection | undefined;
 		if (this._options.shellIntegration) {
 			// TODO: Do injection here
-			const injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration);
+			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration);
 			if (!injection) {
 				this._logService.warn(`Shell integration cannot be enabled for executable "${this.shellLaunchConfig.executable}" and args`, this.shellLaunchConfig.args);
+			} else {
+				// TODO: Remove this log
+				this._logService.info('injection', injection);
+				if (injection.envMixin) {
+					for (const [key, value] of Object.entries(injection.envMixin)) {
+						this._ptyOptions.env ||= {};
+						this._ptyOptions.env[key] = value;
+					}
+				}
+				if (injection.copyFiles) {
+					// TODO: Handle files
+				}
 			}
-			this._logService.info('injection', injection);
 		}
 
 		// Handle zsh shell integration - Set $ZDOTDIR to a temp dir and create $ZDOTDIR/.zshrc
@@ -209,7 +221,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		try {
-			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions);
+			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -259,8 +271,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		return undefined;
 	}
 
-	private async setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): Promise<void> {
-		const args = shellLaunchConfig.args || [];
+	private async setupPtyProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		options: pty.IPtyForkOptions,
+		shellIntegrationInjection: IShellIntegrationInjection | undefined
+	): Promise<void> {
+		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);

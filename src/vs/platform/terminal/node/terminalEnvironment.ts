@@ -114,6 +114,7 @@ export function getShellIntegrationInjection(
 
 	const originalArgs = shellLaunchConfig.args;
 	const shell = path.basename(shellLaunchConfig.executable).toLowerCase();
+	const appRoot = path.dirname(FileAccess.asFileUri('', require).fsPath);
 	let newArgs: string[] | undefined;
 
 	// Windows
@@ -130,7 +131,7 @@ export function getShellIntegrationInjection(
 			if (newArgs) {
 				const additionalArgs = options.showWelcome ? '' : ' -HideWelcome';
 				newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], additionalArgs);
+				newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, additionalArgs);
 			}
 			return { newArgs };
 		}
@@ -151,6 +152,8 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			if (!options.showWelcome) {
 				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
 			}
@@ -167,7 +170,7 @@ export function getShellIntegrationInjection(
 			}
 			const additionalArgs = options.showWelcome ? '' : ' -HideWelcome';
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], additionalArgs);
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, additionalArgs);
 			return { newArgs };
 		}
 		case 'zsh': {
@@ -181,11 +184,13 @@ export function getShellIntegrationInjection(
 			if (!newArgs) {
 				return undefined;
 			}
+			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			// Move .zshrc into $ZDOTDIR as the way to activate the script
 			const zdotdir = path.join(os.tmpdir(), 'vscode-zsh');
 			envMixin['ZDOTDIR'] = zdotdir;
 			copyFiles.push({
-				source: path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh'),
+				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
 			if (!options.showWelcome) {
@@ -209,13 +214,13 @@ export enum ShellIntegrationExecutable {
 }
 
 export const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{0}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -command', '. \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
 const loginArgs = ['-login', '-l'];
 const pwshImpliedArgs = ['-nol', '-nologo'];
 
