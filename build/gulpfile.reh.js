@@ -39,7 +39,7 @@ const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
-	{ platform: 'darwin', arch: null },
+	{ platform: 'darwin', arch: null }, // TODO@server-darwin-arm64: See also postinstall.js which hard-codes remote to x64
 	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },
