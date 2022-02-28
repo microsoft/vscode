@@ -25,7 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getCharContainingOffset } from 'vs/base/common/strings';
 import { UTF8 } from 'vs/workbench/services/textfile/common/encoding';
-import { bufferToStream, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { bufferToReadable, bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
@@ -72,7 +72,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	private static readonly FIRST_LINE_NAME_MAX_LENGTH = 40;
 	private static readonly FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH = UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH * 10;
 
-	// support the special '${activeEditorLanguage}' language by
+	// Support the special '${activeEditorLanguage}' language by
 	// looking up the language id from the editor that is active
 	// before the untitled editor opens. This special id is only
 	// used for the initial language and can be changed after the
@@ -108,6 +108,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 	private cachedModelFirstLineWords: string | undefined = undefined;
 	get name(): string {
+
 		// Take name from first line if present and only if
 		// we have no associated file path. In that case we
 		// prefer the file name as title.
@@ -272,11 +273,19 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+		let content: VSBufferReadable | undefined = undefined;
 
-		// Fill in content the same way we would do when
-		// saving the file via the text file service
-		// encoding support (hardcode UTF-8)
-		const content = await this.textFileService.getEncodedReadable(this.resource, withNullAsUndefined(this.createSnapshot()), { encoding: UTF8 });
+		// Make sure to check whether this model has been resolved
+		// or not and fallback to the initial value - if any - to
+		// prevent backing up an unresolved model and loosing the
+		// initial value.
+		if (this.isResolved()) {
+			// Fill in content the same way we would do when saving the file
+			// via the text file service encoding support (hardcode UTF-8)
+			content = await this.textFileService.getEncodedReadable(this.resource, withNullAsUndefined(this.createSnapshot()), { encoding: UTF8 });
+		} else if (typeof this.initialValue === 'string') {
+			content = bufferToReadable(VSBuffer.fromString(this.initialValue));
+		}
 
 		return { content };
 	}
