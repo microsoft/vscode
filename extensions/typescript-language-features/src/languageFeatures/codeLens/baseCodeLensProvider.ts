@@ -56,11 +56,8 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 			return [];
 		}
 
-		const tree = response.body;
 		const referenceableSpans: vscode.Range[] = [];
-		if (tree && tree.childItems) {
-			tree.childItems.forEach(item => this.walkNavTree(document, item, undefined, referenceableSpans));
-		}
+		response.body?.childItems?.forEach(item => this.walkNavTree(document, item, undefined, referenceableSpans));
 		return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
 	}
 
