@@ -235,7 +235,7 @@ const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build'
 ));
 gulp.task(compileWebExtensionsBuildTask);
 
-const dashed = (str) => (str ? `-${str}` : ``);
+const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 
 ['', 'min'].forEach(minified => {
 	const sourceFolderName = `out-vscode-web${dashed(minified)}`;
