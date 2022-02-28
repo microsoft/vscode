@@ -492,6 +492,7 @@ export interface ITerminalInstance {
 	 * Whether an element within this terminal is focused.
 	 */
 	readonly hasFocus: boolean;
+
 	/**
 	 * An event that fires when the terminal instance's title changes.
 	 */
