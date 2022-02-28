@@ -13,7 +13,7 @@ on:
 jobs:
   windows:
     name: Windows
-    runs-on: windows-2019
+    runs-on: windows-latest
     timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
@@ -57,7 +57,12 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: |
+          # update node-gyp to latest for support in detecting VS 2022 toolchain
+          npm install -g node-gyp@latest
+          # Resolve to node-gyp.js
+          $env:npm_config_node_gyp=$(Join-Path $(Get-Command node-gyp.cmd).Path "..\node_modules\node-gyp\bin\node-gyp.js" -Resolve)
+          yarn --frozen-lockfile --network-timeout 180000
       - name: Create node_modules archive
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
