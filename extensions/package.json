@@ -4,7 +4,7 @@
   "license": "MIT",
   "description": "Dependencies shared by all extensions",
   "dependencies": {
-    "typescript": "^4.6.1-rc"
+    "typescript": "^4.6.2-insiders.20220225"
   },
   "scripts": {
     "postinstall": "node ./postinstall"

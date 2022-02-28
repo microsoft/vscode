@@ -55,5 +55,13 @@ function processLib() {
 	}
 }
 
+function patchVersion() {
+	const packageJsonPath = path.join(root, 'package.json');
+	const json = JSON.parse(fs.readFileSync(packageJsonPath).toString());
+	json.version = '4.6.1';
+	fs.writeFileSync(packageJsonPath, JSON.stringify(json, null, 2));
+}
+
 processRoot();
 processLib();
+patchVersion();
