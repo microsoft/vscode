@@ -18,7 +18,7 @@ import { IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Mimes } from 'vs/base/common/mime';
-import { isWindows } from 'vs/base/common/platform';
+import { isWeb, isWindows } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -69,7 +69,7 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 	isExternal?: boolean;
 }
 
-export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEditorInput> {
+export async function extractEditorsDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
@@ -130,6 +130,18 @@ export function extractEditorsDropData(e: DragEvent): Array<IDraggedResourceEdit
 				}
 			} catch (error) {
 				// Invalid transfer
+			}
+		}
+
+		// Web: Check for file transfer
+		if (isWeb && containsDragType(e, DataTransfers.FILES)) {
+			const files = e.dataTransfer.items;
+			if (files) {
+				const instantiationService = accessor.get(IInstantiationService);
+				const filesData = (await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e))).filter(fileData => !fileData.isDirectory);
+				for (const fileData of filesData) {
+					editors.push({ resource: fileData.resource, contents: fileData.contents?.toString() });
+				}
 			}
 		}
 	}
@@ -311,12 +323,13 @@ export class ResourcesDropHandler {
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IHostService private readonly hostService: IHostService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
 	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
-		const editors = extractEditorsDropData(event);
+		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsDropData(accessor, event));
 		if (!editors.length) {
 			return;
 		}

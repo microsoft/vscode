@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/tabstitlecontrol';
-import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
 import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -29,7 +29,7 @@ import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground, breadcrumbsBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver, DraggedTreeItemsIdentifier, extractTreeDropData, containsDragType, extractFilesDropData } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -53,7 +53,6 @@ import { equals } from 'vs/base/common/objects';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
-import { DataTransfers } from 'vs/base/browser/dnd';
 
 interface EditorInputLabel {
 	name?: string;
@@ -1797,9 +1796,8 @@ export class TabsTitleControl extends TitleControl {
 		// Check for group transfer
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
-			if (data) {
+			if (Array.isArray(data)) {
 				const sourceGroup = this.accessor.getGroup(data[0].identifier);
-
 				if (sourceGroup) {
 					const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
 					if (!this.isMoveOperation(e, sourceGroup.id)) {
@@ -1820,7 +1818,6 @@ export class TabsTitleControl extends TitleControl {
 			if (Array.isArray(data)) {
 				const draggedEditor = data[0].identifier;
 				const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
-
 				if (sourceGroup) {
 
 					// Move editor to target position and index
@@ -1866,26 +1863,6 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);
-		}
-
-		// Web: check for file transfer
-		else if (isWeb && containsDragType(e, DataTransfers.FILES)) {
-			const files = e.dataTransfer?.items;
-			if (files) {
-				const filesData = (await this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e))).filter(fileData => !fileData.isDirectory);
-				if (filesData.length) {
-					this.editorService.openEditors(filesData.map(fileData => {
-						return {
-							resource: fileData.resource,
-							contents: fileData.contents?.toString(),
-							options: {
-								pinned: true,
-								index: targetIndex
-							}
-						};
-					}), this.group);
-				}
-			}
 		}
 
 		// Check for URI transfer
