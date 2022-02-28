@@ -59,20 +59,20 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 		const tree = response.body;
 		const referenceableSpans: vscode.Range[] = [];
 		if (tree && tree.childItems) {
-			tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
+			tree.childItems.forEach(item => this.walkNavTree(document, item, undefined, referenceableSpans));
 		}
 		return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
 	}
 
 	protected abstract extractSymbol(
 		item: Proto.NavigationTree,
-		parent: Proto.NavigationTree | null
+		parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined;
 
 	private walkNavTree(
 		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
-		parent: Proto.NavigationTree | null,
+		parent: Proto.NavigationTree | undefined,
 		results: vscode.Range[]
 	): void {
 		const range = this.extractSymbol(item, parent);

@@ -67,7 +67,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 
 	protected extractSymbol(
 		item: Proto.NavigationTree,
-		_parent: Proto.NavigationTree | null
+		_parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
 		if (!item.nameSpan) {
 			return undefined;
