@@ -20,7 +20,7 @@ import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Mimes } from 'vs/base/common/mime';
 import { isWeb, isWindows } from 'vs/base/common/platform';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -65,7 +65,7 @@ export const CodeDataTransfers = {
 };
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
-	resource?: URI;
+	resource: URI | undefined;
 	isExternal?: boolean;
 }
 
@@ -495,7 +495,10 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// Extract resource editor from provided object or URI
 		let editor: IDraggedResourceEditorInput | undefined = undefined;
 		if (isEditorIdentifier(resourceOrEditor)) {
-			editor = resourceOrEditor.editor.toUntyped({ preserveViewState: resourceOrEditor.groupId });
+			const untypedEditor = resourceOrEditor.editor.toUntyped({ preserveViewState: resourceOrEditor.groupId });
+			if (untypedEditor) {
+				editor = { ...untypedEditor, resource: EditorResourceAccessor.getCanonicalUri(untypedEditor) };
+			}
 		} else if (URI.isUri(resourceOrEditor)) {
 			const { selection, uri } = extractSelection(resourceOrEditor);
 			editor = { resource: uri, options: selection ? { selection } : undefined };

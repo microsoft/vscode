@@ -298,17 +298,8 @@ class DropOverlay extends Themable {
 				for (const id of data) {
 					const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
 					if (dataTransferItem) {
-						const extractedDropData = await extractTreeDropData(dataTransferItem);
-						editors.push(...extractedDropData.map(editor => {
-							return {
-								...editor,
-								resource: editor.resource,
-								options: {
-									...editor.options,
-									pinned: true
-								}
-							};
-						}));
+						const treeDropData = await extractTreeDropData(dataTransferItem);
+						editors.push(...treeDropData.map(editor => ({ ...editor, options: { ...editor.options, pinned: true } })));
 					}
 				}
 
