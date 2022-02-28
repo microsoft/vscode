@@ -8,8 +8,6 @@ import * as nls from 'vscode-nls';
 import type * as Proto from '../../protocol';
 import { CachedResponse } from '../../tsServer/cachedResponse';
 import { ITypeScriptServiceClient } from '../../typescriptService';
-import { escapeRegExp } from '../../utils/regexp';
-import * as typeConverters from '../../utils/typeConverters';
 
 const localize = nls.loadMessageBundle();
 
@@ -67,10 +65,9 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 	}
 
 	protected abstract extractSymbol(
-		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
 		parent: Proto.NavigationTree | null
-	): vscode.Range | null;
+	): vscode.Range | undefined;
 
 	private walkNavTree(
 		document: vscode.TextDocument,
@@ -82,37 +79,11 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 			return;
 		}
 
-		const range = this.extractSymbol(document, item, parent);
+		const range = this.extractSymbol(item, parent);
 		if (range) {
 			results.push(range);
 		}
 
 		(item.childItems || []).forEach(child => this.walkNavTree(document, child, item, results));
 	}
-}
-
-export function getSymbolRange(
-	document: vscode.TextDocument,
-	item: Proto.NavigationTree
-): vscode.Range | null {
-	if (item.nameSpan) {
-		return typeConverters.Range.fromTextSpan(item.nameSpan);
-	}
-
-	// In older versions, we have to calculate this manually. See #23924
-	const span = item.spans && item.spans[0];
-	if (!span) {
-		return null;
-	}
-
-	const range = typeConverters.Range.fromTextSpan(span);
-	const text = document.getText(range);
-
-	const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${escapeRegExp(item.text || '')}(\\b|\\W)`, 'gm');
-	const match = identifierMatch.exec(text);
-	const prefixLength = match ? match.index + match[1].length : 0;
-	const startOffset = document.offsetAt(new vscode.Position(range.start.line, range.start.character)) + prefixLength;
-	return new vscode.Range(
-		document.positionAt(startOffset),
-		document.positionAt(startOffset + item.text.length));
 }
