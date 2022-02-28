@@ -17,9 +17,9 @@ import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 const enum ShutdownConstants {
@@ -132,7 +132,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		 * environment used for `findExecutable`
 		 */
 		private readonly _executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		private readonly _options: ITerminalProcessOptions,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
@@ -147,7 +147,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConpty = this._options.windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
 			cwd,
@@ -185,6 +185,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const firstError = results.find(r => r !== undefined);
 		if (firstError) {
 			return firstError;
+		}
+
+		this._logService.info('options', this._options);
+		if (this._options.shellIntegration) {
+			// TODO: Do injection here
+			const injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration);
+			this._logService.info('injection', injection);
 		}
 
 		// Handle zsh shell integration - Set $ZDOTDIR to a temp dir and create $ZDOTDIR/.zshrc

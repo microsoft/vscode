@@ -21,7 +21,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, ITerminalProcessOptions, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -281,6 +281,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							shellLaunchConfig.env['_ZDOTDIR'] = '1';
 						}
 
+						const options: ITerminalProcessOptions = {
+							shellIntegration: {
+								enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
+								showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+							},
+							windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
+						};
+
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
@@ -288,7 +296,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							rows,
 							this._configHelper.config.unicodeVersion,
 							env, // TODO:
-							true, // TODO: Fix enable
+							options,
 							shouldPersist
 						);
 					} catch (e) {
@@ -469,9 +477,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			});
 		}
 		this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
-		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
+		const options: ITerminalProcessOptions = {
+			shellIntegration: {
+				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
+				showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+			},
+			windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
+		};
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
-		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, useConpty, shouldPersist);
+		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, options, shouldPersist);
 	}
 
 	private _setupPtyHostListeners(backend: ITerminalBackend) {

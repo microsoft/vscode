@@ -263,7 +263,7 @@ export interface IPtyService extends IPtyHostController {
 		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		options: ITerminalProcessOptions,
 		shouldPersist: boolean,
 		workspaceId: string,
 		workspaceName: string
@@ -331,6 +331,7 @@ export interface ISerializedTerminalState {
 	id: number;
 	shellLaunchConfig: IShellLaunchConfig;
 	processDetails: IProcessDetails;
+	// TODO: "Options" is a bad name here, rename to not confuse with ITerminalProcessOptions
 	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
 	unicodeVersion: '6' | '11';
 	replayEvent: IPtyHostProcessReplayEvent;
@@ -340,7 +341,7 @@ export interface ISerializedTerminalState {
 export interface IPersistentTerminalProcessLaunchOptions {
 	env: IProcessEnvironment;
 	executableEnv: IProcessEnvironment;
-	windowsEnableConpty: boolean;
+	options: ITerminalProcessOptions;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -537,6 +538,18 @@ export interface IShellLaunchConfigDto {
 	env?: ITerminalEnvironment;
 	useShellEnvironment?: boolean;
 	hideFromUser?: boolean;
+}
+
+/**
+ * A set of options for the terminal process. These differ from the shell launch config in that they
+ * are set internally to the terminal component, not from the outside.
+ */
+export interface ITerminalProcessOptions {
+	shellIntegration: {
+		enabled: boolean;
+		showWelcome: boolean;
+	};
+	windowsEnableConpty: boolean;
 }
 
 export interface ITerminalEnvironment {

@@ -10,6 +10,7 @@ import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
 import { isString } from 'vs/base/common/types';
 import * as pfs from 'vs/base/node/pfs';
+import { IShellLaunchConfig, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -71,4 +72,35 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 	}
 	const fullPath = path.join(cwd, command);
 	return await exists(fullPath) ? fullPath : undefined;
+}
+
+export interface IShellIntegrationInjection {
+	/**
+	 * A new set of arguments to use.
+	 */
+	newArgs: string[] | undefined;
+	/**
+	 * An optional environment to mixing to the real environment.
+	 */
+	envMixin?: IProcessEnvironment;
+	/**
+	 * An optional array of files to copy from `source` to `dest`.
+	 */
+	copyFiles?: {
+		source: string;
+		dest: string;
+	}[];
+}
+
+/**
+ * For a given shell launch config, returns arguments to replace and an optional environment to
+ * mixin to the SLC's environment to enable shell integration. This must be run within the context
+ * that creates the process to ensure accuracy. Returns undefined if shell integration cannot be
+ * enabled.
+ */
+export function getShellIntegrationInjection(
+	shellLaunchConfig: IShellLaunchConfig,
+	options: ITerminalProcessOptions['shellIntegration']
+): IShellIntegrationInjection | undefined {
+	return undefined;
 }
