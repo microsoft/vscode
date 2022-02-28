@@ -14,6 +14,7 @@ import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { fromNow } from 'vs/base/common/date';
 import { debounce } from 'vs/base/common/decorators';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
@@ -638,7 +639,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	protected async _createXterm(): Promise<XtermTerminal> {
 		const Terminal = await getXtermConstructor();
 		if (this._isDisposed) {
-			throw new Error('Terminal disposed of during xterm.js creation');
+			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
 
 		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities);
