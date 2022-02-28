@@ -58,7 +58,7 @@ function processLib() {
 function patchVersion() {
 	const packageJsonPath = path.join(root, 'package.json');
 	const json = JSON.parse(fs.readFileSync(packageJsonPath).toString());
-	json.version = '4.6.1';
+	json.version = '4.6.2';
 	fs.writeFileSync(packageJsonPath, JSON.stringify(json, null, 2));
 }
 
