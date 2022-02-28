@@ -145,10 +145,11 @@ class MessageWidget implements IContentWidget {
 
 		this._editor = editor;
 		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, ScrollType.Smooth);
-		this._position = { lineNumber, column: column - 1 };
+		this._position = { lineNumber, column };
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('monaco-editor-overlaymessage');
+		this._domNode.style.marginLeft = '-6px';
 
 		const anchorTop = document.createElement('div');
 		anchorTop.classList.add('anchor', 'top');
