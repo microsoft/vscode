@@ -6,7 +6,7 @@
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { hasWorkspaceFileExtension, isUntitledWorkspace, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, isSavedWorkspace, isUntitledWorkspace, IWorkspaceContextService, IWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, IEnterWorkspaceResult, IStoredWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -86,7 +86,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			}
 			case WorkbenchState.WORKSPACE: {
 				const configPathURI = this.getCurrentWorkspaceIdentifier()?.configPath;
-				if (configPathURI && !isUntitledWorkspace(configPathURI, this.environmentService)) {
+				if (configPathURI && isSavedWorkspace(configPathURI, this.environmentService)) {
 					return basename(configPathURI);
 				}
 				break;
