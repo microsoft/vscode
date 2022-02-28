@@ -473,6 +473,11 @@ export interface ITerminalInstance {
 	 */
 	readonly isDisconnected: boolean;
 
+	/*
+	 * Whether this terminal has been disposed of
+	 */
+	readonly isDisposed: boolean;
+
 	/**
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
@@ -487,7 +492,6 @@ export interface ITerminalInstance {
 	 * Whether an element within this terminal is focused.
 	 */
 	readonly hasFocus: boolean;
-
 	/**
 	 * An event that fires when the terminal instance's title changes.
 	 */
