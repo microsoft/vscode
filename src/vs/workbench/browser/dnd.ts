@@ -66,7 +66,19 @@ export const CodeDataTransfers = {
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
 	resource: URI | undefined;
+
+	/**
+	 * A hint that the source of the dragged editor input
+	 * might not be the application but some external tool.
+	 */
 	isExternal?: boolean;
+
+	/**
+	 * Whether we probe for the dropped editor to be a workspace
+	 * allowing to open it as workspace instead of opening as
+	 * editor.
+	 */
+	allowWorkspaceOpen?: boolean;
 }
 
 export async function extractEditorsDropData(accessor: ServicesAccessor, e: DragEvent): Promise<Array<IDraggedResourceEditorInput>> {
@@ -99,7 +111,7 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 				const file = e.dataTransfer.files[i];
 				if (file?.path /* Electron only */) {
 					try {
-						editors.push({ resource: URI.file(file.path), isExternal: true });
+						editors.push({ resource: URI.file(file.path), isExternal: true, allowWorkspaceOpen: true });
 					} catch (error) {
 						// Invalid URI
 					}
@@ -113,7 +125,7 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 			try {
 				const codeFiles: string[] = JSON.parse(rawCodeFiles);
 				for (const codeFile of codeFiles) {
-					editors.push({ resource: URI.file(codeFile), isExternal: true });
+					editors.push({ resource: URI.file(codeFile), isExternal: true, allowWorkspaceOpen: true });
 				}
 			} catch (error) {
 				// Invalid transfer
@@ -126,7 +138,7 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 			try {
 				const terminalEditors: string[] = JSON.parse(terminals);
 				for (const terminalEditor of terminalEditors) {
-					editors.push({ resource: URI.parse(terminalEditor), isExternal: true });
+					editors.push({ resource: URI.parse(terminalEditor) });
 				}
 			} catch (error) {
 				// Invalid transfer
@@ -138,9 +150,9 @@ export async function extractEditorsDropData(accessor: ServicesAccessor, e: Drag
 			const files = e.dataTransfer.items;
 			if (files) {
 				const instantiationService = accessor.get(IInstantiationService);
-				const filesData = (await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e))).filter(fileData => !fileData.isDirectory);
+				const filesData = await instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, e));
 				for (const fileData of filesData) {
-					editors.push({ resource: fileData.resource, contents: fileData.contents?.toString() });
+					editors.push({ resource: fileData.resource, contents: fileData.contents?.toString(), isExternal: true, allowWorkspaceOpen: fileData.isDirectory });
 				}
 			}
 		}
@@ -157,12 +169,7 @@ function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string |
 		for (const resourceRaw of resourcesRaw) {
 			if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
 				const { selection, uri } = extractSelection(URI.parse(resourceRaw));
-				editors.push({
-					resource: uri,
-					options: {
-						selection
-					}
-				});
+				editors.push({ resource: uri, options: { selection } });
 			}
 		}
 	}
@@ -194,7 +201,7 @@ interface IFileTransferData {
 	contents?: VSBuffer;
 }
 
-export async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent): Promise<IFileTransferData[]> {
+async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent): Promise<IFileTransferData[]> {
 
 	// Try to extract via `FileSystemHandle`
 	if (WebFileSystemAccess.supported(window)) {
@@ -337,11 +344,11 @@ export class ResourcesDropHandler {
 		// Make the window active to handle the drop properly within
 		await this.hostService.focus();
 
-		// Check for workspace file being dropped if we are allowed to do so
-		const externalLocalFiles = coalesce(editors.filter(editor => editor.isExternal && editor.resource?.scheme === Schemas.file).map(editor => editor.resource));
+		// Check for workspace file / folder being dropped if we are allowed to do so
 		if (this.options.allowWorkspaceOpen) {
-			if (externalLocalFiles.length > 0) {
-				const isWorkspaceOpening = await this.handleWorkspaceFileDrop(externalLocalFiles);
+			const localFilesAllowedToOpenAsWorkspace = coalesce(editors.filter(editor => editor.allowWorkspaceOpen && editor.resource?.scheme === Schemas.file).map(editor => editor.resource));
+			if (localFilesAllowedToOpenAsWorkspace.length > 0) {
+				const isWorkspaceOpening = await this.handleWorkspaceFileDrop(localFilesAllowedToOpenAsWorkspace);
 				if (isWorkspaceOpening) {
 					return; // return early if the drop operation resulted in this window changing to a workspace
 				}
@@ -350,6 +357,7 @@ export class ResourcesDropHandler {
 
 		// Add external ones to recently open list unless dropped resource is a workspace
 		// and only for resources that are outside of the currently opened workspace
+		const externalLocalFiles = coalesce(editors.filter(editor => editor.isExternal && editor.resource?.scheme === Schemas.file).map(editor => editor.resource));
 		if (externalLocalFiles.length) {
 			this.workspacesService.addRecentlyOpened(externalLocalFiles
 				.filter(resource => !this.contextService.isInsideWorkspace(resource))
