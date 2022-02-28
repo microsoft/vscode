@@ -12,14 +12,28 @@ const { ipcRenderer } = require('electron');
 const builtInExtensionsPath = path.join(__dirname, '..', '..', 'product.json');
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 
+/**
+ * @param {string} filePath
+ */
 function readJson(filePath) {
 	return JSON.parse(fs.readFileSync(filePath, { encoding: 'utf8' }));
 }
 
+/**
+ * @param {string} filePath
+ * @param {any} obj
+ */
 function writeJson(filePath, obj) {
 	fs.writeFileSync(filePath, JSON.stringify(obj, null, 2));
 }
 
+/**
+ * @param {HTMLFormElement} form
+ * @param {string} id
+ * @param {string} title
+ * @param {string} value
+ * @param {boolean} checked
+ */
 function renderOption(form, id, title, value, checked) {
 	const input = document.createElement('input');
 	input.type = 'radio';
@@ -37,7 +51,14 @@ function renderOption(form, id, title, value, checked) {
 	return input;
 }
 
+/**
+ * @param {HTMLElement} el
+ * @param {any} state
+ */
 function render(el, state) {
+	/**
+	 * @param {any} state
+	 */
 	function setState(state) {
 		try {
 			writeJson(controlFilePath, state.control);
@@ -115,7 +136,9 @@ function main() {
 		control = {};
 	}
 
-	render(el, { builtin, control });
+	if (el) {
+		render(el, { builtin, control });
+	}
 }
 
 window.onload = main;
