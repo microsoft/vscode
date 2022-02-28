@@ -56,10 +56,13 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 		};
 
 		const historicalResolver = async () => {
-			if (langBiases) {
-				const regexpDetection = await this.runRegexpModel(documentTextSample, langBiases);
-				if (regexpDetection) {
-					return regexpDetection;
+			// only detect when we have at least a line of data
+			if (documentTextSample.length > 20 || documentTextSample.includes('\n')) {
+				if (langBiases) {
+					const regexpDetection = await this.runRegexpModel(documentTextSample, langBiases);
+					if (regexpDetection) {
+						return regexpDetection;
+					}
 				}
 			}
 			return undefined;
