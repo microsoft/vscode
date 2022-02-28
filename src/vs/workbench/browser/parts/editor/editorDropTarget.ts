@@ -337,7 +337,9 @@ class DropOverlay extends Themable {
 						return {
 							resource: fileData.resource,
 							contents: fileData.contents?.toString(),
-							options: { pinned: true }
+							options: {
+								pinned: true
+							}
 						};
 					}), targetGroup.id);
 				}

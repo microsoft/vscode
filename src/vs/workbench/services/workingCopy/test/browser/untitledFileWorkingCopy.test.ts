@@ -281,11 +281,6 @@ suite('UntitledFileWorkingCopy', () => {
 
 		workingCopy = createWorkingCopy(resource, false, 'Hello Initial');
 
-		let contentChangeCounter = 0;
-		workingCopy.onDidChangeContent(() => {
-			contentChangeCounter++;
-		});
-
 		assert.strictEqual(workingCopy.isDirty(), true);
 
 		const backup = (await workingCopy.backup(CancellationToken.None)).content;
