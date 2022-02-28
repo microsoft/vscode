@@ -33,7 +33,7 @@
     "gulp": "node --max_old_space_size=8192 ./node_modules/gulp/bin/gulp.js",
     "electron": "node build/lib/electron",
     "7z": "7z",
-    "update-grammars": "node build/npm/update-all-grammars.js",
+    "update-grammars": "node build/npm/update-all-grammars.mjs",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
     "smoketest": "node build/lib/preLaunch.js && cd test/smoke && yarn compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
