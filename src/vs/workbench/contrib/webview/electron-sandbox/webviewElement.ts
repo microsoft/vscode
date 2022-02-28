@@ -93,7 +93,8 @@ export class ElectronWebviewElement extends WebviewElement {
 	}
 
 	protected override get webviewContentEndpoint(): string {
-		return `${Schemas.vscodeWebview}://${this.iframeId}`;
+		const origin = this.extension?.id.value ?? this.iframeId;
+		return `${Schemas.vscodeWebview}://${origin}`;
 	}
 
 	protected override streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
