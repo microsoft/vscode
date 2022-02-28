@@ -67,6 +67,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	declare readonly _serviceBrand: undefined;
 
+	protected rootContainer!: HTMLElement;
 	protected title!: HTMLElement;
 
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -355,7 +356,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 
-		this.menubar = this.element.insertBefore($('div.menubar'), this.title);
+		this.menubar = this.rootContainer.insertBefore($('div.menubar'), this.title);
 		this.menubar.setAttribute('role', 'menubar');
 
 		this.customMenubar.create(this.menubar);
@@ -365,10 +366,11 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+		this.rootContainer = append(parent, $('.titlebar-container'));
 
 		// App Icon (Native Windows/Linux and Web)
 		if (!isMacintosh || isWeb) {
-			this.appIcon = prepend(this.element, $('a.window-appicon'));
+			this.appIcon = prepend(this.rootContainer, $('a.window-appicon'));
 
 			// Web-only home indicator and menu
 			if (isWeb) {
@@ -394,7 +396,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Title
-		this.title = append(this.element, $('div.window-title'));
+		this.title = append(this.rootContainer, $('div.window-title'));
 		if (this.pendingTitle) {
 			this.title.innerText = this.pendingTitle;
 		} else {
@@ -402,7 +404,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		if (this.titleBarStyle !== 'native') {
-			this.windowControls = append(this.element, $('div.window-controls-container'));
+			this.windowControls = append(this.rootContainer, $('div.window-controls-container'));
 			this.windowControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
 
 			const layoutDropdownContainer = append(this.windowControls, $('div.layout-dropdown-container'));
@@ -557,15 +559,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
 			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if ((!isWeb && isMacintosh) || this.currentMenubarVisibility === 'hidden') {
-				(this.title.style as any).zoom = `${1 / getZoomFactor()}`;
-				if (this.windowControls) {
-					(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
-				}
+				this.rootContainer.style.height = `${100.0 * getZoomFactor()}%`;
+				this.rootContainer.style.width = `${100.0 * getZoomFactor()}%`;
+				this.rootContainer.style.transform = `scale(${1 / getZoomFactor()})`;
 			} else {
-				(this.title.style as any).zoom = '';
-				if (this.windowControls) {
-					(this.windowControls.style as any).zoom = '';
-				}
+				this.rootContainer.style.height = '100%';
+				this.rootContainer.style.width = '100%';
+				this.rootContainer.style.transform = '';
 			}
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());

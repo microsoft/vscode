@@ -245,6 +245,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		return this._rows;
 	}
+	get isDisposed(): boolean { return this._isDisposed; }
 	get fixedCols(): number | undefined { return this._fixedCols; }
 	get fixedRows(): number | undefined { return this._fixedRows; }
 	get maxCols(): number { return this._cols; }
@@ -783,13 +784,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				for (const entry of commands) {
 					// trim off any whitespace and/or line endings
 					const label = entry.command.trim();
-					if (label.length === 0) {
+					if (label.length === 0 || commandMap.has(label)) {
 						continue;
 					}
-					let description = fromNow(entry.timestamp, true);
-					if (entry.cwd) {
-						description += ` @ ${entry.cwd}`;
-					}
+					let description = `${entry.cwd}`;
 					if (entry.exitCode) {
 						// Since you cannot get the last command's exit code on pwsh, just whether it failed
 						// or not, -1 is treated specially as simply failed
@@ -804,7 +802,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					const buttons: IQuickInputButton[] = [{
 						iconClass,
 						tooltip: nls.localize('viewCommandOutput', "View Command Output"),
-						alwaysVisible: true
+						alwaysVisible: false
 					}];
 					// Merge consecutive commands
 					const lastItem = items.length > 0 ? items[items.length - 1] : undefined;
@@ -818,7 +816,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						description,
 						id: entry.timestamp.toString(),
 						command: entry,
-						buttons: (!entry.endMarker?.isDisposed && !entry.marker?.isDisposed && (entry.endMarker!.line - entry.marker!.line > 0)) ? buttons : undefined
+						buttons: entry.hasOutput ? buttons : undefined
 					});
 					commandMap.add(label);
 				}
@@ -1386,7 +1384,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	protected _createProcessManager(): TerminalProcessManager {
-		const processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper);
+		const processManager = this._instantiationService.createInstance(TerminalProcessManager, this._instanceId, this._configHelper, this.shellLaunchConfig?.cwd);
 		this.capabilities.add(processManager.capabilities);
 		processManager.onProcessReady(async (e) => {
 			this._onProcessIdReady.fire(this);

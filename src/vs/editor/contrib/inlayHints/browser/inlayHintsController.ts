@@ -245,24 +245,23 @@ export class InlayHintsController implements IEditorContribution {
 			labelPart.item.resolve(cts.token);
 
 			// render link => when the modifier is pressed and when there is a command or location
-			if ((labelPart.part.command || labelPart.part.location)) {
+			this._activeInlayHintPart = labelPart.part.command || labelPart.part.location
+				? new ActiveInlayHintInfo(labelPart, mouseEvent.hasTriggerModifier)
+				: undefined;
 
-				this._activeInlayHintPart = new ActiveInlayHintInfo(labelPart, mouseEvent.hasTriggerModifier);
-
-				const lineNumber = labelPart.item.hint.position.lineNumber;
-				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-				const lineHints = new Set<InlayHintItem>();
-				for (const data of this._decorationsMetadata.values()) {
-					if (range.containsRange(data.item.anchor.range)) {
-						lineHints.add(data.item);
-					}
+			const lineNumber = labelPart.item.hint.position.lineNumber;
+			const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
+			const lineHints = new Set<InlayHintItem>();
+			for (const data of this._decorationsMetadata.values()) {
+				if (range.containsRange(data.item.anchor.range)) {
+					lineHints.add(data.item);
 				}
-				this._updateHintsDecorators([range], Array.from(lineHints));
-				sessionStore.add(toDisposable(() => {
-					this._activeInlayHintPart = undefined;
-					this._updateHintsDecorators([range], Array.from(lineHints));
-				}));
 			}
+			this._updateHintsDecorators([range], Array.from(lineHints));
+			sessionStore.add(toDisposable(() => {
+				this._activeInlayHintPart = undefined;
+				this._updateHintsDecorators([range], Array.from(lineHints));
+			}));
 		}));
 		store.add(gesture.onCancel(() => sessionStore.clear()));
 		store.add(gesture.onExecute(async e => {
@@ -434,6 +433,11 @@ export class InlayHintsController implements IEditorContribution {
 					fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
 					verticalAlign: 'middle',
 				};
+
+				if (item.hint.command) {
+					// user pointer whenever an inlay hint has a command
+					cssProperties.cursor = 'pointer';
+				}
 
 				this._fillInColors(cssProperties, item.hint);
 

@@ -149,6 +149,6 @@ suite('Markdown path completion provider', () => {
 			`[](./sub/${CURSOR})`
 		));
 
-		assert.ok(completions.some(x => x.label === 'file%20with%20space.md'), 'Has encoded path completion');
+		assert.ok(completions.some(x => x.insertText === 'file%20with%20space.md'), 'Has encoded path completion');
 	});
 });

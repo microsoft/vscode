@@ -66,5 +66,5 @@ export function activate(
 }
 
 export function deactivate() {
-	fs.rmSync(temp.getInstanceTempDir(), { recursive: true, force: true });
+	fs.rmdirSync(temp.getInstanceTempDir(), { recursive: true });
 }

@@ -144,6 +144,13 @@ class PixelRatioFacade {
 	}
 }
 
+export function addMatchMediaChangeListener(query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => any): void {
+	if (typeof query === 'string') {
+		query = window.matchMedia(query);
+	}
+	query.addEventListener('change', callback);
+}
+
 /**
  * Returns the pixel ratio.
  *
@@ -186,4 +193,15 @@ export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
 export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
 export const isElectron = (userAgent.indexOf('Electron/') >= 0);
 export const isAndroid = (userAgent.indexOf('Android') >= 0);
-export const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+let standalone = false;
+if (window.matchMedia) {
+	const matchMedia = window.matchMedia('(display-mode: standalone)');
+	standalone = matchMedia.matches;
+	addMatchMediaChangeListener(matchMedia, ({ matches }) => {
+		standalone = matches;
+	});
+}
+export function isStandalone(): boolean {
+	return standalone;
+}

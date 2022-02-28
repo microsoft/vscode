@@ -144,8 +144,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 				// Entire file
 				else {
-					// TODO@electron: duplicate type definitions originate from `@types/node/stream/consumers.d.ts`
-					const reader: ReadableStreamDefaultReader<Uint8Array> = (file.stream() as unknown as ReadableStream<Uint8Array>).getReader();
+					const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
 
 					let res = await reader.read();
 					while (!res.done) {
@@ -314,11 +313,11 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		let handleId = `/${handle.name}`;
 
 		// Compute a valid handle ID in case this exists already
-		if (map.has(handleId)) {
+		if (map.has(handleId) && !await map.get(handleId)?.isSameEntry(handle)) {
 			let handleIdCounter = 2;
 			do {
 				handleId = `/${handle.name}-${handleIdCounter++}`;
-			} while (map.has(handleId));
+			} while (map.has(handleId) && !await map.get(handleId)?.isSameEntry(handle));
 		}
 
 		map.set(handleId, handle);

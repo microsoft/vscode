@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, Display, ipcMain, IpcMainEvent, screen } from 'electron';
+import { BrowserWindow, Display, ipcMain, IpcMainEvent, screen } from 'electron';
 import { arch, release, type } from 'os';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -337,11 +337,10 @@ export class IssueMainService implements ICommonIssueService {
 				nativeWindowOpen: true,
 				zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),
 				sandbox: true,
-				contextIsolation: true
+				contextIsolation: true,
 			},
-			alwaysOnTop: options.alwaysOnTop,
-			experimentalDarkMode: true
-		} as BrowserWindowConstructorOptions & { experimentalDarkMode: boolean });
+			alwaysOnTop: options.alwaysOnTop
+		});
 
 		window.setMenuBarVisibility(false);
 

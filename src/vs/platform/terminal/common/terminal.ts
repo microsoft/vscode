@@ -104,9 +104,10 @@ export const enum TerminalSettingId {
 	AutoReplies = 'terminal.integrated.autoReplies',
 	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
 	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
-	ShellIntegrationCommandIcon = 'terminal.integrated.shellIntegration.commandIcon',
-	ShellIntegrationCommandIconError = 'terminal.integrated.shellIntegration.commandIconError',
-	ShellIntegrationCommandIconDefault = 'terminal.integrated.shellIntegration.commandIconDefault',
+	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationDecorationIcon = 'terminal.integrated.shellIntegration.decorationIcon',
+	ShellIntegrationDecorationIconError = 'terminal.integrated.shellIntegration.decorationIconError',
+	ShellIntegrationDecorationIconSuccess = 'terminal.integrated.shellIntegration.decorationIconSuccess',
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
@@ -525,18 +526,6 @@ export const enum TerminalLocationString {
 	TerminalView = 'view',
 	Editor = 'editor'
 }
-
-export const enum TerminalCommandIcon {
-	TriangleRight = 'triangle-right',
-	ChevronRight = 'chevron-right',
-}
-
-export const enum TerminalCommandIconError {
-	TriangleRight = 'triangle-right',
-	ChevronRight = 'chevron-right',
-	X = 'x'
-}
-
 
 export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
 

@@ -16,7 +16,7 @@ import { basename } from 'vs/base/common/resources';
 import { triggerDownload, triggerUpload } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { extractFilesDropData } from 'vs/workbench/browser/dnd';
+import { extractFileListData } from 'vs/workbench/browser/dnd';
 import { Iterable } from 'vs/base/common/iterator';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
@@ -248,9 +248,16 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 				if (context === 'open') {
 					const files = await triggerUpload();
 					if (files) {
-						this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
-							this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() });
-						}));
+						const filesData = (await this.instantiationService.invokeFunction(accessor => extractFileListData(accessor, files))).filter(fileData => !fileData.isDirectory);
+						if (filesData.length > 0) {
+							this.editorService.openEditors(filesData.map(fileData => {
+								return {
+									resource: fileData.resource,
+									contents: fileData.contents?.toString(),
+									options: { pinned: true }
+								};
+							}));
+						}
 					}
 					break;
 				} else {

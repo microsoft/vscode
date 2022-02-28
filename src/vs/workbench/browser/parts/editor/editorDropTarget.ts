@@ -4,23 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, extractFilesDropData, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorIdentifier, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
-import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { GroupDirection, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { isMacintosh } from 'vs/base/common/platform';
+import { GroupDirection, IEditorGroupsService, IMergeGroupOptions, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 
 interface IDropOperation {
@@ -223,10 +221,7 @@ class DropOverlay extends Themable {
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
 			const data = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype);
 			if (Array.isArray(data)) {
-				const draggedEditorGroup = data[0].identifier;
-
-				// Return if the drop is a no-op
-				const sourceGroup = this.accessor.getGroup(draggedEditorGroup);
+				const sourceGroup = this.accessor.getGroup(data[0].identifier);
 				if (sourceGroup) {
 					if (typeof splitDirection !== 'number' && sourceGroup === this.groupView) {
 						return;
@@ -244,11 +239,12 @@ class DropOverlay extends Themable {
 
 					// Merge into existing group
 					else {
+						let mergeGroupOptions: IMergeGroupOptions | undefined = undefined;
 						if (this.isCopyOperation(event)) {
-							targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView, { mode: MergeGroupMode.COPY_EDITORS });
-						} else {
-							targetGroup = this.accessor.mergeGroup(sourceGroup, this.groupView);
+							mergeGroupOptions = { mode: MergeGroupMode.COPY_EDITORS };
 						}
+
+						this.accessor.mergeGroup(sourceGroup, this.groupView, mergeGroupOptions);
 					}
 
 					if (targetGroup) {
@@ -267,7 +263,6 @@ class DropOverlay extends Themable {
 				const draggedEditor = data[0].identifier;
 				const targetGroup = ensureTargetGroup();
 
-				// Return if the drop is a no-op
 				const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 				if (sourceGroup) {
 					if (sourceGroup === targetGroup) {
@@ -303,17 +298,8 @@ class DropOverlay extends Themable {
 				for (const id of data) {
 					const dataTransferItem = await this.treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
 					if (dataTransferItem) {
-						const extractedDropData = await extractTreeDropData(dataTransferItem);
-						editors.push(...extractedDropData.map(editor => {
-							return {
-								...editor,
-								resource: editor.resource,
-								options: {
-									...editor.options,
-									pinned: true
-								}
-							};
-						}));
+						const treeDropData = await extractTreeDropData(dataTransferItem);
+						editors.push(...treeDropData.map(editor => ({ ...editor, options: { ...editor.options, pinned: true } })));
 					}
 				}
 
@@ -321,22 +307,6 @@ class DropOverlay extends Themable {
 			}
 
 			this.treeItemsTransfer.clearData(DraggedTreeItemsIdentifier.prototype);
-		}
-
-		// Web: check for file transfer
-		else if (isWeb && containsDragType(event, DataTransfers.FILES)) {
-			let targetGroup: IEditorGroupView | undefined = undefined;
-
-			const files = event.dataTransfer?.files;
-			if (files) {
-				this.instantiationService.invokeFunction(accessor => extractFilesDropData(accessor, files, ({ name, data }) => {
-					if (!targetGroup) {
-						targetGroup = ensureTargetGroup();
-					}
-
-					this.editorService.openEditor({ resource: URI.from({ scheme: Schemas.untitled, path: name }), contents: data.toString() }, targetGroup.id);
-				}));
-			}
 		}
 
 		// Check for URI transfer

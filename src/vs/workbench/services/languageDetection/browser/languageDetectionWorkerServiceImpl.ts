@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILanguageDetectionService, ILanguageDetectionStats, LanguageDetectionStatsClassification, LanguageDetectionStatsId } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
-import { FileAccess } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -18,11 +18,14 @@ import { SimpleWorkerClient } from 'vs/base/common/worker/simpleWorker';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorWorkerClient, EditorWorkerHost } from 'vs/editor/browser/services/editorWorkerService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-// import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
-// import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
+import { ILogService } from 'vs/platform/log/common/log';
+
+const TOP_LANG_COUNTS = 12;
 
 const regexpModuleLocation = '../../../../../../node_modules/vscode-regexp-languagedetection';
 const regexpModuleLocationAsar = '../../../../../../node_modules.asar/vscode-regexp-languagedetection';
@@ -32,7 +35,9 @@ const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-l
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
 	static readonly historyBasedEnablementConfig = 'workbench.editor.historyBasedLanguageDetection';
-	static readonly openedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages';
+	static readonly preferHistoryConfig = 'workbench.editor.preferHistoryBasedLanguageDetection'; // hidden
+	static readonly workspaceOpenedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages.workspace';
+	static readonly globalOpenedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages.global';
 
 	_serviceBrand: undefined;
 
@@ -41,20 +46,22 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	private hasResolvedWorkspaceLanguageIds = false;
 	private workspaceLanguageIds = new Set<string>();
 	private sessionOpenedLanguageIds = new Set<string>();
-	private historicalGlobalOpenedLanguageIds = new LRUCache<string, true>(10);
-	private historicalWorkspaceOpenedLanguageIds = new LRUCache<string, true>(10);
+	private historicalGlobalOpenedLanguageIds = new LRUCache<string, true>(TOP_LANG_COUNTS);
+	private historicalWorkspaceOpenedLanguageIds = new LRUCache<string, true>(TOP_LANG_COUNTS);
+	private dirtyBiases: boolean = true;
+	private langBiases: Record<string, number> = {};
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		// @todo: jkearl: IDiagnosticsService not available in remote/web contexts.
-		// @IDiagnosticsService private readonly _diagnosticsService: IDiagnosticsService,
-		// @IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IDiagnosticsService private readonly _diagnosticsService: IDiagnosticsService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IModelService modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
+		@ILogService private readonly _logService: ILogService,
 		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
@@ -81,16 +88,21 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		this.initEditorOpenedListeners(storageService);
 	}
 
-	private resolveWorkspaceLanguageIds() {
+	private async resolveWorkspaceLanguageIds() {
+		if (this.hasResolvedWorkspaceLanguageIds) { return; }
 		this.hasResolvedWorkspaceLanguageIds = true;
-		// this._diagnosticsService.getWorkspaceFileExtensions(this._workspaceContextService.getWorkspace()).then(fileExtensions => {
-		// 	fileExtensions.extensions.forEach(ext => {
-		// 		const langId = this.getLanguageId(ext);
-		// 		if (langId) {
-		// 			this.workspaceLanguageIds.add(langId);
-		// 		}
-		// 	});
-		// });
+		const fileExtensions = await this._diagnosticsService.getWorkspaceFileExtensions(this._workspaceContextService.getWorkspace());
+
+		let count = 0;
+		for (const ext of fileExtensions.extensions) {
+			const langId = this.getLanguageId(ext);
+			if (langId && count < TOP_LANG_COUNTS) {
+				this.workspaceLanguageIds.add(langId);
+				count++;
+				if (count > TOP_LANG_COUNTS) { break; }
+			}
+		}
+		this.dirtyBiases = true;
 	}
 
 	public isEnabledForLanguage(languageId: string): boolean {
@@ -108,32 +120,41 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	}
 
 	private getLanguageBiases(): Record<string, number> {
+		if (!this.dirtyBiases) { return this.langBiases; }
+
 		const biases: Record<string, number> = {};
 
 		// Give different weight to the biases depending on relevance of source
 		this.sessionOpenedLanguageIds.forEach(lang =>
-			biases[lang] = (biases[lang] ?? 0) + 4);
+			biases[lang] = (biases[lang] ?? 0) + 7);
 
 		this.workspaceLanguageIds.forEach(lang =>
-			biases[lang] = (biases[lang] ?? 0) + 3);
+			biases[lang] = (biases[lang] ?? 0) + 5);
 
 		[...this.historicalWorkspaceOpenedLanguageIds.keys()].forEach(lang =>
-			biases[lang] = (biases[lang] ?? 0) + 2);
+			biases[lang] = (biases[lang] ?? 0) + 3);
 
 		[...this.historicalGlobalOpenedLanguageIds.keys()].forEach(lang =>
 			biases[lang] = (biases[lang] ?? 0) + 1);
 
+		this._logService.trace('Session Languages:', JSON.stringify([...this.sessionOpenedLanguageIds]));
+		this._logService.trace('Workspace Languages:', JSON.stringify([...this.workspaceLanguageIds]));
+		this._logService.trace('Historical Workspace Opened Languages:', JSON.stringify([...this.historicalWorkspaceOpenedLanguageIds.keys()]));
+		this._logService.trace('Historical Globally Opened Languages:', JSON.stringify([...this.historicalGlobalOpenedLanguageIds.keys()]));
+		this._logService.info('Computed Language Detection Biases:', JSON.stringify(biases));
+		this.dirtyBiases = false;
+		this.langBiases = biases;
 		return biases;
 	}
 
 	async detectLanguage(resource: URI): Promise<string | undefined> {
 		const useHistory = this._configurationService.getValue<string[]>(LanguageDetectionService.historyBasedEnablementConfig);
-		if (useHistory && !this.hasResolvedWorkspaceLanguageIds) {
-			// dont block on this, let further re-triggers get any new values
-			this.resolveWorkspaceLanguageIds();
+		const preferHistory = this._configurationService.getValue<boolean>(LanguageDetectionService.preferHistoryConfig);
+		if (useHistory) {
+			await this.resolveWorkspaceLanguageIds();
 		}
 		const biases = useHistory ? this.getLanguageBiases() : undefined;
-		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, biases);
+		const language = await this._languageDetectionWorkerClient.detectLanguage(resource, biases, preferHistory);
 
 		if (language) {
 			return this.getLanguageId(language);
@@ -143,23 +164,24 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 
 	private initEditorOpenedListeners(storageService: IStorageService) {
 		try {
-			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.openedLanguagesStorageKey, StorageScope.GLOBAL, '[]'));
+			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.GLOBAL, '[]'));
 			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistroyData);
-		} catch { }
+		} catch (e) { console.error(e); }
 
 		try {
-			const workspaceLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.openedLanguagesStorageKey, StorageScope.WORKSPACE, '[]'));
-			this.historicalGlobalOpenedLanguageIds.fromJSON(workspaceLangHistroyData);
-		} catch { }
+			const workspaceLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, StorageScope.WORKSPACE, '[]'));
+			this.historicalWorkspaceOpenedLanguageIds.fromJSON(workspaceLangHistroyData);
+		} catch (e) { console.error(e); }
 
 		this._register(this._editorService.onDidActiveEditorChange(() => {
 			const activeLanguage = this._editorService.activeTextEditorLanguageId;
-			if (activeLanguage) {
+			if (activeLanguage && this._editorService.activeEditor?.resource?.scheme !== Schemas.untitled) {
 				this.sessionOpenedLanguageIds.add(activeLanguage);
 				this.historicalGlobalOpenedLanguageIds.set(activeLanguage, true);
 				this.historicalWorkspaceOpenedLanguageIds.set(activeLanguage, true);
-				storageService.store(LanguageDetectionService.openedLanguagesStorageKey, JSON.stringify(this.historicalGlobalOpenedLanguageIds.toJSON()), StorageScope.GLOBAL, StorageTarget.MACHINE);
-				storageService.store(LanguageDetectionService.openedLanguagesStorageKey, JSON.stringify(this.historicalWorkspaceOpenedLanguageIds.toJSON()), StorageScope.WORKSPACE, StorageTarget.USER);
+				storageService.store(LanguageDetectionService.globalOpenedLanguagesStorageKey, JSON.stringify(this.historicalGlobalOpenedLanguageIds.toJSON()), StorageScope.GLOBAL, StorageTarget.MACHINE);
+				storageService.store(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, JSON.stringify(this.historicalWorkspaceOpenedLanguageIds.toJSON()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+				this.dirtyBiases = true;
 			}
 		}));
 	}
@@ -284,9 +306,9 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		});
 	}
 
-	public async detectLanguage(resource: URI, langBiases?: Record<string, number>): Promise<string | undefined> {
+	public async detectLanguage(resource: URI, langBiases: Record<string, number> | undefined, preferHistory: boolean): Promise<string | undefined> {
 		await this._withSyncedResources([resource]);
-		return (await this._getProxy()).detectLanguage(resource.toString(), langBiases);
+		return (await this._getProxy()).detectLanguage(resource.toString(), langBiases, preferHistory);
 	}
 }
 

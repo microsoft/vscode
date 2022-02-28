@@ -945,7 +945,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected createLogger(): Logger {
 		return new Logger((severity, source, message) => {
-			if (this._isDev && source) {
+			if (source) {
 				this._logOrShowMessage(severity, `[${source}]: ${message}`);
 			} else {
 				this._logOrShowMessage(severity, message);
@@ -956,9 +956,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected _logOrShowMessage(severity: Severity, msg: string): void {
 		if (this._isDev) {
 			this._showMessageToUser(severity, msg);
-		} else {
-			this._logMessageInConsole(severity, msg);
 		}
+		this._logMessageInConsole(severity, msg);
 	}
 
 	private _acquireInternalAPI(): IInternalExtensionService {

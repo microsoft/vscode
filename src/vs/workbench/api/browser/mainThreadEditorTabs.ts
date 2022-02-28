@@ -7,7 +7,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -46,7 +46,7 @@ export class MainThreadEditorTabs {
 	 * @param group The group the tab is in
 	 * @returns A tab object
 	 */
-	private _buildTabObject(editor: EditorInput, group: IEditorGroup): IEditorTabDto {
+	private _buildTabObject(group: IEditorGroup, editor: EditorInput, editorIndex: number): IEditorTabDto {
 		// Even though the id isn't a diff / sideBySide on the main side we need to let the ext host know what type of editor it is
 		const editorId = editor.editorId;
 		const tabKind = editor instanceof DiffEditorInput ? TabKind.Diff : editor instanceof SideBySideEditorInput ? TabKind.SidebySide : TabKind.Singular;
@@ -57,7 +57,7 @@ export class MainThreadEditorTabs {
 			editorId,
 			kind: tabKind,
 			additionalResourcesAndViewIds: [],
-			isPinned: group.isSticky(editor),
+			isPinned: group.isSticky(editorIndex),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
@@ -70,18 +70,20 @@ export class MainThreadEditorTabs {
 
 
 	private _tabToUntypedEditorInput(tab: IEditorTabDto): IUntypedEditorInput {
-		if (tab.editorId !== 'diff' && tab.editorId !== 'sideBySide') {
+		if (tab.kind !== TabKind.Diff && tab.kind !== TabKind.SidebySide) {
 			return { resource: URI.revive(tab.resource), options: { override: tab.editorId } };
-		} else if (tab.editorId === 'sideBySide') {
+		} else if (tab.kind === TabKind.SidebySide) {
 			return {
+				options: { override: tab.editorId },
 				primary: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
 				secondary: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1].viewId } }
 			};
 		} else {
-			// For now only text diff editor are supported
+			// Diff case
 			return {
-				modified: { resource: URI.revive(tab.resource), options: { override: DEFAULT_EDITOR_ASSOCIATION.id } },
-				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: DEFAULT_EDITOR_ASSOCIATION.id } }
+				options: { override: tab.editorId },
+				modified: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
+				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1]?.viewId } }
 			};
 		}
 	}
@@ -127,15 +129,15 @@ export class MainThreadEditorTabs {
 		const tabs = this._groupModel.get(groupId)?.tabs;
 		if (tabs) {
 			// Splice tab into group at index editorIndex
-			tabs.splice(editorIndex, 0, this._buildTabObject(editorInput, group));
+			tabs.splice(editorIndex, 0, this._buildTabObject(group, editorInput, editorIndex));
 		}
 	}
 
 	/**
- * Called when a tab is closed
- * @param groupId The id of the group the tab is being removed from
- * @param editorIndex The index of the editor within that group
- */
+	 * Called when a tab is closed
+	 * @param groupId The id of the group the tab is being removed from
+	 * @param editorIndex The index of the editor within that group
+	 */
 	private _onDidTabClose(groupId: number, editorIndex: number) {
 		const group = this._editorGroupsService.getGroup(groupId);
 		const tabs = this._groupModel.get(groupId)?.tabs;
@@ -231,14 +233,14 @@ export class MainThreadEditorTabs {
 				activeTab: undefined,
 				tabs: []
 			};
-			for (const editor of group.editors) {
-				const tab = this._buildTabObject(editor, group);
+			group.editors.forEach((editor, editorIndex) => {
+				const tab = this._buildTabObject(group, editor, editorIndex);
 				// Mark the tab active within the group
 				if (tab.isActive) {
 					currentTabGroupModel.activeTab = tab;
 				}
 				tabs.push(tab);
-			}
+			});
 			currentTabGroupModel.tabs = tabs;
 			this._tabGroupModel.push(currentTabGroupModel);
 			this._groupModel.set(group.id, currentTabGroupModel);

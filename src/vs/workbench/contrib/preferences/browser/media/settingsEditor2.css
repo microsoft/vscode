@@ -9,7 +9,7 @@
 
 .settings-editor {
 	overflow: hidden;
-	max-width: 1500px;
+	max-width: 1200px;
 	margin: auto;
 }
 
@@ -26,7 +26,7 @@
 	padding-top: 3px;
 	padding-left: 24px;
 	padding-right: 24px;
-	max-width: 1500px;
+	max-width: 1200px;
 }
 
 .settings-editor > .settings-header > .search-container {
@@ -129,7 +129,7 @@
 
 .settings-editor > .settings-body > .no-results-message {
 	display: none;
-	max-width: 1500px;
+	max-width: 1200px;
 	margin: auto;
 	margin-top: 20px;
 	padding-left: 24px;
@@ -254,12 +254,12 @@
 }
 
 .settings-editor > .settings-body .settings-toc-wrapper {
-	padding-left: 31px;
+	padding-left: 24px;
 }
 
 .settings-editor > .settings-body .settings-toc-wrapper {
 	height: 100%;
-	max-width: 1500px;
+	max-width: 1200px;
 	margin: auto;
 }
 
@@ -281,7 +281,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
-	max-width: 1500px;
+	max-width: 1200px;
 	margin: auto;
 	box-sizing: border-box;
 	padding-left: 24px;
@@ -289,7 +289,7 @@
 	overflow: visible;
 }
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents.group-title {
-	max-width: min(100%, 1500px); /* Cut off title if too long for window */
+	max-width: min(100%, 1200px); /* Cut off title if too long for window */
 }
 
 .settings-editor > .settings-body .settings-tree-container .settings-group-title-label,
@@ -376,6 +376,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents.is-deprecated .setting-item-deprecation-message .codicon {
+	color: inherit;
 	margin-right: 4px;
 }
 

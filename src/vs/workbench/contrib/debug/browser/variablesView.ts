@@ -170,9 +170,10 @@ export class VariablesView extends ViewPane {
 				horizontalScrolling = undefined;
 			}
 		}));
-		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(e => {
+		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable) {
-				this.tree.updateChildren(e, false, true);
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
 			}
 		}));
 		this._register(this.debugService.onDidEndSession(() => {
@@ -196,7 +197,7 @@ export class VariablesView extends ViewPane {
 
 	private onMouseDblClick(e: ITreeMouseEvent<IExpression | IScope>): void {
 		const session = this.debugService.getViewModel().focusedSession;
-		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable && !e.element.presentationHint?.attributes?.includes('readOnly')) {
+		if (session && e.element instanceof Variable && session.capabilities.supportsSetVariable && !e.element.presentationHint?.attributes?.includes('readOnly') && !e.element.presentationHint?.lazy) {
 			this.debugService.getViewModel().setSelectedExpression(e.element, false);
 		}
 	}
@@ -279,7 +280,7 @@ function getContextForVariableMenu(parentContext: IContextKeyService, variable: 
 		[CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.key, variable.variableMenuContext || ''],
 		[CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT.key, !!variable.evaluateName],
 		[CONTEXT_CAN_VIEW_MEMORY.key, !!session?.capabilities.supportsReadMemoryRequest && variable.memoryReference !== undefined],
-		[CONTEXT_VARIABLE_IS_READONLY.key, !!variable.presentationHint?.attributes?.includes('readOnly')],
+		[CONTEXT_VARIABLE_IS_READONLY.key, !!variable.presentationHint?.attributes?.includes('readOnly') || variable.presentationHint?.lazy],
 		...additionalContext,
 	];
 

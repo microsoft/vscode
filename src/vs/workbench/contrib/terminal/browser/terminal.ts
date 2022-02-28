@@ -473,6 +473,11 @@ export interface ITerminalInstance {
 	 */
 	readonly isDisconnected: boolean;
 
+	/*
+	 * Whether this terminal has been disposed of
+	 */
+	readonly isDisposed: boolean;
+
 	/**
 	 * Whether the terminal's pty is hosted on a remote.
 	 */
