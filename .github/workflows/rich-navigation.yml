@@ -10,7 +10,7 @@ on:
 
 jobs:
   richnav:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v2
 
@@ -28,7 +28,14 @@ jobs:
 
       - name: Install dependencies
         if: steps.caching-stage.outputs.cache-hit != 'true'
-        run: yarn --frozen-lockfile
+        run: |
+          # update node-gyp to latest for support in detecting VS 2022 toolchain
+          npm install -g node-gyp@latest
+          # Resolve to node-gyp.js
+          # Remove this once node-version > 17.4.x or > 16.14.0,
+          # which ships with npm > 8.4.0 that has support for VS 2022 toolchain.
+          $env:npm_config_node_gyp=$(Join-Path $(Get-Command node-gyp.cmd).Path "..\node_modules\node-gyp\bin\node-gyp.js" -Resolve)
+          yarn --frozen-lockfile
         env:
           CHILD_CONCURRENCY: 1
 
