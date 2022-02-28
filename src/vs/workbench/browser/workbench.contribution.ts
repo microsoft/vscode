@@ -102,6 +102,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.historyBasedLanguageDetection': {
 				type: 'boolean',
 				default: false,
+				tags: ['experimental'],
 				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
 			},
 			'workbench.editor.tabCloseButton': {
