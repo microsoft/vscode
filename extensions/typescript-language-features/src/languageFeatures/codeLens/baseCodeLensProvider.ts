@@ -34,16 +34,11 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 		command: ''
 	};
 
-	private onDidChangeCodeLensesEmitter = new vscode.EventEmitter<void>();
-
 	public constructor(
 		protected client: ITypeScriptServiceClient,
 		private cachedResponse: CachedResponse<Proto.NavTreeResponse>
 	) { }
 
-	public get onDidChangeCodeLenses(): vscode.Event<void> {
-		return this.onDidChangeCodeLensesEmitter.event;
-	}
 
 	async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<ReferencesCodeLens[]> {
 		const filepath = this.client.toOpenedFilePath(document);
