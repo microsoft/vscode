@@ -28,12 +28,6 @@
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
 	"urlProtocol": "code-oss",
 	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/insider/93a2a2fa12dd3ae0629eec01c05a28cb60ac1c4b/out/vs/workbench/contrib/webview/browser/pre/",
-	"extensionAllowedProposedApi": [
-		"ms-vscode.vscode-js-profile-flame",
-		"ms-vscode.vscode-js-profile-table",
-		"GitHub.remotehub",
-		"GitHub.remotehub-insiders"
-	],
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.references-view",

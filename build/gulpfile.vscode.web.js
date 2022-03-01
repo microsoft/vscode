@@ -90,7 +90,6 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
 		if (path.endsWith('vs/platform/product/common/product.js')) {
 			const productConfiguration = JSON.stringify({
 				...product,
-				extensionAllowedProposedApi: [...product.extensionAllowedProposedApi],
 				version,
 				commit,
 				date: buildDate

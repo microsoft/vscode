@@ -66,13 +66,7 @@ else {
 			urlProtocol: 'code-oss',
 			reportIssueUrl: 'https://github.com/microsoft/vscode/issues/new',
 			licenseName: 'MIT',
-			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt',
-			extensionAllowedProposedApi: [
-				'ms-vscode.vscode-js-profile-flame',
-				'ms-vscode.vscode-js-profile-table',
-				'GitHub.remotehub',
-				'GitHub.remotehub-insiders'
-			],
+			licenseUrl: 'https://github.com/microsoft/vscode/blob/main/LICENSE.txt'
 		});
 	}
 }
