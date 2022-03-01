@@ -35,7 +35,7 @@
 	background: none;
 }
 
-.monaco-custom-toggle.monaco-simple-checkbox {
+.monaco-custom-toggle.monaco-checkbox {
 	height: 18px;
 	width: 18px;
 	border: 1px solid transparent;
@@ -48,6 +48,6 @@
 }
 
 /* hide check when unchecked */
-.monaco-custom-toggle.monaco-simple-checkbox:not(.checked)::before {
+.monaco-custom-toggle.monaco-checkbox:not(.checked)::before {
 	visibility: hidden;
 }
