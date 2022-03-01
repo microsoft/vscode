@@ -14,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
@@ -291,8 +292,8 @@ export class InlayHintsController implements IEditorContribution {
 			}
 			e.event.preventDefault();
 			await part.item.resolve(CancellationToken.None);
-			if (part.item.hint.command) {
-				await this._invokeCommand(part.item.hint.command, part.item);
+			if (part.item.hint.textEdit) {
+				this._editor.executeEdits('inlayHint.default', [EditOperation.replace(Range.lift(part.item.hint.textEdit.range), part.item.hint.textEdit.text)]);
 			}
 		});
 	}
@@ -434,9 +435,9 @@ export class InlayHintsController implements IEditorContribution {
 					verticalAlign: 'middle',
 				};
 
-				if (item.hint.command) {
+				if (item.hint.textEdit) {
 					// user pointer whenever an inlay hint has a command
-					cssProperties.cursor = 'pointer';
+					cssProperties.cursor = 'default';
 				}
 
 				this._fillInColors(cssProperties, item.hint);

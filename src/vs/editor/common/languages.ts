@@ -1801,7 +1801,7 @@ export interface InlayHintLabelPart {
 export interface InlayHint {
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | IMarkdownString;
-	command?: Command;
+	textEdit?: TextEdit;
 	position: IPosition;
 	kind?: InlayHintKind;
 	paddingLeft?: boolean;
