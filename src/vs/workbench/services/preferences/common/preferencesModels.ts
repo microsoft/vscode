@@ -659,10 +659,15 @@ export class DefaultSettings extends Disposable {
 
 	private parseSettings(config: IConfigurationNode): ISetting[] {
 		const result: ISetting[] = [];
+
 		const settingsObject = config.properties;
 		const extensionInfo = config.extensionInfo;
-		const categoryLabel = config.id ?? config.title;
+
+		// Try using the title if the category id wasn't given
+		// (in which case the category id is the same as the extension id)
+		const categoryLabel = config.extensionInfo?.id === config.id ? config.title : config.id;
 		const categoryOrder = config.order;
+
 		for (const key in settingsObject) {
 			const prop = settingsObject[key];
 			if (this.matchesScope(prop)) {
