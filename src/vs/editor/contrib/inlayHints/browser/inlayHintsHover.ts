@@ -23,6 +23,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(readonly part: RenderedInlayHintLabelPart, owner: InlayHintsHover) {
@@ -89,7 +90,7 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 				executor.emitOne(new MarkdownHover(this, anchor.range, [itemTooltip], 0));
 			}
 			// (1.2) Inlay dbl-click gesture
-			if (part.item.hint.textEdit) {
+			if (isNonEmptyArray(part.item.hint.textEdits)) {
 				executor.emitOne(new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double click to insert"))], 10001));
 			}
 

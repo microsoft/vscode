@@ -4663,6 +4663,15 @@ declare module 'vscode' {
 		kind?: InlayHintKind;
 
 		/**
+		 * Optional {@link TextEdit text edits} that are performed when accepting this inlay hint. The default
+		 * gesture for accepting an inlay hint is the double click.
+		 *
+		 * *Note* that edits are expected to change the document so that the inlay hint (or its nearest variant) is
+		 * now part of the document and the inlay hint itself is now obsolete.
+		 */
+		textEdits?: TextEdit[];
+
+		/**
 		 * Render padding before the hint. Padding will use the editor's background color,
 		 * not the background color of the hint itself. That means padding can be used to visually
 		 * align/separate an inlay hint.

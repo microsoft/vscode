@@ -1467,6 +1467,7 @@ export class InlayHint implements vscode.InlayHint {
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | vscode.MarkdownString;
 	position: Position;
+	textEdits?: TextEdit[];
 	kind?: vscode.InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;

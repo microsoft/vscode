@@ -6950,7 +6950,7 @@ declare namespace monaco.languages {
 	export interface InlayHint {
 		label: string | InlayHintLabelPart[];
 		tooltip?: string | IMarkdownString;
-		textEdit?: TextEdit;
+		textEdits?: TextEdit[];
 		position: IPosition;
 		kind?: InlayHintKind;
 		paddingLeft?: boolean;

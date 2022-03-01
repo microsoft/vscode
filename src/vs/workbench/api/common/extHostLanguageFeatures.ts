@@ -1263,6 +1263,7 @@ class InlayHintsAdapter {
 			cacheId: id,
 			tooltip: typeConvert.MarkdownString.fromStrict(hint.tooltip),
 			position: typeConvert.Position.from(hint.position),
+			textEdits: hint.textEdits && hint.textEdits.map(typeConvert.TextEdit.from),
 			kind: hint.kind && typeConvert.InlayHintKind.from(hint.kind),
 			paddingLeft: hint.paddingLeft,
 			paddingRight: hint.paddingRight,
