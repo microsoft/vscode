@@ -201,7 +201,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					}
 				}
 				if (injection.filesToCopy) {
-					// TODO: Handle files
+					for (const f of injection.filesToCopy) {
+						await fs.mkdir(path.dirname(f.dest), { recursive: true });
+						await fs.copyFile(f.source, f.dest);
+					}
 				}
 			}
 		}
