@@ -66,7 +66,7 @@
 			"scope": "storage",
 			"settings": {
 				"fontStyle": "bold",
-				"foreground": "#073642"
+				"foreground": "#586E75"
 			}
 		},
 		{
@@ -361,8 +361,8 @@
 		// "scrollbarSlider.hoverBackground": "",
 		// Editor
 		"editor.background": "#FDF6E3",
+		"editor.foreground": "#657B83",
 		"notebook.cellEditorBackground": "#F7F0E0",
-		// "editor.foreground": "#6688cc",
 		"editorWidget.background": "#EEE8D5",
 		"editorCursor.foreground": "#657B83",
 		"editorWhitespace.foreground": "#586E7580",
@@ -480,14 +480,14 @@
 		"terminal.ansiMagenta": "#d33682",
 		"terminal.ansiCyan": "#2aa198",
 		"terminal.ansiWhite": "#eee8d5",
-		"terminal.ansiBrightBlack": "#586e75",
+		"terminal.ansiBrightBlack": "#002b36",
 		"terminal.ansiBrightRed": "#cb4b16",
 		"terminal.ansiBrightGreen": "#586e75",
 		"terminal.ansiBrightYellow": "#657b83",
 		"terminal.ansiBrightBlue": "#839496",
 		"terminal.ansiBrightMagenta": "#6c71c4",
 		"terminal.ansiBrightCyan": "#93a1a1",
-		"terminal.ansiBrightWhite": "#eee8d5",
+		"terminal.ansiBrightWhite": "#fdf6e3",
 		// Interactive Playground
 		"walkThrough.embeddedEditorBackground": "#00000014"
 	},

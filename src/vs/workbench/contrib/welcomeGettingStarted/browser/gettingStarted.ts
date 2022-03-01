@@ -31,7 +31,7 @@ import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRec
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, locale } from 'vs/base/common/platform';
@@ -69,8 +69,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { Codicon } from 'vs/base/common/codicons';
 import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomePage/browser/welcomePage';
@@ -347,7 +347,7 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'showMoreRecents': {
-				this.commandService.executeCommand('workbench.action.openRecent');
+				this.commandService.executeCommand(OpenRecentAction.ID);
 				break;
 			}
 			case 'seeAllWalkthroughs': {
@@ -355,8 +355,8 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'openFolder': {
-				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsIOSContext.toNegated()))) {
-					this.commandService.executeCommand(AddRootFolderAction.ID);
+				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace')))) {
+					this.commandService.executeCommand(OpenFolderViaWorkspaceAction.ID);
 				} else {
 					this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
 				}
@@ -474,7 +474,22 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private mdCache = new ResourceMap<Promise<string>>();
-	private async readAndCacheStepMarkdown(path: URI): Promise<string> {
+	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
+
+		const transformUri = (src: string) => {
+			const path = joinPath(base, src);
+			return asWebviewUri(path).toString();
+		};
+		const transformUris = (content: string): string => content
+			.replace(/src="([^"]*)"/g, (_, src: string) => {
+				if (src.startsWith('https://')) { return `src="${src}"`; }
+				return `src="${transformUri(src)}"`;
+			})
+			.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, title: string, src: string) => {
+				if (src.startsWith('https://')) { return `![${title}](${src})`; }
+				return `![${title}](${transformUri(src)})`;
+			});
+
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
 				try {
@@ -483,7 +498,7 @@ export class GettingStartedPage extends EditorPane {
 						return new Promise<string>(resolve => {
 							require([moduleId], content => {
 								const markdown = content.default();
-								resolve(renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true));
+								resolve(renderMarkdownDocument(transformUris(markdown), this.extensionService, this.languageService, true, true));
 							});
 						});
 					}
@@ -495,7 +510,7 @@ export class GettingStartedPage extends EditorPane {
 					const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
 
 					const fileExists = (file: URI) => this.fileService
-						.resolve(file, { resolveMetadata: true })
+						.stat(file)
 						.then((stat) => !!stat.size) // Double check the file actually has content for fileSystemProviders that fake `stat`. #131809
 						.catch(() => false);
 
@@ -512,7 +527,7 @@ export class GettingStartedPage extends EditorPane {
 								: path);
 
 					const markdown = bytes.value.toString();
-					return renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true);
+					return renderMarkdownDocument(transformUris(markdown), this.extensionService, this.languageService, true, true);
 				} catch (e) {
 					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
 					return '';
@@ -772,17 +787,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {
-		const content = await this.readAndCacheStepMarkdown(path);
+		const content = await this.readAndCacheStepMarkdown(path, base);
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
-
-		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src: string) => {
-			if (src.startsWith('https://')) { return `src="${src}"`; }
-
-			const path = joinPath(base, src);
-			const transformed = asWebviewUri(path).toString();
-			return `src="${transformed}"`;
-		});
 
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 
@@ -854,7 +861,7 @@ export class GettingStartedPage extends EditorPane {
 			</head>
 			<body>
 				<vertically-centered>
-					${uriTranformedContent}
+					${content}
 				</vertically-centered>
 			</body>
 			<script nonce="${nonce}">
@@ -1100,7 +1107,7 @@ export class GettingStartedPage extends EditorPane {
 					$('button.button-link',
 						{
 							'x-dispatch': 'showMoreRecents',
-							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel('workbench.action.openRecent'))
+							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
 						}, 'More...')),
 				renderElement: renderRecent,
 				contextService: this.contextService

@@ -15,6 +15,7 @@ import {
 	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
 } from 'vs/editor/common/core/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
 
 export class ColorizedBracketPairsDecorationProvider extends Disposable implements DecorationProvider {
 	private colorizationOptions: BracketPairColorizationOptions;
@@ -28,14 +29,18 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 
 		this.colorizationOptions = textModel.getOptions().bracketPairColorizationOptions;
 
-		this._register(textModel.onDidChangeOptions(e => {
-			this.colorizationOptions = textModel.getOptions().bracketPairColorizationOptions;
-		}));
-
 		this._register(textModel.bracketPairs.onDidChange(e => {
 			this.onDidChangeEmitter.fire();
 		}));
 	}
+
+	//#region TextModel events
+
+	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void {
+		this.colorizationOptions = this.textModel.getOptions().bracketPairColorizationOptions;
+	}
+
+	//#endregion
 
 	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
 		if (ownerId === undefined) {

@@ -42,7 +42,6 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 			.filter(exe => exe.state === NotebookCellExecutionState.Executing);
 		const executionIsVisible = (exe: INotebookCellExecution) => {
 			for (const range of this._notebookEditor.visibleRanges) {
-				range.end++;
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
 					if (cell.handle === exe.cellHandle) {
 						return true;

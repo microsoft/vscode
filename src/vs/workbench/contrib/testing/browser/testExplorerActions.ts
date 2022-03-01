@@ -14,15 +14,16 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, ContextKeyGreaterExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { CATEGORIES } from 'vs/workbench/common/actions';
-import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
+import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
@@ -71,6 +72,7 @@ export class HideTestAction extends Action2 {
 			title: localize('hideTest', 'Hide Test'),
 			menu: {
 				id: MenuId.TestItem,
+				group: 'builtin@2',
 				when: TestingContextKeys.testItemIsHidden.isEqualTo(false)
 			},
 		});
@@ -112,6 +114,20 @@ export class UnhideTestAction extends Action2 {
 	}
 }
 
+const testItemInlineAndInContext = (order: ActionOrder, when?: ContextKeyExpression) => [
+	{
+		id: MenuId.TestItem,
+		group: 'inline',
+		order,
+		when,
+	}, {
+		id: MenuId.TestItem,
+		group: 'builtin@1',
+		order,
+		when,
+	}
+];
+
 export class DebugAction extends Action2 {
 	public static readonly ID = 'testing.debug';
 	constructor() {
@@ -119,12 +135,7 @@ export class DebugAction extends Action2 {
 			id: DebugAction.ID,
 			title: localize('debug test', 'Debug Test'),
 			icon: icons.testingDebugIcon,
-			menu: {
-				id: MenuId.TestItem,
-				group: 'inline',
-				order: ActionOrder.Debug,
-				when: TestingContextKeys.hasDebuggableTests.isEqualTo(true),
-			},
+			menu: testItemInlineAndInContext(ActionOrder.Debug, TestingContextKeys.hasDebuggableTests.isEqualTo(true)),
 		});
 	}
 
@@ -146,6 +157,7 @@ export class RunUsingProfileAction extends Action2 {
 			menu: {
 				id: MenuId.TestItem,
 				order: ActionOrder.RunUsing,
+				group: 'builtin@2',
 				when: TestingContextKeys.hasNonDefaultProfile.isEqualTo(true),
 			},
 		});
@@ -184,12 +196,7 @@ export class RunAction extends Action2 {
 			id: RunAction.ID,
 			title: localize('run test', 'Run Test'),
 			icon: icons.testingRunIcon,
-			menu: {
-				id: MenuId.TestItem,
-				group: 'inline',
-				order: ActionOrder.Run,
-				when: TestingContextKeys.hasRunnableTests.isEqualTo(true),
-			},
+			menu: testItemInlineAndInContext(ActionOrder.Run, TestingContextKeys.hasRunnableTests.isEqualTo(true)),
 		});
 	}
 
@@ -648,12 +655,7 @@ export class GoToTest extends Action2 {
 			id: GoToTest.ID,
 			title: localize('testing.editFocusedTest', "Go to Test"),
 			icon: Codicon.goToFile,
-			menu: {
-				id: MenuId.TestItem,
-				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
-				order: ActionOrder.GoToTest,
-				group: 'inline',
-			},
+			menu: testItemInlineAndInContext(ActionOrder.GoToTest, TestingContextKeys.testItemHasUri.isEqualTo(true)),
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib - 10,
 				when: FocusedViewContext.isEqualTo(Testing.ExplorerViewId),
@@ -735,6 +737,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 
 		const testService = accessor.get(ITestService);
 		const profileService = accessor.get(ITestProfileService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 
 		let bestNodes: InternalTestItem[] = [];
 		let bestRange: Range | undefined;
@@ -750,7 +753,7 @@ abstract class ExecuteTestAtCursor extends Action2 {
 		// the closest one before the position. Again, if we find several tests
 		// whose range is equal to the closest one, we run them all.
 		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
-			for await (const test of testsInFile(testService.collection, model.uri)) {
+			for await (const test of testsInFile(testService.collection, uriIdentityService, model.uri)) {
 				if (!test.item.range || !(profileService.capabilitiesForTest(test) & this.group)) {
 					continue;
 				}

@@ -12,7 +12,7 @@ import { EventEmitter } from 'events';
 import * as iconv from '@vscode/iconv-lite-umd';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows } from './util';
-import { CancellationToken, Progress, Uri } from 'vscode';
+import { CancellationToken, ConfigurationChangeEvent, Progress, Uri, workspace } from 'vscode';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
@@ -367,6 +367,7 @@ export class Git {
 	readonly userAgent: string;
 	readonly version: string;
 	private env: any;
+	private commandsToLog: string[] = [];
 
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
@@ -376,6 +377,18 @@ export class Git {
 		this.version = options.version;
 		this.userAgent = options.userAgent;
 		this.env = options.env || {};
+
+		const onConfigurationChanged = (e?: ConfigurationChangeEvent) => {
+			if (e !== undefined && !e.affectsConfiguration('git.commandsToLog')) {
+				return;
+			}
+
+			const config = workspace.getConfiguration('git');
+			this.commandsToLog = config.get<string[]>('commandsToLog', []);
+		};
+
+		workspace.onDidChangeConfiguration(onConfigurationChanged, this);
+		onConfigurationChanged();
 	}
 
 	compareGitVersionTo(version: string): -1 | 0 | 1 {
@@ -534,8 +547,15 @@ export class Git {
 		const bufferResult = await exec(child, options.cancellationToken);
 
 		if (options.log !== false) {
+			// command
 			this.log(`> git ${args.join(' ')} [${Date.now() - startTime}ms]\n`);
 
+			// stdout
+			if (bufferResult.stdout.length > 0 && args.find(a => this.commandsToLog.includes(a))) {
+				this.log(`${bufferResult.stdout}\n`);
+			}
+
+			// stderr
 			if (bufferResult.stderr.length > 0) {
 				this.log(`${bufferResult.stderr}\n`);
 			}
@@ -2008,7 +2028,6 @@ export class Repository {
 
 			if (branchName.startsWith('refs/heads/')) {
 				branchName = branchName.substring(11);
-				const index = upstream.indexOf('/');
 
 				let ahead;
 				let behind;
@@ -2021,8 +2040,8 @@ export class Repository {
 					type: RefType.Head,
 					name: branchName,
 					upstream: upstream ? {
-						name: upstream.substring(index + 1),
-						remote: upstream.substring(0, index)
+						name: upstream.substring(upstream.length - branchName.length),
+						remote: upstream.substring(0, upstream.length - branchName.length - 1)
 					} : undefined,
 					commit: ref || undefined,
 					ahead: Number(ahead) || 0,

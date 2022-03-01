@@ -7,6 +7,7 @@ out/**
 extension.webpack.config.js
 extension-browser.webpack.config.js
 cgmanifest.json
+.gitignore
 yarn.lock
 preview-src/**
 webpack.config.js

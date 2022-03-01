@@ -133,6 +133,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			editorWidth: initialNotebookLayoutInfo
 				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
+			statusBarHeight: 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			outputShowMoreContainerHeight: 0,
@@ -188,13 +189,13 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				newState = CellLayoutState.Estimated;
 			}
 
-			const statusbarHeight = this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata, this.uri);
-			const codeIndicatorHeight = editorHeight + statusbarHeight;
+			const statusBarHeight = this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata, this.uri);
+			const codeIndicatorHeight = editorHeight + statusBarHeight;
 			const outputIndicatorHeight = outputTotalHeight + outputShowMoreContainerHeight;
 			const outputContainerOffset = notebookLayoutConfiguration.editorToolbarHeight
 				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 				+ editorHeight
-				+ statusbarHeight;
+				+ statusBarHeight;
 			const outputShowMoreContainerOffset = totalHeight
 				- bottomToolbarDimensions.bottomToolbarGap
 				- bottomToolbarDimensions.bottomToolbarHeight / 2
@@ -208,6 +209,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
 				editorHeight,
 				editorWidth,
+				statusBarHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
@@ -242,6 +244,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
 				editorHeight: this._layoutInfo.editorHeight,
 				editorWidth,
+				statusBarHeight: 0,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
@@ -271,6 +274,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				fontInfo: this._layoutInfo.fontInfo,
 				editorHeight: this._layoutInfo.editorHeight,
 				editorWidth: this._layoutInfo.editorWidth,
+				statusBarHeight: this.layoutInfo.statusBarHeight,
 				outputContainerOffset: this._layoutInfo.outputContainerOffset,
 				outputTotalHeight: this._layoutInfo.outputTotalHeight,
 				outputShowMoreContainerHeight: this._layoutInfo.outputShowMoreContainerHeight,

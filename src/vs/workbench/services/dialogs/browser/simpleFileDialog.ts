@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as objects from 'vs/base/common/objects';
-import { IFileService, IFileStat, FileKind } from 'vs/platform/files/common/files';
+import { IFileService, IFileStat, FileKind, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { URI } from 'vs/base/common/uri';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
@@ -254,11 +254,11 @@ export class SimpleFileDialog {
 		this.hidden = false;
 		this.isWindows = await this.checkIsWindowsOS();
 		let homedir: URI = this.options.defaultUri ? this.options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
-		let stat: IFileStat | undefined;
+		let stat: IFileStatWithPartialMetadata | undefined;
 		let ext: string = resources.extname(homedir);
 		if (this.options.defaultUri) {
 			try {
-				stat = await this.fileService.resolve(this.options.defaultUri);
+				stat = await this.fileService.stat(this.options.defaultUri);
 			} catch (e) {
 				// The file or folder doesn't exist
 			}
@@ -563,9 +563,9 @@ export class SimpleFileDialog {
 			value = this.pathFromUri(valueUri);
 			return await this.updateItems(valueUri, true) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 		} else if (!resources.extUriIgnorePathCase.isEqual(this.currentFolder, valueUri) && (this.endsWithSlash(value) || (!resources.extUriIgnorePathCase.isEqual(this.currentFolder, resources.dirname(valueUri)) && resources.extUriIgnorePathCase.isEqualOrParent(this.currentFolder, resources.dirname(valueUri))))) {
-			let stat: IFileStat | undefined;
+			let stat: IFileStatWithPartialMetadata | undefined;
 			try {
-				stat = await this.fileService.resolve(valueUri);
+				stat = await this.fileService.stat(valueUri);
 			} catch (e) {
 				// do nothing
 			}
@@ -579,20 +579,24 @@ export class SimpleFileDialog {
 				this.badPath = value;
 				return UpdateResult.InvalidPath;
 			} else {
-				const inputUriDirname = resources.dirname(valueUri);
+				let inputUriDirname = resources.dirname(valueUri);
 				const currentFolderWithoutSep = resources.removeTrailingPathSeparator(resources.addTrailingPathSeparator(this.currentFolder));
 				const inputUriDirnameWithoutSep = resources.removeTrailingPathSeparator(resources.addTrailingPathSeparator(inputUriDirname));
 				if (!resources.extUriIgnorePathCase.isEqual(currentFolderWithoutSep, inputUriDirnameWithoutSep)
 					&& (!/^[a-zA-Z]:$/.test(this.filePickBox.value)
 						|| !equalsIgnoreCase(this.pathFromUri(this.currentFolder).substring(0, this.filePickBox.value.length), this.filePickBox.value))) {
-					let statWithoutTrailing: IFileStat | undefined;
+					let statWithoutTrailing: IFileStatWithPartialMetadata | undefined;
 					try {
-						statWithoutTrailing = await this.fileService.resolve(inputUriDirname);
+						statWithoutTrailing = await this.fileService.stat(inputUriDirname);
 					} catch (e) {
 						// do nothing
 					}
 					if (statWithoutTrailing && statWithoutTrailing.isDirectory) {
 						this.badPath = undefined;
+						// At this point we know it's a directory and can add the trailing path separator
+						if (!this.endsWithSlash(inputUriDirname.path)) {
+							inputUriDirname = resources.addTrailingPathSeparator(inputUriDirname);
+						}
 						return await this.updateItems(inputUriDirname, false, resources.basename(valueUri)) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 					}
 				}
@@ -766,11 +770,11 @@ export class SimpleFileDialog {
 			return Promise.resolve(false);
 		}
 
-		let stat: IFileStat | undefined;
-		let statDirname: IFileStat | undefined;
+		let stat: IFileStatWithPartialMetadata | undefined;
+		let statDirname: IFileStatWithPartialMetadata | undefined;
 		try {
-			statDirname = await this.fileService.resolve(resources.dirname(uri));
-			stat = await this.fileService.resolve(uri);
+			statDirname = await this.fileService.stat(resources.dirname(uri));
+			stat = await this.fileService.stat(uri);
 		} catch (e) {
 			// do nothing
 		}
@@ -836,7 +840,7 @@ export class SimpleFileDialog {
 				// The file/directory doesn't exist
 			}
 			const newValue = trailing ? this.pathAppend(newFolder, trailing) : this.pathFromUri(newFolder, true);
-			this.currentFolder = resources.addTrailingPathSeparator(newFolder, this.separator);
+			this.currentFolder = this.endsWithSlash(newFolder.path) ? newFolder : resources.addTrailingPathSeparator(newFolder, this.separator);
 			this.userEnteredPathSegment = trailing ? trailing : '';
 
 			return this.createItems(folderStat, this.currentFolder, token).then(items => {

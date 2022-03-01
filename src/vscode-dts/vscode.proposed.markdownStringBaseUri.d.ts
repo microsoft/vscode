@@ -11,7 +11,7 @@ declare module 'vscode' {
 		/**
 		 * Uri that relative paths are resolved relative to.
 		 *
-		 * If the `baseUri` is a directory, relative paths in the markdown are resolved relative to that directory:
+		 * If the `baseUri` ends with `/`, it is considered a directory and relative paths in the markdown are resolved relative to that directory:
 		 *
 		 * ```ts
 		 * const md = new vscode.MarkdownString(`[link](./file.js)`);

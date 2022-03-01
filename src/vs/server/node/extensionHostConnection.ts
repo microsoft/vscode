@@ -6,14 +6,13 @@
 import * as cp from 'child_process';
 import * as net from 'net';
 import { getNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
-import { uriTransformerPath } from 'vs/server/node/remoteUriTransformer';
 import { FileAccess } from 'vs/base/common/network';
 import { join, delimiter } from 'vs/base/common/path';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/terminal/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -22,26 +21,19 @@ import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { removeDangerousEnvVariables } from 'vs/base/node/processes';
 
-export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
+export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
 
-	let userShellEnv: typeof process.env | undefined = undefined;
-	try {
-		userShellEnv = await getResolvedShellEnv(logService, environmentService.args, process.env);
-	} catch (error) {
-		logService.error('ExtensionHostConnection#buildUserEnvironment resolving shell environment failed', error);
-		userShellEnv = {};
+	let userShellEnv: typeof process.env = {};
+	if (withUserShellEnvironment) {
+		try {
+			userShellEnv = await getResolvedShellEnv(logService, environmentService.args, process.env);
+		} catch (error) {
+			logService.error('ExtensionHostConnection#buildUserEnvironment resolving shell environment failed', error);
+		}
 	}
 
-	const binFolder = environmentService.isBuilt ? join(environmentService.appRoot, 'bin') : join(environmentService.appRoot, 'resources', 'server', 'bin-dev');
-	const remoteCliBinFolder = join(binFolder, 'remote-cli'); // contains the `code` command that can talk to the remote server
 	const processEnv = process.env;
-	let PATH = startParamsEnv['PATH'] || (userShellEnv ? userShellEnv['PATH'] : undefined) || processEnv['PATH'];
-	if (PATH) {
-		PATH = remoteCliBinFolder + delimiter + PATH;
-	} else {
-		PATH = remoteCliBinFolder;
-	}
 
 	const env: IProcessEnvironment = {
 		...processEnv,
@@ -58,13 +50,23 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		},
 		...startParamsEnv
 	};
+
+	const binFolder = environmentService.isBuilt ? join(environmentService.appRoot, 'bin') : join(environmentService.appRoot, 'resources', 'server', 'bin-dev');
+	const remoteCliBinFolder = join(binFolder, 'remote-cli'); // contains the `code` command that can talk to the remote server
+
+	let PATH = readCaseInsensitive(env, 'PATH');
+	if (PATH) {
+		PATH = remoteCliBinFolder + delimiter + PATH;
+	} else {
+		PATH = remoteCliBinFolder;
+	}
+	setCaseInsensitive(env, 'PATH', PATH);
+
 	if (!environmentService.args['without-browser-env-var']) {
 		env.BROWSER = join(binFolder, 'helpers', isWindows ? 'browser.cmd' : 'browser.sh'); // a command that opens a browser on the local machine
 	}
 
-	setCaseInsensitive(env, 'PATH', PATH);
 	removeNulls(env);
-
 	return env;
 }
 
@@ -187,10 +189,10 @@ export class ExtensionHostConnection {
 		try {
 			let execArgv: string[] = [];
 			if (startParams.port && !(<any>process).pkg) {
-				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=0.0.0.0:${startParams.port}`];
+				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
 			}
 
-			const env = await buildUserEnvironment(startParams.env, startParams.language, !!startParams.debugId, this._environmentService, this._logService);
+			const env = await buildUserEnvironment(startParams.env, true, startParams.language, !!startParams.debugId, this._environmentService, this._logService);
 			removeDangerousEnvVariables(env);
 
 			const opts = {
@@ -200,11 +202,9 @@ export class ExtensionHostConnection {
 			};
 
 			// Run Extension Host as fork of current process
-			const args = ['--type=extensionHost', `--uriTransformerPath=${uriTransformerPath}`];
+			const args = ['--type=extensionHost', `--transformURIs`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
-			if (useHostProxy) {
-				args.push(`--useHostProxy`);
-			}
+			args.push(`--useHostProxy=${useHostProxy ? 'true' : 'false'}`);
 			this._extensionHostProcess = cp.fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, args, opts);
 			const pid = this._extensionHostProcess.pid;
 			this._log(`<${pid}> Launched Extension Host Process.`);
@@ -253,6 +253,12 @@ export class ExtensionHostConnection {
 			}
 		}
 	}
+}
+
+function readCaseInsensitive(env: { [key: string]: string | undefined }, key: string): string | undefined {
+	const pathKeys = Object.keys(env).filter(k => k.toLowerCase() === key.toLowerCase());
+	const pathKey = pathKeys.length > 0 ? pathKeys[0] : key;
+	return env[pathKey];
 }
 
 function setCaseInsensitive(env: { [key: string]: unknown }, key: string, value: string): void {

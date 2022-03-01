@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, IXtermMarker } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
@@ -290,7 +290,9 @@ export interface ITerminalConfiguration {
 	persistentSessionReviveProcess: 'onExit' | 'onExitAndWindowClose' | 'never';
 	ignoreProcessNames: string[];
 	autoReplies: { [key: string]: string };
-	enableShellIntegration: boolean;
+	shellIntegration?: {
+		enabled: boolean;
+	};
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -336,20 +338,8 @@ export interface ITerminalCommand {
 	cwd?: string;
 	exitCode?: number;
 	marker?: IXtermMarker;
+	hasOutput: boolean;
 	getOutput(): string | undefined;
-}
-
-/**
- * A clone of the IMarker from xterm which cannot be imported from common
- */
-export interface IXtermMarker {
-	readonly id: number;
-	readonly isDisposed: boolean;
-	readonly line: number;
-	dispose(): void;
-	onDispose: {
-		(listener: () => any): { dispose(): void };
-	};
 }
 
 export interface INavigationMode {
@@ -481,7 +471,7 @@ export const enum TerminalCommandId {
 	OpenDetectedLink = 'workbench.action.terminal.openDetectedLink',
 	OpenWordLink = 'workbench.action.terminal.openWordLink',
 	OpenFileLink = 'workbench.action.terminal.openFileLink',
-	OpenWebLink = 'workbench.action.terminal.openWebLink',
+	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopySelection = 'workbench.action.terminal.copySelection',
@@ -569,6 +559,7 @@ export const enum TerminalCommandId {
 	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
+	ClearCommandHistory = 'workbench.action.terminal.clearCommandHistory',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
@@ -582,6 +573,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.FindHide,
 	TerminalCommandId.FindNext,
 	TerminalCommandId.FindPrevious,
+	TerminalCommandId.GoToRecentDirectory,
 	TerminalCommandId.ToggleFindRegex,
 	TerminalCommandId.ToggleFindWholeWord,
 	TerminalCommandId.ToggleFindCaseSensitive,
@@ -607,6 +599,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ResizePaneUp,
 	TerminalCommandId.RunActiveFile,
 	TerminalCommandId.RunSelectedText,
+	TerminalCommandId.RunRecentCommand,
 	TerminalCommandId.ScrollDownLine,
 	TerminalCommandId.ScrollDownPage,
 	TerminalCommandId.ScrollToBottom,

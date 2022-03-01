@@ -124,7 +124,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		this._disposables.add(toDisposable(() => {
 			// EH shut down, complete all executions started by this EH
 			this._executions.forEach(e => {
-				e.complete({ });
+				e.complete({});
 			});
 		}));
 
@@ -248,6 +248,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 	$createExecution(handle: number, controllerId: string, rawUri: UriComponents, cellHandle: number): void {
 		const uri = URI.revive(rawUri);
 		const execution = this._notebookExecutionStateService.createCellExecution(controllerId, uri, cellHandle);
+		execution.confirm();
 		this._executions.set(handle, execution);
 	}
 

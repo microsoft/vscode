@@ -699,6 +699,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!indexes.length) {
 			if (this._viewModel) {
+				if (this.length) {
+					// Don't allow clearing focus, #121129
+					return;
+				}
+
 				this._viewModel.updateSelectionsState({
 					kind: SelectionStateType.Handle,
 					primary: null,

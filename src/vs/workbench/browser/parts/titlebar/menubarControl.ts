@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
-import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
@@ -39,6 +39,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 
 export type IOpenRecentAction = IAction & { uri: URI; remoteAuthority?: string };
 
@@ -592,7 +593,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 	private insertActionsBefore(nextAction: IAction, target: IAction[]): void {
 		switch (nextAction.id) {
-			case 'workbench.action.openRecent':
+			case OpenRecentAction.ID:
 				target.push(...this.getOpenRecentActions());
 				break;
 

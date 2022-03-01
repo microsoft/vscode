@@ -15,6 +15,7 @@
     "scmActionButton",
     "scmSelectedProvider",
     "scmValidation",
+    "tabs",
     "timeline"
   ],
   "categories": [
@@ -531,6 +532,11 @@
         "category": "Git"
       },
       {
+        "command": "git.closeAllDiffEditors",
+        "title": "%command.closeAllDiffEditors%",
+        "category": "Git"
+      },
+      {
         "command": "git.api.getRepositories",
         "title": "%command.api.getRepositories%",
         "category": "Git API"
@@ -931,6 +937,10 @@
         {
           "command": "git.timeline.compareWithSelected",
           "when": "false"
+        },
+        {
+          "command": "git.closeAllDiffEditors",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.api.getRepositories",
@@ -2113,6 +2123,12 @@
           "default": true,
           "description": "%config.confirmNoVerifyCommit%"
         },
+        "git.closeDiffOnOperation": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.closeDiffOnOperation%"
+        },
         "git.openDiffOnClick": {
           "type": "boolean",
           "scope": "resource",
@@ -2224,7 +2240,9 @@
             "default",
             "download"
           ],
-          "tags": ["experimental"],
+          "tags": [
+            "experimental"
+          ],
           "scope": "machine",
           "description": "%config.experimental.installGuide%",
           "default": "default"
@@ -2245,6 +2263,15 @@
           "scope": "resource",
           "default": 1,
           "markdownDescription": "%config.repositoryScanMaxDepth%"
+        },
+        "git.commandsToLog": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "markdownDescription": "%config.commandsToLog%"
         }
       }
     },

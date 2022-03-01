@@ -59,6 +59,8 @@ function hygiene(some, linting = true) {
 				errorCount++;
 			}
 		});
+
+		this.emit('data', file);
 	});
 
 	const indentation = es.through(function (file) {

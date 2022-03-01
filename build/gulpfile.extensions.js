@@ -239,6 +239,9 @@ const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions
 gulp.task(watchWebExtensionsTask);
 exports.watchWebExtensionsTask = watchWebExtensionsTask;
 
+/**
+ * @param {boolean} isWatch
+ */
 async function buildWebExtensions(isWatch) {
 	const webpackConfigLocations = await nodeUtil.promisify(glob)(
 		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),

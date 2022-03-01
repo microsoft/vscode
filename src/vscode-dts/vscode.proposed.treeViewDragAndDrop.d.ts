@@ -75,7 +75,7 @@ declare module 'vscode' {
 		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
 		 *
 		 * Each tree will automatically support drops from it's own `DragAndDropController`. To support drops from other trees,
-		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `tree/treeidlowercase`.
+		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `application/vnd.code.tree.treeidlowercase`.
 		 *
 		 * To learn the mime type of a dragged item:
 		 * 1. Set up your `DragAndDropController`
@@ -97,8 +97,8 @@ declare module 'vscode' {
 		 * When the items are dropped on **another tree item** in **the same tree**, your `TreeDataTransferItem` objects
 		 * will be preserved. See the documentation for `TreeDataTransferItem` for how best to take advantage of this.
 		 *
-		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "resourceurls".
-		 * The data for "resourceurls" should be an array of `toString()`ed Uris. To specify a cursor position in the file,
+		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "text/uri-list".
+		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 *
 		 * @param source The source items for the drag and drop operation.
@@ -114,8 +114,8 @@ declare module 'vscode' {
 		 *
 		 * @param source The data transfer items of the source of the drag.
 		 * @param target The target tree element that the drop is occurring on.
-		 * @param token TODO @alexr00: When would this operation actually be cancelled?
+		 * @param token A cancellation token indicating that the drop has been cancelled.
 		 */
-		handleDrop(source: TreeDataTransfer, target: T, token: CancellationToken): Thenable<void> | void;
+		handleDrop?(target: T, source: TreeDataTransfer, token: CancellationToken): Thenable<void> | void;
 	}
 }

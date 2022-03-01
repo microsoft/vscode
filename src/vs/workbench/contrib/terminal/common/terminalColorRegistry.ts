@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Color, RGBA } from 'vs/base/common/color';
 import * as nls from 'vs/nls';
 
 import { registerColor, ColorIdentifier, ColorDefaults } from 'vs/platform/theme/common/colorRegistry';
@@ -27,6 +28,21 @@ export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selec
 	dark: '#FFFFFF40',
 	hc: '#FFFFFF80'
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
+export const TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.defaultBackground', {
+	light: '#00000040',
+	dark: '#ffffff40',
+	hc: '#ffffff80'
+}, nls.localize('terminalCommandDecoration.defaultBackground', 'The default terminal command decoration background color.'));
+export const TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.successBackground', {
+	dark: new Color(new RGBA(12, 125, 157)),
+	light: new Color(new RGBA(102, 175, 224)),
+	hc: new Color(new RGBA(0, 155, 249))
+}, nls.localize('terminalCommandDecoration.successBackground', 'The terminal command decoration background color for successful commands.'));
+export const TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.errorBackground', {
+	dark: new Color(new RGBA(148, 21, 27)),
+	light: new Color(new RGBA(202, 75, 81)),
+	hc: new Color(new RGBA(252, 93, 109))
+}, nls.localize('terminalCommandDecoration.errorBackground', 'The terminal command decoration background color for error commands.'));
 export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,

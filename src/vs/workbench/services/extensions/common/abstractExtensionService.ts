@@ -719,6 +719,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
+	public activationEventIsDone(activationEvent: string): boolean {
+		if (!this._installedExtensionsReady.isOpen()) {
+			return false;
+		}
+		if (!this._registry.containsActivationEvent(activationEvent)) {
+			// There is no extension that is interested in this activation event
+			return true;
+		}
+		return this._extensionHostManagers.every(manager => manager.activationEventIsDone(activationEvent));
+	}
+
 	public whenInstalledExtensionsRegistered(): Promise<boolean> {
 		return this._installedExtensionsReady.wait();
 	}
@@ -934,7 +945,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected createLogger(): Logger {
 		return new Logger((severity, source, message) => {
-			if (this._isDev && source) {
+			if (source) {
 				this._logOrShowMessage(severity, `[${source}]: ${message}`);
 			} else {
 				this._logOrShowMessage(severity, message);
@@ -945,9 +956,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected _logOrShowMessage(severity: Severity, msg: string): void {
 		if (this._isDev) {
 			this._showMessageToUser(severity, msg);
-		} else {
-			this._logMessageInConsole(severity, msg);
 		}
+		this._logMessageInConsole(severity, msg);
 	}
 
 	private _acquireInternalAPI(): IInternalExtensionService {

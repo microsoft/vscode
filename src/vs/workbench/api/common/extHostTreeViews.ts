@@ -23,7 +23,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Command } from 'vs/editor/common/languages';
 import { TreeDataTransferConverter, TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
-import { ITreeViewsDragAndDropService, TreeViewsDragAndDropService } from 'vs/workbench/services/views/common/treeViewsDragAndDropService';
+import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
 
 type TreeItemHandle = string;
 
@@ -50,7 +50,7 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
-	private treeDragAndDropService: ITreeViewsDragAndDropService<vscode.TreeDataTransfer> = new TreeViewsDragAndDropService<vscode.TreeDataTransfer>();
+	private treeDragAndDropService: ITreeViewsService<vscode.TreeDataTransfer, any, any> = new TreeviewsService<vscode.TreeDataTransfer, any, any>();
 
 	constructor(
 		private _proxy: MainThreadTreeViewsShape,
@@ -87,10 +87,11 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if (!options || !options.treeDataProvider) {
 			throw new Error('Options with treeDataProvider is mandatory');
 		}
-		const dropMimeTypes = options.dragAndDropController?.dropMimeTypes;
-		const dragMimeTypes = options.dragAndDropController?.dragMimeTypes;
+		const dropMimeTypes = options.dragAndDropController?.dropMimeTypes ?? [];
+		const dragMimeTypes = options.dragAndDropController?.dragMimeTypes ?? [];
 		const hasHandleDrag = !!options.dragAndDropController?.handleDrag;
-		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag: hasHandleDrag });
+		const hasHandleDrop = !!options.dragAndDropController?.handleDrop;
+		const registerPromise = this._proxy.$registerTreeViewDataProvider(viewId, { showCollapseAll: !!options.showCollapseAll, canSelectMany: !!options.canSelectMany, dropMimeTypes, dragMimeTypes, hasHandleDrag, hasHandleDrop });
 		const treeView = this.createExtHostTreeView(viewId, options, extension);
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
@@ -454,10 +455,12 @@ class ExtHostTreeView<T> extends Disposable {
 
 	async onDrop(treeDataTransfer: vscode.TreeDataTransfer, targetHandleOrNode: TreeItemHandle, token: CancellationToken): Promise<void> {
 		const target = this.getExtensionElement(targetHandleOrNode);
-		if (!target) {
+		if (!target || !this.dndController?.handleDrop) {
 			return;
 		}
-		return asPromise(() => this.dndController?.handleDrop(treeDataTransfer, target, token));
+		return asPromise(() => this.dndController?.handleDrop
+			? this.dndController.handleDrop(target, treeDataTransfer, token)
+			: undefined);
 	}
 
 	get hasResolve(): boolean {

@@ -10,7 +10,7 @@ import { toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, EditorInputCapabilities, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -26,7 +26,7 @@ import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon'
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IErrorWithActions } from 'vs/base/common/errors';
+import { IErrorWithActions } from 'vs/base/common/errorMessage';
 import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
@@ -139,10 +139,16 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 			const textEditor = assertIsDefined(this.getControl());
 			textEditor.setModel(textFileModel.textEditorModel);
 
-			// View state
-			const editorViewState = this.loadEditorViewState(input, context);
-			if (editorViewState) {
-				textEditor.restoreViewState(editorViewState);
+			// Restore view state (unless provided by options)
+			if (!isTextEditorViewState(options?.viewState)) {
+				const editorViewState = this.loadEditorViewState(input, context);
+				if (editorViewState) {
+					if (options?.selection) {
+						editorViewState.cursorState = []; // prevent duplicate selections via options
+					}
+
+					textEditor.restoreViewState(editorViewState);
+				}
 			}
 
 			// Apply options to editor if any

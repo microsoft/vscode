@@ -17,6 +17,8 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { hash } from 'vs/base/common/hash';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 interface IRegExp {
 	pattern: string;
@@ -76,9 +78,12 @@ function isCharacterPair(something: CharacterPair | null): boolean {
 	);
 }
 
-export class LanguageConfigurationFileHandler {
+export class LanguageConfigurationFileHandler extends Disposable {
 
-	private _done: Set<string>;
+	/**
+	 * A map from language id to a hash computed from the config files locations.
+	 */
+	private readonly _done = new Map<string, number>();
 
 	constructor(
 		@ITextMateService textMateService: ITextMateService,
@@ -86,32 +91,43 @@ export class LanguageConfigurationFileHandler {
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
-		this._done = new Set<string>();
+		super();
 
-		// Listen for hints that a language configuration is needed/usefull and then load it once
-		this._languageService.onDidEncounterLanguage((languageIdentifier) => {
+		this._register(this._languageService.onDidEncounterLanguage(async (languageIdentifier) => {
 			// Modes can be instantiated before the extension points have finished registering
 			this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 				this._loadConfigurationsForMode(languageIdentifier);
 			});
-		});
-		textMateService.onDidEncounterLanguage((languageId) => {
+		}));
+		this._register(this._languageService.onDidChange(() => {
+			// reload language configurations as necessary
+			for (const [languageId] of this._done) {
+				this._loadConfigurationsForMode(languageId);
+			}
+		}));
+		this._register(textMateService.onDidEncounterLanguage((languageId) => {
 			this._loadConfigurationsForMode(languageId);
-		});
+		}));
 	}
 
-	private _loadConfigurationsForMode(languageId: string): void {
-		if (this._done.has(languageId)) {
+	private async _loadConfigurationsForMode(languageId: string): Promise<void> {
+		const configurationFiles = this._languageService.getConfigurationFiles(languageId);
+		const configurationHash = hash(configurationFiles.map(uri => uri.toString()));
+
+		if (this._done.get(languageId) === configurationHash) {
 			return;
 		}
-		this._done.add(languageId);
+		this._done.set(languageId, configurationHash);
 
-		const configurationFiles = this._languageService.getConfigurationFiles(languageId);
-		configurationFiles.forEach((configFileLocation) => this._handleConfigFile(languageId, configFileLocation));
+		const configs = await Promise.all(configurationFiles.map(configFile => this._readConfigFile(configFile)));
+		for (const config of configs) {
+			this._handleConfig(languageId, config);
+		}
 	}
 
-	private _handleConfigFile(languageId: string, configFileLocation: URI): void {
-		this._extensionResourceLoaderService.readExtensionResource(configFileLocation).then((contents) => {
+	private async _readConfigFile(configFileLocation: URI): Promise<ILanguageConfiguration> {
+		try {
+			const contents = await this._extensionResourceLoaderService.readExtensionResource(configFileLocation);
 			const errors: ParseError[] = [];
 			let configuration = <ILanguageConfiguration>parse(contents, errors);
 			if (errors.length) {
@@ -121,10 +137,11 @@ export class LanguageConfigurationFileHandler {
 				console.error(nls.localize('formatError', "{0}: Invalid format, JSON object expected.", configFileLocation.toString()));
 				configuration = {};
 			}
-			this._handleConfig(languageId, configuration);
-		}, (err) => {
+			return configuration;
+		} catch (err) {
 			console.error(err);
-		});
+			return {};
+		}
 	}
 
 	private _extractValidCommentRule(languageId: string, configuration: ILanguageConfiguration): CommentRule | undefined {

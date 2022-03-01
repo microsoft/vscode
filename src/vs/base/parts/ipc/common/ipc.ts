@@ -522,7 +522,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			},
 			listen(event: string, arg: any) {
 				if (that.isDisposed) {
-					return Promise.reject(errors.canceled());
+					return Event.None;
 				}
 				return that.requestEvent(channelName, event, arg);
 			}

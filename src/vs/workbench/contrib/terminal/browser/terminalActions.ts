@@ -16,7 +16,8 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, ICommandActionTitle, ILocalizedString, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandActionTitle, ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -50,6 +51,7 @@ import { AbstractVariableResolverService } from 'vs/workbench/services/configura
 import { ITerminalQuickPickItem } from 'vs/workbench/contrib/terminal/browser/terminalProfileQuickpick';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { getIconId, getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { getCommandHistory } from 'vs/workbench/contrib/terminal/common/history';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -1955,14 +1957,14 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenWebLink,
-				title: { value: localize('workbench.action.terminal.openLastWebLink', "Open Last Web Link"), original: 'Open Last Web Link' },
+				title: { value: localize('workbench.action.terminal.openLastUrlLink', "Open Last Url Link"), original: 'Open Last Url Link' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('web'));
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('url'));
 		}
 	});
 
@@ -1970,14 +1972,14 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.OpenFileLink,
-				title: { value: localize('workbench.action.terminal.openLastFileLink', "Open Last File Link"), original: 'Open Last File Link' },
+				title: { value: localize('workbench.action.terminal.openLastLocalFileLink', "Open Last Local File Link"), original: 'Open Last Local File Link' },
 				f1: true,
 				category,
 				precondition: TerminalContextKeys.terminalHasBeenCreated,
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('file'));
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.openRecentLink('localFile'));
 		}
 	});
 
@@ -2072,6 +2074,21 @@ export function registerTerminalActions() {
 			return getSelectedInstances(accessor)?.[0].toggleSizeToContentWidth();
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.ClearCommandHistory,
+				title: { value: localize('workbench.action.terminal.clearCommandHistory', "Clear Command History"), original: 'Clear Command History' },
+				f1: true,
+				category,
+				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated)
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			getCommandHistory(accessor).clear();
+		}
+	});
+
 	// Some commands depend on platform features
 	if (BrowserFeatures.clipboard.writeText) {
 		registerAction2(class extends Action2 {

@@ -20,7 +20,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/browser/types';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -462,11 +462,11 @@ class SettingHighlighter extends Disposable {
 	}
 }
 
-class UnsupportedSettingsRenderer extends Disposable implements modes.CodeActionProvider {
+class UnsupportedSettingsRenderer extends Disposable implements languages.CodeActionProvider {
 
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
-	private readonly codeActions = new ResourceMap<[Range, modes.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	private readonly codeActions = new ResourceMap<[Range, languages.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -498,8 +498,8 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		}
 	}
 
-	async provideCodeActions(model: ITextModel, range: Range | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList> {
-		const actions: modes.CodeAction[] = [];
+	async provideCodeActions(model: ITextModel, range: Range | Selection, context: languages.CodeActionContext, token: CancellationToken): Promise<languages.CodeActionList> {
+		const actions: languages.CodeAction[] = [];
 		const codeActionsByRange = this.codeActions.get(model.uri);
 		if (codeActionsByRange) {
 			for (const [codeActionsRange, codeActions] of codeActionsByRange) {
@@ -636,7 +636,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		};
 	}
 
-	private generateUntrustedSettingCodeActions(diagnostics: IMarkerData[]): modes.CodeAction[] {
+	private generateUntrustedSettingCodeActions(diagnostics: IMarkerData[]): languages.CodeAction[] {
 		return [{
 			title: nls.localize('manage workspace trust', "Manage Workspace Trust"),
 			command: {
@@ -648,7 +648,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		}];
 	}
 
-	private addCodeActions(range: IRange, codeActions: modes.CodeAction[]): void {
+	private addCodeActions(range: IRange, codeActions: languages.CodeAction[]): void {
 		let actions = this.codeActions.get(this.settingsEditorModel.uri);
 		if (!actions) {
 			actions = [];

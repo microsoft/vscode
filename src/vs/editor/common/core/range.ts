@@ -351,6 +351,7 @@ export class Range {
 	 */
 	public static lift(range: undefined | null): null;
 	public static lift(range: IRange): Range;
+	public static lift(range: IRange | undefined | null): Range | null;
 	public static lift(range: IRange | undefined | null): Range | null {
 		if (!range) {
 			return null;
@@ -462,5 +463,9 @@ export class Range {
 	 */
 	public static spansMultipleLines(range: IRange): boolean {
 		return range.endLineNumber > range.startLineNumber;
+	}
+
+	public toJSON(): IRange {
+		return this;
 	}
 }

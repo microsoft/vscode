@@ -23,7 +23,7 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 
 export interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -54,7 +54,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService
 	) {
@@ -147,7 +146,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return undefined;
 		}
 
-		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
+		const pathCandidate = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(provider, this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
 		let target: URI | undefined;
 		if (this._editorModelReference.object.hasAssociatedFilePath()) {
 			target = pathCandidate;
@@ -181,7 +180,27 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return await this._editorModelReference.object.saveAs(target);
 	}
 
-	private async _suggestName(suggestedFilename: string) {
+	private async _suggestName(provider: NotebookProviderInfo, suggestedFilename: string) {
+		// guess file extensions
+		const firstSelector = provider.selectors[0];
+		let selectorStr = firstSelector && typeof firstSelector === 'string' ? firstSelector : undefined;
+		if (!selectorStr && firstSelector) {
+			const include = (firstSelector as { include?: string }).include;
+			if (typeof include === 'string') {
+				selectorStr = include;
+			}
+		}
+
+		if (selectorStr) {
+			const matches = /^\*\.([A-Za-z_-]*)$/.exec(selectorStr);
+			if (matches && matches.length > 1) {
+				const fileExt = matches[1];
+				if (!suggestedFilename.endsWith(fileExt)) {
+					return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename + '.' + fileExt);
+				}
+			}
+		}
+
 		return joinPath(await this._fileDialogService.defaultFilePath(), suggestedFilename);
 	}
 
@@ -259,7 +278,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			], true, undefined, () => undefined, undefined, false);
 
 			if (this.options._workingCopy) {
-				await this.workingCopyBackupService.discardBackup(this.options._workingCopy);
 				this.options._backupId = undefined;
 				this.options._workingCopy = undefined;
 				this.options.startDirty = undefined;

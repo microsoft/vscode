@@ -89,6 +89,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			this._detector.xterm,
 			l.bufferRange,
 			l.text,
+			l.actions,
 			this._detector.xterm.buffer.active.viewportY,
 			activateCallback,
 			(link, viewportRange, modifierDownCallback, modifierUpCallback) => this._onDidShowHover.fire({
@@ -98,7 +99,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 				modifierUpCallback
 			}),
 			l.type !== TerminalBuiltinLinkType.Search, // Only search is low confidence
-			l.label || this._getLabel(l.type)
+			l.label || this._getLabel(l.type),
+			l.type
 		);
 	}
 

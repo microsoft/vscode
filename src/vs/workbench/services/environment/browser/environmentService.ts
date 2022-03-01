@@ -7,7 +7,7 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IPath } from 'vs/platform/windows/common/windows';
+import { IPath } from 'vs/platform/window/common/window';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -182,7 +182,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 		const webviewExternalEndpointCommit = this.payload?.get('webviewExternalEndpointCommit');
 		return endpoint
-			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? 'd372f9187401bd145a0a6e15ba369e2d82d02005')
+			.replace('{{commit}}', webviewExternalEndpointCommit ?? this.productService.commit ?? '93a2a2fa12dd3ae0629eec01c05a28cb60ac1c4b')
 			.replace('{{quality}}', (webviewExternalEndpointCommit ? 'insider' : this.productService.quality) ?? 'insider');
 	}
 
@@ -279,7 +279,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e));
 				extensionHostDebugEnvironment.isExtensionDevelopment = true;
 			}
-			
+
 			if (developmentOptions.extensionTestsPath) {
 				extensionHostDebugEnvironment.extensionTestsLocationURI = URI.revive(developmentOptions.extensionTestsPath);
 			}

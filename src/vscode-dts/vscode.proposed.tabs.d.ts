@@ -7,6 +7,13 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
+	export enum TabKind {
+		Singular = 0,
+		Diff = 1,
+		SidebySide = 2,
+		Other = 3
+	}
+
 	/**
 	 * Represents a tab within the window
 	 */
@@ -15,11 +22,6 @@ declare module 'vscode' {
 		 * The text displayed on the tab
 		 */
 		readonly label: string;
-
-		/**
-		 * The index of the tab within the column
-		 */
-		readonly index: number;
 
 		/**
 		 * The column which the tab belongs to
@@ -51,9 +53,24 @@ declare module 'vscode' {
 
 		/**
 		 * Whether or not the tab is currently active
-		 * Dictated by being the selected tab in the active group
+		 * Dictated by being the selected tab in the group
 		 */
 		readonly isActive: boolean;
+
+		/**
+		 * Whether or not the dirty indicator is present on the tab
+		 */
+		readonly isDirty: boolean;
+
+		/**
+		 * Whether or not the tab is pinned
+		 */
+		readonly isPinned: boolean;
+
+		/**
+		 * Indicates the type of tab it is.
+		 */
+		readonly kind: TabKind;
 
 		/**
 		 * Moves a tab to the given index within the column.
@@ -73,28 +90,43 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * A list of all opened tabs
-		 * Ordered from left to right
+		 * Represents the grid widget within the main editor area
 		 */
-		export const tabs: readonly Tab[];
+		export const tabGroups: TabGroups;
+	}
+
+	interface TabGroups {
+		/**
+		 * All the groups within the group container
+		 */
+		readonly all: TabGroup[];
 
 		/**
-		 * The currently active tab
-		 * Undefined if no tabs are currently opened
+		 * An {@link Event} which fires when a group changes.
 		 */
-		export const activeTab: Tab | undefined;
+		onDidChangeTabGroup: Event<void>;
+
+	}
+
+	interface TabGroup {
+		/**
+		 * Whether or not the group is currently active
+		 */
+		readonly isActive: boolean;
 
 		/**
-		 * An {@link Event} which fires when the array of {@link window.tabs tabs}
-		 * has changed.
+		 * The view column of the groups
 		 */
-		export const onDidChangeTabs: Event<readonly Tab[]>;
+		readonly viewColumn: ViewColumn;
 
 		/**
-		 * An {@link Event} which fires when the {@link window.activeTab activeTab}
-		 * has changed.
+		 * The active tab within the group
 		 */
-		export const onDidChangeActiveTab: Event<Tab | undefined>;
+		readonly activeTab: Tab | undefined;
 
+		/**
+		 * The list of tabs contained within the group
+		 */
+		readonly tabs: Tab[];
 	}
 }

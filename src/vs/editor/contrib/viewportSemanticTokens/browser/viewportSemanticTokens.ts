@@ -48,7 +48,7 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 		this._editor = editor;
 		this._provider = languageFeaturesService.documentRangeSemanticTokensProvider;
 		this._debounceInformation = languageFeatureDebounceService.for(this._provider, 'DocumentRangeSemanticTokens', { min: 100, max: 500 });
-		this._tokenizeViewport = new RunOnceScheduler(() => this._tokenizeViewportNow(), 100);
+		this._tokenizeViewport = this._register(new RunOnceScheduler(() => this._tokenizeViewportNow(), 100));
 		this._outstandingRequests = [];
 		const scheduleTokenizeViewport = () => {
 			if (this._editor.hasModel()) {

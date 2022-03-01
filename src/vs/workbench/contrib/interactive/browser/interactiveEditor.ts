@@ -56,6 +56,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { NOTEBOOK_KERNEL } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -316,7 +317,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#widgetDisposableStore.clear();
 
-		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
+		this.#notebookWidget = <IBorrowValue<NotebookEditorWidget>>this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
@@ -435,8 +436,8 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
-		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeNotebookAffinity(this.#updateInputEditorLanguage, this));
-		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeSelectedNotebooks(this.#updateInputEditorLanguage, this));
+		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeNotebookAffinity(this.#syncWithKernel, this));
+		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeSelectedNotebooks(this.#syncWithKernel, this));
 
 		this.#widgetDisposableStore.add(this.themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
@@ -491,8 +492,7 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
-		this.#updateInputDecoration();
-		this.#updateInputEditorLanguage();
+		this.#syncWithKernel();
 	}
 
 	#lastCell: ICellViewModel | undefined = undefined;
@@ -592,22 +592,24 @@ export class InteractiveEditor extends EditorPane {
 		}));
 	}
 
-	#updateInputEditorLanguage() {
+	#syncWithKernel() {
 		const notebook = this.#notebookWidget.value?.textModel;
 		const textModel = this.#codeEditorWidget.getModel();
 
-		if (!notebook || !textModel) {
-			return;
+		if (notebook && textModel) {
+			const info = this.#notebookKernelService.getMatchingKernel(notebook);
+			const selectedOrSuggested = info.selected ?? info.suggestions[0];
+
+			if (selectedOrSuggested) {
+				const language = selectedOrSuggested.supportedLanguages[0];
+				const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_LANGUAGE_ID;
+				textModel.setMode(newMode);
+
+				NOTEBOOK_KERNEL.bindTo(this.#contextKeyService).set(selectedOrSuggested.id);
+			}
 		}
 
-		const info = this.#notebookKernelService.getMatchingKernel(notebook);
-		const selectedOrSuggested = info.selected ?? info.suggestions[0];
-
-		if (selectedOrSuggested) {
-			const language = selectedOrSuggested.supportedLanguages[0];
-			const newMode = language ? this.#languageService.createById(language).languageId : PLAINTEXT_LANGUAGE_ID;
-			textModel.setMode(newMode);
-		}
+		this.#updateInputDecoration();
 	}
 
 	layout(dimension: DOM.Dimension): void {
@@ -661,8 +663,9 @@ export class InteractiveEditor extends EditorPane {
 
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
-			const keybinding = this.#keybindingService.lookupKeybinding('interactive.execute')?.getLabel();
-			const text = nls.localize('interactiveInputPlaceHolder', "Type code here and press {0} to run", keybinding ?? 'ctrl+enter');
+			const languageId = model.getLanguageId();
+			const keybinding = this.#keybindingService.lookupKeybinding('interactive.execute', this.#contextKeyService)?.getLabel();
+			const text = nls.localize('interactiveInputPlaceHolder', "Type '{0}' code here and press {1} to run", languageId, keybinding ?? 'ctrl+enter');
 			decorations.push({
 				range: {
 					startLineNumber: 0,

@@ -103,6 +103,21 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'view',
 			description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 		},
+		[TerminalSettingId.ShellIntegrationDecorationIconSuccess]: {
+			type: 'string',
+			default: 'primitive-dot',
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
+		},
+		[TerminalSettingId.ShellIntegrationDecorationIconError]: {
+			type: 'string',
+			default: 'error-small',
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`.")
+		},
+		[TerminalSettingId.ShellIntegrationDecorationIcon]: {
+			type: 'string',
+			default: 'circle-outline',
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIcon', "Controls the icon that will be used for skipped/empty commands. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
+		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
@@ -134,7 +149,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.EnableMultiLinePasteWarning]: {
-			description: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal."),
+			markdownDescription: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal. The dialog does not show when:\n\n- Bracketed paste mode is enabled (the shell supports multi-line paste natively)\n- The paste is handled by the shell's readline (in the case of pwsh)"),
 			type: 'boolean',
 			default: true
 		},
@@ -505,7 +520,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
-			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {0} in the reply to mean the enter key.\n- To unset a default key, set the value to null.", '`"\\r"`'),
+			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that when encountered in the terminal will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "\\r"`', '`"\\r"`'),
 			type: 'object',
 			additionalProperties: {
 				oneOf: [{
@@ -514,15 +529,31 @@ const terminalConfiguration: IConfigurationNode = {
 				},
 				{ type: 'null' }]
 			},
-			default: {
-				'Terminate batch job (Y/N)': 'Y\r'
-			}
+			default: {}
 		},
-		[TerminalSettingId.EnableShellIntegration]: {
+		[TerminalSettingId.ShellIntegrationEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable the experimental shell integration feature which will turn on certain feature such enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
+			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Enable the experimental shell integration feature which will turn on certain features like enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh\n\nThis setting applies only when terminals are created, you will need to restart terminals for the setting to take effect."),
 			type: 'boolean',
 			default: false
+		},
+		[TerminalSettingId.ShellIntegrationDecorationsEnabled]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationsEnabled', "When shell integration is enabled, adds a decoration for each command."),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.ShellIntegrationShowWelcome]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.showWelcome', "Whether to show the shell integration activated welcome message in the terminal when the feature is enabled."),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.ShellIntegrationCommandHistory]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.history', "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."),
+			type: 'number',
+			default: 100
 		},
 	}
 };

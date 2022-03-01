@@ -296,63 +296,66 @@ export class ExplorerItem {
 		return this.children.get(this.getPlatformAwareName(name));
 	}
 
-	async fetchChildren(sortOrder: SortOrder): Promise<ExplorerItem[]> {
+	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
 		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+
+		// fast path when the children can be resolved sync
 		if (nestingConfig.enabled && this.nestedChildren) { return this.nestedChildren; }
 
-		if (!this._isDirectoryResolved) {
-			// Resolve metadata only when the mtime is needed since this can be expensive
-			// Mtime is only used when the sort order is 'modified'
-			const resolveMetadata = sortOrder === SortOrder.Modified;
-			this.isError = false;
-			try {
-				const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
-				const resolved = ExplorerItem.create(this.fileService, this.configService, stat, this);
-				ExplorerItem.mergeLocalWithDisk(resolved, this);
-			} catch (e) {
-				this.isError = true;
-				throw e;
-			}
-			this._isDirectoryResolved = true;
-		}
-
-		const items: ExplorerItem[] = [];
-		if (nestingConfig.enabled) {
-			const fileChildren: [string, ExplorerItem][] = [];
-			const dirChildren: [string, ExplorerItem][] = [];
-			for (const child of this.children.entries()) {
-				if (child[1].isDirectory) {
-					dirChildren.push(child);
-				} else {
-					fileChildren.push(child);
+		return (async () => {
+			if (!this._isDirectoryResolved) {
+				// Resolve metadata only when the mtime is needed since this can be expensive
+				// Mtime is only used when the sort order is 'modified'
+				const resolveMetadata = sortOrder === SortOrder.Modified;
+				this.isError = false;
+				try {
+					const stat = await this.fileService.resolve(this.resource, { resolveSingleChildDescendants: true, resolveMetadata });
+					const resolved = ExplorerItem.create(this.fileService, this.configService, stat, this);
+					ExplorerItem.mergeLocalWithDisk(resolved, this);
+				} catch (e) {
+					this.isError = true;
+					throw e;
 				}
+				this._isDirectoryResolved = true;
 			}
 
-			const nested = this.buildFileNester().nest(fileChildren.map(([name]) => name));
-
-			for (const [fileEntryName, fileEntryItem] of fileChildren) {
-				const nestedItems = nested.get(fileEntryName);
-				if (nestedItems !== undefined) {
-					fileEntryItem.nestedChildren = [];
-					for (const name of nestedItems.keys()) {
-						fileEntryItem.nestedChildren.push(assertIsDefined(this.children.get(name)));
+			const items: ExplorerItem[] = [];
+			if (nestingConfig.enabled) {
+				const fileChildren: [string, ExplorerItem][] = [];
+				const dirChildren: [string, ExplorerItem][] = [];
+				for (const child of this.children.entries()) {
+					if (child[1].isDirectory) {
+						dirChildren.push(child);
+					} else {
+						fileChildren.push(child);
 					}
-					items.push(fileEntryItem);
-				} else {
-					fileEntryItem.nestedChildren = undefined;
 				}
-			}
 
-			for (const [_, dirEntryItem] of dirChildren.values()) {
-				items.push(dirEntryItem);
-			}
-		} else {
-			this.children.forEach(child => {
-				items.push(child);
-			});
-		}
+				const nested = this.buildFileNester().nest(fileChildren.map(([name]) => name));
 
-		return items;
+				for (const [fileEntryName, fileEntryItem] of fileChildren) {
+					const nestedItems = nested.get(fileEntryName);
+					if (nestedItems !== undefined) {
+						fileEntryItem.nestedChildren = [];
+						for (const name of nestedItems.keys()) {
+							fileEntryItem.nestedChildren.push(assertIsDefined(this.children.get(name)));
+						}
+						items.push(fileEntryItem);
+					} else {
+						fileEntryItem.nestedChildren = undefined;
+					}
+				}
+
+				for (const [_, dirEntryItem] of dirChildren.values()) {
+					items.push(dirEntryItem);
+				}
+			} else {
+				this.children.forEach(child => {
+					items.push(child);
+				});
+			}
+			return items;
+		})();
 	}
 
 	// TODO:@jkearl, share one nester across all explorer items and only build on config change

@@ -77,7 +77,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}));
 
 		Gesture.ignoreTarget(this._domNode);
-		this._register(dom.addStandardDisposableGenericMouseDownListner(this._domNode, e => {
+		this._register(dom.addStandardDisposableGenericMouseDownListener(this._domNode, e => {
 			if (this.state.type !== LightBulbState.Type.Showing) {
 				return;
 			}

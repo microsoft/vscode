@@ -5,7 +5,7 @@
 
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -891,7 +891,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		parent.appendChild(overlay);
 
 		// Hide the block if a mouse down event occurs #99065
-		this._register(addDisposableGenericMouseDownListner(overlay, () => overlay.classList.remove('visible')));
+		this._register(addDisposableGenericMouseDownListener(overlay, () => overlay.classList.remove('visible')));
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragStart: e => overlay.classList.add('visible'),
@@ -903,7 +903,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		let lastOpenHorizontalPosition: Position | undefined;
 		let lastOpenVerticalPosition: Position | undefined;
 		const openPartAtPosition = (position: Position) => {
-			if (!this.layoutService.isVisible(Parts.PANEL_PART) && position === Position.BOTTOM) {
+			if (!this.layoutService.isVisible(Parts.PANEL_PART) && position === this.layoutService.getPanelPosition()) {
 				this.layoutService.setPartHidden(false, Parts.PANEL_PART);
 			} else if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) && position === (this.layoutService.getSideBarPosition() === Position.RIGHT ? Position.LEFT : Position.RIGHT)) {
 				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);

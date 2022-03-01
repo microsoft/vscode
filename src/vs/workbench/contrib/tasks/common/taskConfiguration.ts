@@ -529,6 +529,11 @@ enum ProblemMatcherKind {
 	Array
 }
 
+type TaskConfigurationValueWithErrors<T> = {
+	value?: T;
+	errors?: string[];
+};
+
 const EMPTY_ARRAY: any[] = [];
 Object.freeze(EMPTY_ARRAY);
 
@@ -1144,8 +1149,8 @@ namespace ProblemMatcherConverter {
 		return result;
 	}
 
-	export function fromWithOsConfig(this: void, external: ConfigurationProperties & { [key: string]: any }, context: ParseContext): ProblemMatcher[] | undefined {
-		let result: ProblemMatcher[] | undefined = undefined;
+	export function fromWithOsConfig(this: void, external: ConfigurationProperties & { [key: string]: any }, context: ParseContext): TaskConfigurationValueWithErrors<ProblemMatcher[]> {
+		let result: TaskConfigurationValueWithErrors<ProblemMatcher[]> = {};
 		if (external.windows && external.windows.problemMatcher && context.platform === Platform.Windows) {
 			result = from(external.windows.problemMatcher, context);
 		} else if (external.osx && external.osx.problemMatcher && context.platform === Platform.Mac) {
@@ -1158,33 +1163,36 @@ namespace ProblemMatcherConverter {
 		return result;
 	}
 
-	export function from(this: void, config: ProblemMatcherConfig.ProblemMatcherType | undefined, context: ParseContext): ProblemMatcher[] {
+	export function from(this: void, config: ProblemMatcherConfig.ProblemMatcherType | undefined, context: ParseContext): TaskConfigurationValueWithErrors<ProblemMatcher[]> {
 		let result: ProblemMatcher[] = [];
 		if (config === undefined) {
-			return result;
+			return { value: result };
+		}
+		const errors: string[] = [];
+		function addResult(matcher: TaskConfigurationValueWithErrors<ProblemMatcher>) {
+			if (matcher.value) {
+				result.push(matcher.value);
+			}
+			if (matcher.errors) {
+				errors.push(...matcher.errors);
+			}
 		}
 		let kind = getProblemMatcherKind(config);
 		if (kind === ProblemMatcherKind.Unknown) {
-			context.problemReporter.warn(nls.localize(
+			const error = nls.localize(
 				'ConfigurationParser.unknownMatcherKind',
 				'Warning: the defined problem matcher is unknown. Supported types are string | ProblemMatcher | Array<string | ProblemMatcher>.\n{0}\n',
-				JSON.stringify(config, null, 4)));
-			return result;
+				JSON.stringify(config, null, 4));
+			context.problemReporter.warn(error);
 		} else if (kind === ProblemMatcherKind.String || kind === ProblemMatcherKind.ProblemMatcher) {
-			let matcher = resolveProblemMatcher(config as ProblemMatcherConfig.ProblemMatcher, context);
-			if (matcher) {
-				result.push(matcher);
-			}
+			addResult(resolveProblemMatcher(config as ProblemMatcherConfig.ProblemMatcher, context));
 		} else if (kind === ProblemMatcherKind.Array) {
 			let problemMatchers = <(string | ProblemMatcherConfig.ProblemMatcher)[]>config;
 			problemMatchers.forEach(problemMatcher => {
-				let matcher = resolveProblemMatcher(problemMatcher, context);
-				if (matcher) {
-					result.push(matcher);
-				}
+				addResult(resolveProblemMatcher(problemMatcher, context));
 			});
 		}
-		return result;
+		return { value: result, errors };
 	}
 
 	function getProblemMatcherKind(this: void, value: ProblemMatcherConfig.ProblemMatcherType): ProblemMatcherKind {
@@ -1199,28 +1207,27 @@ namespace ProblemMatcherConverter {
 		}
 	}
 
-	function resolveProblemMatcher(this: void, value: string | ProblemMatcherConfig.ProblemMatcher, context: ParseContext): ProblemMatcher | undefined {
+	function resolveProblemMatcher(this: void, value: string | ProblemMatcherConfig.ProblemMatcher, context: ParseContext): TaskConfigurationValueWithErrors<ProblemMatcher> {
 		if (Types.isString(value)) {
 			let variableName = <string>value;
 			if (variableName.length > 1 && variableName[0] === '$') {
 				variableName = variableName.substring(1);
 				let global = ProblemMatcherRegistry.get(variableName);
 				if (global) {
-					return Objects.deepClone(global);
+					return { value: Objects.deepClone(global) };
 				}
 				let localProblemMatcher: ProblemMatcher & Partial<NamedProblemMatcher> = context.namedProblemMatchers[variableName];
 				if (localProblemMatcher) {
 					localProblemMatcher = Objects.deepClone(localProblemMatcher);
 					// remove the name
 					delete localProblemMatcher.name;
-					return localProblemMatcher;
+					return { value: localProblemMatcher };
 				}
 			}
-			context.taskLoadIssues.push(nls.localize('ConfigurationParser.invalidVariableReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
-			return undefined;
+			return { errors: [nls.localize('ConfigurationParser.invalidVariableReference', 'Error: Invalid problemMatcher reference: {0}\n', value)] };
 		} else {
 			let json = <ProblemMatcherConfig.ProblemMatcher>value;
-			return new ProblemMatcherParser(context.problemReporter).parse(json);
+			return { value: new ProblemMatcherParser(context.problemReporter).parse(json) };
 		}
 	}
 }
@@ -1303,9 +1310,10 @@ namespace ConfigurationProperties {
 		{ property: 'options' }
 	];
 
-	export function from(this: void, external: ConfigurationProperties & { [key: string]: any }, context: ParseContext, includeCommandOptions: boolean, source: TaskConfigSource, properties?: IJSONSchemaMap): Tasks.ConfigurationProperties | undefined {
+	export function from(this: void, external: ConfigurationProperties & { [key: string]: any }, context: ParseContext,
+		includeCommandOptions: boolean, source: TaskConfigSource, properties?: IJSONSchemaMap): TaskConfigurationValueWithErrors<Tasks.ConfigurationProperties> {
 		if (!external) {
-			return undefined;
+			return {};
 		}
 		let result: Tasks.ConfigurationProperties & { [key: string]: any } = {};
 
@@ -1355,13 +1363,13 @@ namespace ConfigurationProperties {
 			result.options = CommandOptions.from(external.options, context);
 		}
 		const configProblemMatcher = ProblemMatcherConverter.fromWithOsConfig(external, context);
-		if (configProblemMatcher !== undefined) {
-			result.problemMatchers = configProblemMatcher;
+		if (configProblemMatcher.value !== undefined) {
+			result.problemMatchers = configProblemMatcher.value;
 		}
 		if (external.detail) {
 			result.detail = external.detail;
 		}
-		return isEmpty(result) ? undefined : result;
+		return isEmpty(result) ? {} : { value: result, errors: configProblemMatcher.errors };
 	}
 
 	export function isEmpty(this: void, value: Tasks.ConfigurationProperties): boolean {
@@ -1461,8 +1469,9 @@ namespace ConfiguringTask {
 			{}
 		);
 		let configuration = ConfigurationProperties.from(external, context, true, source, typeDeclaration.properties);
-		if (configuration) {
-			result.configurationProperties = Object.assign(result.configurationProperties, configuration);
+		result.addTaskLoadMessages(configuration.errors);
+		if (configuration.value) {
+			result.configurationProperties = Object.assign(result.configurationProperties, configuration.value);
 			if (result.configurationProperties.name) {
 				result._label = result.configurationProperties.name;
 			} else {
@@ -1538,8 +1547,9 @@ namespace CustomTask {
 			}
 		);
 		let configuration = ConfigurationProperties.from(external, context, false, source);
-		if (configuration) {
-			result.configurationProperties = Object.assign(result.configurationProperties, configuration);
+		result.addTaskLoadMessages(configuration.errors);
+		if (configuration.value) {
+			result.configurationProperties = Object.assign(result.configurationProperties, configuration.value);
 		}
 		let supportLegacy: boolean = true; //context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0;
 		if (supportLegacy) {
@@ -1825,7 +1835,7 @@ namespace Globals {
 			result.promptOnClose = !!config.promptOnClose;
 		}
 		if (config.problemMatcher) {
-			result.problemMatcher = ProblemMatcherConverter.from(config.problemMatcher, context);
+			result.problemMatcher = ProblemMatcherConverter.from(config.problemMatcher, context).value;
 		}
 		return result;
 	}
@@ -2069,7 +2079,7 @@ class ConfigurationParser {
 		}
 
 		if ((!result.custom || result.custom.length === 0) && (globals.command && globals.command.name)) {
-			let matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context);
+			const matchers: ProblemMatcher[] = ProblemMatcherConverter.from(fileConfig.problemMatcher, context).value ?? [];
 			let isBackground = fileConfig.isBackground ? !!fileConfig.isBackground : fileConfig.isWatching ? !!fileConfig.isWatching : undefined;
 			let name = Tasks.CommandString.value(globals.command.name);
 			let task: Tasks.CustomTask = new Tasks.CustomTask(

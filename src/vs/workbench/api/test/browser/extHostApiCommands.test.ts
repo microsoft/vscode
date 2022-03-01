@@ -57,6 +57,7 @@ import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
+import { assertType } from 'vs/base/common/types';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -1250,7 +1251,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Inlay Hints, back and forth', async function () {
 		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
 			provideInlayHints() {
-				return [new types.InlayHint('Foo', new types.Position(0, 1))];
+				return [new types.InlayHint(new types.Position(0, 1), 'Foo')];
 			}
 		}));
 
@@ -1268,13 +1269,20 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	test('Inline Hints, merge', async function () {
 		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
 			provideInlayHints() {
-				return [new types.InlayHint('Bar', new types.Position(10, 11))];
+				const part = new types.InlayHintLabelPart('Bar');
+				part.tooltip = 'part_tooltip';
+				part.command = { command: 'cmd', title: 'part' };
+				const hint = new types.InlayHint(new types.Position(10, 11), [part]);
+				hint.tooltip = 'hint_tooltip';
+				hint.paddingLeft = true;
+				hint.paddingRight = false;
+				return [hint];
 			}
 		}));
 
 		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
 			provideInlayHints() {
-				const hint = new types.InlayHint('Foo', new types.Position(0, 1), types.InlayHintKind.Parameter);
+				const hint = new types.InlayHint(new types.Position(0, 1), 'Foo', types.InlayHintKind.Parameter);
 				return [hint];
 			}
 		}));
@@ -1289,15 +1297,24 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
 
-		assert.strictEqual(second.label, 'Bar');
 		assert.strictEqual(second.position.line, 10);
 		assert.strictEqual(second.position.character, 11);
+		assert.strictEqual(second.paddingLeft, true);
+		assert.strictEqual(second.paddingRight, false);
+		assert.strictEqual(second.tooltip, 'hint_tooltip');
+
+		const label = (<types.InlayHintLabelPart[]>second.label)[0];
+		assertType(label instanceof types.InlayHintLabelPart);
+		assert.strictEqual(label.value, 'Bar');
+		assert.strictEqual(label.tooltip, 'part_tooltip');
+		assert.strictEqual(label.command?.command, 'cmd');
+		assert.strictEqual(label.command?.title, 'part');
 	});
 
 	test('Inline Hints, bad provider', async function () {
 		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
 			provideInlayHints() {
-				return [new types.InlayHint('Foo', new types.Position(0, 1))];
+				return [new types.InlayHint(new types.Position(0, 1), 'Foo')];
 			}
 		}));
 		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
