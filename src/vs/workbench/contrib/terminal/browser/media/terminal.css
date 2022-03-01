@@ -93,12 +93,8 @@
 	display: block;
 }
 
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm,
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view .xterm.shell-integration,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view .xterm.shell-integration,
 .monaco-split-view2.vertical .split-view-view .xterm.shell-integration {
-	padding-left: 20px;
+	padding-left: 20px !important;
 }
 
 .monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm,
