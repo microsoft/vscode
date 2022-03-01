@@ -17,7 +17,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 

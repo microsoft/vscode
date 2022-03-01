@@ -54,7 +54,7 @@ class IntegrityStorage {
 	}
 }
 
-export class IntegrityServiceImpl implements IIntegrityService {
+export class IntegrityService implements IIntegrityService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -147,9 +147,9 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		try {
 			const checksum = await this.checksumService.checksum(fileUri);
 
-			return IntegrityServiceImpl._createChecksumPair(fileUri, checksum, expected);
+			return IntegrityService._createChecksumPair(fileUri, checksum, expected);
 		} catch (error) {
-			return IntegrityServiceImpl._createChecksumPair(fileUri, '', expected);
+			return IntegrityService._createChecksumPair(fileUri, '', expected);
 		}
 	}
 
@@ -163,4 +163,4 @@ export class IntegrityServiceImpl implements IIntegrityService {
 	}
 }
 
-registerSingleton(IIntegrityService, IntegrityServiceImpl, true);
+registerSingleton(IIntegrityService, IntegrityService, true);

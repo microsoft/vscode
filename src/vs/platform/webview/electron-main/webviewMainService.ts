@@ -47,7 +47,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		}
 	}
 
-	public async findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: { findNext?: boolean, forward?: boolean }): Promise<void> {
+	public async findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: { findNext?: boolean; forward?: boolean }): Promise<void> {
 		const initialFrame = this.getFrameByName(windowId, frameName);
 
 		type WebFrameMainWithFindSupport = typeof WebFrameMain & {

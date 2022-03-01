@@ -21,7 +21,11 @@ export interface ApplicationOptions extends LaunchOptions {
 
 export class Application {
 
+	private static INSTANCES = 0;
+
 	constructor(private options: ApplicationOptions) {
+		Application.INSTANCES++;
+
 		this._userDataPath = options.userDataDir;
 		this._workspacePathOrFolder = options.workspacePath;
 	}
@@ -67,7 +71,7 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 	}
 
-	async restart(options?: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
+	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<any> {
 		await this.stop();
 		await this._start(options?.workspaceOrFolder, options?.extraArgs);
 	}
@@ -75,8 +79,21 @@ export class Application {
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
 		this._workspacePathOrFolder = workspaceOrFolder;
 
+		// Launch Code...
 		const code = await this.startApplication(extraArgs);
-		await this.checkWindowReady(code);
+
+		// ...and make sure the window is ready to interact
+		const windowReady = this.checkWindowReady(code);
+
+		// Make sure to take a screenshot if waiting for window ready
+		// takes unusually long to help diagnose issues when Code does
+		// not seem to startup healthy.
+		const timeoutHandle = setTimeout(() => this.takeScreenshot(`checkWindowReady_instance_${Application.INSTANCES}`), 20000);
+		try {
+			await windowReady;
+		} finally {
+			clearTimeout(timeoutHandle);
+		}
 	}
 
 	async stop(): Promise<any> {
@@ -97,6 +114,15 @@ export class Application {
 		await this._code?.stopTracing(name, persist);
 	}
 
+	private async takeScreenshot(name: string): Promise<void> {
+		if (this.web) {
+			return; // supported only on desktop
+		}
+
+		// Desktop: call `stopTracing` to take a screenshot
+		return this._code?.stopTracing(name, true);
+	}
+
 	private async startApplication(extraArgs: string[] = []): Promise<Code> {
 		const code = this._code = await launch({
 			...this.options,
@@ -114,8 +140,8 @@ export class Application {
 		await code.waitForWindowIds(ids => ids.length > 0);
 		await code.waitForElement('.monaco-workbench');
 
-		// Web or remote: wait for a remote connection state change
-		if (this.remote || this.web) {
+		// Remote but not web: wait for a remote connection state change
+		if (this.remote) {
 			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, s => {
 				this.logger.log(`checkWindowReady: remote indicator text is ${s}`);
 

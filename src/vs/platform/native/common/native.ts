@@ -6,9 +6,10 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { MessageBoxOptions, MessageBoxReturnValue, MouseInputEvent, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'vs/base/parts/sandbox/common/electronTypes';
-import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPartsSplash, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IPartsSplash } from 'vs/platform/theme/common/themeService';
+import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export interface ICPUProperties {
 	model: string;
@@ -51,7 +52,7 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
-	readonly onDidChangePassword: Event<{ service: string, account: string }>;
+	readonly onDidChangePassword: Event<{ service: string; account: string }>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -82,7 +83,7 @@ export interface ICommonNativeHostService {
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode.
 	 */
-	focusWindow(options?: { windowId?: number, force?: boolean }): Promise<void>;
+	focusWindow(options?: { windowId?: number; force?: boolean }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
@@ -136,8 +137,8 @@ export interface ICommonNativeHostService {
 	uninstallShellCommand(): Promise<void>;
 
 	// Lifecycle
-	notifyReady(): Promise<void>
-	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
+	notifyReady(): Promise<void>;
+	relaunch(options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
 	closeWindow(): Promise<void>;
 	closeWindowById(windowId: number): Promise<void>;
@@ -155,11 +156,4 @@ export interface ICommonNativeHostService {
 
 	// Registry (windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
-
-	// Credentials
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-	deletePassword(service: string, account: string): Promise<boolean>;
-	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string }>>
 }

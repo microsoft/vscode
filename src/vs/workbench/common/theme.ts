@@ -382,6 +382,12 @@ export const STATUS_BAR_BORDER = registerColor('statusBar.border', {
 	hc: contrastBorder
 }, localize('statusBarBorder', "Status bar border color separating to the sidebar and editor. The status bar is shown in the bottom of the window."));
 
+export const STATUS_BAR_FOCUS_BORDER = registerColor('statusBar.focusBorder', {
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hc: null,
+}, localize('statusBarFocusBorder', "Status bar border color when focused on keyboard navigation. The status bar is shown in the bottom of the window."));
+
 export const STATUS_BAR_NO_FOLDER_BORDER = registerColor('statusBar.noFolderBorder', {
 	dark: STATUS_BAR_BORDER,
 	light: STATUS_BAR_BORDER,
@@ -393,6 +399,12 @@ export const STATUS_BAR_ITEM_ACTIVE_BACKGROUND = registerColor('statusBarItem.ac
 	light: Color.white.transparent(0.18),
 	hc: Color.white.transparent(0.18)
 }, localize('statusBarItemActiveBackground', "Status bar item background color when clicking. The status bar is shown in the bottom of the window."));
+
+export const STATUS_BAR_ITEM_FOCUS_BORDER = registerColor('statusBarItem.focusBorder', {
+	dark: STATUS_BAR_FOREGROUND,
+	light: STATUS_BAR_FOREGROUND,
+	hc: null,
+}, localize('statusBarItemFocusBorder', "Status bar item border color when focused on keyboard navigation. The status bar is shown in the bottom of the window."));
 
 export const STATUS_BAR_ITEM_HOVER_BACKGROUND = registerColor('statusBarItem.hoverBackground', {
 	dark: Color.white.transparent(0.12),

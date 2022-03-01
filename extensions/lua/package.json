@@ -9,7 +9,7 @@
     "vscode": "*"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/lua.tmbundle Syntaxes/Lua.plist ./syntaxes/lua.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin sumneko/lua.tmbundle Syntaxes/Lua.plist ./syntaxes/lua.tmLanguage.json"
   },
   "contributes": {
     "languages": [

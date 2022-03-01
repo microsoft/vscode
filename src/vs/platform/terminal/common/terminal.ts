@@ -49,6 +49,7 @@ export const enum TerminalSettingId {
 	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
 	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
 	CopyOnSelection = 'terminal.integrated.copyOnSelection',
+	EnableMultiLinePasteWarning = 'terminal.integrated.enableMultiLinePasteWarning',
 	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
 	FontFamily = 'terminal.integrated.fontFamily',
 	FontSize = 'terminal.integrated.fontSize',
@@ -89,7 +90,6 @@ export const enum TerminalSettingId {
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
-	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
 	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
 	LocalEchoEnabled = 'terminal.integrated.localEchoEnabled',
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
@@ -102,9 +102,16 @@ export const enum TerminalSettingId {
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 	AutoReplies = 'terminal.integrated.autoReplies',
+	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
+	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
+	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationDecorationIcon = 'terminal.integrated.shellIntegration.decorationIcon',
+	ShellIntegrationDecorationIconError = 'terminal.integrated.shellIntegration.decorationIconError',
+	ShellIntegrationDecorationIconSuccess = 'terminal.integrated.shellIntegration.decorationIconSuccess',
+	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
-export enum WindowsShellType {
+export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
 	Wsl = 'wsl',
@@ -195,19 +202,19 @@ export const enum ProcessPropertyType {
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
-	type: T,
-	value: IProcessPropertyMap[T]
+	type: T;
+	value: IProcessPropertyMap[T];
 }
 
 export interface IProcessPropertyMap {
-	[ProcessPropertyType.Cwd]: string,
-	[ProcessPropertyType.InitialCwd]: string,
-	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions,
-	[ProcessPropertyType.Title]: string
-	[ProcessPropertyType.ShellType]: TerminalShellType | undefined,
-	[ProcessPropertyType.HasChildProcesses]: boolean,
-	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
-	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
+	[ProcessPropertyType.Cwd]: string;
+	[ProcessPropertyType.InitialCwd]: string;
+	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions;
+	[ProcessPropertyType.Title]: string;
+	[ProcessPropertyType.ShellType]: TerminalShellType | undefined;
+	[ProcessPropertyType.HasChildProcesses]: boolean;
+	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig;
+	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -236,13 +243,13 @@ export interface IPtyHostController {
 export interface IPtyService extends IPtyHostController {
 	readonly _serviceBrand: undefined;
 
-	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
-	readonly onProcessReady: Event<{ id: number, event: IProcessReadyEvent }>;
-	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
+	readonly onProcessData: Event<{ id: number; event: IProcessDataEvent | string }>;
+	readonly onProcessReady: Event<{ id: number; event: IProcessReadyEvent }>;
+	readonly onProcessReplay: Event<{ id: number; event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
-	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
-	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
-	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
+	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
+	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty<any> }>;
+	readonly onProcessExit: Event<{ id: number; event: number | undefined }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -370,6 +377,7 @@ export interface IHeartbeatService {
 	readonly onBeat: Event<void>;
 }
 
+
 export interface IShellLaunchConfig {
 	/**
 	 * The name of the terminal, if this is not set the name of the process will be used.
@@ -377,9 +385,9 @@ export interface IShellLaunchConfig {
 	name?: string;
 
 	/**
-	 * An string to follow the name of the terminal with, indicating a special kind of terminal
+	 * A string to follow the name of the terminal with, indicating the type of terminal
 	 */
-	description?: string;
+	type?: 'Task' | 'Local';
 
 	/**
 	 * The shell executable (bash, cmd, etc.).
@@ -435,7 +443,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean, fixedDimensions?: IFixedTerminalDimensions };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -500,13 +508,13 @@ export interface IShellLaunchConfig {
 	/**
 	 * Opt-out of the default terminal persistence on restart and reload
 	 */
-	disablePersistence?: boolean;
+	isTransient?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	icon?: URI | string | { light: URI, dark: URI };
+	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
-	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean };
+	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
 }
 
 export enum TerminalLocation {
@@ -541,14 +549,9 @@ export interface ITerminalLaunchError {
 }
 
 export interface IProcessReadyEvent {
-	pid: number,
-	cwd: string,
-	capabilities: ProcessCapability[],
-	requiresWindowsMode?: boolean
-}
-
-export const enum ProcessCapability {
-	CwdDetection = 'cwdDetection'
+	pid: number;
+	cwd: string;
+	requiresWindowsMode?: boolean;
 }
 
 /**
@@ -567,11 +570,6 @@ export interface ITerminalChildProcess {
 	 * Whether the process should be persisted across reloads.
 	 */
 	shouldPersist: boolean;
-
-	/**
-	 * Capabilities of the process, designated when it starts
-	 */
-	capabilities: ProcessCapability[];
 
 	onProcessData: Event<IProcessDataEvent | string>;
 	onProcessReady: Event<IProcessReadyEvent>;
@@ -689,11 +687,16 @@ export interface ITerminalProfile {
 	path: string;
 	isDefault: boolean;
 	isAutoDetected?: boolean;
+	/**
+	 * Whether the profile path was found on the `$PATH` environment variable, if so it will be
+	 * cleaner to display this profile in the UI using only `basename(path)`.
+	 */
+	isFromPath?: boolean;
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
 	color?: string;
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: ThemeIcon | URI | { light: URI; dark: URI };
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
@@ -712,7 +715,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
-	icon?: string | ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
 }
@@ -733,7 +736,7 @@ export interface ITerminalContributions {
 export interface ITerminalProfileContribution {
 	title: string;
 	id: string;
-	icon?: URI | { light: URI, dark: URI } | string;
+	icon?: URI | { light: URI; dark: URI } | string;
 	color?: string;
 }
 

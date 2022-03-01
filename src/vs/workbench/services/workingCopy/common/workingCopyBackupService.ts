@@ -23,7 +23,7 @@ import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier, NO_TYPE_ID } from 'vs/w
 
 export class WorkingCopyBackupsModel {
 
-	private readonly cache = new ResourceMap<{ versionId?: number, meta?: IWorkingCopyBackupMeta }>();
+	private readonly cache = new ResourceMap<{ versionId?: number; meta?: IWorkingCopyBackupMeta }>();
 
 	static async create(backupRoot: URI, fileService: IFileService): Promise<WorkingCopyBackupsModel> {
 		const model = new WorkingCopyBackupsModel(backupRoot, fileService);
@@ -515,7 +515,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 		return { value, meta };
 	}
 
-	private parsePreambleMeta<T extends IWorkingCopyBackupMeta>(preambleMetaRaw: string | undefined): { typeId: string | undefined, meta: T | undefined } {
+	private parsePreambleMeta<T extends IWorkingCopyBackupMeta>(preambleMetaRaw: string | undefined): { typeId: string | undefined; meta: T | undefined } {
 		let typeId: string | undefined = undefined;
 		let meta: T | undefined = undefined;
 
@@ -554,7 +554,7 @@ export class InMemoryWorkingCopyBackupService implements IWorkingCopyBackupServi
 
 	declare readonly _serviceBrand: undefined;
 
-	private backups = new ResourceMap<{ typeId: string, content: VSBuffer, meta?: IWorkingCopyBackupMeta }>();
+	private backups = new ResourceMap<{ typeId: string; content: VSBuffer; meta?: IWorkingCopyBackupMeta }>();
 
 	constructor() { }
 

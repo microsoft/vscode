@@ -51,7 +51,7 @@ export class KeyboardLayoutPickerContribution extends Disposable implements IWor
 			);
 		}
 
-		this._register(keyboardLayoutService.onDidChangeKeyboardLayout(() => {
+		this._register(this.keyboardLayoutService.onDidChangeKeyboardLayout(() => {
 			let layout = this.keyboardLayoutService.getCurrentKeyboardLayout();
 			let layoutInfo = parseKeyboardLayoutDescription(layout);
 
@@ -170,7 +170,7 @@ export class KeyboardLayoutPickerAction extends Action {
 		if (pick === configureKeyboardLayout) {
 			const file = this.environmentService.keyboardLayoutResource;
 
-			await this.fileService.resolve(file).then(undefined, (error) => {
+			await this.fileService.stat(file).then(undefined, () => {
 				return this.fileService.createFile(file, VSBuffer.fromString(KeyboardLayoutPickerAction.DEFAULT_CONTENT));
 			}).then((stat): Promise<IEditorPane | undefined> | undefined => {
 				if (!stat) {
@@ -178,7 +178,7 @@ export class KeyboardLayoutPickerAction extends Action {
 				}
 				return this.editorService.openEditor({
 					resource: stat.resource,
-					mode: 'jsonc',
+					languageId: 'jsonc',
 					options: { pinned: true }
 				});
 			}, (error) => {

@@ -13,7 +13,7 @@ import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractStorageService, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { GlobalStorageMain, IStorageMain, IStorageMainOptions, WorkspaceStorageMain } from 'vs/platform/storage/electron-main/storageMain';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IAnyWorkspaceIdentifier, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 //#region Storage Main Service (intent: make global and workspace storage accessible to windows from main process)
 
@@ -78,6 +78,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		// All Storage: Close when shutting down
 		this._register(this.lifecycleMainService.onWillShutdown(e => {
+			this.logService.trace('storageMainService#onWillShutdown()');
 
 			// Global Storage
 			e.join(this.globalStorage.close());
@@ -94,10 +95,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 	readonly globalStorage = this.createGlobalStorage();
 
 	private createGlobalStorage(): IStorageMain {
-		if (this.globalStorage) {
-			return this.globalStorage; // only once
-		}
-
 		this.logService.trace(`StorageMainService: creating global storage`);
 
 		const globalStorage = new GlobalStorageMain(this.getStorageOptions(), this.logService, this.environmentService);
@@ -116,12 +113,6 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	private readonly mapWorkspaceToStorage = new Map<string, IStorageMain>();
 
-	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
-		const workspaceStorage = new WorkspaceStorageMain(workspace, this.getStorageOptions(), this.logService, this.environmentService);
-
-		return workspaceStorage;
-	}
-
 	workspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
 		let workspaceStorage = this.mapWorkspaceToStorage.get(workspace.id);
 		if (!workspaceStorage) {
@@ -136,6 +127,12 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 				this.mapWorkspaceToStorage.delete(workspace.id);
 			});
 		}
+
+		return workspaceStorage;
+	}
+
+	private createWorkspaceStorage(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier): IStorageMain {
+		const workspaceStorage = new WorkspaceStorageMain(workspace, this.getStorageOptions(), this.logService, this.environmentService);
 
 		return workspaceStorage;
 	}
@@ -184,7 +181,7 @@ export interface IGlobalStorageMainService extends IStorageService {
 
 	keys(scope: StorageScope.GLOBAL, target: StorageTarget): string[];
 
-	migrate(toWorkspace: IWorkspaceInitializationPayload): never;
+	migrate(toWorkspace: IAnyWorkspaceIdentifier): never;
 
 	isNew(scope: StorageScope.GLOBAL): boolean;
 }

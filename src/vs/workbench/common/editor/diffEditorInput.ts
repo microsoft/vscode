@@ -105,7 +105,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 			// a label that resembles the difference between the two
 			const originalMediumDescription = this.original.getDescription(Verbosity.MEDIUM);
 			const modifiedMediumDescription = this.modified.getDescription(Verbosity.MEDIUM);
-			if (originalMediumDescription && modifiedMediumDescription) {
+			if (typeof originalMediumDescription === 'string' && typeof modifiedMediumDescription === 'string') {
 				const [shortenedOriginalMediumDescription, shortenedModifiedMediumDescription] = shorten([originalMediumDescription, modifiedMediumDescription]);
 				mediumDescription = this.computeLabel(shortenedOriginalMediumDescription, shortenedModifiedMediumDescription);
 			}

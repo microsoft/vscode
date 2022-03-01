@@ -8,8 +8,8 @@ import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,11 +20,13 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { changeCellToKind, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, executeNotebookCondition, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CHANGE_CELL_LANGUAGE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { CellEditState, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
@@ -197,6 +199,7 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService);
 		const editor = context.notebookEditor;
 		if (!editor.hasModel() || !editor.textModel.length) {
 			return;
@@ -211,10 +214,10 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 
 		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
-		if (context.cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
+		const runState = notebookExecutionStateService.getCellExecution(context.cell.uri)?.state;
+		if (runState !== NotebookCellExecutionState.Executing) {
 			context.notebookEditor.textModel.applyEdits([{
 				editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
-					runState: null,
 					runStartTime: null,
 					runStartTimeAdjustment: null,
 					runEndTime: null,
@@ -258,6 +261,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const notebookExecutionStateService = accessor.get(INotebookExecutionStateService);
 		const editor = context.notebookEditor;
 		if (!editor.hasModel() || !editor.textModel.length) {
 			return;
@@ -269,10 +273,10 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			})), true, undefined, () => undefined, undefined);
 
 		const clearExecutionMetadataEdits = editor.textModel.cells.map((cell, index) => {
-			if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
+			const runState = notebookExecutionStateService.getCellExecution(cell.uri)?.state;
+			if (runState !== NotebookCellExecutionState.Executing) {
 				return {
 					editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
-						runState: null,
 						runStartTime: null,
 						runStartTimeAdjustment: null,
 						runEndTime: null,
@@ -427,7 +431,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		];
 
 		const selection = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode") }) as ILanguagePickInput | undefined;
-		let languageId = selection === autoDetectMode
+		const languageId = selection === autoDetectMode
 			? await languageDetectionService.detectLanguage(context.cell.uri)
 			: selection?.languageId;
 
@@ -462,13 +466,16 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 	private getFakeResource(lang: string, languageService: ILanguageService): URI | undefined {
 		let fakeResource: URI | undefined;
 
-		const extensions = languageService.getExtensions(lang);
-		if (extensions?.length) {
-			fakeResource = URI.file(extensions[0]);
-		} else {
-			const filenames = languageService.getFilenames(lang);
-			if (filenames?.length) {
-				fakeResource = URI.file(filenames[0]);
+		const languageId = languageService.getLanguageIdByLanguageName(lang);
+		if (languageId) {
+			const extensions = languageService.getExtensions(languageId);
+			if (extensions.length) {
+				fakeResource = URI.file(extensions[0]);
+			} else {
+				const filenames = languageService.getFilenames(languageId);
+				if (filenames.length) {
+					fakeResource = URI.file(filenames[0]);
+				}
 			}
 		}
 

@@ -7,6 +7,11 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-14.14.43.tgz#26bcbb0595b305400e8ceaf9a127a7f905ae49c8"
   integrity sha512-3pwDJjp1PWacPTpH0LcfhgjvurQvrZFBrC6xxjaUEZ7ifUtT32jtjPxEMMblpqd2Mvx+k8haqQJLQxolyGN/cQ==
 
+"@vscode/extension-telemetry@0.4.6":
+  version "0.4.6"
+  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.4.6.tgz#2f4c5bf81adf6b2e4ddba54759355e1559c5476b"
+  integrity sha512-bDXwHoNXIR1Rc8xdphJ4B3rWdzAGm+FUPk4mJl6/oyZmfEX+QdlDLxnCwlv/vxHU1p11ThHSB8kRhsWZ1CzOqw==
+
 balanced-match@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.0.tgz#89b4d199ab2bee49de164ea02b89ce462d71b767"
@@ -39,10 +44,10 @@ minimatch@^3.0.4:
   dependencies:
     brace-expansion "^1.1.7"
 
-request-light@^0.5.5:
-  version "0.5.5"
-  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.5.tgz#254ab0b38a1db2192170b599b05181934e14932b"
-  integrity sha512-AvjfJuhyT6dYfhtIBF+IpTPQco+Td1QJ6PsIJ5xui110vQ5p9HxHk+m1XJqXazLQT6CxxSx9eNv6R/+fu4bZig==
+request-light@^0.5.7:
+  version "0.5.7"
+  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.5.7.tgz#1c448c22153b55d2cd278eb414df24a5ad6e6d5e"
+  integrity sha512-i/wKzvcx7Er8tZnvqSxWuNO5ZGggu2UgZAqj/RyZ0si7lBTXL7kZiI/dWxzxnQjaY7s5HEy1qK21Do4Ncr6cVw==
 
 semver@^7.3.4:
   version "7.3.4"
@@ -50,11 +55,6 @@ semver@^7.3.4:
   integrity sha512-tCfb2WLjqFAtXn4KEdxIhalnRtoKFN7nAwj0B3ZXCbQloV2tq5eDbcTmT68JJD3nRJq24/XgxtQKFIpQdtvmVw==
   dependencies:
     lru-cache "^6.0.0"
-
-vscode-extension-telemetry@0.4.3:
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.4.3.tgz#ea389b3d14b65d4fd5a6cf3760b3155e930193f2"
-  integrity sha512-opiIFOaAwyfACYMXByDqFMAlJ2iFMJR65/vIogJ960aLZWp9zaMdwY9CsY02EOYjHxPpjI7QeOQM3sYCb3xtJg==
 
 vscode-jsonrpc@6.0.0:
   version "6.0.0"

@@ -9,7 +9,7 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
@@ -113,6 +113,10 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 
 	public get description() {
 		return this.test.item.description;
+	}
+
+	public get sortText() {
+		return this.test.item.sortText;
 	}
 
 	/**

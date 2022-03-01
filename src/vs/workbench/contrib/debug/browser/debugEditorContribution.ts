@@ -12,31 +12,30 @@ import { setProperty } from 'vs/base/common/jsonEdit';
 import { Constants } from 'vs/base/common/uint';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { InlineValueContext, InlineValuesProviderRegistry, StandardTokenType } from 'vs/editor/common/modes';
+import { InlineValueContext, StandardTokenType } from 'vs/editor/common/languages';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { distinct, flatten } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
+import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugEditorContribution, IDebugService, State, IStackFrame, IDebugConfiguration, IExpression, IExceptionInfo, IDebugSession, CONTEXT_EXCEPTION_WIDGET_VISIBLE } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { Position } from 'vs/editor/common/core/position';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { memoize } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
-import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from 'vs/editor/common/model';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
-import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
-import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
+import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Event } from 'vs/base/common/event';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -45,11 +44,15 @@ import { Expression } from 'vs/workbench/contrib/debug/common/debugModel';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
+
+const DEAFULT_INLINE_DEBOUNCE_DELAY = 200;
 
 export const debugInlineForeground = registerColor('editor.inlineValuesForeground', {
 	dark: '#ffffff80',
@@ -68,29 +71,48 @@ class InlineSegment {
 	}
 }
 
-function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration {
+function createInlineValueDecoration(lineNumber: number, contentText: string, column = Constants.MAX_SAFE_SMALL_INTEGER): IModelDeltaDecoration[] {
 	// If decoratorText is too long, trim and add ellipses. This could happen for minified files with everything on a single line
 	if (contentText.length > MAX_INLINE_DECORATOR_LENGTH) {
-		contentText = contentText.substr(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
+		contentText = contentText.substring(0, MAX_INLINE_DECORATOR_LENGTH) + '...';
 	}
 
-	return {
-		range: {
-			startLineNumber: lineNumber,
-			endLineNumber: lineNumber,
-			startColumn: column,
-			endColumn: column
-		},
-		options: {
-			description: 'debug-inline-value-decoration',
-			after: {
-				content: replaceWsWithNoBreakWs(contentText),
-				inlineClassName: 'debug-inline-value',
-				inlineClassNameAffectsLetterSpacing: true,
+	return [
+		{
+			range: {
+				startLineNumber: lineNumber,
+				endLineNumber: lineNumber,
+				startColumn: column,
+				endColumn: column
 			},
-			showIfCollapsed: true
-		}
-	};
+			options: {
+				description: 'debug-inline-value-decoration-spacer',
+				after: {
+					content: strings.noBreakWhitespace,
+					cursorStops: InjectedTextCursorStops.None
+				},
+				showIfCollapsed: true,
+			}
+		},
+		{
+			range: {
+				startLineNumber: lineNumber,
+				endLineNumber: lineNumber,
+				startColumn: column,
+				endColumn: column
+			},
+			options: {
+				description: 'debug-inline-value-decoration',
+				after: {
+					content: replaceWsWithNoBreakWs(contentText),
+					inlineClassName: 'debug-inline-value',
+					inlineClassNameAffectsLetterSpacing: true,
+					cursorStops: InjectedTextCursorStops.None
+				},
+				showIfCollapsed: true,
+			}
+		},
+	];
 }
 
 function replaceWsWithNoBreakWs(str: string): string {
@@ -99,7 +121,7 @@ function replaceWsWithNoBreakWs(str: string): string {
 
 function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, range: Range, model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IModelDeltaDecoration[] {
 	const nameValueMap = new Map<string, string>();
-	for (let expr of expressions) {
+	for (const expr of expressions) {
 		nameValueMap.set(expr.name, expr.value);
 		// Limit the size of map. Too large can have a perf impact
 		if (nameValueMap.size >= MAX_NUM_INLINE_VALUES) {
@@ -113,7 +135,7 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 	nameValueMap.forEach((_value, name) => {
 		const lineNumbers = wordToLineNumbersMap.get(name);
 		if (lineNumbers) {
-			for (let lineNumber of lineNumbers) {
+			for (const lineNumber of lineNumbers) {
 				if (range.containsPosition(new Position(lineNumber, 0))) {
 					if (!lineToNamesMap.has(lineNumber)) {
 						lineToNamesMap.set(lineNumber, []);
@@ -134,7 +156,7 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 			const content = model.getLineContent(line);
 			return content.indexOf(first) - content.indexOf(second);
 		}).map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
-		decorations.push(createInlineValueDecoration(line, contentText));
+		decorations.push(...createInlineValueDecoration(line, contentText));
 	});
 
 	return decorations;
@@ -198,18 +220,21 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private altListener: IDisposable | undefined;
 	private altPressed = false;
 	private oldDecorations: string[] = [];
+	private readonly debounceInfo: IFeatureDebounceInformation;
 
 	constructor(
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService private readonly hostService: IHostService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService
 	) {
+		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [];
 		this.registerListeners();
@@ -243,6 +268,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.updateInlineValuesScheduler.schedule();
 		}));
 		this.toDispose.push(this.debugService.getViewModel().onWillUpdateViews(() => this.updateInlineValuesScheduler.schedule()));
+		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(() => this.updateInlineValuesScheduler.schedule()));
 		this.toDispose.push(this.editor.onDidChangeModel(async () => {
 			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 			const model = this.editor.getModel();
@@ -260,7 +286,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			// Inline value provider should get called on view port change
 			const model = this.editor.getModel();
-			if (model && InlineValuesProviderRegistry.has(model)) {
+			if (model && this.languageFeaturesService.inlineValuesProvider.has(model)) {
 				this.updateInlineValuesScheduler.schedule();
 			}
 		}));
@@ -324,7 +350,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private enableEditorHover(): void {
 		if (this.editor.hasModel()) {
 			const model = this.editor.getModel();
-			let overrides = {
+			const overrides = {
 				resource: model.uri,
 				overrideIdentifier: model.getLanguageId()
 			};
@@ -409,16 +435,16 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		const targetType = mouseEvent.target.type;
+		const target = mouseEvent.target;
 		const stopKey = env.isMacintosh ? 'metaKey' : 'ctrlKey';
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
 			// mouse moved on top of debug hover widget
 			return;
 		}
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			if (mouseEvent.target.range && !mouseEvent.target.range.equalsRange(this.hoverRange)) {
-				this.hoverRange = mouseEvent.target.range;
+		if (target.type === MouseTargetType.CONTENT_TEXT) {
+			if (target.range && !target.range.equalsRange(this.hoverRange)) {
+				this.hoverRange = target.range;
 				this.hideHoverScheduler.cancel();
 				this.showHoverScheduler.schedule();
 			}
@@ -504,10 +530,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	async addLaunchConfiguration(): Promise<any> {
-		/* __GDPR__
-			"debug/addLaunchConfiguration" : {}
-		*/
-		this.telemetryService.publicLog('debug/addLaunchConfiguration');
 		const model = this.editor.getModel();
 		if (!model) {
 			return;
@@ -584,9 +606,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	@memoize
 	private get updateInlineValuesScheduler(): RunOnceScheduler {
+		const model = this.editor.getModel();
 		return new RunOnceScheduler(
 			async () => await this.updateInlineValueDecorations(this.debugService.getViewModel().focusedStackFrame),
-			200
+			model ? this.debounceInfo.get(model) : DEAFULT_INLINE_DEBOUNCE_DELAY
 		);
 	}
 
@@ -597,7 +620,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		const model = this.editor.getModel();
 		const inlineValuesSetting = this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues;
-		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && InlineValuesProviderRegistry.has(model));
+		const inlineValuesTurnedOn = inlineValuesSetting === true || (inlineValuesSetting === 'auto' && model && this.languageFeaturesService.inlineValuesProvider.has(model));
 		if (!inlineValuesTurnedOn || !model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
@@ -609,12 +632,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		let allDecorations: IModelDeltaDecoration[];
 
-		if (InlineValuesProviderRegistry.has(model)) {
+		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
 
 			const findVariable = async (_key: string, caseSensitiveLookup: boolean): Promise<string | undefined> => {
 				const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
 				const key = caseSensitiveLookup ? _key : _key.toLowerCase();
-				for (let scope of scopes) {
+				for (const scope of scopes) {
 					const variables = await scope.getChildren();
 					const found = variables.find(v => caseSensitiveLookup ? (v.name === key) : (v.name.toLowerCase() === key));
 					if (found) {
@@ -631,14 +654,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			const token = new CancellationTokenSource().token;
 
 			const ranges = this.editor.getVisibleRangesPlusViewportAboveBelow();
-			const providers = InlineValuesProviderRegistry.ordered(model).reverse();
+			const providers = this.languageFeaturesService.inlineValuesProvider.ordered(model).reverse();
 
 			allDecorations = [];
 			const lineDecorations = new Map<number, InlineSegment[]>();
 
 			const promises = flatten(providers.map(provider => ranges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
 				if (result) {
-					for (let iv of result) {
+					for (const iv of result) {
 
 						let text: string | undefined = undefined;
 						switch (iv.type) {
@@ -665,7 +688,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 								}
 								if (expr) {
 									const expression = new Expression(expr);
-									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch');
+									await expression.evaluate(stackFrame.thread.session, stackFrame, 'watch', true);
 									if (expression.available) {
 										text = strings.format(var_value_format, expr, expression.value);
 									}
@@ -691,7 +714,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				onUnexpectedExternalError(err);
 			}))));
 
+			const startTime = Date.now();
+
 			await Promise.all(promises);
+
+			// update debounce info
+			this.updateInlineValuesScheduler.delay = this.debounceInfo.update(model, Date.now() - startTime);
 
 			// sort line segments and concatenate them into a decoration
 
@@ -699,7 +727,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				if (segments.length > 0) {
 					segments = segments.sort((a, b) => a.column - b.column);
 					const text = segments.map(s => s.text).join(separator);
-					allDecorations.push(createInlineValueDecoration(line, text));
+					allDecorations.push(...createInlineValueDecoration(line, text));
 				}
 			});
 

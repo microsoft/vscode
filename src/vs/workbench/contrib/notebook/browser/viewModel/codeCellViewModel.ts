@@ -9,10 +9,10 @@ import * as UUID from 'vs/base/common/uuid';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CellLayoutState, ICellOutputViewModel, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CellLayoutState, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -21,6 +21,7 @@ import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/not
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
+import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
@@ -132,14 +133,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			editorWidth: initialNotebookLayoutInfo
 				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
+			statusBarHeight: 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			outputShowMoreContainerHeight: 0,
 			outputShowMoreContainerOffset: 0,
 			totalHeight: this.computeTotalHeight(17, 0, 0),
-			indicatorHeight: 0,
+			codeIndicatorHeight: 0,
+			outputIndicatorHeight: 0,
 			bottomToolbarOffset: 0,
-			layoutState: CellLayoutState.Uninitialized
+			layoutState: CellLayoutState.Uninitialized,
 		};
 	}
 
@@ -163,7 +166,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		const bottomToolbarDimensions = this.viewContext.notebookOptions.computeBottomToolbarDimensions();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = Math.max(this._outputMinHeight, this.isOutputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
+		const outputTotalHeight = Math.max(this._outputMinHeight, this.isOutputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
 
 		const originalLayout = this.layoutInfo;
 		if (!this.isInputCollapsed) {
@@ -186,12 +189,13 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				newState = CellLayoutState.Estimated;
 			}
 
-			const statusbarHeight = this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata);
-			const indicatorHeight = editorHeight + statusbarHeight + outputTotalHeight + outputShowMoreContainerHeight;
+			const statusBarHeight = this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata, this.uri);
+			const codeIndicatorHeight = editorHeight + statusBarHeight;
+			const outputIndicatorHeight = outputTotalHeight + outputShowMoreContainerHeight;
 			const outputContainerOffset = notebookLayoutConfiguration.editorToolbarHeight
 				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 				+ editorHeight
-				+ statusbarHeight;
+				+ statusBarHeight;
 			const outputShowMoreContainerOffset = totalHeight
 				- bottomToolbarDimensions.bottomToolbarGap
 				- bottomToolbarDimensions.bottomToolbarHeight / 2
@@ -205,17 +209,20 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
 				editorHeight,
 				editorWidth,
+				statusBarHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
 				totalHeight,
-				indicatorHeight,
+				codeIndicatorHeight,
+				outputIndicatorHeight,
 				bottomToolbarOffset,
-				layoutState: newState
+				layoutState: newState,
 			};
 		} else {
-			const indicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight + outputTotalHeight + outputShowMoreContainerHeight;
+			const codeIndicatorHeight = notebookLayoutConfiguration.collapsedIndicatorHeight;
+			const outputIndicatorHeight = outputTotalHeight + outputShowMoreContainerHeight;
 
 			const outputContainerOffset = notebookLayoutConfiguration.cellTopMargin + notebookLayoutConfiguration.collapsedIndicatorHeight;
 			const totalHeight =
@@ -237,14 +244,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				fontInfo: state.font ?? this._layoutInfo.fontInfo ?? null,
 				editorHeight: this._layoutInfo.editorHeight,
 				editorWidth,
+				statusBarHeight: 0,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
 				totalHeight,
-				indicatorHeight,
+				codeIndicatorHeight,
+				outputIndicatorHeight,
 				bottomToolbarOffset,
-				layoutState: this._layoutInfo.layoutState
+				layoutState: this._layoutInfo.layoutState,
 			};
 		}
 
@@ -265,12 +274,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				fontInfo: this._layoutInfo.fontInfo,
 				editorHeight: this._layoutInfo.editorHeight,
 				editorWidth: this._layoutInfo.editorWidth,
+				statusBarHeight: this.layoutInfo.statusBarHeight,
 				outputContainerOffset: this._layoutInfo.outputContainerOffset,
 				outputTotalHeight: this._layoutInfo.outputTotalHeight,
 				outputShowMoreContainerHeight: this._layoutInfo.outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset: this._layoutInfo.outputShowMoreContainerOffset,
 				totalHeight: totalHeight,
-				indicatorHeight: this._layoutInfo.indicatorHeight,
+				codeIndicatorHeight: this._layoutInfo.codeIndicatorHeight,
+				outputIndicatorHeight: this._layoutInfo.outputIndicatorHeight,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				layoutState: CellLayoutState.FromCache
 			};
@@ -314,7 +325,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
-		const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
+		const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
 		return this.lineCount * lineHeight
 			+ editorPadding.top
 			+ editorPadding.bottom // EDITOR_BOTTOM_PADDING
@@ -327,7 +338,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return layoutConfiguration.editorToolbarHeight
 			+ layoutConfiguration.cellTopMargin
 			+ editorHeight
-			+ this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata)
+			+ this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata, this.uri)
 			+ outputsTotalHeight
 			+ outputShowMoreContainerHeight
 			+ bottomToolbarGap
@@ -436,7 +447,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		return {
 			cell: this,
-			matches
+			matches,
+			modelMatchCount: matches.length
 		};
 	}
 

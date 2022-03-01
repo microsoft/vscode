@@ -347,7 +347,7 @@ import { assertNoRpc, poll } from '../utils';
 		suite('window.onDidWriteTerminalData', () => {
 			test('should listen to all future terminal data events', (done) => {
 				const openEvents: string[] = [];
-				const dataEvents: { name: string, data: string }[] = [];
+				const dataEvents: { name: string; data: string }[] = [];
 				const closeEvents: string[] = [];
 				disposables.push(window.onDidOpenTerminal(e => openEvents.push(e.name)));
 
@@ -666,7 +666,7 @@ import { assertNoRpc, poll } from '../utils';
 			});
 		});
 
-		suite('environmentVariableCollection', () => {
+		(process.platform === 'win32' ? suite.skip : suite)('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', async () => {
 				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;

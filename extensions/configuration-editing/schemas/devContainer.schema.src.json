@@ -9,7 +9,7 @@
 			"properties": {
 				"name": {
 					"type": "string",
-					"description": "A name to show for the workspace folder."
+					"description": "A name for the dev container displayed in the UI."
 				},
 				"extensions": {
 					"type": "array",
@@ -274,7 +274,7 @@
 						"loginInteractiveShell",
 						"interactiveShell"
 					],
-					"description": "User environment probe to run. The default is none."
+					"description": "User environment probe to run. The default is \"loginInteractiveShell\"."
 				},
 				"codespaces": {
 					"type": "object",

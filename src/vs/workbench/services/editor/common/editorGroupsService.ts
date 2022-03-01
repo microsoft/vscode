@@ -9,7 +9,7 @@ import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, I
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -90,10 +90,10 @@ export interface ICloseEditorOptions {
 }
 
 export type ICloseEditorsFilter = {
-	except?: EditorInput,
-	direction?: CloseDirection,
-	savedOnly?: boolean,
-	excludeSticky?: boolean
+	except?: EditorInput;
+	direction?: CloseDirection;
+	savedOnly?: boolean;
+	excludeSticky?: boolean;
 };
 
 export interface ICloseAllEditorsOptions {
@@ -279,12 +279,12 @@ export interface IEditorGroupsService {
 	/**
 	 * Returns the size of a group.
 	 */
-	getSize(group: IEditorGroup | GroupIdentifier): { width: number, height: number };
+	getSize(group: IEditorGroup | GroupIdentifier): { width: number; height: number };
 
 	/**
 	 * Sets the size of a group.
 	 */
-	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number, height: number }): void;
+	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number; height: number }): void;
 
 	/**
 	 * Arrange all groups according to the provided arrangement.
@@ -547,6 +547,16 @@ export interface IEditorGroup {
 	 * Returns the index of the editor in the group or -1 if not opened.
 	 */
 	getIndexOfEditor(editor: EditorInput): number;
+
+	/**
+	 * Whether the editor is the first in the group.
+	 */
+	isFirst(editor: EditorInput): boolean;
+
+	/**
+	 * Whether the editor is the last in the group.
+	 */
+	isLast(editor: EditorInput): boolean;
 
 	/**
 	 * Open an editor in this group.

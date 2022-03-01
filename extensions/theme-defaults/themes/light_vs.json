@@ -151,6 +151,12 @@
 			}
 		},
 		{
+			"scope": "markup.strikethrough",
+			"settings": {
+				"fontStyle": "strikethrough"
+			}
+		},
+		{
 			"scope": "markup.inserted",
 			"settings": {
 				"foreground": "#098658"

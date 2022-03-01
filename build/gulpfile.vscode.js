@@ -56,10 +56,11 @@ const vscodeResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-window.js',
-	'out-build/vs/**/*.{svg,png,html,jpg}',
+	'out-build/vs/**/*.{svg,png,html,jpg,opus}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
 	'out-build/vs/base/common/performance.js',
+	'out-build/vs/base/common/stripComments.js',
 	'out-build/vs/base/node/languagePacks.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
@@ -69,6 +70,9 @@ const vscodeResources = [
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
@@ -162,7 +166,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/base/parts/sandbox/electron-browser/preload.js',
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
-			'vs/workbench/services/extensions/node/extensionHostProcess.js',
+			'vs/workbench/api/node/extensionHostProcess.js',
 			'vs/code/electron-browser/workbench/workbench.html',
 			'vs/code/electron-browser/workbench/workbench.js'
 		]);
@@ -233,7 +237,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(jsFilter.restore)
 			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
 				'**/*.node',
-				'**/vscode-ripgrep/bin/*',
+				'**/@vscode/ripgrep/bin/*',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
@@ -321,7 +325,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(replace('@@VERSION@@', version))
 				.pipe(replace('@@COMMIT@@', commit))
 				.pipe(replace('@@APPNAME@@', product.applicationName))
-				.pipe(replace('@@DATAFOLDER@@', product.dataFolderName))
+				.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.vscode-remote'))
 				.pipe(replace('@@QUALITY@@', quality))
 				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
 
@@ -332,15 +336,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(replace('@@PRODNAME@@', product.nameLong))
 				.pipe(replace('@@NAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
-		}
-
-		// submit all stats that have been collected
-		// during the build phase
-		if (opts.stats) {
-			result.on('end', () => {
-				const { submitAllStats } = require('./lib/stats');
-				submitAllStats(product, commit).then(() => console.log('Submitted bundle stats!'));
-			});
 		}
 
 		return result.pipe(vfs.dest(destination));

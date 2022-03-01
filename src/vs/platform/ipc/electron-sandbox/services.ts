@@ -9,7 +9,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 
 type ChannelClientCtor<T> = { new(channel: IChannel): T };
-type Remote = { getChannel(channelName: string): IChannel; };
+type Remote = { getChannel(channelName: string): IChannel };
 
 abstract class RemoteServiceStub<T> {
 	constructor(

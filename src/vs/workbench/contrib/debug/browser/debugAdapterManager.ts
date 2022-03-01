@@ -11,7 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorModel } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILanguageService } from 'vs/editor/common/services/languageService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -42,7 +42,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	private debugExtensionsAvailable: IContextKey<boolean>;
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
-	private breakpointModeIdsSet = new Set<string>();
+	private breakpointLanguageIdsSet = new Set<string>();
 	private debuggerWhenKeys = new Set<string>();
 
 	constructor(
@@ -118,10 +118,10 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 
 		breakpointsExtPoint.setHandler((extensions, delta) => {
 			delta.removed.forEach(removed => {
-				removed.value.forEach(breakpoints => this.breakpointModeIdsSet.delete(breakpoints.language));
+				removed.value.forEach(breakpoints => this.breakpointLanguageIdsSet.delete(breakpoints.language));
 			});
 			delta.added.forEach(added => {
-				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
+				added.value.forEach(breakpoints => this.breakpointLanguageIdsSet.add(breakpoints.language));
 			});
 		});
 	}
@@ -193,7 +193,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	hasEnabledDebuggers(): boolean {
-		for (let [type] of this.debugAdapterFactories) {
+		for (const [type] of this.debugAdapterFactories) {
 			const dbg = this.getDebugger(type);
 			if (dbg && dbg.enabled) {
 				return true;
@@ -204,7 +204,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined {
-		let factory = this.debugAdapterFactories.get(session.configuration.type);
+		const factory = this.debugAdapterFactories.get(session.configuration.type);
 		if (factory) {
 			return factory.createDebugAdapter(session);
 		}
@@ -212,7 +212,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	substituteVariables(debugType: string, folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
-		let factory = this.debugAdapterFactories.get(debugType);
+		const factory = this.debugAdapterFactories.get(debugType);
 		if (factory) {
 			return factory.substituteVariables(folder, config);
 		}
@@ -220,7 +220,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 	}
 
 	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
-		let factory = this.debugAdapterFactories.get(debugType);
+		const factory = this.debugAdapterFactories.get(debugType);
 		if (factory) {
 			return factory.runInTerminal(args, sessionId);
 		}
@@ -281,7 +281,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 			return true;
 		}
 
-		return this.breakpointModeIdsSet.has(languageId);
+		return this.breakpointLanguageIdsSet.has(languageId);
 	}
 
 	getDebugger(type: string): Debugger | undefined {
@@ -331,7 +331,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		}
 
 		candidates.sort((first, second) => first.label.localeCompare(second.label));
-		const picks: { label: string, debugger?: Debugger, type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
+		const picks: { label: string; debugger?: Debugger; type?: string }[] = candidates.map(c => ({ label: c.label, debugger: c }));
 
 		if (picks.length === 0 && languageLabel) {
 			if (languageLabel.indexOf(' ') >= 0) {
@@ -350,7 +350,7 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		const placeHolder = nls.localize('selectDebug', "Select environment");
 
 		picks.push({ label: languageLabel ? nls.localize('installLanguage', "Install an extension for {0}...", languageLabel) : nls.localize('installExt', "Install extension...") });
-		return this.quickInputService.pick<{ label: string, debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
+		return this.quickInputService.pick<{ label: string; debugger?: Debugger }>(picks, { activeItem: picks[0], placeHolder })
 			.then(picked => {
 				if (picked && picked.debugger) {
 					return picked.debugger;

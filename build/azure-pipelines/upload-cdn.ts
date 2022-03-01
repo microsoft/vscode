@@ -19,25 +19,44 @@ const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 const credential = new ClientSecretCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, process.env['AZURE_CLIENT_SECRET']!);
 
-function main(): Promise<void> {
-	return new Promise((c, e) => {
+async function main(): Promise<void> {
+	const files: string[] = [];
+	const options = {
+		account: process.env.AZURE_STORAGE_ACCOUNT,
+		credential,
+		container: process.env.VSCODE_QUALITY,
+		prefix: commit + '/',
+		contentSettings: {
+			contentEncoding: 'gzip',
+			cacheControl: 'max-age=31536000, public'
+		}
+	};
+
+	await new Promise<void>((c, e) => {
 		vfs.src('**', { cwd: '../vscode-web', base: '../vscode-web', dot: true })
 			.pipe(filter(f => !f.isDirectory()))
 			.pipe(gzip({ append: false }))
 			.pipe(es.through(function (data: Vinyl) {
-				console.log('Uploading CDN file:', data.relative); // debug
+				console.log('Uploading:', data.relative); // debug
+				files.push(data.relative);
 				this.emit('data', data);
 			}))
-			.pipe(azure.upload({
-				account: process.env.AZURE_STORAGE_ACCOUNT,
-				credential,
-				container: process.env.VSCODE_QUALITY,
-				prefix: commit + '/',
-				contentSettings: {
-					contentEncoding: 'gzip',
-					cacheControl: 'max-age=31536000, public'
-				}
-			}))
+			.pipe(azure.upload(options))
+			.on('end', () => c())
+			.on('error', (err: any) => e(err));
+	});
+
+	await new Promise<void>((c, e) => {
+		const listing = new Vinyl({
+			path: 'files.txt',
+			contents: Buffer.from(files.join('\n')),
+			stat: { mode: 0o666 } as any
+		});
+
+		console.log(`Uploading: files.txt (${files.length} files)`); // debug
+		es.readArray([listing])
+			.pipe(gzip({ append: false }))
+			.pipe(azure.upload(options))
 			.on('end', () => c())
 			.on('error', (err: any) => e(err));
 	});

@@ -10,7 +10,7 @@ import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALL
 import { Thread, StackFrame, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, IMenu, IMenuService, MenuItemAction, SubmenuItemAction, registerAction2, MenuRegistry, Icon } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenu, IMenuService, MenuItemAction, SubmenuItemAction, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -46,22 +46,41 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
+import { Icon } from 'vs/platform/action/common/action';
 
 const $ = dom.$;
 
 type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndSessionIds | IStackFrame[];
 
+function assignSessionContext(element: IDebugSession, context: any) {
+	context.sessionId = element.getId();
+	return context;
+}
+
+function assignThreadContext(element: IThread, context: any) {
+	context.threadId = element.getId();
+	assignSessionContext(element.session, context);
+	return context;
+}
+
+function assignStackFrameContext(element: StackFrame, context: any) {
+	context.frameId = element.getId();
+	context.frameName = element.name;
+	context.frameLocation = { range: element.range, source: element.source.raw };
+	assignThreadContext(element.thread, context);
+	return context;
+}
+
 export function getContext(element: CallStackItem | null): any {
-	return element instanceof StackFrame ? {
-		sessionId: element.thread.session.getId(),
-		threadId: element.thread.getId(),
-		frameId: element.getId()
-	} : element instanceof Thread ? {
-		sessionId: element.session.getId(),
-		threadId: element.getId()
-	} : isDebugSession(element) ? {
-		sessionId: element.getId()
-	} : undefined;
+	if (element instanceof StackFrame) {
+		return assignStackFrameContext(element, {});
+	} else if (element instanceof Thread) {
+		return assignThreadContext(element, {});
+	} else if (isDebugSession(element)) {
+		return assignSessionContext(element, {});
+	} else {
+		return undefined;
+	}
 }
 
 // Extensions depend on this context, should not be changed even though it is not fully deterministic
@@ -100,7 +119,7 @@ export function getSpecificSourceName(stackFrame: IStackFrame): string {
 	}
 
 	const from = Math.max(0, stackFrame.source.uri.path.lastIndexOf(posix.sep, stackFrame.source.uri.path.length - suffixLength - 1));
-	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substr(from);
+	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substring(from);
 }
 
 async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsyncDataTree<IDebugModel, CallStackItem, FuzzyScore>): Promise<void> {
@@ -190,7 +209,7 @@ export class CallStackView extends ViewPane {
 						toExpand.add(s.parentSession);
 					}
 				});
-				for (let session of toExpand) {
+				for (const session of toExpand) {
 					await expandTo(session, this.tree);
 					this.autoExpandedSessions.add(session);
 				}
@@ -358,7 +377,13 @@ export class CallStackView extends ViewPane {
 
 		this._register(this.debugService.onDidNewSession(s => {
 			const sessionListeners: IDisposable[] = [];
-			sessionListeners.push(s.onDidChangeName(() => this.tree.rerender(s)));
+			sessionListeners.push(s.onDidChangeName(() => {
+				// this.tree.updateChildren is called on a delay after a session is added,
+				// so don't rerender if the tree doesn't have the node yet
+				if (this.tree.hasNode(s)) {
+					this.tree.rerender(s);
+				}
+			}));
 			sessionListeners.push(s.onDidEndAdapter(() => dispose(sessionListeners)));
 			if (s.parentSession) {
 				// A session we already expanded has a new child session, allow to expand it again.

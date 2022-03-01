@@ -217,7 +217,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
 
-	private async backupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<{ backups: IWorkingCopy[], error?: Error }> {
+	private async backupBeforeShutdown(dirtyWorkingCopies: readonly IWorkingCopy[]): Promise<{ backups: IWorkingCopy[]; error?: Error }> {
 		const backups: IWorkingCopy[] = [];
 		let error: Error | undefined = undefined;
 
@@ -338,7 +338,6 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			}
 
 			// If we still have dirty working copies, revert those directly
-			// unless the revert operation was not successful (e.g. cancelled)
 			await Promises.settled(dirtyWorkingCopies.map(workingCopy => workingCopy.isDirty() ? workingCopy.revert(revertOptions) : Promise.resolve()));
 		}, localize('revertBeforeShutdown', "Reverting editors with unsaved changes is taking longer than expected..."));
 	}

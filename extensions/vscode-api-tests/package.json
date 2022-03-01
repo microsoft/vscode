@@ -16,9 +16,8 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
-    "inlayHints",
     "inlineCompletions",
-    "languageStatus",
+    "markdownStringBaseUri",
     "notebookCellExecutionState",
     "notebookConcatTextDocument",
     "notebookContentProvider",
@@ -41,7 +40,6 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "terminalLocation",
     "terminalNameChangeEvent",
     "testCoverage",
     "testObserver",
@@ -51,7 +49,8 @@
     "tokenInformation",
     "treeViewDragAndDrop",
     "treeViewReveal",
-    "workspaceTrust"
+    "workspaceTrust",
+    "telemetry"
   ],
   "private": true,
   "activationEvents": [],

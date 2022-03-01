@@ -7,6 +7,11 @@
   resolved "https://registry.yarnpkg.com/@types/node/-/node-14.14.43.tgz#26bcbb0595b305400e8ceaf9a127a7f905ae49c8"
   integrity sha512-3pwDJjp1PWacPTpH0LcfhgjvurQvrZFBrC6xxjaUEZ7ifUtT32jtjPxEMMblpqd2Mvx+k8haqQJLQxolyGN/cQ==
 
+"@vscode/extension-telemetry@0.4.6":
+  version "0.4.6"
+  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.4.6.tgz#2f4c5bf81adf6b2e4ddba54759355e1559c5476b"
+  integrity sha512-bDXwHoNXIR1Rc8xdphJ4B3rWdzAGm+FUPk4mJl6/oyZmfEX+QdlDLxnCwlv/vxHU1p11ThHSB8kRhsWZ1CzOqw==
+
 balanced-match@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.0.tgz#89b4d199ab2bee49de164ea02b89ce462d71b767"
@@ -46,11 +51,6 @@ semver@^7.3.4:
   dependencies:
     lru-cache "^6.0.0"
 
-vscode-extension-telemetry@0.4.3:
-  version "0.4.3"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.4.3.tgz#ea389b3d14b65d4fd5a6cf3760b3155e930193f2"
-  integrity sha512-opiIFOaAwyfACYMXByDqFMAlJ2iFMJR65/vIogJ960aLZWp9zaMdwY9CsY02EOYjHxPpjI7QeOQM3sYCb3xtJg==
-
 vscode-jsonrpc@6.0.0:
   version "6.0.0"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-6.0.0.tgz#108bdb09b4400705176b957ceca9e0880e9b6d4e"
@@ -83,10 +83,10 @@ vscode-nls@^5.0.0:
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-5.0.0.tgz#99f0da0bd9ea7cda44e565a74c54b1f2bc257840"
   integrity sha512-u0Lw+IYlgbEJFF6/qAqG2d1jQmJl0eyAGJHoAJqr2HT4M2BNuQYSEiSE75f52pXHSJm8AlTjnLLbBFPrdz2hpA==
 
-vscode-uri@^3.0.2:
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.2.tgz#ecfd1d066cb8ef4c3a208decdbab9a8c23d055d0"
-  integrity sha512-jkjy6pjU1fxUvI51P+gCsxg1u2n8LSt0W6KrCNQceaziKzff74GoWmjVG46KieVzybO1sttPQmYfrwSHey7GUA==
+vscode-uri@^3.0.3:
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/vscode-uri/-/vscode-uri-3.0.3.tgz#a95c1ce2e6f41b7549f86279d19f47951e4f4d84"
+  integrity sha512-EcswR2S8bpR7fD0YPeS7r2xXExrScVMxg4MedACaWHEtx9ftCF/qHG1xGkolzTPcEmjTavCQgbVzHUIdTMzFGA==
 
 yallist@^4.0.0:
   version "4.0.0"

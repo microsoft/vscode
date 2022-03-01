@@ -20,7 +20,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
-import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 // Actions

@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
+import { promises as fs } from 'fs';
 import type * as pty from 'node-pty';
+import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
@@ -68,8 +71,8 @@ const enum Constants {
 }
 
 interface IWriteObject {
-	data: string,
-	isBinary: boolean
+	data: string;
+	isBinary: boolean;
 }
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
@@ -102,7 +105,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
-	private _capabilities: ProcessCapability[] = [];
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
@@ -110,8 +112,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
 	get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
-
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
@@ -152,7 +152,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			name,
 			cwd,
 			// TODO: When node-pty is updated this cast can be removed
-			env: env as { [key: string]: string; },
+			env: env as { [key: string]: string },
 			cols,
 			rows,
 			useConpty,
@@ -178,10 +178,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
 			});
 		}
-		// Enable the cwd detection capability if the process supports it
-		if (isLinux || isMacintosh) {
-			this.capabilities.push(ProcessCapability.CwdDetection);
-		}
 	}
 
 	async start(): Promise<ITerminalLaunchError | undefined> {
@@ -189,6 +185,17 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		const firstError = results.find(r => r !== undefined);
 		if (firstError) {
 			return firstError;
+		}
+
+		// Handle zsh shell integration - Set $ZDOTDIR to a temp dir and create $ZDOTDIR/.zshrc
+		if (this.shellLaunchConfig.env?.['_ZDOTDIR'] === '1') {
+			const zdotdir = path.join(tmpdir(), 'vscode-zsh');
+			await fs.mkdir(zdotdir, { recursive: true });
+			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh');
+			await fs.copyFile(source, path.join(zdotdir, '.zshrc'));
+			this._ptyOptions.env = this._ptyOptions.env || {};
+			this._ptyOptions.env['ZDOTDIR'] = zdotdir;
+			delete this._ptyOptions.env['_ZDOTDIR'];
 		}
 
 		try {
@@ -348,7 +355,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd, capabilities: this.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {
@@ -485,7 +492,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			} catch (e) {
 				// Swallow error if the pty has already exited
 				this._logService.trace('IPty#resize exception ' + e.message);
-				if (this._exitCode !== undefined && e.message !== 'ioctl(2) failed, EBADF') {
+				if (this._exitCode !== undefined &&
+					e.message !== 'ioctl(2) failed, EBADF' &&
+					e.message !== 'Cannot resize a pty that has already exited') {
 					throw e;
 				}
 			}
@@ -570,8 +579,8 @@ class DelayedResizer extends Disposable {
 	cols: number | undefined;
 	private _timeout: NodeJS.Timeout;
 
-	private readonly _onTrigger = this._register(new Emitter<{ rows?: number, cols?: number }>());
-	get onTrigger(): Event<{ rows?: number, cols?: number }> { return this._onTrigger.event; }
+	private readonly _onTrigger = this._register(new Emitter<{ rows?: number; cols?: number }>());
+	get onTrigger(): Event<{ rows?: number; cols?: number }> { return this._onTrigger.event; }
 
 	constructor() {
 		super();

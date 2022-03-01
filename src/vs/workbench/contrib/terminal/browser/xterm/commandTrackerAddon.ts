@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce } from 'vs/base/common/arrays';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
-import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
-
-/**
- * The minimum size of the prompt in which to assume the line is a command.
- */
-const MINIMUM_PROMPT_LENGTH = 2;
 
 enum Boundary {
 	Top,
@@ -21,38 +19,50 @@ export const enum ScrollPosition {
 	Middle
 }
 
-export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
+export class CommandTrackerAddon extends Disposable implements ICommandTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
-	private _terminal: Terminal | undefined;
+	protected _terminal: Terminal | undefined;
+
+	private _commandDetection?: ICommandDetectionCapability | IPartialCommandDetectionCapability;
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
-		terminal.onKey(e => this._onKey(e.key));
 	}
 
-	dispose(): void {
+	constructor(store: ITerminalCapabilityStore) {
+		super();
+		this._refreshActiveCapability(store);
+		this._register(store.onDidAddCapability(() => this._refreshActiveCapability(store)));
+		this._register(store.onDidRemoveCapability(() => this._refreshActiveCapability(store)));
 	}
 
-	private _onKey(key: string): void {
-		if (key === '\x0d') {
-			this._onEnter();
+	private _refreshActiveCapability(store: ITerminalCapabilityStore) {
+		const activeCommandDetection = store.get(TerminalCapability.CommandDetection) || store.get(TerminalCapability.PartialCommandDetection);
+		if (activeCommandDetection !== this._commandDetection) {
+			this._commandDetection = activeCommandDetection;
 		}
+	}
 
+	private _getCommandMarkers(): readonly IMarker[] {
+		if (!this._commandDetection) {
+			return [];
+		}
+		let commands: readonly IMarker[];
+		if (this._commandDetection.type === TerminalCapability.PartialCommandDetection) {
+			commands = this._commandDetection.commands;
+		} else {
+			commands = coalesce(this._commandDetection.commands.map(e => e.marker));
+		}
+		return commands;
+	}
+
+	clearMarker(): void {
 		// Clear the current marker so successive focus/selection actions are performed from the
 		// bottom of the buffer
 		this._currentMarker = Boundary.Bottom;
 		this._selectionStart = null;
-	}
-
-	private _onEnter(): void {
-		if (!this._terminal) {
-			return;
-		}
-		if (this._terminal.buffer.active.cursorX >= MINIMUM_PROMPT_LENGTH) {
-			this._terminal.registerMarker(0);
-		}
 	}
 
 	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
@@ -69,11 +79,11 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		if (!retainSelection && currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersBelowViewport = this._terminal.markers.filter(e => e.line >= viewportY).length;
+			const markersBelowViewport = this._getCommandMarkers().filter(e => e.line >= viewportY).length;
 			// -1 will scroll to the top
-			markerIndex = this._terminal.markers.length - markersBelowViewport - 1;
+			markerIndex = this._getCommandMarkers().length - markersBelowViewport - 1;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._terminal.markers.length - 1;
+			markerIndex = this._getCommandMarkers().length - 1;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = -1;
 		} else if (this._isDisposable) {
@@ -81,7 +91,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._terminal.markers.indexOf(this._currentMarker) - 1;
+			markerIndex = this._getCommandMarkers().indexOf(this._currentMarker) - 1;
 		}
 
 		if (markerIndex < 0) {
@@ -90,7 +100,7 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 			return;
 		}
 
-		this._currentMarker = this._terminal.markers[markerIndex];
+		this._currentMarker = this._getCommandMarkers()[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
@@ -108,11 +118,11 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		if (!retainSelection && currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
-			const markersAboveViewport = this._terminal.markers.filter(e => e.line <= viewportY).length;
+			const markersAboveViewport = this._getCommandMarkers().filter(e => e.line <= viewportY).length;
 			// markers.length will scroll to the bottom
 			markerIndex = markersAboveViewport;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			markerIndex = this._terminal.markers.length;
+			markerIndex = this._getCommandMarkers().length;
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = 0;
 		} else if (this._isDisposable) {
@@ -120,16 +130,16 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
-			markerIndex = this._terminal.markers.indexOf(this._currentMarker) + 1;
+			markerIndex = this._getCommandMarkers().indexOf(this._currentMarker) + 1;
 		}
 
-		if (markerIndex >= this._terminal.markers.length) {
+		if (markerIndex >= this._getCommandMarkers().length) {
 			this._currentMarker = Boundary.Bottom;
 			this._terminal.scrollToBottom();
 			return;
 		}
 
-		this._currentMarker = this._terminal.markers[markerIndex];
+		this._currentMarker = this._getCommandMarkers()[markerIndex];
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
@@ -233,13 +243,13 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		if (this._currentMarker === Boundary.Bottom) {
-			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) - 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, this._getOffset(xterm) - 1);
 		} else {
 			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = this._addMarkerOrThrow(xterm, offset - 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, offset - 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
@@ -256,20 +266,20 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		if (this._currentMarker === Boundary.Top) {
-			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) + 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, this._getOffset(xterm) + 1);
 		} else {
 			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = this._addMarkerOrThrow(xterm, offset + 1);
+			this._currentMarker = this._registerMarkerOrThrow(xterm, offset + 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	private _addMarkerOrThrow(xterm: Terminal, cursorYOffset: number): IMarker {
-		const marker = xterm.addMarker(cursorYOffset);
+	private _registerMarkerOrThrow(xterm: Terminal, cursorYOffset: number): IMarker {
+		const marker = xterm.registerMarker(cursorYOffset);
 		if (!marker) {
 			throw new Error(`Could not create marker for ${cursorYOffset}`);
 		}
@@ -292,12 +302,12 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return xterm.markers.length - 1;
+			return this._getCommandMarkers().length - 1;
 		}
 
 		let i;
-		for (i = xterm.markers.length - 1; i >= 0; i--) {
-			if (xterm.markers[i].line < this._currentMarker.line) {
+		for (i = this._getCommandMarkers().length - 1; i >= 0; i--) {
+			if (this._getCommandMarkers()[i].line < this._currentMarker.line) {
 				return i;
 			}
 		}
@@ -309,16 +319,16 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			return xterm.markers.length - 1;
+			return this._getCommandMarkers().length - 1;
 		}
 
 		let i;
-		for (i = 0; i < xterm.markers.length; i++) {
-			if (xterm.markers[i].line > this._currentMarker.line) {
+		for (i = 0; i < this._getCommandMarkers().length; i++) {
+			if (this._getCommandMarkers()[i].line > this._currentMarker.line) {
 				return i;
 			}
 		}
 
-		return xterm.markers.length;
+		return this._getCommandMarkers().length;
 	}
 }

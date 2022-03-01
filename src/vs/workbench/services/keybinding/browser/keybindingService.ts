@@ -34,11 +34,11 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { commandsExtensionPoint } from 'vs/workbench/api/common/menusExtensionPoint';
+import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayout';
@@ -276,38 +276,6 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this.isComposingGlobalContextKey.set(false);
 		}));
 
-		const data = this.keyboardLayoutService.getCurrentKeyboardLayout();
-		/* __GDPR__FRAGMENT__
-			"IKeyboardLayoutInfo" : {
-				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"id": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		/* __GDPR__FRAGMENT__
-			"IKeyboardLayoutInfo" : {
-				"model" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"layout": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"variant": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"options": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"rules": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		/* __GDPR__FRAGMENT__
-			"IKeyboardLayoutInfo" : {
-				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"lang": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		/* __GDPR__
-			"keyboardLayout" : {
-				"currentKeyboardLayout": { "${inline}": [ "${IKeyboardLayoutInfo}" ] }
-			}
-		*/
-		telemetryService.publicLog('keyboardLayout', {
-			currentKeyboardLayout: data
-		});
-
 		this._register(browser.onDidChangeFullscreen(() => {
 			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
 
@@ -352,7 +320,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return resolvedKeybinding.getDispatchParts().map(x => x || '[null]').join(' ');
 	}
 
-	private _printResolvedKeybindings(output:string[], input: string, resolvedKeybindings: ResolvedKeybinding[]): void {
+	private _printResolvedKeybindings(output: string[], input: string, resolvedKeybindings: ResolvedKeybinding[]): void {
 		const padLength = 35;
 		const firstRow = `${input.padStart(padLength, ' ')} => `;
 		if (resolvedKeybindings.length === 0) {
@@ -763,6 +731,12 @@ class UserKeybindings extends Disposable {
 		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keybindingsResource))(() => {
 			logService.debug('Keybindings file changed');
 			this.reloadConfigurationScheduler.schedule();
+		}));
+		this._register(this.fileService.onDidRunOperation((e) => {
+			if (e.operation === FileOperation.WRITE && e.resource.toString() === this.keybindingsResource.toString()) {
+				logService.debug('Keybindings file written');
+				this.reloadConfigurationScheduler.schedule();
+			}
 		}));
 	}
 

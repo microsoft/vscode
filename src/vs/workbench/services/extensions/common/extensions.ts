@@ -9,10 +9,10 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
-import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -99,7 +99,7 @@ export interface IExtensionHostProfile {
 	/**
 	 * Get the information as a .cpuprofile.
 	 */
-	data: object;
+	data: IV8Profile;
 
 	/**
 	 * Get the aggregated time per segmentId
@@ -151,6 +151,12 @@ export function checkProposedApiEnabled(extension: IExtensionDescription, propos
  * Extension id or one of the four known program states.
  */
 export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
+
+export interface ExtensionActivationReason {
+	readonly startup: boolean;
+	readonly extensionId: ExtensionIdentifier;
+	readonly activationEvent: string;
+}
 
 export class ActivationTimes {
 	constructor(
@@ -236,6 +242,13 @@ export interface IExtensionService {
 	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
 
 	/**
+	 * Determine if `activateByEvent(activationEvent)` has resolved already.
+	 *
+	 * i.e. the activation event is finished and all interested extensions are already active.
+	 */
+	activationEventIsDone(activationEvent: string): boolean;
+
+	/**
 	 * An promise that resolves when the installed extensions are registered after
 	 * their extension points got handled.
 	 */
@@ -306,25 +319,13 @@ export interface IExtensionService {
 	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
 	 */
 	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
-	/**
-	 * Please do not use!
-	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
-	 */
+}
+
+export interface IInternalExtensionService {
+	_activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
 	_onWillActivateExtension(extensionId: ExtensionIdentifier): void;
-	/**
-	 * Please do not use!
-	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
-	 */
 	_onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
-	/**
-	 * Please do not use!
-	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
-	 */
 	_onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void;
-	/**
-	 * Please do not use!
-	 * (This is public such that the extension host process can coordinate with and call back in the IExtensionService)
-	 */
 	_onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void;
 }
 
@@ -344,7 +345,7 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 
 export function toExtensionDescription(extension: IExtension, isUnderDevelopment?: boolean): IExtensionDescription {
 	return {
-		identifier: new ExtensionIdentifier(extension.identifier.id),
+		identifier: new ExtensionIdentifier(getExtensionId(extension.manifest.publisher, extension.manifest.name)),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
 		isUnderDevelopment: !!isUnderDevelopment,
@@ -363,11 +364,12 @@ export class NullExtensionService implements IExtensionService {
 	onWillActivateByEvent: Event<IWillActivateEvent> = Event.None;
 	onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = Event.None;
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
+	activationEventIsDone(_activationEvent: string): boolean { return false; }
 	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
 	getExtensions(): Promise<IExtensionDescription[]> { return Promise.resolve([]); }
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
-	getExtensionsStatus(): { [id: string]: IExtensionsStatus; } { return Object.create(null); }
+	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }
 	getInspectPort(_tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
 	stopExtensionHosts(): void { }
 	async restartExtensionHost(): Promise<void> { }
@@ -376,9 +378,4 @@ export class NullExtensionService implements IExtensionService {
 	canAddExtension(): boolean { return false; }
 	canRemoveExtension(): boolean { return false; }
 	_activateById(_extensionId: ExtensionIdentifier, _reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(); }
-	_onWillActivateExtension(_extensionId: ExtensionIdentifier): void { }
-	_onDidActivateExtension(_extensionId: ExtensionIdentifier, _codeLoadingTime: number, _activateCallTime: number, _activateResolvedTime: number, _activationReason: ExtensionActivationReason): void { }
-	_onDidActivateExtensionError(_extensionId: ExtensionIdentifier, _error: Error): void { }
-	_onExtensionRuntimeError(_extensionId: ExtensionIdentifier, _err: Error): void { }
-	_onExtensionHostExit(code: number): void { }
 }

@@ -11,6 +11,7 @@ import { launch as launchElectron } from './electronDriver';
 import { launch as launchPlaywright } from './playwrightDriver';
 import { Logger, measureAndLog } from './logger';
 import { copyExtension } from './extensions';
+import * as treekill from 'tree-kill';
 
 const repoPath = path.join(__dirname, '../../..');
 
@@ -29,7 +30,7 @@ export interface LaunchOptions {
 }
 
 interface ICodeInstance {
-	kill: () => Promise<void>
+	kill: () => Promise<void>;
 }
 
 const instances = new Set<ICodeInstance>();
@@ -37,8 +38,12 @@ const instances = new Set<ICodeInstance>();
 function registerInstance(process: cp.ChildProcess, logger: Logger, type: string, kill: () => Promise<void>) {
 	const instance = { kill };
 	instances.add(instance);
+
+	process.stdout?.on('data', data => logger.log(`[${type}] stdout: ${data}`));
+	process.stderr?.on('data', error => logger.log(`[${type}] stderr: ${error}`));
+
 	process.once('exit', (code, signal) => {
-		logger.log(`Process terminated (type: ${type}, pid: ${process.pid}, code: ${code}, signal: ${signal})`);
+		logger.log(`[${type}] Process terminated (pid: ${process.pid}, code: ${code}, signal: ${signal})`);
 
 		instances.delete(instance);
 	});
@@ -90,8 +95,8 @@ async function poll<T>(
 	acceptFn: (result: T) => boolean,
 	logger: Logger,
 	timeoutMessage: string,
-	retryCount: number = 200,
-	retryInterval: number = 100 // millis
+	retryCount = 200,
+	retryInterval = 100 // millis
 ): Promise<T> {
 	let trial = 1;
 	let lastError: string = '';
@@ -170,8 +175,8 @@ export class Code {
 		}
 	}
 
-	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
-		await poll(() => this.driver.getWindowIds(), fn, this.logger, `get window ids`);
+	async waitForWindowIds(accept: (windowIds: number[]) => boolean): Promise<void> {
+		await poll(() => this.driver.getWindowIds(), accept, this.logger, `get window ids`);
 	}
 
 	async dispatchKeybinding(keybinding: string): Promise<void> {
@@ -197,11 +202,16 @@ export class Code {
 				while (!done) {
 					retries++;
 
-					if (retries > 20) {
-						this.logger.log('Smoke test exit call did not terminate process after 10s, still trying...');
+					if (retries === 20) {
+						this.logger.log('Smoke test exit call did not terminate process after 10s, forcefully exiting the application...');
+
+						// no need to await since we're polling for the process to die anyways
+						treekill(this.mainProcess.pid!, err => {
+							this.logger.log('Failed to kill Electron process tree:', err?.message);
+						});
 					}
 
-					if (retries > 40) {
+					if (retries === 40) {
 						done = true;
 						reject(new Error('Smoke test exit call did not terminate process after 20s, giving up'));
 					}
@@ -258,9 +268,9 @@ export class Code {
 		await poll(() => this.driver.isActiveElement(windowId, selector), r => r, this.logger, `is active element '${selector}'`, retryCount);
 	}
 
-	async waitForTitle(fn: (title: string) => boolean): Promise<void> {
+	async waitForTitle(accept: (title: string) => boolean): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.getTitle(windowId), fn, this.logger, `get title`);
+		await poll(() => this.driver.getTitle(windowId), accept, this.logger, `get title`);
 	}
 
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
@@ -280,12 +290,12 @@ export class Code {
 
 	async getLocaleInfo(): Promise<ILocaleInfo> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.getLocaleInfo(windowId);
+		return this.driver.getLocaleInfo(windowId);
 	}
 
 	async getLocalizedStrings(): Promise<ILocalizedStrings> {
 		const windowId = await this.getActiveWindowId();
-		return await this.driver.getLocalizedStrings(windowId);
+		return this.driver.getLocalizedStrings(windowId);
 	}
 
 	private async getActiveWindowId(): Promise<number> {

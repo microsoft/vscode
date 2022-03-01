@@ -94,6 +94,10 @@ export class FileUserDataProvider extends Disposable implements
 	private handleFileChanges(changes: readonly IFileChange[]): void {
 		const userDataChanges: IFileChange[] = [];
 		for (const change of changes) {
+			if (change.resource.scheme !== this.fileSystemScheme) {
+				continue; // only interested in file schemes
+			}
+
 			const userDataResource = this.toUserDataResource(change.resource);
 			if (this.watchResources.findSubstr(userDataResource)) {
 				userDataChanges.push({

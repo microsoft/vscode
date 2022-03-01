@@ -19,6 +19,7 @@ import { ByteSize } from 'vs/platform/files/common/files';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export interface VersionInfo {
 	vscodeVersion: string;
@@ -38,12 +39,14 @@ interface ConfigFilePatterns {
 	relativePathPattern?: RegExp;
 }
 
-interface RootFileMatcher {
-	tag: string;
-	matcher: (path: string) => boolean;
-}
-
+const worksapceStatsCache = new Map<string, Promise<WorkspaceStats>>();
 export async function collectWorkspaceStats(folder: string, filter: string[]): Promise<WorkspaceStats> {
+	const cacheKey = `${folder}::${filter.join(':')}`;
+	const cached = worksapceStatsCache.get(cacheKey);
+	if (cached) {
+		return cached;
+	}
+
 	const configFilePatterns: ConfigFilePatterns[] = [
 		{ tag: 'grunt.js', filePattern: /^gruntfile\.js$/i },
 		{ tag: 'gulp.js', filePattern: /^gulpfile\.js$/i },
@@ -66,83 +69,12 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'dockerfile', filePattern: /^(dockerfile|docker\-compose\.ya?ml)$/i }
 	];
 
-	let rootFileMatchers: RootFileMatcher[];
-
-	// Linux is omitted because few cloud sync clients support it, and for those who are available on Linux, there are multiple clients and they can be configured differently
-	const homeDir = osLib.homedir().toLowerCase();
-	switch (process.platform) {
-		case 'win32':
-			rootFileMatchers = [
-				{
-					tag: 'gdrive', matcher: (path) => {
-						// File Streaming or Mirror Files mode
-						return /^[a-z]:\\(my drive|shared drives)\\/.test(path) || path.startsWith(homeDir + '\\my drive\\');
-					}
-				},
-				{
-					tag: 'dropbox', matcher: path => path.startsWith(homeDir + '\\dropbox') // Ending in *
-				},
-				{
-					tag: 'onedrive', matcher: path => path.startsWith(homeDir + '\\onedrive') // Ending in *
-				},
-				{
-					tag: 'box', matcher: path => path.startsWith(homeDir + '\\box\\')
-				},
-				{
-					tag: 'nextcloud', matcher: path => path.startsWith(homeDir + '\\nextcloud\\')
-				},
-				{
-					tag: 'owncloud', matcher: path => path.startsWith(homeDir + '\\owncloud\\')
-				},
-			];
-			break;
-
-		case 'darwin':
-			rootFileMatchers = [
-				{
-					tag: 'gdrive', matcher: (path) => {
-						// File Streaming mode
-						return path.startsWith('/volumes/googledrive/') || path.startsWith(homeDir + '/my drive/');
-					}
-				},
-				{
-					tag: 'dropbox', matcher: path => path.startsWith(homeDir + '/dropbox') // Ending in *
-				},
-				{
-					tag: 'onedrive', matcher: (path) => {
-						// Old vs new client
-						return path.startsWith(homeDir + '/onedrive') || path.startsWith(homeDir + '/library/cloudstorage/onedrive');
-					}
-				},
-				{
-					tag: 'icloud', matcher: path => path.startsWith(homeDir + '/library/mobile documents/')
-				},
-				{
-					tag: 'box', matcher: path => path.startsWith(homeDir + '/box/')
-				},
-				{
-					tag: 'nextcloud', matcher: path => path.startsWith(homeDir + '/nextcloud/')
-				},
-				{
-					tag: 'owncloud', matcher: path => path.startsWith(homeDir + '/owncloud/')
-				},
-			];
-			break;
-	}
-
 	const fileTypes = new Map<string, number>();
 	const configFiles = new Map<string, number>();
 
 	const MAX_FILES = 20000;
 
-	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
-		for (const rootPath of rootFileMatchers) {
-			const lowercaseRoot = root.toLowerCase();
-			if (rootPath.matcher(lowercaseRoot)) {
-				configFiles.set(rootPath.tag, 1);
-			}
-		}
-
+	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
 
 		return Promises.withAsyncBody(async resolve => {
@@ -211,17 +143,22 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		});
 	}
 
-	const token: { count: number, maxReached: boolean } = { count: 0, maxReached: false };
+	const statsPromise = Promises.withAsyncBody<WorkspaceStats>(async (resolve) => {
+		const token: { count: number; maxReached: boolean } = { count: 0, maxReached: false };
 
-	await collect(folder, folder, filter, token);
-	const launchConfigs = await collectLaunchConfigs(folder);
-	return {
-		configFiles: asSortedItems(configFiles),
-		fileTypes: asSortedItems(fileTypes),
-		fileCount: token.count,
-		maxFilesReached: token.maxReached,
-		launchConfigFiles: launchConfigs
-	};
+		await collect(folder, folder, filter, token);
+		const launchConfigs = await collectLaunchConfigs(folder);
+		resolve({
+			configFiles: asSortedItems(configFiles),
+			fileTypes: asSortedItems(fileTypes),
+			fileCount: token.count,
+			maxFilesReached: token.maxReached,
+			launchConfigFiles: launchConfigs
+		});
+	});
+
+	worksapceStatsCache.set(cacheKey, statsPromise);
+	return statsPromise;
 }
 
 function asSortedItems(items: Map<string, number>): WorkspaceStatItem[] {
@@ -572,6 +509,22 @@ export class DiagnosticsService implements IDiagnosticsService {
 		}
 	}
 
+	public async getWorkspaceFileExtensions(workspace: IWorkspace): Promise<{ extensions: string[] }> {
+		const items = new Set<string>();
+		for (const { uri } of workspace.folders) {
+			const folderUri = URI.revive(uri);
+			if (folderUri.scheme !== Schemas.file) {
+				continue;
+			}
+			const folder = folderUri.fsPath;
+			try {
+				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
+				stats.fileTypes.forEach(item => items.add(item.name));
+			} catch { }
+		}
+		return { extensions: [...items] };
+	}
+
 	public async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> {
 		for (const { uri } of workspace.folders) {
 			const folderUri = URI.revive(uri);
@@ -583,8 +536,8 @@ export class DiagnosticsService implements IDiagnosticsService {
 			try {
 				const stats = await collectWorkspaceStats(folder, ['node_modules', '.git']);
 				type WorkspaceStatsClassification = {
-					'workspace.id': { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+					'workspace.id': { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				};
 				type WorkspaceStatsEvent = {
 					'workspace.id': string | undefined;
@@ -595,9 +548,9 @@ export class DiagnosticsService implements IDiagnosticsService {
 					rendererSessionId: workspace.rendererSessionId
 				});
 				type WorkspaceStatsFileClassification = {
-					rendererSessionId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					type: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
-					count: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+					type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
+					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 				};
 				type WorkspaceStatsFileEvent = {
 					rendererSessionId: string;

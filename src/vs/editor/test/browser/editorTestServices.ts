@@ -5,24 +5,53 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions } from 'vs/editor/common/model';
+import { AbstractCodeEditorService, GlobalStyleSheet } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
+
+	public readonly globalStyleSheet = new TestGlobalStyleSheet();
+
+	protected override _createGlobalStyleSheet(): GlobalStyleSheet {
+		return this.globalStyleSheet;
+	}
+
+	getActiveCodeEditor(): ICodeEditor | null {
+		return null;
+	}
 	public lastInput?: IResourceEditorInput;
-	public getActiveCodeEditor(): ICodeEditor | null { return null; }
-	public openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		this.lastInput = input;
 		return Promise.resolve(null);
 	}
-	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
-	public removeDecorationType(key: string): void { }
-	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return { description: 'test' }; }
-	public resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null { return null; }
+}
+
+export class TestGlobalStyleSheet extends GlobalStyleSheet {
+
+	public rules: string[] = [];
+
+	constructor() {
+		super(null!);
+	}
+
+	public override insertRule(rule: string, index?: number): void {
+		this.rules.unshift(rule);
+	}
+
+	public override removeRulesContainingSelector(ruleName: string): void {
+		for (let i = 0; i < this.rules.length; i++) {
+			if (this.rules[i].indexOf(ruleName) >= 0) {
+				this.rules.splice(i, 1);
+				i--;
+			}
+		}
+	}
+
+	public read(): string {
+		return this.rules.join('\n');
+	}
 }
 
 export class TestCommandService implements ICommandService {

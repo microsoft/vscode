@@ -176,7 +176,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.CustomReadonlyEditorProvider | vscode.CustomTextEditorProvider,
-		options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean },
+		options: { webviewOptions?: vscode.WebviewPanelOptions; supportsMultipleEditorsPerDocument?: boolean },
 	): vscode.Disposable {
 		const disposables = new DisposableStore();
 		if (isCustomTextEditorProvider(provider)) {

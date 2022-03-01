@@ -62,7 +62,7 @@ export class WebviewThemeDataProvider extends Disposable {
 					colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
 				}
 				return colors;
-			}, {} as { [key: string]: string; });
+			}, {} as { [key: string]: string });
 
 			const styles = {
 				'vscode-font-family': DEFAULT_FONT_FAMILY,

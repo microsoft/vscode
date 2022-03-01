@@ -6,6 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
+import { URI } from 'vs/base/common/uri';
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -14,13 +15,14 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'v
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { INotebookCellToolbarActionContext, INotebookCommandContext, NotebookMultiCellAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellInternalMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
 export class CellEditorOptions extends CellPart {
 	private static fixedEditorOptions: IEditorOptions = {
@@ -115,10 +117,10 @@ export class CellEditorOptions extends CellPart {
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
 		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
 		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
-		let editorOptionsOverride: { [key: string]: any; } = {};
-		for (let key in editorOptionsOverrideRaw) {
+		const editorOptionsOverride: { [key: string]: any } = {};
+		for (const key in editorOptionsOverrideRaw) {
 			if (key.indexOf('editor.') === 0) {
-				editorOptionsOverride[key.substr(7)] = editorOptionsOverrideRaw[key];
+				editorOptionsOverride[key.substring(7)] = editorOptionsOverrideRaw[key];
 			}
 		}
 		const computed = {
@@ -133,20 +135,27 @@ export class CellEditorOptions extends CellPart {
 		return computed;
 	}
 
-	getUpdatedValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
-		const options = this.getValue(internalMetadata);
+	getUpdatedValue(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): IEditorOptions {
+		const options = this.getValue(internalMetadata, cellUri);
 		delete options.hover; // This is toggled by a debug editor contribution
 
 		return options;
 	}
 
-	getValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
+	getValue(internalMetadata: NotebookCellInternalMetadata, cellUri: URI): IEditorOptions {
 		return {
 			...this._value,
 			...{
-				padding: internalMetadata ?
-					this.notebookOptions.computeEditorPadding(internalMetadata) :
-					{ top: 12, bottom: 12 }
+				padding: this.notebookOptions.computeEditorPadding(internalMetadata, cellUri)
+			}
+		};
+	}
+
+	getDefaultValue(): IEditorOptions {
+		return {
+			...this._value,
+			...{
+				padding: { top: 12, bottom: 12 }
 			}
 		};
 	}
@@ -217,7 +226,7 @@ registerAction2(class ToggleActiveLineNumberAction extends NotebookMultiCellActi
 		super({
 			id: 'notebook.cell.toggleLineNumbers',
 			title: localize('notebook.cell.toggleLineNumbers.title', "Show Cell Line Numbers"),
-			precondition: ActiveEditorContext.isEqualTo(NotebookEditor.ID),
+			precondition: ActiveEditorContext.isEqualTo(NOTEBOOK_EDITOR_ID),
 			menu: [{
 				id: MenuId.NotebookCellTitle,
 				group: 'View',

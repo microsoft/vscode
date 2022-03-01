@@ -16,7 +16,7 @@ import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
-import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
@@ -111,7 +111,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					y += 4 / zoom;
 				}
 			} else {
-				const pos: { x: number; y: number; } = anchor;
+				const pos: { x: number; y: number } = anchor;
 				x = pos.x + 1; /* prevent first item from being selected automatically under mouse */
 				y = pos.y;
 			}

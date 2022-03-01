@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as async from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 
@@ -21,7 +21,7 @@ suite('Async', () => {
 			});
 			let result = promise.then(_ => assert.ok(false), err => {
 				assert.strictEqual(canceled, 1);
-				assert.ok(isPromiseCanceledError(err));
+				assert.ok(isCancellationError(err));
 			});
 			promise.cancel();
 			promise.cancel(); // cancel only once
@@ -36,7 +36,7 @@ suite('Async', () => {
 			});
 			let result = promise.then(_ => assert.ok(false), err => {
 				assert.strictEqual(canceled, 1);
-				assert.ok(isPromiseCanceledError(err));
+				assert.ok(isCancellationError(err));
 			});
 			promise.cancel();
 			return result;
@@ -1068,7 +1068,11 @@ suite('Async', () => {
 				}
 			};
 
-			const worker = new async.ThrottledWorker<number>(5, undefined, 1, handler);
+			const worker = new async.ThrottledWorker<number>({
+				maxWorkChunkSize: 5,
+				maxBufferedWork: undefined,
+				throttleDelay: 1
+			}, handler);
 
 			// Work less than chunk size
 
@@ -1176,7 +1180,11 @@ suite('Async', () => {
 			let handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>(5, 5, 1, handler);
+			const worker = new async.ThrottledWorker<number>({
+				maxWorkChunkSize: 5,
+				maxBufferedWork: 5,
+				throttleDelay: 1
+			}, handler);
 
 			let worked = worker.work([1, 2, 3]);
 			assert.strictEqual(worked, true);
@@ -1198,7 +1206,11 @@ suite('Async', () => {
 			let handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>(5, 5, 1, handler);
+			const worker = new async.ThrottledWorker<number>({
+				maxWorkChunkSize: 5,
+				maxBufferedWork: 5,
+				throttleDelay: 1
+			}, handler);
 
 			let worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 			assert.strictEqual(worked, false);
@@ -1213,7 +1225,11 @@ suite('Async', () => {
 			let handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>(5, undefined, 1, handler);
+			const worker = new async.ThrottledWorker<number>({
+				maxWorkChunkSize: 5,
+				maxBufferedWork: undefined,
+				throttleDelay: 1
+			}, handler);
 			worker.dispose();
 			const worked = worker.work([1, 2, 3]);
 

@@ -39,7 +39,7 @@ const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
 const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
-	{ platform: 'darwin', arch: null },
+	{ platform: 'darwin', arch: null }, // TODO@server-darwin-arm64: See also postinstall.js which hard-codes remote to x64
 	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },
@@ -63,19 +63,21 @@ const serverResources = [
 	'out-build/vs/base/common/performance.js',
 
 	// main entry points
-	'out-build/vs/server/cli.js',
-	'out-build/vs/server/main.js',
+	'out-build/server-cli.js',
+	'out-build/server-main.js',
 
 	// Watcher
 	'out-build/vs/platform/files/**/*.exe',
 	'out-build/vs/platform/files/**/*.md',
 
-	// Uri transformer
-	'out-build/vs/server/uriTransformer.js',
-
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
+
+	// Terminal shell integration
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh',
+	'out-build/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh',
 
 	'!**/test/**'
 ];
@@ -91,19 +93,19 @@ const serverWithWebResources = [
 
 const serverEntryPoints = [
 	{
-		name: 'vs/server/remoteExtensionHostAgent',
+		name: 'vs/server/node/server.main',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/server/remoteCli',
+		name: 'vs/server/node/server.cli',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/server/remoteExtensionHostProcess',
+		name: 'vs/workbench/api/node/extensionHostProcess',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
-		name: 'vs/platform/files/node/watcher/parcel/parcelWatcherMain',
+		name: 'vs/platform/files/node/watcher/watcherMain',
 		exclude: ['vs/css', 'vs/nls']
 	},
 	{
@@ -250,7 +252,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		const name = product.nameShort;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version }));
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined }));
 
 		const date = new Date().toISOString();
 
@@ -300,26 +302,28 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		if (platform === 'win32') {
 			result = es.merge(result,
-				gulp.src('resources/server/bin/code.cmd', { base: '.' })
+				gulp.src('resources/server/bin/remote-cli/code.cmd', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
-					.pipe(rename(`bin/${product.applicationName}.cmd`)),
+					.pipe(rename(`bin/remote-cli/${product.applicationName}.cmd`)),
 				gulp.src('resources/server/bin/helpers/browser.cmd', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.cmd`)),
-				gulp.src('resources/server/bin/server.cmd', { base: '.' })
-					.pipe(rename(`server.cmd`))
+				gulp.src('resources/server/bin/server-old.cmd', { base: '.' })
+					.pipe(rename(`server.cmd`)),
+				gulp.src('resources/server/bin/code-server.cmd', { base: '.' })
+					.pipe(rename(`bin/${product.serverApplicationName}.cmd`)),
 			);
 		} else if (platform === 'linux' || platform === 'alpine' || platform === 'darwin') {
 			result = es.merge(result,
-				gulp.src('resources/server/bin/code.sh', { base: '.' })
+				gulp.src('resources/server/bin/remote-cli/code.sh', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
 					.pipe(replace('@@COMMIT@@', commit))
 					.pipe(replace('@@APPNAME@@', product.applicationName))
-					.pipe(rename(`bin/${product.applicationName}`))
+					.pipe(rename(`bin/remote-cli/${product.applicationName}`))
 					.pipe(util.setExecutableBit()),
 				gulp.src('resources/server/bin/helpers/browser.sh', { base: '.' })
 					.pipe(replace('@@VERSION@@', version))
@@ -327,14 +331,30 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 					.pipe(replace('@@APPNAME@@', product.applicationName))
 					.pipe(rename(`bin/helpers/browser.sh`))
 					.pipe(util.setExecutableBit()),
-				gulp.src('resources/server/bin/server.sh', { base: '.' })
-					.pipe(rename(`server.sh`))
+				gulp.src(`resources/server/bin/${platform === 'darwin' ? 'code-server-darwin.sh' : 'code-server-linux.sh'}`, { base: '.' })
+					.pipe(rename(`bin/${product.serverApplicationName}`))
 					.pipe(util.setExecutableBit())
 			);
+			if (type !== 'reh-web') {
+				result = es.merge(result,
+					gulp.src('resources/server/bin/server-old.sh', { base: '.' })
+						.pipe(rename(`server.sh`))
+						.pipe(util.setExecutableBit()),
+				);
+			}
 		}
 
 		return result.pipe(vfs.dest(destination));
 	};
+}
+
+/**
+ * @param {object} product The parsed product.json file contents
+ */
+function tweakProductForServerWeb(product) {
+	const result = { ...product };
+	delete result.webEndpointUrlTemplate;
+	return result;
 }
 
 ['reh', 'reh-web'].forEach(type => {
@@ -349,7 +369,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			out: `out-vscode-${type}`,
 			inlineAmdImages: true,
 			bundleInfo: undefined,
-			fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions')
+			fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
 		})
 	));
 

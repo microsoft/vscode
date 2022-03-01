@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { SnippetFile, Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { URI } from 'vs/base/common/uri';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 
 suite('Snippets', function () {
 
@@ -81,6 +81,21 @@ suite('Snippets', function () {
 		assertNeedsClipboard('foo$clipboard', false);
 		assertNeedsClipboard('foo${clipboard}', false);
 		assertNeedsClipboard('baba', false);
+	});
+
+	test('Snippet#isTrivial', function () {
+
+		function assertIsTrivial(body: string, expected: boolean): void {
+			let snippet = new Snippet(['foo'], 'FooSnippet1', 'foo', '', body, 'test', SnippetSource.User);
+			assert.strictEqual(snippet.isTrivial, expected);
+		}
+
+		assertIsTrivial('foo', true);
+		assertIsTrivial('foo$0', true);
+		assertIsTrivial('foo$0bar', false);
+		assertIsTrivial('foo$1', false);
+		assertIsTrivial('foo$1$0', false);
+		assertIsTrivial('${1:foo}', false);
 	});
 
 });

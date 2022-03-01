@@ -6,7 +6,7 @@
 import 'vs/css!./media/exceptionWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExceptionInfo, IDebugSession, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -88,14 +88,14 @@ export class ExceptionWidget extends ZoneWidget {
 		dom.append(container, title);
 
 		if (this.exceptionInfo.description) {
-			let description = $('.description');
+			const description = $('.description');
 			description.textContent = this.exceptionInfo.description;
 			ariaLabel += ', ' + this.exceptionInfo.description;
 			dom.append(container, description);
 		}
 
 		if (this.exceptionInfo.details && this.exceptionInfo.details.stackTrace) {
-			let stackTrace = $('.stack-trace');
+			const stackTrace = $('.stack-trace');
 			const linkDetector = this.instantiationService.createInstance(LinkDetector);
 			const linkedStackTrace = linkDetector.linkify(this.exceptionInfo.details.stackTrace, true, this.debugSession ? this.debugSession.root : undefined);
 			stackTrace.appendChild(linkedStackTrace);

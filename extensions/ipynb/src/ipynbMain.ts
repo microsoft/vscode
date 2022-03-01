@@ -37,6 +37,48 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}));
 
+	vscode.languages.registerCodeLensProvider({ pattern: '**/*.ipynb' }, {
+		provideCodeLenses: (document) => {
+			if (document.uri.scheme === 'vscode-notebook-cell') {
+				return [];
+			}
+			const codelens = new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), { title: 'Open in Notebook Editor', command: 'ipynb.openIpynbInNotebookEditor', arguments: [document.uri] });
+			return [codelens];
+		}
+	});
+
+	context.subscriptions.push(vscode.commands.registerCommand('ipynb.newUntitledIpynb', async () => {
+		const language = 'python';
+		const cell = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '', language);
+		const data = new vscode.NotebookData([cell]);
+		data.metadata = {
+			custom: {
+				cells: [],
+				metadata: {
+					orig_nbformat: 4
+				},
+				nbformat: 4,
+				nbformat_minor: 2
+			}
+		};
+		const doc = await vscode.workspace.openNotebookDocument('jupyter-notebook', data);
+		await vscode.window.showNotebookDocument(doc);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('ipynb.openIpynbInNotebookEditor', async (uri: vscode.Uri) => {
+		if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) {
+			await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		}
+		const document = await vscode.workspace.openNotebookDocument(uri);
+		await vscode.window.showNotebookDocument(document);
+	}));
+
+	// Update new file contribution
+	vscode.extensions.onDidChange(() => {
+		vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
+	});
+	vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
+
 	return {
 		exportNotebook: (notebook: vscode.NotebookData): string => {
 			return exportNotebook(notebook, serializer);

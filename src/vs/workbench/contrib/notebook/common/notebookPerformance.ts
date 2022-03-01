@@ -14,7 +14,7 @@ const perfMarks = new Map<string, PerformanceMark>();
 export function mark(resource: URI, name: PerfName): void {
 	const key = resource.toString();
 	if (!perfMarks.has(key)) {
-		let perfMark: PerformanceMark = {};
+		const perfMark: PerformanceMark = {};
 		perfMark[name] = Date.now();
 		perfMarks.set(key, perfMark);
 	} else {

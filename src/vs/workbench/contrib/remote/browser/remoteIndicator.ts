@@ -17,7 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -25,7 +25,8 @@ import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getRemoteName, getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
+import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
@@ -33,10 +34,9 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { IExtensionsViewPaneContainer, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
-import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
+import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
@@ -66,7 +66,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IMenuService private menuService: IMenuService,
@@ -273,15 +273,15 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private updateRemoteStatusIndicator(): void {
 
-		// Remote Indicator: show if provided via options
+		// Remote Indicator: show if provided via options, e.g. by the web embedder API
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
 			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
 			return;
 		}
 
-		// Remote Authority: show connection state
-		if (this.remoteAuthority) {
+		// Show for remote windows on the desktop, but not when in code server web
+		if (this.remoteAuthority && !isWeb) {
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
@@ -305,7 +305,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 			return;
-		} else if (this.virtualWorkspaceLocation) {
+		}
+		// show when in a virtual workspace
+		if (this.virtualWorkspaceLocation) {
 			// Workspace with label: indicate editing source
 			const workspaceLabel = this.labelService.getHostLabel(this.virtualWorkspaceLocation.scheme, this.virtualWorkspaceLocation.authority);
 			if (workspaceLabel) {
@@ -316,7 +318,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				} else {
 					tooltip.appendText(nls.localize({ key: 'workspace.tooltip', comment: ['{0} is a remote workspace name, e.g. GitHub'] }, "Editing on {0}", workspaceLabel));
 				}
-				if (!isWeb) {
+				if (!isWeb || this.remoteAuthority) {
 					tooltip.appendMarkdown('\n\n');
 					tooltip.appendMarkdown(nls.localize(
 						{ key: 'workspace.tooltip2', comment: ['[features are not available]({1}) is a link. Only translate `features are not available`. Do not change brackets and parentheses or {0}'] },

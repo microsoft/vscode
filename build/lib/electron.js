@@ -40,7 +40,7 @@ const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSyn
 function darwinBundleDocumentType(extensions, icon, nameOrSuffix) {
     // If given a suffix, generate a name from it. If not given anything, default to 'document'
     if (isDocumentSuffix(nameOrSuffix) || !nameOrSuffix) {
-        nameOrSuffix = icon.charAt(0).toUpperCase() + icon.slice(1) + ' ' + (nameOrSuffix !== null && nameOrSuffix !== void 0 ? nameOrSuffix : 'document');
+        nameOrSuffix = icon.charAt(0).toUpperCase() + icon.slice(1) + ' ' + (nameOrSuffix ?? 'document');
     }
     return {
         name: nameOrSuffix,
@@ -77,7 +77,7 @@ exports.config = {
     version: util.getElectronVersion(),
     productAppName: product.nameLong,
     companyName: 'Microsoft Corporation',
-    copyright: 'Copyright (C) 2021 Microsoft. All rights reserved',
+    copyright: 'Copyright (C) 2022 Microsoft. All rights reserved',
     darwinIcon: 'resources/darwin/code.icns',
     darwinBundleIdentifier: product.darwinBundleIdentifier,
     darwinApplicationCategoryType: 'public.app-category.developer-tools',

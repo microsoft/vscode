@@ -35,7 +35,7 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 	switch (os) {
 		case 'win32':
 			switch (product) {
-				case 'client':
+				case 'client': {
 					const asset = arch === 'ia32' ? 'win32' : `win32-${arch}`;
 					switch (type) {
 						case 'archive':
@@ -47,6 +47,7 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
+				}
 				case 'server':
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);

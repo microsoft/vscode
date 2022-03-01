@@ -27,7 +27,7 @@ import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActio
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { debugConfigure } from 'vs/workbench/contrib/debug/browser/debugIcons';
-import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { FOCUS_SESSION_ID, SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, DEBUG_START_LABEL, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -120,7 +120,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		}
 	}
 
-	override addPanes(panes: { pane: ViewPane, size: number, index?: number }[]): void {
+	override addPanes(panes: { pane: ViewPane; size: number; index?: number }[]): void {
 		super.addPanes(panes);
 
 		for (const { pane: pane } of panes) {
@@ -208,7 +208,7 @@ registerAction2(class extends Action2 {
 				launch = launches[0];
 			} else {
 				const picks = launches.map(l => ({ label: l.name, launch: l }));
-				const picked = await quickInputService.pick<{ label: string, launch: ILaunch }>(picks, {
+				const picked = await quickInputService.pick<{ label: string; launch: ILaunch }>(picks, {
 					activeItem: picks[0],
 					placeHolder: nls.localize({ key: 'selectWorkspaceFolder', comment: ['User picks a workspace folder or a workspace configuration file here. Workspace configuration files can contain settings and thus a launch.json configuration can be written into one.'] }, "Select a workspace folder to create a launch.json file in or add it to the workspace config file")
 				});

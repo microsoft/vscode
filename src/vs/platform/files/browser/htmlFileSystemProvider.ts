@@ -15,6 +15,9 @@ import { isLinux } from 'vs/base/common/platform';
 import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { IndexedDB } from 'vs/base/browser/indexedDB';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
 
@@ -46,6 +49,13 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	//#endregion
 
+
+	constructor(
+		private indexedDB: IndexedDB | undefined,
+		private readonly store: string,
+		private logService: ILogService
+	) { }
+
 	//#region File Metadata Resolving
 
 	async stat(resource: URI): Promise<IStat> {
@@ -55,7 +65,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 				throw this.createFileSystemProviderError(resource, 'No such file or directory, stat', FileSystemProviderErrorCode.FileNotFound);
 			}
 
-			if (handle.kind === 'file') {
+			if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
 				const file = await handle.getFile();
 
 				return {
@@ -87,7 +97,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 			const result: [string, FileType][] = [];
 
 			for await (const [name, child] of handle) {
-				result.push([name, child.kind === 'file' ? FileType.File : FileType.Directory]);
+				result.push([name, WebFileSystemAccess.isFileSystemFileHandle(child) ? FileType.File : FileType.Directory]);
 			}
 
 			return result;
@@ -287,11 +297,11 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	private readonly _files = new Map<string, FileSystemFileHandle>();
 	private readonly _directories = new Map<string, FileSystemDirectoryHandle>();
 
-	registerFileHandle(handle: FileSystemFileHandle): URI {
+	registerFileHandle(handle: FileSystemFileHandle): Promise<URI> {
 		return this.registerHandle(handle, this._files);
 	}
 
-	registerDirectoryHandle(handle: FileSystemDirectoryHandle): URI {
+	registerDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<URI> {
 		return this.registerHandle(handle, this._directories);
 	}
 
@@ -299,18 +309,25 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		return this._directories.values();
 	}
 
-	private registerHandle(handle: FileSystemHandle, map: Map<string, FileSystemHandle>): URI {
+	private async registerHandle(handle: FileSystemHandle, map: Map<string, FileSystemHandle>): Promise<URI> {
 		let handleId = `/${handle.name}`;
 
 		// Compute a valid handle ID in case this exists already
-		if (map.has(handleId)) {
+		if (map.has(handleId) && !await map.get(handleId)?.isSameEntry(handle)) {
 			let handleIdCounter = 2;
 			do {
 				handleId = `/${handle.name}-${handleIdCounter++}`;
-			} while (map.has(handleId));
+			} while (map.has(handleId) && !await map.get(handleId)?.isSameEntry(handle));
 		}
 
 		map.set(handleId, handle);
+
+		// Remember in IndexDB for future lookup
+		try {
+			await this.indexedDB?.runInTransaction(this.store, 'readwrite', objectStore => objectStore.put(handle, handleId));
+		} catch (error) {
+			this.logService.error(error);
+		}
 
 		return URI.from({ scheme: Schemas.file, path: handleId });
 	}
@@ -318,7 +335,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	async getHandle(resource: URI): Promise<FileSystemHandle | undefined> {
 
 		// First: try to find a well known handle first
-		let handle = this.getHandleSync(resource);
+		let handle = await this.doGetHandle(resource);
 
 		// Second: walk up parent directories and resolve handle if possible
 		if (!handle) {
@@ -340,26 +357,8 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		return handle;
 	}
 
-	private getHandleSync(resource: URI): FileSystemHandle | undefined {
-
-		// We store file system handles with the `handle.name`
-		// and as such require the resource to be on the root
-		if (this.extUri.dirname(resource).path !== '/') {
-			return undefined;
-		}
-
-		const handleId = resource.path.replace(/\/$/, ''); // remove potential slash from the end of the path
-		const handle = this._files.get(handleId) ?? this._directories.get(handleId);
-
-		if (!handle) {
-			throw this.createFileSystemProviderError(resource, 'No file system handle registered', FileSystemProviderErrorCode.Unavailable);
-		}
-
-		return handle;
-	}
-
 	private async getFileHandle(resource: URI): Promise<FileSystemFileHandle | undefined> {
-		const handle = this.getHandleSync(resource);
+		const handle = await this.doGetHandle(resource);
 		if (handle instanceof FileSystemFileHandle) {
 			return handle;
 		}
@@ -374,7 +373,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 	}
 
 	private async getDirectoryHandle(resource: URI): Promise<FileSystemDirectoryHandle | undefined> {
-		const handle = this.getHandleSync(resource);
+		const handle = await this.doGetHandle(resource);
 		if (handle instanceof FileSystemDirectoryHandle) {
 			return handle;
 		}
@@ -386,6 +385,49 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		} catch (error) {
 			return undefined; // guard against possible DOMException
 		}
+	}
+
+	private async doGetHandle(resource: URI): Promise<FileSystemHandle | undefined> {
+
+		// We store file system handles with the `handle.name`
+		// and as such require the resource to be on the root
+		if (this.extUri.dirname(resource).path !== '/') {
+			return undefined;
+		}
+
+		const handleId = resource.path.replace(/\/$/, ''); // remove potential slash from the end of the path
+
+		// First: check if we have a known handle stored in memory
+		const inMemoryHandle = this._files.get(handleId) ?? this._directories.get(handleId);
+		if (inMemoryHandle) {
+			return inMemoryHandle;
+		}
+
+		// Second: check if we have a persisted handle in IndexedDB
+		const persistedHandle = await this.indexedDB?.runInTransaction(this.store, 'readonly', store => store.get(handleId));
+		if (WebFileSystemAccess.isFileSystemHandle(persistedHandle)) {
+			let hasPermissions = await persistedHandle.queryPermission() === 'granted';
+			try {
+				if (!hasPermissions) {
+					hasPermissions = await persistedHandle.requestPermission() === 'granted';
+				}
+			} catch (error) {
+				this.logService.error(error); // this can fail with a DOMException
+			}
+
+			if (hasPermissions) {
+				if (WebFileSystemAccess.isFileSystemFileHandle(persistedHandle)) {
+					this._files.set(handleId, persistedHandle);
+				} else if (WebFileSystemAccess.isFileSystemDirectoryHandle(persistedHandle)) {
+					this._directories.set(handleId, persistedHandle);
+				}
+
+				return persistedHandle;
+			}
+		}
+
+		// Third: fail with an error
+		throw this.createFileSystemProviderError(resource, 'No file system handle registered', FileSystemProviderErrorCode.Unavailable);
 	}
 
 	//#endregion

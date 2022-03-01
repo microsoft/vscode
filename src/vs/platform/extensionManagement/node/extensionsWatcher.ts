@@ -16,7 +16,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 
 export class ExtensionsWatcher extends Disposable {
 
-	private readonly _onDidChangeExtensionsByAnotherSource = this._register(new Emitter<{ added: ILocalExtension[], removed: IExtensionIdentifier[] }>());
+	private readonly _onDidChangeExtensionsByAnotherSource = this._register(new Emitter<{ added: ILocalExtension[]; removed: IExtensionIdentifier[] }>());
 	readonly onDidChangeExtensionsByAnotherSource = this._onDidChangeExtensionsByAnotherSource.event;
 
 	private startTimestamp = 0;
@@ -41,7 +41,7 @@ export class ExtensionsWatcher extends Disposable {
 
 		const extensionsResource = URI.file(environmentService.extensionsPath);
 		this._register(fileService.watch(extensionsResource));
-		this._register(Event.filter(fileService.onDidChangeFilesRaw, e => e.changes.some(change => this.doesChangeAffects(change, extensionsResource)))(() => this.onDidChange()));
+		this._register(Event.filter(fileService.onDidFilesChange, e => e.rawChanges.some(change => this.doesChangeAffects(change, extensionsResource)))(() => this.onDidChange()));
 	}
 
 	private doesChangeAffects(change: IFileChange, extensionsResource: URI): boolean {

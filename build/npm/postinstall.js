@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 const cp = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -64,6 +63,12 @@ for (let dir of dirs) {
 		if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
 		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+
+		// TODO@server-darwin-arm64: Remove this check when support for arm64 for the server is added on darwin
+		if (/^remote/.test(dir) && process.platform === 'darwin' && (process.arch === 'arm64' || process.env['npm_config_arch'] === 'arm64')) {
+			// darwin arm: force `x64` on remote folder
+			env['npm_config_arch'] = 'x64';
+		}
 		opts = { env };
 	} else if (/^extensions\//.test(dir)) {
 		opts = { ignoreEngines: true };

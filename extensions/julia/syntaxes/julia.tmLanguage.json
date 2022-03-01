@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/cbf818c487848f8ab1293e0ff6650aaa3bf02f98",
+	"version": "https://github.com/JuliaEditorSupport/atom-language-julia/commit/0805e96e0856cab9b33a1f1025f5613cfa19189b",
 	"name": "Julia",
 	"scopeName": "source.julia",
 	"comment": "This grammar is used by Atom (Oniguruma), GitHub (PCRE), and VSCode (Oniguruma),\nso all regexps must be compatible with both engines.\n\nSpecs:\n- https://github.com/kkos/oniguruma/blob/master/doc/RE\n- https://www.pcre.org/current/doc/html/",
@@ -56,12 +56,12 @@
 							"name": "meta.bracket.julia"
 						}
 					},
-					"end": "(?:\\])(?:(\\.)?'*)",
+					"end": "(\\])((?:\\.)?'*)",
 					"endCaptures": {
-						"0": {
+						"1": {
 							"name": "meta.bracket.julia"
 						},
-						"1": {
+						"2": {
 							"name": "keyword.operator.transpose.julia"
 						}
 					},
@@ -95,10 +95,13 @@
 							"name": "meta.bracket.julia"
 						}
 					},
-					"end": "\\)",
+					"end": "(\\))((?:\\.)?'*)",
 					"endCaptures": {
-						"0": {
+						"1": {
 							"name": "meta.bracket.julia"
+						},
+						"2": {
+							"name": "keyword.operator.transpose.julia"
 						}
 					},
 					"patterns": [
@@ -286,7 +289,7 @@
 		"number": {
 			"patterns": [
 				{
-					"match": "((?<!(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿]))(?:(?:\\b0(?:x|X)[0-9a-fA-F](?:_?[0-9a-fA-F])*)|(?:\\b0o[0-7](?:_?[0-7])*)|(?:\\b0b[0-1](?:_?[0-1])*)|(?:(?:\\b[0-9](?:_?[0-9])*\\.?(?!\\.)(?:[_0-9]*))|(?:\\.[0-9](?:_?[0-9])*))(?:[efE][+-]?[0-9](?:_?[0-9])*)?(?:im\\b|Inf(?:16|32|64)?\\b|NaN(?:16|32|64)?\\b|π\\b|pi\\b|ℯ\\b)?|\\bInf(?:16|32|64)?\\b|\\bNaN(?:16|32|64)?\\b|\\bπ\\b|\\bpi\\b|\\bℯ\\b))('*)",
+					"match": "((?<!(?:[[:word:]_!\\p{Lu}\\p{Ll}\\p{Lt}\\p{Lm}\\p{Lo}\\p{Nl}\\p{Sc}⅀-⅄∿⊾⊿⊤⊥∂∅-∇∎∏∐∑∞∟∫-∳⋀-⋃◸-◿♯⟘⟙⟀⟁⦰-⦴⨀-⨆⨉-⨖⨛⨜𝛁𝛛𝛻𝜕𝜵𝝏𝝯𝞉𝞩𝟃ⁱ-⁾₁-₎∠-∢⦛-⦯℘℮゛-゜𝟎-𝟡]|[^\\P{Mn}\u0001-¡]|[^\\P{Mc}\u0001-¡]|[^\\P{Nd}\u0001-¡]|[^\\P{Pc}\u0001-¡]|[^\\P{Sk}\u0001-¡]|[^\\P{Me}\u0001-¡]|[^\\P{No}\u0001-¡]|[′-‷⁗]|[^\\P{So}←-⇿]))(?:(?:\\b0(?:x|X)[0-9a-fA-F](?:_?[0-9a-fA-F])*)|(?:\\b0o[0-7](?:_?[0-7])*)|(?:\\b0b[0-1](?:_?[0-1])*)|(?:(?:\\b[0-9](?:_?[0-9])*\\.?(?!\\.)(?:[_0-9]*))|(?:\\b\\.[0-9](?:_?[0-9])*))(?:[efE][+-]?[0-9](?:_?[0-9])*)?(?:im\\b|Inf(?:16|32|64)?\\b|NaN(?:16|32|64)?\\b|π\\b|pi\\b|ℯ\\b)?|\\b[0-9]+|\\bInf(?:16|32|64)?\\b|\\bNaN(?:16|32|64)?\\b|\\bπ\\b|\\bpi\\b|\\bℯ\\b))('*)",
 					"captures": {
 						"1": {
 							"name": "constant.numeric.julia"

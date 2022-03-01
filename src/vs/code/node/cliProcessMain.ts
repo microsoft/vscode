@@ -43,7 +43,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, NullTelemetryService, getPiiPathsFromEnvironment } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { buildTelemetryMessage } from 'vs/platform/telemetry/node/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -156,7 +156,7 @@ class CliMain extends Disposable {
 				appenders.push(new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey));
 			}
 
-			const { appRoot, extensionsPath, installSourcePath } = environmentService;
+			const { installSourcePath } = environmentService;
 
 			const config: ITelemetryServiceConfig = {
 				appenders,
@@ -174,7 +174,7 @@ class CliMain extends Disposable {
 
 					return resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, machineId, productService.msftInternalDomains, installSourcePath);
 				})(),
-				piiPaths: [appRoot, extensionsPath]
+				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));

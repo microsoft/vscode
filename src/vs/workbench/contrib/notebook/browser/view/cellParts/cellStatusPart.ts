@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,7 +20,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
@@ -92,7 +93,6 @@ export class CellEditorStatusBar extends CellPart {
 		this.updateContext(<INotebookCellActionContext>{
 			ui: true,
 			cell: element,
-			cellTemplate: templateData,
 			notebookEditor: this._notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		});
@@ -104,7 +104,7 @@ export class CellEditorStatusBar extends CellPart {
 
 	updateInternalLayoutNow(element: ICellViewModel): void {
 		// todo@rebornix layer breaker
-		this._cellContainer.classList.toggle('cell-statusbar-hidden', this._notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
+		this._cellContainer.classList.toggle('cell-statusbar-hidden', this._notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata, element.uri) === 0);
 
 		const layoutInfo = element.layoutInfo;
 		const width = layoutInfo.editorWidth;
@@ -167,7 +167,7 @@ export class CellEditorStatusBar extends CellPart {
 		const updateItems = (renderedItems: CellStatusBarItem[], newItems: INotebookCellStatusBarItem[], container: HTMLElement) => {
 			if (renderedItems.length > newItems.length) {
 				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
-				for (let deletedItem of deleted) {
+				for (const deletedItem of deleted) {
 					container.removeChild(deletedItem.container);
 					deletedItem.dispose();
 				}

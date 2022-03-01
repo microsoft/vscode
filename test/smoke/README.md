@@ -8,12 +8,6 @@ Make sure you are on **Node v12.x**.
 # Build extensions in the VS Code repo (if needed)
 yarn && yarn compile
 
-# Install Dependencies and Compile
-yarn --cwd test/smoke
-
-# Prepare OSS in repo*
-node build/lib/preLaunch.js
-
 # Dev (Electron)
 yarn smoketest
 

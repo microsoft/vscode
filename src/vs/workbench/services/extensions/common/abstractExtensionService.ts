@@ -15,18 +15,18 @@ import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } fr
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { createExtensionHostManager, IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
-import { ExtensionIdentifier, IExtensionDescription, IExtension, ExtensionKind, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IExtension, IExtensionContributions } from 'vs/platform/extensions/common/extensions';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { IExtensionManagementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
+import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Schemas } from 'vs/base/common/network';
@@ -622,7 +622,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _startExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): void {
 		const extensionHosts = this._createExtensionHosts(isInitialStart);
 		extensionHosts.forEach((extensionHost) => {
-			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents);
+			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents, this._acquireInternalAPI());
 			processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
 			processManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
 			this._extensionHostManagers.push(processManager);
@@ -719,6 +719,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
+	public activationEventIsDone(activationEvent: string): boolean {
+		if (!this._installedExtensionsReady.isOpen()) {
+			return false;
+		}
+		if (!this._registry.containsActivationEvent(activationEvent)) {
+			// There is no extension that is interested in this activation event
+			return true;
+		}
+		return this._extensionHostManagers.every(manager => manager.activationEventIsDone(activationEvent));
+	}
+
 	public whenInstalledExtensionsRegistered(): Promise<boolean> {
 		return this._installedExtensionsReady.wait();
 	}
@@ -750,8 +761,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		});
 	}
 
-	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
-		let result: { [id: string]: IExtensionsStatus; } = Object.create(null);
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus } {
+		let result: { [id: string]: IExtensionsStatus } = Object.create(null);
 		if (this._registry) {
 			const extensions = this._registry.getAllExtensionDescriptions();
 			for (const extension of extensions) {
@@ -838,7 +849,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {
-		const affectedExtensionPoints: { [extPointName: string]: boolean; } = Object.create(null);
+		const affectedExtensionPoints: { [extPointName: string]: boolean } = Object.create(null);
 		for (let extensionDescription of affectedExtensions) {
 			if (extensionDescription.contributes) {
 				for (let extPointName in extensionDescription.contributes) {
@@ -881,10 +892,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
 			type ExtensionsMessageClassification = {
-				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				extensionPointId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				message: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+				extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				extensionPointId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
 			};
 			type ExtensionsMessageEvent = {
 				type: Severity;
@@ -934,7 +945,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected createLogger(): Logger {
 		return new Logger((severity, source, message) => {
-			if (this._isDev && source) {
+			if (source) {
 				this._logOrShowMessage(severity, `[${source}]: ${message}`);
 			} else {
 				this._logOrShowMessage(severity, message);
@@ -945,9 +956,28 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected _logOrShowMessage(severity: Severity, msg: string): void {
 		if (this._isDev) {
 			this._showMessageToUser(severity, msg);
-		} else {
-			this._logMessageInConsole(severity, msg);
 		}
+		this._logMessageInConsole(severity, msg);
+	}
+
+	private _acquireInternalAPI(): IInternalExtensionService {
+		return {
+			_activateById: (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> => {
+				return this._activateById(extensionId, reason);
+			},
+			_onWillActivateExtension: (extensionId: ExtensionIdentifier): void => {
+				return this._onWillActivateExtension(extensionId);
+			},
+			_onDidActivateExtension: (extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void => {
+				return this._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
+			},
+			_onDidActivateExtensionError: (extensionId: ExtensionIdentifier, error: Error): void => {
+				return this._onDidActivateExtensionError(extensionId, error);
+			},
+			_onExtensionRuntimeError: (extensionId: ExtensionIdentifier, err: Error): void => {
+				return this._onExtensionRuntimeError(extensionId, err);
+			}
+		};
 	}
 
 	public async _activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
@@ -960,19 +990,19 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	public _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
+	private _onWillActivateExtension(extensionId: ExtensionIdentifier): void {
 		this._extensionHostActiveExtensions.set(ExtensionIdentifier.toKey(extensionId), extensionId);
 	}
 
-	public _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
+	private _onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void {
 		this._extensionHostActivationTimes.set(ExtensionIdentifier.toKey(extensionId), new ActivationTimes(codeLoadingTime, activateCallTime, activateResolvedTime, activationReason));
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 
-	public _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
+	private _onDidActivateExtensionError(extensionId: ExtensionIdentifier, error: Error): void {
 		type ExtensionActivationErrorClassification = {
-			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			error: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			error: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
 		};
 		type ExtensionActivationErrorEvent = {
 			extensionId: string;
@@ -984,7 +1014,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		});
 	}
 
-	public _onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void {
+	private _onExtensionRuntimeError(extensionId: ExtensionIdentifier, err: Error): void {
 		const extensionKey = ExtensionIdentifier.toKey(extensionId);
 		if (!this._extensionHostExtensionRuntimeErrors.has(extensionKey)) {
 			this._extensionHostExtensionRuntimeErrors.set(extensionKey, []);
@@ -1140,29 +1170,18 @@ class ProposedApiController {
 
 		this._productEnabledExtensions = new Map<string, ApiProposalName[]>();
 
-		// todo@jrieken this is deprecated and will be removed
-		// OLD world - extensions that are listed in `extensionAllowedProposedApi` get all proposals enabled
-		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
-			for (let id of productService.extensionAllowedProposedApi) {
-				const key = ExtensionIdentifier.toKey(id);
-				this._productEnabledExtensions.set(key, Object.keys(allApiProposals));
-			}
-		}
 
 		// NEW world - product.json spells out what proposals each extension can use
 		if (productService.extensionEnabledApiProposals) {
 			forEach(productService.extensionEnabledApiProposals, entry => {
+				const key = ExtensionIdentifier.toKey(entry.key);
 				const proposalNames = entry.value.filter(name => {
 					if (!allApiProposals[<ApiProposalName>name]) {
-						_logService.warn(`Extension '${key} wants API proposal '${name}' but that proposal DOES NOT EXIST.`);
+						_logService.warn(`Via 'product.json#extensionEnabledApiProposals' extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
 						return false;
 					}
 					return true;
 				});
-				const key = ExtensionIdentifier.toKey(entry.key);
-				if (this._productEnabledExtensions.has(key)) {
-					_logService.warn(`Extension '${key} appears in BOTH 'product.json#extensionAllowedProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
-				}
 				this._productEnabledExtensions.set(key, proposalNames);
 			});
 		}
@@ -1173,8 +1192,19 @@ class ProposedApiController {
 		// this is a trick to make the extension description writeable...
 		type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
 		const extension = <Writeable<IExtensionDescription>>_extension;
-
 		const key = ExtensionIdentifier.toKey(_extension.identifier);
+
+		// warn about invalid proposal and remove them from the list
+		if (isNonEmptyArray(extension.enabledApiProposals)) {
+			extension.enabledApiProposals = extension.enabledApiProposals.filter(name => {
+				const result = Boolean(allApiProposals[<ApiProposalName>name]);
+				if (!result) {
+					this._logService.critical(`Extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
+				}
+				return result;
+			});
+		}
+
 
 		if (this._productEnabledExtensions.has(key)) {
 			// NOTE that proposals that are listed in product.json override whatever is declared in the extension
@@ -1188,7 +1218,7 @@ class ProposedApiController {
 			const extensionSet = new Set(extension.enabledApiProposals);
 			const diff = new Set([...extensionSet].filter(a => !productSet.has(a)));
 			if (diff.size > 0) {
-				this._logService.critical(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension wants.\npackage.json (LOOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
+				this._logService.critical(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension wants.\npackage.json (LOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
 
 				if (this._environmentService.isExtensionDevelopment) {
 					this._logService.critical(`Proceeding with EXTRA proposals (${[...diff].join(', ')}) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.`);
@@ -1208,7 +1238,7 @@ class ProposedApiController {
 
 		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposals)) {
 			// restrictive: extension cannot use proposed API in this context and its declaration is nulled
-			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') ?? '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
+			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
 			extension.enabledApiProposals = [];
 		}
 	}

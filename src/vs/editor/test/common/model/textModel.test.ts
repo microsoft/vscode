@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createModelServices, createTextModel } from 'vs/editor/test/common/testTextModel';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
 	let m = createTextModel(
 		text.join('\n'),
+		undefined,
 		{
 			tabSize: defaultTabSize,
 			insertSpaces: defaultInsertSpaces,
@@ -160,6 +164,20 @@ suite('TextModelData.fromString', () => {
 });
 
 suite('Editor Model - TextModel', () => {
+
+	test('TextModel does not use events internally', () => {
+		// Make sure that all model parts receive text model events explicitly
+		// to avoid that by any chance an outside listener receives events before
+		// the parts and thus are able to access the text model in an inconsistent state.
+		//
+		// We simply check that there are no listeners attached to text model
+		// after instantiation
+		const disposables = new DisposableStore();
+		const instantiationService: IInstantiationService = createModelServices(disposables);
+		const textModel = disposables.add(instantiationService.createInstance(TextModel, '', PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null));
+		assert.strictEqual(textModel._hasListeners(), false);
+		disposables.dispose();
+	});
 
 	test('getValueLengthInRange', () => {
 
@@ -885,6 +903,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('normalizeIndentation 1', () => {
 		let model = createTextModel('',
+			undefined,
 			{
 				insertSpaces: false
 			}

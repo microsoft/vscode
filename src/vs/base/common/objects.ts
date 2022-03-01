@@ -190,7 +190,7 @@ export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaul
 	return typeof result === 'undefined' ? defaultValue : result;
 }
 
-type obj = { [key: string]: any; };
+type obj = { [key: string]: any };
 /**
  * Returns an object that has keys for each value that is different in the base object. Keys
  * that do not exist in the target but in the base object are not considered.
