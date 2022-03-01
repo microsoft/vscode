@@ -58,7 +58,7 @@ class ExtensionHostProcess extends Disposable {
 			mixin({ cwd: cwd() }, opts),
 		);
 		const forkTime = sw.elapsed();
-		const pid = this._process.pid;
+		const pid = this._process.pid!;
 
 		this._host.logInfo(`Starting extension host with pid ${pid} (fork() took ${forkTime} ms).`);
 
@@ -103,7 +103,7 @@ class ExtensionHostProcess extends Disposable {
 
 		if (typeof (<ProcessExt>process)._debugProcess === 'function') {
 			// use (undocumented) _debugProcess feature of node
-			(<ProcessExt>process)._debugProcess!(this._process.pid);
+			(<ProcessExt>process)._debugProcess!(this._process.pid!);
 			return true;
 		} else if (!platform.isWindows) {
 			// use KILL USR1 on non-windows platforms (fallback)

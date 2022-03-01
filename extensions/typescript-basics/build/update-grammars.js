@@ -9,7 +9,7 @@ var updateGrammar = require('vscode-grammar-updater');
 
 function removeDom(grammar) {
 	grammar.repository['support-objects'].patterns = grammar.repository['support-objects'].patterns.filter(pattern => {
-		if (pattern.match && pattern.match.match(/\b(HTMLElement|ATTRIBUTE_NODE|stopImmediatePropagation)\b/g)) {
+		if (pattern.match && /\b(HTMLElement|ATTRIBUTE_NODE|stopImmediatePropagation)\b/g.test(pattern.match)) {
 			return false;
 		}
 		return true;

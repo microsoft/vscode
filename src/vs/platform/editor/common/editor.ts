@@ -177,7 +177,7 @@ export enum EditorResolution {
 	EXCLUSIVE_ONLY
 }
 
-export enum EditorOpenContext {
+export enum EditorOpenSource {
 
 	/**
 	 * Default: the editor is opening via a programmatic call
@@ -278,14 +278,14 @@ export interface IEditorOptions {
 	/**
 	 * A optional hint to signal in which context the editor opens.
 	 *
-	 * If configured to be `EditorOpenContext.USER`, this hint can be
+	 * If configured to be `EditorOpenSource.USER`, this hint can be
 	 * used in various places to control the experience. For example,
 	 * if the editor to open fails with an error, a notification could
 	 * inform about this in a modal dialog. If the editor opened through
 	 * some background task, the notification would show in the background,
 	 * not as a modal dialog.
 	 */
-	context?: EditorOpenContext;
+	source?: EditorOpenSource;
 
 	/**
 	 * An optional property to signal that certain view state should be
@@ -324,6 +324,31 @@ export const enum TextEditorSelectionRevealType {
 	NearTopIfOutsideViewport = 3,
 }
 
+export const enum TextEditorSelectionSource {
+
+	/**
+	 * Programmatic source indicates a selection change that
+	 * was not triggered by the user via keyboard or mouse
+	 * but through text editor APIs.
+	 */
+	PROGRAMMATIC = 'api',
+
+	/**
+	 * Navigation source indicates a selection change that
+	 * was caused via some command or UI component such as
+	 * an outline tree.
+	 */
+	NAVIGATION = 'code.navigation',
+
+	/**
+	 * Jump source indicates a selection change that
+	 * was caused from within the text editor to another
+	 * location in the same or different text editor such
+	 * as "Go to definition".
+	 */
+	JUMP = 'code.jump'
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
@@ -336,4 +361,9 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
 	selectionRevealType?: TextEditorSelectionRevealType;
+
+	/**
+	 * Source of the call that caused the selection.
+	 */
+	selectionSource?: TextEditorSelectionSource | string;
 }

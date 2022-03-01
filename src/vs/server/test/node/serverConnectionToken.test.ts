@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 import { ServerParsedArgs } from 'vs/server/node/serverEnvironmentService';
-import { Promises } from 'vs/base/node/pfs';
 
 suite('parseServerConnectionToken', () => {
 
@@ -52,17 +52,18 @@ suite('parseServerConnectionToken', () => {
 		assertIsError(await parseServerConnectionToken({ 'connection-token-file': '0', 'connection-token': '0' } as ServerParsedArgs, async () => 'defaultTokenValue'));
 	});
 
-	test('--connection-token-file', async () => {
+	test('--connection-token-file', async function () {
+		this.timeout(10000);
 		const testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'server-connection-token');
-		await Promises.mkdir(testDir, { recursive: true });
+		fs.mkdirSync(testDir, { recursive: true });
 		const filename = path.join(testDir, 'connection-token-file');
 		const connectionToken = `12345-123-abc`;
-		await Promises.writeFile(filename, connectionToken);
+		fs.writeFileSync(filename, connectionToken);
 		const result = await parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs, async () => 'defaultTokenValue');
 		assert.ok(!(result instanceof ServerConnectionTokenParseError));
 		assert.ok(result.type === ServerConnectionTokenType.Mandatory);
 		assert.strictEqual(result.value, connectionToken);
-		await Promises.rm(testDir);
+		fs.rmSync(testDir, { recursive: true, force: true });
 	});
 
 	test('--connection-token', async () => {

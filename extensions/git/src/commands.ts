@@ -2753,6 +2753,17 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.closeAllDiffEditors', { repository: true })
+	closeDiffEditors(repository: Repository): void {
+		const resources = [
+			...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath)
+		];
+
+		repository.closeDiffEditors(resources, resources, true);
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;

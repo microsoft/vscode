@@ -53,7 +53,7 @@ export namespace IconContribution {
 
 export interface IconFontContribution {
 	readonly id: string;
-	getDefinition(): IconFontDefinition | undefined;
+	readonly definition: IconFontDefinition;
 }
 
 export interface IconFontDefinition {

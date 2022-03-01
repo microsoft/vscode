@@ -24,6 +24,7 @@ import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { localize } from 'vs/nls';
 import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonitor';
 import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 
 type WorkspaceId = string;
 
@@ -399,7 +400,7 @@ export class PtyService extends Disposable implements IPtyService {
 	private _throwIfNoPty(id: number): PersistentTerminalProcess {
 		const pty = this._ptys.get(id);
 		if (!pty) {
-			throw new Error(`Could not find pty on pty host`);
+			throw new ErrorNoTelemetry(`Could not find pty on pty host`);
 		}
 		return pty;
 	}

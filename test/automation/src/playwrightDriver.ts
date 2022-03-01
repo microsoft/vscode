@@ -224,7 +224,7 @@ async function launchServer(options: LaunchOptions) {
 		...process.env
 	};
 
-	const args = ['--disable-telemetry', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder];
+	const args = ['--disable-telemetry', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder, '--accept-server-license-terms'];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
@@ -282,7 +282,7 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 		}
 	});
 
-	const payloadParam = `[["enableProposedApi",""],["webviewExternalEndpointCommit","d372f9187401bd145a0a6e15ba369e2d82d02005"],["skipWelcome","true"]]`;
+	const payloadParam = `[["enableProposedApi",""],["webviewExternalEndpointCommit","93a2a2fa12dd3ae0629eec01c05a28cb60ac1c4b"],["skipWelcome","true"]]`;
 	await measureAndLog(page.goto(`${endpoint}&folder=${URI.file(workspacePath!).path}&payload=${payloadParam}`), 'page.goto()', logger);
 
 	return { browser, context, page };

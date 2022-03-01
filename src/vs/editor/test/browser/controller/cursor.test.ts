@@ -26,6 +26,7 @@ import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispa
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 
 // --------- utils
 
@@ -1228,6 +1229,38 @@ suite('Editor Controller - Cursor', () => {
 				new Selection(7, 4, 7, 35),
 			]);
 		});
+	});
+
+	test('setSelection / setPosition with source', () => {
+
+		const tokenizationSupport: ITokenizationSupport = {
+			getInitialState: () => NullState,
+			tokenize: undefined!,
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+				return new EncodedTokenizationResult(new Uint32Array(0), state);
+			}
+		};
+
+		const LANGUAGE_ID = 'modelModeTest1';
+		const languageRegistration = TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		let model = createTextModel('Just text', LANGUAGE_ID);
+
+		withTestCodeEditor(model, {}, (editor1, cursor1) => {
+			let event: ICursorPositionChangedEvent | undefined = undefined;
+			editor1.onDidChangeCursorPosition(e => {
+				event = e;
+			});
+
+			editor1.setSelection(new Range(1, 2, 1, 3), 'navigation');
+			assert.strictEqual(event!.source, 'navigation');
+
+			event = undefined;
+			editor1.setPosition(new Position(1, 2), 'navigation');
+			assert.strictEqual(event!.source, 'navigation');
+		});
+
+		languageRegistration.dispose();
+		model.dispose();
 	});
 });
 

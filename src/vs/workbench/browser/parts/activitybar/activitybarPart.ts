@@ -30,7 +30,7 @@ import { assertIsDefined, isString } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { isNative } from 'vs/base/common/platform';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon } from 'vs/base/common/codicons';

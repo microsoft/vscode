@@ -23,6 +23,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 // --- bisect service
 
@@ -218,7 +219,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'extension.bisect.start',
 			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
-			category: localize('help', "Help"),
+			category: CATEGORIES.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
 			menu: {
@@ -257,7 +258,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.next',
-			title: localize('title.isBad', "Continue Extension Bisect"),
+			title: { value: localize('title.isBad', "Continue Extension Bisect"), original: 'Continue Extension Bisect' },
 			category: localize('help', "Help"),
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
@@ -344,7 +345,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.stop',
-			title: localize('title.stop', "Stop Extension Bisect"),
+			title: { value: localize('title.stop', "Stop Extension Bisect"), original: 'Stop Extension Bisect' },
 			category: localize('help', "Help"),
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive

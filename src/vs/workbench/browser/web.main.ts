@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, detectFullscreen, getCookieValue, WebFileSystemAccess } from 'vs/base/browser/dom';
+import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogger, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationLogger } from 'vs/platform/log/browser/log';
@@ -22,12 +22,11 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas, connectionTokenCookieName } from 'vs/base/common/network';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IAnyWorkspaceIdentifier, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { setFullscreen } from 'vs/base/browser/browser';
 import { URI } from 'vs/base/common/uri';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/common/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -38,7 +37,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogger } from 'vs/platform/log/common/fileLog';
 import { toLocalISOString } from 'vs/base/common/date';
-import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
+import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/window/common/window';
 import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
@@ -69,6 +68,7 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { BrowserCredentialsService } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
 export class BrowserMain extends Disposable {
 
@@ -243,7 +243,7 @@ export class BrowserMain extends Disposable {
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, logService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly
@@ -298,8 +298,9 @@ export class BrowserMain extends Disposable {
 		let indexedDB: IndexedDB | undefined;
 		const userDataStore = 'vscode-userdata-store';
 		const logsStore = 'vscode-logs-store';
+		const handlesStore = 'vscode-filehandles-store';
 		try {
-			indexedDB = await IndexedDB.create('vscode-web-db', 2, [userDataStore, logsStore]);
+			indexedDB = await IndexedDB.create('vscode-web-db', 3, [userDataStore, logsStore, handlesStore]);
 
 			// Close onWillShutdown
 			this.onWillShutdownDisposables.add(toDisposable(() => indexedDB?.close()));
@@ -336,7 +337,7 @@ export class BrowserMain extends Disposable {
 
 		// Local file access (if supported by browser)
 		if (WebFileSystemAccess.supported(window)) {
-			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
+			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider(indexedDB, handlesStore, logService));
 		}
 
 		// In-memory
@@ -386,7 +387,7 @@ export class BrowserMain extends Disposable {
 		});
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService): Promise<IStorageService> {
+	private async createStorageService(payload: IAnyWorkspaceIdentifier, logService: ILogService): Promise<IStorageService> {
 		const storageService = new BrowserStorageService(payload, logService);
 
 		try {
@@ -404,7 +405,7 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: IWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.userData, Schemas.tmp] /* Cache all non native resources */, environmentService, fileService);
 		const workspaceService = new WorkspaceService({ remoteAuthority: this.configuration.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
@@ -420,7 +421,7 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+	private resolveWorkspaceInitializationPayload(): IAnyWorkspaceIdentifier {
 		let workspace: IWorkspace | undefined = undefined;
 		if (this.configuration.workspaceProvider) {
 			workspace = this.configuration.workspaceProvider.workspace;

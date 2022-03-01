@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
@@ -16,7 +16,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
@@ -618,18 +617,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 		const iconPath = vscodeComment.author && vscodeComment.author.iconPath ? vscodeComment.author.iconPath.toString() : undefined;
 
-		if (vscodeComment.timestamp) {
-			checkProposedApiEnabled(thread.extensionDescription, 'commentTimestamp');
-		}
-
-		let timestamp: { $mid: MarshalledId.Date; source: any } | undefined;
-		if (vscodeComment.timestamp) {
-			timestamp = {
-				source: vscodeComment.timestamp,
-				$mid: MarshalledId.Date
-			};
-		}
-
 		return {
 			mode: vscodeComment.mode,
 			contextValue: vscodeComment.contextValue,
@@ -639,7 +626,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			userIconPath: iconPath,
 			label: vscodeComment.label,
 			commentReactions: vscodeComment.reactions ? vscodeComment.reactions.map(reaction => convertToReaction(reaction)) : undefined,
-			timestamp
+			timestamp: vscodeComment.timestamp?.toJSON()
 		};
 	}
 
@@ -675,4 +662,3 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 
 	return new ExtHostCommentsImpl();
 }
-

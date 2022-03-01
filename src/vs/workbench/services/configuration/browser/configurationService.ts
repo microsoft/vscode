@@ -10,14 +10,14 @@ import { equals } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue, Barrier, runWhenIdle, Promises } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings } from 'vs/workbench/services/configuration/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceIdentifier, isWorkspaceIdentifier, IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, IWorkspaceInitializationPayload, IEmptyWorkspaceIdentifier, useSlashForPath, getStoredWorkspaceFolder, isSingleFolderWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
+import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, useSlashForPath, getStoredWorkspaceFolder, toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ConfigurationEditingService, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration, DefaultConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
@@ -129,7 +129,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			this.initRemoteUserConfigurationBarrier.open();
 		}
 
-		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, fileService));
+		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, fileService, uriIdentityService));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(fromCache => {
 			this.onWorkspaceConfigurationChanged(fromCache).then(() => {
 				this.workspace.initialized = this.workspaceConfiguration.initialized;
@@ -249,7 +249,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					continue; // already existing
 				}
 				try {
-					const result = await this.fileService.resolve(folderURI);
+					const result = await this.fileService.stat(folderURI);
 					if (!result.isDirectory) {
 						continue;
 					}
@@ -404,7 +404,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	 *
 	 * Related root path issue discussion is being tracked here - https://github.com/microsoft/vscode/issues/69335
 	 */
-	async initialize(arg: IWorkspaceInitializationPayload): Promise<void> {
+	async initialize(arg: IAnyWorkspaceIdentifier): Promise<void> {
 		mark('code/willInitWorkspaceService');
 
 		const workspace = await this.createWorkspace(arg);
@@ -468,7 +468,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	private async createWorkspace(arg: IWorkspaceInitializationPayload): Promise<Workspace> {
+	private async createWorkspace(arg: IAnyWorkspaceIdentifier): Promise<Workspace> {
 		if (isWorkspaceIdentifier(arg)) {
 			return this.createMultiFolderWorkspace(arg);
 		}
@@ -861,7 +861,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const validWorkspaceFolders: WorkspaceFolder[] = [];
 		for (const workspaceFolder of workspaceFolders) {
 			try {
-				const result = await this.fileService.resolve(workspaceFolder.uri);
+				const result = await this.fileService.stat(workspaceFolder.uri);
 				if (!result.isDirectory) {
 					continue;
 				}

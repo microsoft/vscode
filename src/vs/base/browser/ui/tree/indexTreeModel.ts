@@ -314,12 +314,12 @@ export class IndexTreeModel<T extends Exclude<any, undefined>, TFilterData = voi
 			deletedNodes.forEach(visit);
 		}
 
+		this._onDidSplice.fire({ insertedNodes: nodesToInsert, deletedNodes });
+
 		const currentlyHasChildren = parentNode.children.length > 0;
 		if (lastHadChildren !== currentlyHasChildren) {
 			this.setCollapsible(location.slice(0, -1), currentlyHasChildren);
 		}
-
-		this._onDidSplice.fire({ insertedNodes: nodesToInsert, deletedNodes });
 
 		let node: IIndexTreeNode<T, TFilterData> | undefined = parentNode;
 

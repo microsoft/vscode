@@ -169,7 +169,7 @@ CommandsRegistry.registerCommand({
 
 		let isFile = true;
 		try {
-			if (!(await fileService.resolve(uri)).isFile) {
+			if (!(await fileService.stat(uri)).isFile) {
 				isFile = false;
 			}
 		} catch {

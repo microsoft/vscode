@@ -279,6 +279,7 @@ export class WebClientServer {
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 				productConfiguration: <Partial<IProductConfiguration>>{
+					embedderIdentifier: 'server-distro',
 					extensionsGallery: this._webExtensionResourceUrlTemplate ? {
 						...this._productService.extensionsGallery,
 						'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({

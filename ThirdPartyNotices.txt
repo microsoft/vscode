@@ -5,11 +5,11 @@ Do Not Translate or Localize
 
 This project incorporates components from the projects listed below. The original copyright notices and the licenses under which Microsoft received such components are set forth below. Microsoft reserves all rights not expressly granted herein, whether by implication, estoppel or otherwise.
 
-1.	atom/language-clojure version 0.22.7 (https://github.com/atom/language-clojure)
+1.	atom/language-clojure version 0.22.8 (https://github.com/atom/language-clojure)
 2.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
 3.	atom/language-css version 0.45.0 (https://github.com/atom/language-css)
 4.	atom/language-java version 0.32.1 (https://github.com/atom/language-java)
-5.	atom/language-sass version 0.61.4 (https://github.com/atom/language-sass)
+5.	atom/language-sass version 0.62.1 (https://github.com/atom/language-sass)
 6.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
 7.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
 8.	better-go-syntax version 1.0.0 (https://github.com/jeff-hykin/better-go-syntax/ )
@@ -26,15 +26,15 @@ This project incorporates components from the projects listed below. The origina
 19.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
 20.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
 21.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-22.	Ikuyadeu/vscode-R version 2.3.2 (https://github.com/Ikuyadeu/vscode-R)
+22.	Ikuyadeu/vscode-R version 2.3.5 (https://github.com/Ikuyadeu/vscode-R)
 23.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
 24.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
 25.	James-Yu/LaTeX-Workshop version 8.19.1 (https://github.com/James-Yu/LaTeX-Workshop)
 26.	jeff-hykin/cpp-textmate-grammar version 1.12.11 (https://github.com/jeff-hykin/cpp-textmate-grammar)
 27.	jeff-hykin/cpp-textmate-grammar version 1.15.6 (https://github.com/jeff-hykin/cpp-textmate-grammar)
-28.	jlelong/vscode-latex-basics version 1.1.0 (https://github.com/jlelong/vscode-latex-basics)
+28.	jlelong/vscode-latex-basics version 1.2.0 (https://github.com/jlelong/vscode-latex-basics)
 29.	js-beautify version 1.6.8 (https://github.com/beautify-web/js-beautify)
-30.	JuliaEditorSupport/atom-language-julia version 0.21.2 (https://github.com/JuliaEditorSupport/atom-language-julia)
+30.	JuliaEditorSupport/atom-language-julia version 0.22.1 (https://github.com/JuliaEditorSupport/atom-language-julia)
 31.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 32.	language-docker (https://github.com/moby/moby)
 33.	language-less version 0.34.2 (https://github.com/atom/language-less)
@@ -53,15 +53,15 @@ This project incorporates components from the projects listed below. The origina
 46.	semver version 5.5.0 (https://github.com/npm/node-semver)
 47.	seti-ui version 0.1.0 (https://github.com/jesseweed/seti-ui)
 48.	shaders-tmLanguage version 0.1.0 (https://github.com/tgjones/shaders-tmLanguage)
-49.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
-50.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
-51.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
-52.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
-53.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
-54.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
-55.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
-56.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
-57.	textmate/lua.tmbundle (https://github.com/textmate/lua.tmbundle)
+49.	sumneko/lua.tmbundle version 1.0.0 (https://github.com/sumneko/lua.tmbundle)
+50.	textmate/asp.vb.net.tmbundle (https://github.com/textmate/asp.vb.net.tmbundle)
+51.	textmate/c.tmbundle (https://github.com/textmate/c.tmbundle)
+52.	textmate/diff.tmbundle (https://github.com/textmate/diff.tmbundle)
+53.	textmate/git.tmbundle (https://github.com/textmate/git.tmbundle)
+54.	textmate/groovy.tmbundle (https://github.com/textmate/groovy.tmbundle)
+55.	textmate/html.tmbundle (https://github.com/textmate/html.tmbundle)
+56.	textmate/ini.tmbundle (https://github.com/textmate/ini.tmbundle)
+57.	textmate/javascript.tmbundle (https://github.com/textmate/javascript.tmbundle)
 58.	textmate/markdown.tmbundle (https://github.com/textmate/markdown.tmbundle)
 59.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
 60.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
@@ -2322,6 +2322,24 @@ SOFTWARE.
 =========================================
 END OF shaders-tmLanguage NOTICES AND INFORMATION
 
+%% sumneko/lua.tmbundle NOTICES AND INFORMATION BEGIN HERE
+=========================================
+Copyright (c) sumneko-lua.tmbundle project authors
+
+If not otherwise specified (see below), files in this repository fall under the following license:
+
+Permission to copy, use, modify, sell and distribute this
+software is granted. This software is provided "as is" without
+express or implied warranty, and with no claim as to its
+suitability for any purpose.
+
+An exception is made for files in readable text which contain their own license information,
+or files where an accompanying file exists (in the same directory) with a "-license" suffix added
+to the base-name name of the original file, and an extension of txt, html, or similar. For example
+"tidy" is accompanied by "tidy-license.txt".
+=========================================
+END OF sumneko/lua.tmbundle NOTICES AND INFORMATION
+
 %% textmate/asp.vb.net.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) textmate-asp.vb.net.tmbundle project authors
@@ -2474,24 +2492,6 @@ to the base-name name of the original file, and an extension of txt, html, or si
 "tidy" is accompanied by "tidy-license.txt".
 =========================================
 END OF textmate/javascript.tmbundle NOTICES AND INFORMATION
-
-%% textmate/lua.tmbundle NOTICES AND INFORMATION BEGIN HERE
-=========================================
-Copyright (c) textmate-lua.tmbundle project authors
-
-If not otherwise specified (see below), files in this repository fall under the following license:
-
-Permission to copy, use, modify, sell and distribute this
-software is granted. This software is provided "as is" without
-express or implied warranty, and with no claim as to its
-suitability for any purpose.
-
-An exception is made for files in readable text which contain their own license information,
-or files where an accompanying file exists (in the same directory) with a "-license" suffix added
-to the base-name name of the original file, and an extension of txt, html, or similar. For example
-"tidy" is accompanied by "tidy-license.txt".
-=========================================
-END OF textmate/lua.tmbundle NOTICES AND INFORMATION
 
 %% textmate/markdown.tmbundle NOTICES AND INFORMATION BEGIN HERE
 =========================================

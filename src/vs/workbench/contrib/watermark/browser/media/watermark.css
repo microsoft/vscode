@@ -66,9 +66,9 @@
 }
 
 .monaco-workbench.hc-black .part.editor > .content.empty > .watermark dt {
-	color: #FFF;
+	color: var(--vscode-editor-foreground);
 }
 .monaco-workbench.hc-black .part.editor > .content.empty > .watermark dl {
-	color: #FFF;
+	color: var(--vscode-editor-foreground);
 	opacity: 1;
 }

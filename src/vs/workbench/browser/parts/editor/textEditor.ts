@@ -6,16 +6,17 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone } from 'vs/base/common/objects';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, EditorInputCapabilities, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, IEditorPaneWithSelection, IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { AbstractEditorWithViewState } from 'vs/workbench/browser/parts/editor/editorWithViewState';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,10 +28,9 @@ import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
-import { isCI } from 'vs/base/common/platform';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -41,9 +41,12 @@ export interface IEditorConfiguration {
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
  * be subclassed and not instantiated.
  */
-export abstract class BaseTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> {
+export abstract class BaseTextEditor<T extends IEditorViewState> extends AbstractEditorWithViewState<T> implements IEditorPaneWithSelection {
 
 	private static readonly VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
+
+	protected readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
 	private editorControl: IEditor | undefined;
 	private editorContainer: HTMLElement | undefined;
@@ -85,21 +88,16 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
 		if (this.isVisible()) {
-			this.logConditional('TextEditor#handleConfigurationChangeEvent(): visible. Input is: ' + this.input?.resource?.toString(true));
 			this.updateEditorConfiguration(configuration);
 		} else {
-			this.logConditional('TextEditor#handleConfigurationChangeEvent(): NOT visible!. Input is: ' + this.input?.resource?.toString(true));
 			this.hasPendingConfigurationChange = true;
 		}
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {
 		if (this.hasPendingConfigurationChange) {
-			this.logConditional(`TextEditor#consumePendingConfigurationChangeEvent(): hasPendingConfigurationChange. Input is: ` + this.input?.resource?.toString(true));
 			this.updateEditorConfiguration();
 			this.hasPendingConfigurationChange = false;
-		} else {
-			this.logConditional(`TextEditor#consumePendingConfigurationChangeEvent(): NOT have hasPendingConfigurationChange. Input is: ` + this.input?.resource?.toString(true));
 		}
 	}
 
@@ -133,16 +131,43 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 	protected createEditor(parent: HTMLElement): void {
 
-		// Editor for Text
+		// Create editor control
 		this.editorContainer = parent;
 		this.editorControl = this._register(this.createEditorControl(parent, this.computeConfiguration(this.textResourceConfigurationService.getValue<IEditorConfiguration>(this.getActiveResource()))));
 
-		// Model & Language changes
+		// Listeners
+		this.registerCodeEditorListeners();
+	}
+
+	private registerCodeEditorListeners(): void {
 		const codeEditor = getCodeEditor(this.editorControl);
 		if (codeEditor) {
 			this._register(codeEditor.onDidChangeModelLanguage(() => this.updateEditorConfiguration()));
 			this._register(codeEditor.onDidChangeModel(() => this.updateEditorConfiguration()));
+			this._register(codeEditor.onDidChangeCursorPosition(e => this._onDidChangeSelection.fire({ reason: this.toEditorPaneSelectionChangeReason(e) })));
+			this._register(codeEditor.onDidChangeModelContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
 		}
+	}
+
+	private toEditorPaneSelectionChangeReason(e: ICursorPositionChangedEvent): EditorPaneSelectionChangeReason {
+		switch (e.source) {
+			case TextEditorSelectionSource.PROGRAMMATIC: return EditorPaneSelectionChangeReason.PROGRAMMATIC;
+			case TextEditorSelectionSource.NAVIGATION: return EditorPaneSelectionChangeReason.NAVIGATION;
+			case TextEditorSelectionSource.JUMP: return EditorPaneSelectionChangeReason.JUMP;
+			default: return EditorPaneSelectionChangeReason.USER;
+		}
+	}
+
+	getSelection(): IEditorPaneSelection | undefined {
+		const codeEditor = getCodeEditor(this.editorControl);
+		if (codeEditor) {
+			const selection = codeEditor.getSelection();
+			if (selection) {
+				return new TextEditorPaneSelection(selection);
+			}
+		}
+
+		return undefined;
 	}
 
 	/**
@@ -170,15 +195,11 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {
+		super.setOptions(options);
+
 		if (options) {
 			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
 		}
-	}
-
-	override setVisible(visible: boolean, group?: IEditorGroup): void {
-		this.logConditional(`TextEditor#setVisible(${visible}): Input is: ` + this.input?.resource?.toString(true));
-
-		return super.setVisible(visible, group);
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
@@ -186,9 +207,8 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		// Pass on to Editor
 		const editorControl = assertIsDefined(this.editorControl);
 		if (visible) {
-			this.logConditional(`TextEditor#setEditorVisible(true): consumePendingConfigurationChangeEvent. Input is: ` + this.input?.resource?.toString(true));
-
 			this.consumePendingConfigurationChangeEvent();
+
 			editorControl.onVisible();
 		} else {
 			editorControl.onHide();
@@ -251,18 +271,14 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	private updateEditorConfiguration(configuration?: IEditorConfiguration): void {
-		this.logConditional('TextEditor#updateEditorConfiguration(): configuration is ' + (configuration as any)?.editor?.lineNumbers);
-
 		if (!configuration) {
 			const resource = this.getActiveResource();
 			if (resource) {
 				configuration = this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource);
-				this.logConditional('TextEditor#updateEditorConfiguration(): resolving default configurtion for resource: ' + (configuration as any)?.editor?.lineNumbers);
 			}
 		}
 
 		if (!this.editorControl || !configuration) {
-			this.logConditional('TextEditor#updateEditorConfiguration(): return early');
 			return;
 		}
 
@@ -278,19 +294,8 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 
 		if (Object.keys(editorSettingsToApply).length > 0) {
 			this.lastAppliedEditorOptions = editorConfiguration;
-			this.logConditional('TextEditor#updateEditorConfiguration(): passing onto code editor: ' + (editorSettingsToApply as any)?.editor?.lineNumbers);
-			this.editorControl.updateOptions(editorSettingsToApply);
-		} else {
-			this.logConditional('TextEditor#updateEditorConfiguration: no settings to apply');
-		}
-	}
 
-	private logConditional(msg: string): void {
-		// TODO@bpasero logging for https://github.com/microsoft/vscode/issues/141054
-		if (isCI) {
-			this.instantiationService.invokeFunction(accessor => {
-				accessor.get(ILogService).info(msg);
-			});
+			this.editorControl.updateOptions(editorSettingsToApply);
 		}
 	}
 
@@ -314,5 +319,47 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 		this.lastAppliedEditorOptions = undefined;
 
 		super.dispose();
+	}
+}
+
+export class TextEditorPaneSelection implements IEditorPaneSelection {
+
+	private static readonly TEXT_EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for significant change
+
+	constructor(
+		private readonly textSelection: Selection
+	) { }
+
+	compare(other: IEditorPaneSelection): EditorPaneSelectionCompareResult {
+		if (!(other instanceof TextEditorPaneSelection)) {
+			return EditorPaneSelectionCompareResult.DIFFERENT;
+		}
+
+		const thisLineNumber = Math.min(this.textSelection.selectionStartLineNumber, this.textSelection.positionLineNumber);
+		const otherLineNumber = Math.min(other.textSelection.selectionStartLineNumber, other.textSelection.positionLineNumber);
+
+		if (thisLineNumber === otherLineNumber) {
+			return EditorPaneSelectionCompareResult.IDENTICAL;
+		}
+
+		if (Math.abs(thisLineNumber - otherLineNumber) < TextEditorPaneSelection.TEXT_EDITOR_SELECTION_THRESHOLD) {
+			return EditorPaneSelectionCompareResult.SIMILAR; // when in close proximity, treat selection as being similar
+		}
+
+		return EditorPaneSelectionCompareResult.DIFFERENT;
+	}
+
+	restore(options: IEditorOptions): ITextEditorOptions {
+		const textEditorOptions: ITextEditorOptions = {
+			...options,
+			selection: this.textSelection,
+			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
+		};
+
+		return textEditorOptions;
+	}
+
+	log(): string {
+		return `line: ${this.textSelection.startLineNumber}-${this.textSelection.endLineNumber}, col:  ${this.textSelection.startColumn}-${this.textSelection.endColumn}`;
 	}
 }

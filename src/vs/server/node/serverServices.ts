@@ -49,7 +49,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getPiiPathsFromEnvironment, ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { IPtyService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -70,15 +70,6 @@ import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/co
 
 const eventPrefix = 'monacoworkbench';
 
-const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
-
-function getUriTransformer(remoteAuthority: string): IURITransformer {
-	if (!_uriTransformerCache[remoteAuthority]) {
-		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
-	}
-	return _uriTransformerCache[remoteAuthority];
-}
-
 export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, disposables: DisposableStore) {
 	const services = new ServiceCollection();
 	const socketServer = new SocketServer<RemoteAgentConnectionContext>();
@@ -97,9 +88,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 	logService.trace('process arguments:', environmentService.args);
-	const serverGreeting = productService.serverGreeting.join('\n');
-	if (serverGreeting) {
-		spdLogService.info(`\n\n${serverGreeting}\n\n`);
+	if (Array.isArray(productService.serverGreeting)) {
+		spdLogService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
 	}
 
 	// ExtensionHost Debug broadcast service
@@ -134,7 +124,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const config: ITelemetryServiceConfig = {
 			appenders: [appInsightsAppender],
 			commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, productService.msftInternalDomains, environmentService.installSourcePath, 'remoteAgent'),
-			piiPaths: [environmentService.appRoot]
+			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
 		let injectedTelemetryLevel: TelemetryLevel | undefined = undefined;
@@ -215,6 +205,15 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	});
 
 	return { socketServer, instantiationService };
+}
+
+const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
+
+function getUriTransformer(remoteAuthority: string): IURITransformer {
+	if (!_uriTransformerCache[remoteAuthority]) {
+		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
+	}
+	return _uriTransformerCache[remoteAuthority];
 }
 
 export class SocketServer<TContext = string> extends IPCServer<TContext> {

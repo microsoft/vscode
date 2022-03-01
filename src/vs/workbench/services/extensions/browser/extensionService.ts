@@ -156,7 +156,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					result.push(ExtensionRunningLocation.Remote);
 				}
 			}
-			if (extensionKind === 'web' && isInstalledLocally) {
+			if (extensionKind === 'web' && (isInstalledLocally || isInstalledRemotely)) {
 				// web worker extensions run in the local web worker if possible
 				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
 					return ExtensionRunningLocation.LocalWebWorker;
@@ -197,10 +197,21 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions, false);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
+		// `determineRunningLocation` will look at the complete picture (e.g. an extension installed on both sides),
+		// takes care of duplicates and picks a running location for each extension
 		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
 
+		// Some remote extensions could run locally in the web worker, so store them
+		const remoteExtensionsThatNeedToRunLocally = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
 		localExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
 		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
+
+		// Add locally the remote extensions that need to run locally in the web worker
+		for (const ext of remoteExtensionsThatNeedToRunLocally) {
+			if (!includes(localExtensions, ext.identifier)) {
+				localExtensions.push(ext);
+			}
+		}
 
 		const result = this._registry.deltaExtensions(remoteExtensions.concat(localExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
@@ -237,6 +248,15 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 function filterByRunningLocation(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation>, desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {
 	return extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === desiredRunningLocation);
+}
+
+function includes(extensions: IExtensionDescription[], identifier: ExtensionIdentifier): boolean {
+	for (const extension of extensions) {
+		if (ExtensionIdentifier.equals(extension.identifier, identifier)) {
+			return true;
+		}
+	}
+	return false;
 }
 
 registerSingleton(IExtensionService, ExtensionService);

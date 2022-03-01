@@ -21,7 +21,7 @@ import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/mar
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname, basename, isEqual } from 'vs/base/common/resources';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
+import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IMatch } from 'vs/base/common/filters';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -30,9 +30,6 @@ import { isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
-import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/model';
 import { Range } from 'vs/editor/common/core/range';
@@ -798,44 +795,4 @@ export class MarkersViewModel extends Disposable {
 		super.dispose();
 	}
 
-}
-
-export class ResourceDragAndDrop implements ITreeDragAndDrop<MarkerElement> {
-	constructor(
-		private instantiationService: IInstantiationService
-	) { }
-
-	onDragOver(data: IDragAndDropData, targetElement: MarkerElement, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		return false;
-	}
-
-	getDragURI(element: MarkerElement): string | null {
-		if (element instanceof ResourceMarkers) {
-			return element.resource.toString();
-		}
-		return null;
-	}
-
-	getDragLabel?(elements: MarkerElement[]): string | undefined {
-		if (elements.length > 1) {
-			return String(elements.length);
-		}
-		const element = elements[0];
-		return element instanceof ResourceMarkers ? basename(element.resource) : undefined;
-	}
-
-	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
-		const elements = (data as ElementsDragAndDropData<MarkerElement>).elements;
-		const resources = elements
-			.filter(e => e instanceof ResourceMarkers)
-			.map(resourceMarker => (resourceMarker as ResourceMarkers).resource);
-
-		if (resources.length) {
-			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
-		}
-	}
-
-	drop(data: IDragAndDropData, targetElement: MarkerElement, targetIndex: number, originalEvent: DragEvent): void {
-	}
 }

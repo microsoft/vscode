@@ -154,7 +154,7 @@ export class BulkEditPane extends ViewPane {
 		this._disposables.add(buttonBar);
 
 		const btnConfirm = buttonBar.addButton({ supportIcons: true });
-		btnConfirm.label = localize({ key: 'ok', comment: ['$(check) must not be translated'] }, '$(check) Apply');
+		btnConfirm.label = localize('ok', 'Apply');
 		btnConfirm.onDidClick(() => this.accept(), this, this._disposables);
 
 		const btnCancel = buttonBar.addButton({ /* secondary: true */ });

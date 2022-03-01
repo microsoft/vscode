@@ -5,12 +5,12 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import * as extpath from 'vs/base/common/extpath';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestItemContext, ResolvedTestRunRequest, RunTestForControllerRequest, TestItemExpandState, TestRunProfileBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
@@ -162,19 +162,17 @@ export const getAllTestsInHierarchy = async (collection: IMainThreadTestCollecti
  * Iterator that expands to and iterates through tests in the file. Iterates
  * in strictly descending order.
  */
-export const testsInFile = async function* (collection: IMainThreadTestCollection, uri: URI): AsyncIterable<IncrementalTestCollectionItem> {
-	const demandFsPath = uri.fsPath;
+export const testsInFile = async function* (collection: IMainThreadTestCollection, ident: IUriIdentityService, uri: URI): AsyncIterable<IncrementalTestCollectionItem> {
 	for (const test of collection.all) {
 		if (!test.item.uri) {
 			continue;
 		}
 
-		const itemFsPath = test.item.uri.fsPath;
-		if (itemFsPath === demandFsPath) {
+		if (ident.extUri.isEqual(uri, test.item.uri)) {
 			yield test;
 		}
 
-		if (extpath.isEqualOrParent(demandFsPath, itemFsPath) && test.expand === TestItemExpandState.Expandable) {
+		if (ident.extUri.isEqualOrParent(uri, test.item.uri) && test.expand === TestItemExpandState.Expandable) {
 			await collection.expand(test.item.extId, 1);
 		}
 	}

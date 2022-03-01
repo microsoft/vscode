@@ -324,7 +324,7 @@ class RequestRouter {
 	constructor(
 		private readonly servers: ReadonlyArray<{
 			readonly server: ITypeScriptServer;
-			canRun?(command: keyof TypeScriptRequests, executeInfo: ExecuteInfo): void;
+			canRun?(command: keyof TypeScriptRequests, executeInfo: ExecuteInfo): boolean;
 		}>,
 		private readonly delegate: TsServerDelegate,
 	) { }

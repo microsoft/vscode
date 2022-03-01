@@ -35,7 +35,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -142,11 +142,12 @@ export class CommentNode extends Disposable {
 		this.updateTimestamp(this.comment.timestamp);
 	}
 
-	private updateTimestamp(timestamp?: Date) {
+	private updateTimestamp(raw?: string) {
 		if (!this._timestamp) {
 			return;
 		}
 
+		const timestamp = raw !== undefined ? new Date(raw) : undefined;
 		if (!timestamp) {
 			this._timestampWidget?.dispose();
 		} else {
