@@ -75,7 +75,7 @@ export class MarkdownString implements IMarkdownString {
 		return this;
 	}
 
-	appendLink(target: URI | URL | string, label: string, title?: string): MarkdownString {
+	appendLink(target: URI | string, label: string, title?: string): MarkdownString {
 		this.value += '[';
 		this.value += this._escape(label, ']');
 		this.value += '](';
