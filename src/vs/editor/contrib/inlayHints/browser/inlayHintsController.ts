@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -292,8 +293,9 @@ export class InlayHintsController implements IEditorContribution {
 			}
 			e.event.preventDefault();
 			await part.item.resolve(CancellationToken.None);
-			if (part.item.hint.textEdit) {
-				this._editor.executeEdits('inlayHint.default', [EditOperation.replace(Range.lift(part.item.hint.textEdit.range), part.item.hint.textEdit.text)]);
+			if (isNonEmptyArray(part.item.hint.textEdits)) {
+				const edits = part.item.hint.textEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+				this._editor.executeEdits('inlayHint.default', edits);
 			}
 		});
 	}
@@ -435,8 +437,7 @@ export class InlayHintsController implements IEditorContribution {
 					verticalAlign: 'middle',
 				};
 
-				if (item.hint.textEdit) {
-					// user pointer whenever an inlay hint has a command
+				if (isNonEmptyArray(item.hint.textEdits)) {
 					cssProperties.cursor = 'default';
 				}
 

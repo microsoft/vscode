@@ -260,7 +260,7 @@ class LocalAddressColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 
 			const markdown = new MarkdownString('', true);
 			const uri = localAddress.startsWith('http') ? localAddress : `http://${localAddress}`;
-			return markdown.appendLink(uri, 'Follow link').appendText(` (${clickLabel})`);
+			return markdown.appendLink(uri, 'Follow link').appendMarkdown(` (${clickLabel})`);
 		};
 	}
 }

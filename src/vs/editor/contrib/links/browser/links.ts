@@ -384,7 +384,7 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 		}
 		const hoverMessage = new MarkdownString('', true)
 			.appendLink(link.url.toString(true).replace(/ /g, '%20'), label, nativeLabel)
-			.appendText(` (${kb})`);
+			.appendMarkdown(` (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);

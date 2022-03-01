@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction } from 'vs/base/common/actions';
@@ -1353,7 +1353,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 		checkboxDescription: string,
 		onValueChange: (newValue: boolean) => void
 	) {
-		const checkbox = new Checkbox({
+		const checkbox = new Toggle({
 			icon: Codicon.check,
 			actionClassName: 'setting-value-checkbox',
 			isChecked: value,
