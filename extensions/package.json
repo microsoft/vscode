@@ -7,7 +7,7 @@
     "typescript": "4.6.2"
   },
   "scripts": {
-    "postinstall": "node ./postinstall"
+    "postinstall": "node ./postinstall.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.11.12",
