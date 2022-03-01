@@ -173,7 +173,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			return undefined;
 		}
 		decoration.onRender(element => {
-			if (beforeCommandExecution) {
+			if (beforeCommandExecution && !this._placeholderDecoration) {
 				this._placeholderDecoration = decoration;
 			} else {
 				this._decorations.set(decoration.marker.id,
