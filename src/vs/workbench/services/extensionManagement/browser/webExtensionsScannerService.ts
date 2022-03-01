@@ -34,7 +34,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { basename } from 'vs/base/common/path';
 import { IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 
-type GalleryExtensionInfo = { readonly id: string, preRelease?: boolean, migrateStorageFrom?: string };
+type GalleryExtensionInfo = { readonly id: string; preRelease?: boolean; migrateStorageFrom?: string };
 
 function isGalleryExtensionInfo(obj: unknown): obj is GalleryExtensionInfo {
 	const galleryExtensionInfo = obj as GalleryExtensionInfo | undefined;
@@ -105,7 +105,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	 * All extensions defined via `additionalBuiltinExtensions` API
 	 */
 	private async readCustomBuiltinExtensions(): Promise<IExtension[]> {
-		const extensions: { id: string, preRelease: boolean }[] = [], extensionLocations: URI[] = [], result: IExtension[] = [];
+		const extensions: { id: string; preRelease: boolean }[] = [], extensionLocations: URI[] = [], result: IExtension[] = [];
 		const extensionsToMigrate: [string, string][] = [];
 		const cutomBuiltinExtensions: (GalleryExtensionInfo | UriComponents)[] = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions)
 			? this.environmentService.options.additionalBuiltinExtensions.map(additionalBuiltinExtension => isString(additionalBuiltinExtension) ? { id: additionalBuiltinExtension } : additionalBuiltinExtension)
@@ -169,9 +169,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
-	private async checkAdditionalBuiltinExtensions(extensions: { id: string, preRelease: boolean }[]): Promise<{ id: string, preRelease: boolean }[]> {
+	private async checkAdditionalBuiltinExtensions(extensions: { id: string; preRelease: boolean }[]): Promise<{ id: string; preRelease: boolean }[]> {
 		const extensionsControlManifest = await this.galleryService.getExtensionsControlManifest();
-		const result: { id: string, preRelease: boolean }[] = [];
+		const result: { id: string; preRelease: boolean }[] = [];
 		for (const extension of extensions) {
 			if (extensionsControlManifest.malicious.some(e => areSameExtensions(e, { id: extension.id }))) {
 				this.logService.info(`Checking additional builtin extensions: Ignoring '${extension.id}' because it is reported to be malicious.`);
@@ -188,7 +188,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
-	private async getCustomBuiltinExtensionsFromGallery(extensions: { id: string, preRelease: boolean }[]): Promise<IExtension[]> {
+	private async getCustomBuiltinExtensionsFromGallery(extensions: { id: string; preRelease: boolean }[]): Promise<IExtension[]> {
 		if (!this.galleryService.isEnabled()) {
 			this.logService.info('Ignoring fetching additional builtin extensions from gallery as it is disabled.');
 			return [];
@@ -207,6 +207,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			const index = extensions.findIndex(e => e.id === webExtension.identifier.id.toLowerCase() && e.preRelease === webExtension.metadata?.isPreReleaseVersion);
 			if (index !== -1) {
 				webExtensions.push(webExtension);
+				/* Update preRelease flag in the cache - https://github.com/microsoft/vscode/issues/142831 */
+				if (webExtension.metadata?.isPreReleaseVersion && !webExtension.metadata?.preRelease) {
+					webExtension.metadata.preRelease = true;
+				}
 				extensions.splice(index, 1);
 			}
 		}
@@ -221,7 +225,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 			await Promise.all(galleryExtensions.map(async gallery => {
 				try {
-					webExtensions.push(await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, isBuiltin: true }));
+					webExtensions.push(await this.toWebExtensionFromGallery(gallery, { isPreReleaseVersion: gallery.properties.isPreReleaseVersion, preRelease: gallery.properties.isPreReleaseVersion, isBuiltin: true }));
 				} catch (error) {
 					this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
 				}

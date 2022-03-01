@@ -53,13 +53,13 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 
 	test('updates render if second test provider appears', async () => {
 		harness.flush();
-		harness.pushDiff([
-			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'c', undefined)) },
-		], [
-			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'ca', undefined)) },
-		]);
+		harness.pushDiff({
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'c', undefined)) },
+		}, {
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'ca', undefined)) },
+		});
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'c', children: [{ e: 'ca' }] },
@@ -106,7 +106,17 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
 
 		const resultInState = (state: TestResultState): TestResultItem => ({
-			item: Convert.TestItem.from(harness.c.tree.get(new TestId(['ctrlId', 'id-a']).toString())!.actual),
+			item: {
+				extId: new TestId(['ctrlId', 'id-a']).toString(),
+				busy: false,
+				description: null,
+				error: null,
+				label: 'a',
+				range: null,
+				sortText: null,
+				tags: [],
+				uri: undefined,
+			},
 			parent: 'id-root',
 			tasks: [],
 			retired: false,

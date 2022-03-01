@@ -33,7 +33,7 @@ export interface IMenuBarOptions {
 	alwaysOnMnemonics?: boolean;
 	compactMode?: Direction;
 	actionRunner?: IActionRunner;
-	getCompactMenuActions?: () => IAction[]
+	getCompactMenuActions?: () => IAction[];
 }
 
 export interface MenuBarMenu {
@@ -475,7 +475,7 @@ export class MenuBar extends Disposable {
 		const prevNumMenusShown = this.numMenusShown;
 		this.numMenusShown = 0;
 
-		const showableMenus = this.menus.filter(menu => menu.buttonElement !== undefined && menu.titleElement !== undefined) as (MenuBarMenuWithElements & { titleElement: HTMLElement, buttonElement: HTMLElement })[];
+		const showableMenus = this.menus.filter(menu => menu.buttonElement !== undefined && menu.titleElement !== undefined) as (MenuBarMenuWithElements & { titleElement: HTMLElement; buttonElement: HTMLElement })[];
 		for (let menuBarMenu of showableMenus) {
 			if (!full) {
 				const size = menuBarMenu.buttonElement.offsetWidth;

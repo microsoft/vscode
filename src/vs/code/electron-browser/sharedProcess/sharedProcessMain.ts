@@ -63,7 +63,7 @@ import { ICustomEndpointTelemetryService, ITelemetryService } from 'vs/platform/
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { supportsTelemetry, ITelemetryAppender, NullAppender, NullTelemetryService, getPiiPathsFromEnvironment } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { CustomEndpointTelemetryService } from 'vs/platform/telemetry/node/customEndpointTelemetryService';
 import { LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -198,7 +198,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ILogService, logService);
 
 		// Worker
-		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService, productService, environmentService);
+		this.sharedProcessWorkerService = new SharedProcessWorkerService(logService);
 		services.set(ISharedProcessWorkerService, this.sharedProcessWorkerService);
 
 		// Files
@@ -268,7 +268,7 @@ class SharedProcessMain extends Disposable {
 		if (supportsTelemetry(productService, environmentService)) {
 			const logAppender = new TelemetryLogAppender(loggerService, environmentService);
 			appenders.push(logAppender);
-			const { appRoot, extensionsPath, installSourcePath } = environmentService;
+			const { installSourcePath } = environmentService;
 
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
@@ -290,7 +290,7 @@ class SharedProcessMain extends Disposable {
 				appenders,
 				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
-				piiPaths: [appRoot, extensionsPath]
+				piiPaths: getPiiPathsFromEnvironment(environmentService),
 			}, configurationService);
 		} else {
 			telemetryService = NullTelemetryService;
@@ -341,8 +341,7 @@ class SharedProcessMain extends Disposable {
 		},
 			configurationService,
 			environmentService,
-			logService,
-			telemetryService
+			logService
 		);
 		await ptyHostService.initialize();
 

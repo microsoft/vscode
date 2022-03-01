@@ -66,8 +66,8 @@ export const testingPeekHeaderBackground = registerColor('testing.peekHeaderBack
 
 export const testMessageSeverityColors: {
 	[K in TestMessageType]: {
-		decorationForeground: string,
-		marginBackground: string,
+		decorationForeground: string;
+		marginBackground: string;
 	};
 } = {
 	[TestMessageType.Error]: {

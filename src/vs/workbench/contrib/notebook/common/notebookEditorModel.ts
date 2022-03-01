@@ -17,7 +17,7 @@ import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities, NO_TYPE_ID, 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Schemas } from 'vs/base/common/network';
-import { IFileStatWithMetadata, IFileService, FileChangeType, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService, FileChangeType, FileSystemProviderCapabilities, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -47,7 +47,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	readonly onDidChangeOrphaned = Event.None;
 	readonly onDidChangeReadonly = Event.None;
 
-	private _lastResolvedFileStat?: IFileStatWithMetadata;
+	private _lastResolvedFileStat?: IFileStatWithPartialMetadata;
 
 	private readonly _name: string;
 	private readonly _workingCopyIdentifier: IWorkingCopyIdentifier;
@@ -302,7 +302,6 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		}
 
 		if (backup) {
-			this._workingCopyBackupService.discardBackup(this._workingCopyIdentifier);
 			this.setDirty(true);
 		} else {
 			this.setDirty(false);
@@ -429,7 +428,7 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 
 		try {
 			this._logService.debug(`[notebook editor model] _resolveStats`, this.resource.toString(true));
-			const newStats = await this._fileService.resolve(this.resource, { resolveMetadata: true });
+			const newStats = await this._fileService.stat(this.resource);
 			this._logService.debug(`[notebook editor model] _resolveStats - latest file stats: ${JSON.stringify(newStats)}`, this.resource.toString(true));
 			return newStats;
 		} catch (e) {

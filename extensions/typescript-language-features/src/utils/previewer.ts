@@ -41,7 +41,7 @@ function getTagBodyText(
 
 	// Convert to markdown code block if it does not already contain one
 	function makeCodeblock(text: string): string {
-		if (text.match(/^\s*[~`]{3}/m)) {
+		if (/^\s*[~`]{3}/m.test(text)) {
 			return text;
 		}
 		return '```\n' + text + '\n```';
@@ -130,7 +130,7 @@ function convertLinkTags(
 
 	const out: string[] = [];
 
-	let currentLink: { name?: string, target?: Proto.FileSpan, text?: string, readonly linkcode: boolean } | undefined;
+	let currentLink: { name?: string; target?: Proto.FileSpan; text?: string; readonly linkcode: boolean } | undefined;
 	for (const part of parts) {
 		switch (part.kind) {
 			case 'link':
@@ -199,9 +199,11 @@ export function markdownDocumentation(
 	documentation: Proto.SymbolDisplayPart[] | string,
 	tags: Proto.JSDocTagInfo[],
 	filePathConverter: IFilePathToResourceConverter,
+	baseUri: vscode.Uri | undefined,
 ): vscode.MarkdownString {
 	const out = new vscode.MarkdownString();
 	addMarkdownDocumentation(out, documentation, tags, filePathConverter);
+	out.baseUri = baseUri;
 	return out;
 }
 

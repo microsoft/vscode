@@ -633,5 +633,5 @@ suite('ipynb serializer', () => {
 				assert.equal(mimeTypes, expectedMimeTypesOrder.join(','));
 			});
 		});
-	})
+	});
 });

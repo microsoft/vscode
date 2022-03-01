@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalBackend, ShellIntegrationExitCode } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalBackend } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -31,6 +31,7 @@ import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
 import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { URI } from 'vs/base/common/uri';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -57,7 +58,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	processState: ProcessState = ProcessState.Uninitialized;
 	ptyProcessReady: Promise<void>;
 	shellProcessId: number | undefined;
-	remoteAuthority: string | undefined;
+	readonly remoteAuthority: string | undefined;
 	os: OperatingSystem | undefined;
 	userHome: string | undefined;
 	isDisconnected: boolean = false;
@@ -114,6 +115,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	constructor(
 		private readonly _instanceId: number,
 		private readonly _configHelper: ITerminalConfigHelper,
+		cwd: string | URI | undefined,
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -146,6 +148,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				this._onProcessData.fire(typeof ev !== 'string' ? ev : { data: beforeProcessDataEvent.data, trackCommit: false });
 			}
 		});
+
+		if (cwd && typeof cwd === 'object') {
+			this.remoteAuthority = getRemoteAuthority(cwd);
+		} else {
+			this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
+		}
 	}
 
 	override dispose(immediate: boolean = false): void {
@@ -194,11 +202,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._processType = ProcessType.PsuedoTerminal;
 			newProcess = shellLaunchConfig.customPtyImplementation(this._instanceId, cols, rows);
 		} else {
-			if (shellLaunchConfig.cwd && typeof shellLaunchConfig.cwd === 'object') {
-				this.remoteAuthority = getRemoteAuthority(shellLaunchConfig.cwd);
-			} else {
-				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
-			}
 			const backend = this._terminalInstanceService.getBackend(this.remoteAuthority);
 			if (!backend) {
 				throw new Error(`No terminal backend registered for remote authority '${this.remoteAuthority}'`);
@@ -228,7 +231,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				// this is a copy of what the merged environment collection is on the remote side
 				const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.disablePersistence;
+				const shouldPersist = !shellLaunchConfig.isFeatureTerminal && this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 				if (shellLaunchConfig.attachPersistentProcess) {
 					const result = await backend.attachToProcess(shellLaunchConfig.attachPersistentProcess.id);
 					if (result) {
@@ -243,20 +246,39 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						os: this.os
 					});
 					try {
-						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, this.os);
+						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration?.enabled || false, shellLaunchConfig, this.os);
 						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
-						if (this.shellIntegrationAttempted) {
-							shellLaunchConfig.args = shellIntegration.args;
-							// resolve the injected arguments
-							await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
-								remoteAuthority: this.remoteAuthority,
-								os: this.os
-							});
+						if (this.shellIntegrationAttempted && shellIntegration.args) {
+							const remoteEnv = await this._remoteAgentService.getEnvironment();
+							if (!remoteEnv) {
+								this._logService.warn('Could not fetch remote environment');
+							} else {
+								if (Array.isArray(shellIntegration.args)) {
+									// Resolve the arguments manually using the remote server install directory
+									const appRoot = remoteEnv.appRoot;
+									let appRootOsPath = remoteEnv.appRoot.fsPath;
+									if (OS === OperatingSystem.Windows && remoteEnv.os !== OperatingSystem.Windows) {
+										// Local Windows, remote POSIX
+										appRootOsPath = appRoot.path.replace(/\\/g, '/');
+									} else if (OS !== OperatingSystem.Windows && remoteEnv.os === OperatingSystem.Windows) {
+										// Local POSIX, remote Windows
+										appRootOsPath = appRoot.path.replace(/\//g, '\\');
+									}
+									for (let i = 0; i < shellIntegration.args.length; i++) {
+										shellIntegration.args[i] = shellIntegration.args[i].replace('${execInstallFolder}', appRootOsPath);
+									}
+								}
+								shellLaunchConfig.args = shellIntegration.args;
+							}
 						}
 						//TODO: fix
 						if (env?.['VSCODE_SHELL_LOGIN']) {
 							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
 							shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = '1';
+						}
+						if (env?.['_ZDOTDIR']) {
+							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+							shellLaunchConfig.env['_ZDOTDIR'] = '1';
 						}
 
 						newProcess = await backend.createProcess(
@@ -433,10 +455,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, env, this._configHelper.config.enableShellIntegration, shellLaunchConfig, OS);
+		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration?.enabled || false, shellLaunchConfig, OS);
 		if (shellIntegration.enableShellIntegration) {
 			shellLaunchConfig.args = shellIntegration.args;
-			// resolve the injected arguments
+			if (env?.['_ZDOTDIR']) {
+				shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
+				shellLaunchConfig.env['_ZDOTDIR'] = '1';
+			}
+			// Always resolve the injected arguments on local processes
 			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
 				remoteAuthority: undefined,
 				os: OS
@@ -581,7 +607,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
 		if (!this._process) {
-			throw new Error('Cannot refresh property when process is undefined');
+			throw new Error('Cannot refresh property when process is not set');
 		}
 		return this._process.refreshProperty(type);
 	}
@@ -609,7 +635,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			this._setProcessState(ProcessState.KilledByProcess);
 		}
 
-		this._onProcessExit.fire(this.shellIntegrationAttempted ? ShellIntegrationExitCode : exitCode);
+		this._onProcessExit.fire(exitCode);
 	}
 
 	private _setProcessState(state: ProcessState) {

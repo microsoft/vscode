@@ -197,7 +197,7 @@ function getGridLocation(element: HTMLElement): GridLocation {
 
 export type DistributeSizing = { type: 'distribute' };
 export type SplitSizing = { type: 'split' };
-export type InvisibleSizing = { type: 'invisible', cachedVisibleSize: number };
+export type InvisibleSizing = { type: 'invisible'; cachedVisibleSize: number };
 export type Sizing = DistributeSizing | SplitSizing | InvisibleSizing;
 
 export namespace Sizing {
@@ -261,7 +261,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 	/**
 	 * Fires whenever a view within the grid changes its size constraints.
 	 */
-	readonly onDidChange: Event<{ width: number; height: number; } | undefined>;
+	readonly onDidChange: Event<{ width: number; height: number } | undefined>;
 
 	/**
 	 * Fires whenever the user scrolls a {@link SplitView} within
@@ -776,8 +776,8 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 	}
 }
 
-export type GridNodeDescriptor = { size?: number, groups?: GridNodeDescriptor[] };
-export type GridDescriptor = { orientation: Orientation, groups?: GridNodeDescriptor[] };
+export type GridNodeDescriptor = { size?: number; groups?: GridNodeDescriptor[] };
+export type GridDescriptor = { orientation: Orientation; groups?: GridNodeDescriptor[] };
 
 export function sanitizeGridNodeDescriptor(nodeDescriptor: GridNodeDescriptor, rootNode: boolean): void {
 	if (!rootNode && nodeDescriptor.groups && nodeDescriptor.groups.length <= 1) {
@@ -819,7 +819,7 @@ function createSerializedNode(nodeDescriptor: GridNodeDescriptor): ISerializedNo
 	}
 }
 
-function getDimensions(node: ISerializedNode, orientation: Orientation): { width?: number, height?: number } {
+function getDimensions(node: ISerializedNode, orientation: Orientation): { width?: number; height?: number } {
 	if (node.type === 'branch') {
 		const childrenDimensions = node.data.map(c => getDimensions(c, orthogonal(orientation)));
 

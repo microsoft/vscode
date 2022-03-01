@@ -26,11 +26,13 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR, ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { Emitter } from 'vs/base/common/event';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -56,11 +58,15 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	// Always on addons
 	private _commandTrackerAddon: CommandTrackerAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
+	private _decorationAddon: DecorationAddon | undefined;
 
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
+
+	private readonly _onDidRequestRunCommand = new Emitter<string>();
+	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
 
 	get commandTracker(): ICommandTracker { return this._commandTrackerAddon; }
 	get shellIntegration(): IShellIntegration { return this._shellIntegrationAddon; }
@@ -141,6 +147,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
 				this._updateTheme();
+				this._decorationAddon?.refreshLayouts();
 			}
 		}));
 
@@ -150,6 +157,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._commandTrackerAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+		if (this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) && this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+			this._createDecorationAddon(capabilities);
+		}
+	}
+	private _createDecorationAddon(capabilities: ITerminalCapabilityStore): void {
+		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, capabilities);
+		this._decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
+		this.raw.loadAddon(this._decorationAddon);
 	}
 
 	attachToElement(container: HTMLElement) {
@@ -197,6 +212,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	forceRedraw() {
 		this._webglAddon?.clearTextureAtlas();
 		this.raw.clearTextureAtlas();
+	}
+
+	clearDecorations(): void {
+		this._decorationAddon?.clearDecorations(true);
 	}
 
 
@@ -249,7 +268,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		return maxLineLength;
 	}
 
-	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number, currentIndex: number, endSpaces: number } {
+	private _getWrappedLineCount(index: number, buffer: IBuffer): { lineCount: number; currentIndex: number; endSpaces: number } {
 		let line = buffer.getLine(index);
 		if (!line) {
 			throw new Error('Could not get line');

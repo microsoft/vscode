@@ -122,8 +122,8 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 
 			store.add(this.testService.onDidProcessDiff(diff => {
 				for (const entry of diff) {
-					if (entry[0] === TestDiffOpType.Add) {
-						const test = entry[1];
+					if (entry.op === TestDiffOpType.Add) {
+						const test = entry.item;
 						const isQueued = Iterable.some(
 							getCollectionItemParents(this.testService.collection, test),
 							t => rerunIds.has(test.item.extId),

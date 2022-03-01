@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SerializedError, transformErrorForSerialization } from 'vs/base/common/errors';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
-import { Emitter, Event } from 'vs/base/common/event';
 import { ChildProcess, fork } from 'child_process';
-import { FileAccess } from 'vs/base/common/network';
 import { StringDecoder } from 'string_decoder';
-import * as platform from 'vs/base/common/platform';
+import { Promises, timeout } from 'vs/base/common/async';
+import { SerializedError, transformErrorForSerialization } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
 import { mixin } from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { Promises, timeout } from 'vs/base/common/async';
+import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform/extensions/common/extensionHostStarter';
 
 export interface IExtensionHostStarterWorkerHost {
 	logInfo(message: string): Promise<void>;
@@ -31,7 +31,7 @@ class ExtensionHostProcess extends Disposable {
 	readonly _onMessage = this._register(new Emitter<any>());
 	readonly onMessage = this._onMessage.event;
 
-	readonly _onError = this._register(new Emitter<{ error: SerializedError; }>());
+	readonly _onError = this._register(new Emitter<{ error: SerializedError }>());
 	readonly onError = this._onError.event;
 
 	readonly _onExit = this._register(new Emitter<{ pid: number; code: number; signal: string }>());
@@ -47,7 +47,10 @@ class ExtensionHostProcess extends Disposable {
 		super();
 	}
 
-	start(opts: IExtensionHostProcessOptions): { pid: number; } {
+	start(opts: IExtensionHostProcessOptions): { pid: number } {
+		if (platform.isCI) {
+			this._host.logInfo(`Calling fork to start extension host...`);
+		}
 		const sw = StopWatch.create(false);
 		this._process = fork(
 			FileAccess.asFileUri('bootstrap-fork', require).fsPath,
@@ -55,7 +58,7 @@ class ExtensionHostProcess extends Disposable {
 			mixin({ cwd: cwd() }, opts),
 		);
 		const forkTime = sw.elapsed();
-		const pid = this._process.pid;
+		const pid = this._process.pid!;
 
 		this._host.logInfo(`Starting extension host with pid ${pid} (fork() took ${forkTime} ms).`);
 
@@ -100,7 +103,7 @@ class ExtensionHostProcess extends Disposable {
 
 		if (typeof (<ProcessExt>process)._debugProcess === 'function') {
 			// use (undocumented) _debugProcess feature of node
-			(<ProcessExt>process)._debugProcess!(this._process.pid);
+			(<ProcessExt>process)._debugProcess!(this._process.pid!);
 			return true;
 		} else if (!platform.isWindows) {
 			// use KILL USR1 on non-windows platforms (fallback)
@@ -173,15 +176,15 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return this._getExtHost(id).onMessage;
 	}
 
-	onDynamicError(id: string): Event<{ error: SerializedError; }> {
+	onDynamicError(id: string): Event<{ error: SerializedError }> {
 		return this._getExtHost(id).onError;
 	}
 
-	onDynamicExit(id: string): Event<{ code: number; signal: string; }> {
+	onDynamicExit(id: string): Event<{ code: number; signal: string }> {
 		return this._getExtHost(id).onExit;
 	}
 
-	async createExtensionHost(): Promise<{ id: string; }> {
+	async createExtensionHost(): Promise<{ id: string }> {
 		const id = String(++ExtensionHostStarter._lastId);
 		const extHost = new ExtensionHostProcess(id, this._host);
 		this._extHosts.set(id, extHost);
@@ -195,7 +198,7 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return { id };
 	}
 
-	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number; }> {
+	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number }> {
 		return this._getExtHost(id).start(opts);
 	}
 

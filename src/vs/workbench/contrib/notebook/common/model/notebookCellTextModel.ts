@@ -14,28 +14,28 @@ import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel';
 import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, IOutputItemDto, NotebookCellCollapseState, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
-	onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
+	readonly onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
 	private readonly _onDidChangeOutputItems = this._register(new Emitter<void>());
-	onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
+	readonly onDidChangeOutputItems: Event<void> = this._onDidChangeOutputItems.event;
 
 	private readonly _onDidChangeContent = this._register(new Emitter<'content' | 'language' | 'mime'>());
-	onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
+	readonly onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
 
 	private readonly _onDidChangeMetadata = this._register(new Emitter<void>());
-	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
+	readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
 
 	private readonly _onDidChangeInternalMetadata = this._register(new Emitter<CellInternalMetadataChangedEvent>());
-	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent> = this._onDidChangeInternalMetadata.event;
+	readonly onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent> = this._onDidChangeInternalMetadata.event;
 
 	private readonly _onDidChangeLanguage = this._register(new Emitter<string>());
-	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
+	readonly onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 
 	private _outputs: NotebookCellOutputTextModel[];
 
@@ -193,7 +193,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	constructor(
 		readonly uri: URI,
 		public readonly handle: number,
-		private _source: string,
+		private readonly _source: string,
 		private _language: string,
 		private _mime: string | undefined,
 		public readonly cellKind: CellKind,
@@ -240,7 +240,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	private _getPersisentMetadata() {
-		const filteredMetadata: { [key: string]: any; } = {};
+		const filteredMetadata: { [key: string]: any } = {};
 		const transientCellMetadata = this.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(this.metadata)]);

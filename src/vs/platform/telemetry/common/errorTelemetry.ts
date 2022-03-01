@@ -10,14 +10,14 @@ import { safeStringify } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 type ErrorEventFragment = {
-	callstack: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	msg?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	file?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	line?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	column?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	uncaught_error_name?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	uncaught_error_msg?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth' };
-	count?: { classification: 'CallstackOrException', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	callstack: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
+	msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
+	file?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
+	line?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+	column?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+	uncaught_error_name?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
+	uncaught_error_msg?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth' };
+	count?: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 };
 export interface ErrorEvent {
 	callstack: string;
@@ -82,6 +82,11 @@ export default abstract class BaseErrorTelemetry {
 		// unwrap nested errors from loader
 		if (err.detail && err.detail.stack) {
 			err = err.detail;
+		}
+
+		// If it's the no telemetry error it doesn't get logged
+		if (err instanceof Errors.ErrorNoTelemetry) {
+			return;
 		}
 
 		// work around behavior in workerServer.ts that breaks up Error.stack

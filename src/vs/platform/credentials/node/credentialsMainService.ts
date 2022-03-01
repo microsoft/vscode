@@ -137,7 +137,7 @@ export class CredentialsMainService extends Disposable implements ICredentialsMa
 		return keytar.findPassword(service);
 	}
 
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
+	async findCredentials(service: string): Promise<Array<{ account: string; password: string }>> {
 		const keytar = await this.withKeytar();
 
 		return keytar.findCredentials(service);
@@ -159,7 +159,14 @@ export class CredentialsMainService extends Disposable implements ICredentialsMa
 			// Try using keytar to see if it throws or not.
 			await this._keytarCache.findCredentials('test-keytar-loads');
 		} catch (e) {
-			this.logService.warn(`Switching to using in-memory credential store instead because Keytar failed to load: ${e.message}`);
+			// We should still throw errors on desktop so that the user is prompted with the
+			// troubleshooting steps.
+			if (!this.isRunningOnServer) {
+				throw e;
+			}
+
+			this.logService.warn(
+				`Switching to using in-memory credential store instead because Keytar failed to load. Please see https://aka.ms/vscode-server-keyring for more info. Error details: ${e.message}`);
 			this._keytarCache = new InMemoryCredentialsProvider();
 		}
 		return this._keytarCache;

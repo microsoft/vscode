@@ -42,7 +42,7 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 		// (atleast 20 times) while the extensions are getting registered.
 		// As such push out the dynamic editor auto lock configuration
 		// until after extensions registered.
-		(async ()=> {
+		(async () => {
 			await extensionService.whenInstalledExtensionsRegistered();
 
 			this.updateConfiguration();

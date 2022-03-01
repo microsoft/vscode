@@ -50,10 +50,12 @@ export class MarkerList {
 		const compareOrder = this._configService.getValue<string>('problems.sortOrder');
 		const compareMarker = (a: IMarker, b: IMarker): number => {
 			let res = compare(a.resource.toString(), b.resource.toString());
-			if (compareOrder === 'position') {
-				res = Range.compareRangesUsingStarts(a, b) || MarkerSeverity.compare(a.severity, b.severity);
-			} else {
-				res = MarkerSeverity.compare(a.severity, b.severity) || Range.compareRangesUsingStarts(a, b);
+			if (res === 0) {
+				if (compareOrder === 'position') {
+					res = Range.compareRangesUsingStarts(a, b) || MarkerSeverity.compare(a.severity, b.severity);
+				} else {
+					res = MarkerSeverity.compare(a.severity, b.severity) || Range.compareRangesUsingStarts(a, b);
+				}
 			}
 			return res;
 		};

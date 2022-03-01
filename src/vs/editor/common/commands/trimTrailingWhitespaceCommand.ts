@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as strings from 'vs/base/common/strings';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class TrimTrailingWhitespaceCommand implements ICommand {
 
@@ -42,7 +42,7 @@ export class TrimTrailingWhitespaceCommand implements ICommand {
 /**
  * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
  */
-export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): IIdentifiedSingleEditOperation[] {
+export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): ISingleEditOperation[] {
 	// Sort cursors ascending
 	cursors.sort((a, b) => {
 		if (a.lineNumber === b.lineNumber) {
@@ -59,7 +59,7 @@ export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): 
 		}
 	}
 
-	const r: IIdentifiedSingleEditOperation[] = [];
+	const r: ISingleEditOperation[] = [];
 	let rLen = 0;
 	let cursorIndex = 0;
 	const cursorLen = cursors.length;

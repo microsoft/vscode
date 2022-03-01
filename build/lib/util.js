@@ -304,7 +304,6 @@ function getElectronVersion() {
 }
 exports.getElectronVersion = getElectronVersion;
 function acquireWebNodePaths() {
-    var _a;
     const root = path.join(__dirname, '..', '..');
     const webPackageJSON = path.join(root, '/remote/web', 'package.json');
     const webPackages = JSON.parse(fs.readFileSync(webPackageJSON, 'utf8')).dependencies;
@@ -312,7 +311,7 @@ function acquireWebNodePaths() {
     for (const key of Object.keys(webPackages)) {
         const packageJSON = path.join(root, 'node_modules', key, 'package.json');
         const packageData = JSON.parse(fs.readFileSync(packageJSON, 'utf8'));
-        let entryPoint = (_a = packageData.browser) !== null && _a !== void 0 ? _a : packageData.main;
+        let entryPoint = packageData.browser ?? packageData.main;
         // On rare cases a package doesn't have an entrypoint so we assume it has a dist folder with a min.js
         if (!entryPoint) {
             // TODO @lramos15 remove this when jschardet adds an entrypoint so we can warn on all packages w/out entrypoint

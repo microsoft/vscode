@@ -9,14 +9,14 @@ import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/err
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
+import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
 import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
@@ -24,55 +24,82 @@ import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions
 import { inlineCompletionToGhostText, NormalizedInlineCompletion } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionToGhostText';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 
-export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
+export class InlineCompletionsModel
+	extends Disposable
+	implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
-	public readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
+	public readonly completionSession = this._register(
+		new MutableDisposable<InlineCompletionsSession>()
+	);
 
 	private active: boolean = false;
 	private disposed = false;
+	private readonly debounceValue = this.debounceService.for(
+		this.languageFeaturesService.inlineCompletionsProvider,
+		'InlineCompletionsDebounce',
+		{ min: 50, max: 200 }
+	);
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
 		private readonly cache: SharedInlineCompletionCache,
 		@ICommandService private readonly commandService: ICommandService,
-		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageConfigurationService
+		private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService
+		private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService
+		private readonly debounceService: ILanguageFeatureDebounceService
 	) {
 		super();
 
-		this._register(commandService.onDidExecuteCommand(e => {
-			// These commands don't trigger onDidType.
-			const commands = new Set([
-				CoreEditingCommands.Tab.id,
-				CoreEditingCommands.DeleteLeft.id,
-				CoreEditingCommands.DeleteRight.id,
-				inlineSuggestCommitId,
-				'acceptSelectedSuggestion'
-			]);
-			if (commands.has(e.commandId) && editor.hasTextFocus()) {
+		this._register(
+			commandService.onDidExecuteCommand((e) => {
+				// These commands don't trigger onDidType.
+				const commands = new Set([
+					CoreEditingCommands.Tab.id,
+					CoreEditingCommands.DeleteLeft.id,
+					CoreEditingCommands.DeleteRight.id,
+					inlineSuggestCommitId,
+					'acceptSelectedSuggestion',
+				]);
+				if (commands.has(e.commandId) && editor.hasTextFocus()) {
+					this.handleUserInput();
+				}
+			})
+		);
+
+		this._register(
+			this.editor.onDidType((e) => {
 				this.handleUserInput();
-			}
-		}));
+			})
+		);
 
-		this._register(this.editor.onDidType((e) => {
-			this.handleUserInput();
-		}));
+		this._register(
+			this.editor.onDidChangeCursorPosition((e) => {
+				if (this.session && !this.session.isValid) {
+					this.hide();
+				}
+			})
+		);
 
-		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (this.session && !this.session.isValid) {
+		this._register(
+			toDisposable(() => {
+				this.disposed = true;
+			})
+		);
+
+		this._register(
+			this.editor.onDidBlurEditorWidget(() => {
 				this.hide();
-			}
-		}));
-
-		this._register(toDisposable(() => {
-			this.disposed = true;
-		}));
-
-		this._register(this.editor.onDidBlurEditorWidget(() => {
-			this.hide();
-		}));
+			})
+		);
 	}
 
 	private handleUserInput() {
@@ -142,7 +169,9 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			this.commandService,
 			this.cache,
 			triggerKind,
-			this.languageConfigurationService
+			this.languageConfigurationService,
+			this.languageFeaturesService.inlineCompletionsProvider,
+			this.debounceValue
 		);
 		this.completionSession.value.takeOwnership(
 			this.completionSession.value.onDidChange(() => {
@@ -195,6 +224,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		private readonly cache: SharedInlineCompletionCache,
 		private initialTriggerKind: InlineCompletionTriggerKind,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
+		private readonly registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
+		private readonly debounce: IFeatureDebounceInformation,
 	) {
 		super(editor);
 
@@ -225,8 +256,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.scheduleAutomaticUpdate();
 		}));
 
-		this._register(InlineCompletionsProviderRegistry.onDidChange(() => {
-			this.updateSoon.schedule();
+		this._register(this.registry.onDidChange(() => {
+			this.updateSoon.schedule(this.debounce.get(this.editor.getModel()));
 		}));
 
 		this.scheduleAutomaticUpdate();
@@ -331,7 +362,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		// Since updateSoon debounces, starvation can happen.
 		// To prevent stale cache, we clear the current update operation.
 		this.updateOperation.clear();
-		this.updateSoon.schedule();
+		this.updateSoon.schedule(this.debounce.get(this.editor.getModel()));
 	}
 
 	private async update(triggerKind: InlineCompletionTriggerKind): Promise<void> {
@@ -341,15 +372,21 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 		const position = this.editor.getPosition();
 
+		const startTime = new Date();
+
 		const promise = createCancelablePromise(async token => {
 			let result;
 			try {
-				result = await provideInlineCompletions(position,
+				result = await provideInlineCompletions(this.registry, position,
 					this.editor.getModel(),
 					{ triggerKind, selectedSuggestionInfo: undefined },
 					token,
 					this.languageConfigurationService
 				);
+
+				const endTime = new Date();
+				this.debounce.update(this.editor.getModel(), endTime.getTime() - startTime.getTime());
+
 			} catch (e) {
 				onUnexpectedError(e);
 				return;
@@ -547,6 +584,7 @@ function getDefaultRange(position: Position, model: ITextModel): Range {
 }
 
 export async function provideInlineCompletions(
+	registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
 	position: Position,
 	model: ITextModel,
 	context: InlineCompletionContext,
@@ -555,11 +593,11 @@ export async function provideInlineCompletions(
 ): Promise<TrackedInlineCompletions> {
 	const defaultReplaceRange = getDefaultRange(position, model);
 
-	const providers = InlineCompletionsProviderRegistry.all(model);
+	const providers = registry.all(model);
 	const results = await Promise.all(
 		providers.map(
 			async provider => {
-				const completions = await provider.provideInlineCompletions(model, position, context, token);
+				const completions = await Promise.resolve(provider.provideInlineCompletions(model, position, context, token)).catch(onUnexpectedExternalError);
 				return ({
 					completions,
 					provider,

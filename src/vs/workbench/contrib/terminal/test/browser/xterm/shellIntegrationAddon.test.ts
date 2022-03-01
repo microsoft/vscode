@@ -54,85 +54,85 @@ suite('ShellIntegrationAddon', () => {
 	});
 
 	suite('cwd detection', async () => {
-		test('should activate capability on the cwd sequence (OSC 1337 ; CurrentDir=<cwd> ST)', async () => {
+		test('should activate capability on the cwd sequence (OSC 633 ; P ; Cwd=<cwd> ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), false);
-			await writeP(xterm, '\x1b]1337;CurrentDir=/foo\x07');
+			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			strictEqual(capabilities.has(TerminalCapability.CwdDetection), true);
 		});
 		test('should pass cwd sequence to the capability', async () => {
 			const mock = shellIntegrationAddon.getCwdDectionMock();
 			mock.expects('updateCwd').once().withExactArgs('/foo');
-			await writeP(xterm, '\x1b]1337;CurrentDir=/foo\x07');
+			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			mock.verify();
 		});
 	});
 
 	suite('command tracking', async () => {
-		test('should activate capability on the prompt start sequence (OSC 133 ; A ST)', async () => {
+		test('should activate capability on the prompt start sequence (OSC 633 ; A ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]133;A\x07');
+			await writeP(xterm, '\x1b]633;A\x07');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
 		});
 		test('should pass prompt start sequence to the capability', async () => {
 			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
 			mock.expects('handlePromptStart').once().withExactArgs();
-			await writeP(xterm, '\x1b]133;A\x07');
+			await writeP(xterm, '\x1b]633;A\x07');
 			mock.verify();
 		});
-		test('should activate capability on the command start sequence (OSC 133 ; B ST)', async () => {
+		test('should activate capability on the command start sequence (OSC 633 ; B ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]133;B\x07');
+			await writeP(xterm, '\x1b]633;B\x07');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
 		});
 		test('should pass command start sequence to the capability', async () => {
 			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
 			mock.expects('handleCommandStart').once().withExactArgs();
-			await writeP(xterm, '\x1b]133;B\x07');
+			await writeP(xterm, '\x1b]633;B\x07');
 			mock.verify();
 		});
-		test('should activate capability on the command executed sequence (OSC 133 ; C ST)', async () => {
+		test('should activate capability on the command executed sequence (OSC 633 ; C ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]133;C\x07');
+			await writeP(xterm, '\x1b]633;C\x07');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
 		});
 		test('should pass command executed sequence to the capability', async () => {
 			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
 			mock.expects('handleCommandExecuted').once().withExactArgs();
-			await writeP(xterm, '\x1b]133;C\x07');
+			await writeP(xterm, '\x1b]633;C\x07');
 			mock.verify();
 		});
-		test('should activate capability on the command finished sequence (OSC 133 ; D ; <ExitCode> ST)', async () => {
+		test('should activate capability on the command finished sequence (OSC 633 ; D ; <ExitCode> ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]133;D;7\x07');
+			await writeP(xterm, '\x1b]633;D;7\x07');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), true);
 		});
 		test('should pass command finished sequence to the capability', async () => {
 			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
 			mock.expects('handleCommandFinished').once().withExactArgs(7);
-			await writeP(xterm, '\x1b]133;D;7\x07');
+			await writeP(xterm, '\x1b]633;D;7\x07');
 			mock.verify();
 		});
-		test('should not activate capability on the cwd sequence (OSC 1337 ; CurrentDir=<cwd> ST)', async () => {
+		test('should not activate capability on the cwd sequence (OSC 633 ; P=Cwd=<cwd> ST)', async () => {
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 			await writeP(xterm, 'foo');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
-			await writeP(xterm, '\x1b]1337;CurrentDir=/foo\x07');
+			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			strictEqual(capabilities.has(TerminalCapability.CommandDetection), false);
 		});
 		test('should pass cwd sequence to the capability if it\'s initialized', async () => {
 			const mock = shellIntegrationAddon.getCommandDetectionMock(xterm);
 			mock.expects('setCwd').once().withExactArgs('/foo');
-			await writeP(xterm, '\x1b]1337;CurrentDir=/foo\x07');
+			await writeP(xterm, '\x1b]633;P;Cwd=/foo\x07');
 			mock.verify();
 		});
 	});

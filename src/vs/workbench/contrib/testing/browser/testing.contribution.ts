@@ -80,7 +80,7 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 });
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Text Extensions...") + `](command:${SearchForTestExtension.ID})`,
+	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Test Extensions...") + `](command:${SearchForTestExtension.ID})`,
 	order: 10
 });
 
@@ -169,7 +169,7 @@ CommandsRegistry.registerCommand({
 
 		let isFile = true;
 		try {
-			if (!(await fileService.resolve(uri)).isFile) {
+			if (!(await fileService.stat(uri)).isFile) {
 				isFile = false;
 			}
 		} catch {

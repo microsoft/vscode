@@ -35,9 +35,9 @@ export enum HorizontalGuidesState {
 }
 
 export interface BracketGuideOptions {
-	includeInactive: boolean,
-	horizontalGuides: HorizontalGuidesState,
-	highlightActive: boolean,
+	includeInactive: boolean;
+	horizontalGuides: HorizontalGuidesState;
+	highlightActive: boolean;
 }
 
 export class IndentGuide {

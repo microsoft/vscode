@@ -7,7 +7,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS=repo:microsoft/vscode repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-dev repo:microsoft/vscode-js-debug repo:microsoft/vscode-remote-release repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-settings-sync-server repo:microsoft/vscode-remotehub repo:microsoft/vscode-remote-repositories-github repo:microsoft/vscode-emmet-helper repo:microsoft/vscode-livepreview repo:microsoft/vscode-python repo:microsoft/vscode-jupyter repo:microsoft/vscode-jupyter-internal\n\n$MILESTONE=milestone:\"January 2022\"\n\n$MINE=assignee:@me"
+    "value": "$REPOS=repo:microsoft/vscode repo:microsoft/vscode-internalbacklog repo:microsoft/vscode-dev repo:microsoft/vscode-js-debug repo:microsoft/vscode-remote-release repo:microsoft/vscode-pull-request-github repo:microsoft/vscode-settings-sync-server repo:microsoft/vscode-remotehub repo:microsoft/vscode-remote-repositories-github repo:microsoft/vscode-emmet-helper repo:microsoft/vscode-livepreview repo:microsoft/vscode-python repo:microsoft/vscode-jupyter repo:microsoft/vscode-jupyter-internal\n\n$MILESTONE=milestone:\"February 2022\"\n\n$MINE=assignee:@me"
   },
   {
     "kind": 1,
@@ -147,7 +147,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed author:@me sort:updated-asc label:bug -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:needs-triage -label:verification-found"
+    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed author:@me sort:updated-asc label:bug -label:unreleased -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:needs-triage -label:verification-found"
   },
   {
     "kind": 1,
@@ -157,7 +157,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed sort:updated-asc label:bug -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found -author:aeschli -author:alexdima -author:alexr00 -author:AmandaSilver -author:bamurtaugh -author:bpasero -author:chrisdias -author:chrmarti -author:Chuxel -author:claudiaregio -author:connor4312 -author:dbaeumer -author:deepak1556 -author:devinvalenciano -author:digitarald -author:DonJayamanne -author:dynamicwebpaige -author:eamodio -author:egamma -author:fiveisprime -author:greazer -author:gregvanl -author:hediet -author:IanMatthewHuff -author:isidorn -author:ItalyPaleAle -author:JacksonKearl -author:joaomoreno -author:joyceerhl -author:jrieken -author:karrtikr-author:kieferrm -author:lramos15 -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:ornellaalt -author:orta -author:rchiodo -author:rebornix -author:roblourens -author:rzhao271 -author:sana-ajani -author:sandy081 -author:sbatten -author:stevencl -author:tanhakabir -author:TylerLeonhardt -author:Tyriar -author:weinand "
+    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed sort:updated-asc label:bug -label:unreleased -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found -author:aeschli -author:alexdima -author:alexr00 -author:AmandaSilver -author:bamurtaugh -author:bpasero -author:chrisdias -author:chrmarti -author:Chuxel -author:claudiaregio -author:connor4312 -author:dbaeumer -author:deepak1556 -author:devinvalenciano -author:digitarald -author:DonJayamanne -author:dynamicwebpaige -author:eamodio -author:egamma -author:fiveisprime -author:greazer -author:gregvanl -author:hediet -author:IanMatthewHuff -author:isidorn -author:ItalyPaleAle -author:JacksonKearl -author:joaomoreno -author:joyceerhl -author:jrieken -author:karrtikr-author:kieferrm -author:lramos15 -author:lszomoru -author:meganrogge -author:misolori -author:mjbvz -author:ornellaalt -author:orta -author:rchiodo -author:rebornix -author:roblourens -author:rzhao271 -author:sana-ajani -author:sandy081 -author:sbatten -author:stevencl -author:tanhakabir -author:TylerLeonhardt -author:Tyriar -author:weinand "
   },
   {
     "kind": 1,
@@ -167,7 +167,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed -author:@me sort:updated-asc label:bug -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found"
+    "value": "$REPOS $MILESTONE -$MINE is:issue is:closed -author:@me sort:updated-asc label:bug -label:unreleased -label:verified -label:z-author-verified -label:on-testplan -label:*duplicate -label:duplicate -label:invalid -label:*as-designed -label:error-telemetry -label:verification-steps-needed -label:verification-found"
   },
   {
     "kind": 1,

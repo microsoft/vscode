@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
+// eslint-disable-next-line code-import-patterns
 import { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 
+// eslint-disable-next-line code-import-patterns
 export * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
+// eslint-disable-next-line code-import-patterns
 export { TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 
 /**

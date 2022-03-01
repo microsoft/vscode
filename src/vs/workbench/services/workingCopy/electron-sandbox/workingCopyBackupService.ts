@@ -23,7 +23,7 @@ export class NativeWorkingCopyBackupService extends WorkingCopyBackupService {
 		@ILogService logService: ILogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
-		super(environmentService.configuration.backupPath ? URI.file(environmentService.configuration.backupPath).with({ scheme: environmentService.userRoamingDataHome.scheme }) : undefined, fileService, logService);
+		super(environmentService.backupPath ? URI.file(environmentService.backupPath).with({ scheme: environmentService.userRoamingDataHome.scheme }) : undefined, fileService, logService);
 
 		this.registerListeners();
 	}

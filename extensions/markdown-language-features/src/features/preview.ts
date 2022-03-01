@@ -26,7 +26,7 @@ interface WebviewMessage {
 
 interface CacheImageSizesMessage extends WebviewMessage {
 	readonly type: 'cacheImageSizes';
-	readonly body: { id: string, width: number, height: number; }[];
+	readonly body: { id: string; width: number; height: number }[];
 }
 
 interface RevealLineMessage extends WebviewMessage {
@@ -79,7 +79,7 @@ export class PreviewDocumentVersion {
 
 interface MarkdownPreviewDelegate {
 	getTitle?(resource: vscode.Uri): string;
-	getAdditionalState(): {},
+	getAdditionalState(): {};
 	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string): void;
 }
 
@@ -117,7 +117,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private currentVersion?: PreviewDocumentVersion;
 	private isScrolling = false;
 	private _disposed: boolean = false;
-	private imageInfo: { readonly id: string, readonly width: number, readonly height: number; }[] = [];
+	private imageInfo: { readonly id: string; readonly width: number; readonly height: number }[] = [];
 
 	private readonly _fileWatchersBySrc = new Map</* src: */ string, vscode.FileSystemWatcher>();
 	private readonly _unwatchedImageSchemes = new Set(['https', 'http', 'data']);
@@ -169,7 +169,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
-		const watcher = this._register(vscode.workspace.createFileSystemWatcher(resource.fsPath));
+		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
 		this._register(watcher.onDidChange(uri => {
 			if (this.isPreviewOf(uri)) {
 				// Only use the file system event when VS Code does not already know about the file
@@ -437,7 +437,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		for (const src of srcs) {
 			const uri = urlToUri(src, root);
 			if (uri && !this._unwatchedImageSchemes.has(uri.scheme) && !this._fileWatchersBySrc.has(src)) {
-				const watcher = vscode.workspace.createFileSystemWatcher(uri.fsPath);
+				const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri, '*'));
 				watcher.onDidChange(() => {
 					this.refresh(true);
 				});
@@ -648,6 +648,8 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 		contributionProvider: MarkdownContributionProvider,
 		engine: MarkdownEngine,
 	): DynamicMarkdownPreview {
+		webview.iconPath = contentProvider.iconPath;
+
 		return new DynamicMarkdownPreview(webview, input,
 			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, engine);
 	}
@@ -666,6 +668,8 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 			DynamicMarkdownPreview.viewType,
 			DynamicMarkdownPreview.getPreviewTitle(input.resource, input.locked),
 			previewColumn, { enableFindWidget: true, });
+
+		webview.iconPath = contentProvider.iconPath;
 
 		return new DynamicMarkdownPreview(webview, input,
 			contentProvider, previewConfigurations, logger, topmostLineMonitor, contributionProvider, engine);

@@ -14,7 +14,7 @@
     "@vscode/test-electron": "2.1.0-beta.0",
     "mkdirp": "^1.0.4",
     "ncp": "^2.0.0",
-    "node-fetch": "^2.6.1",
+    "node-fetch": "^2.6.7",
     "rimraf": "3.0.2"
   },
   "devDependencies": {

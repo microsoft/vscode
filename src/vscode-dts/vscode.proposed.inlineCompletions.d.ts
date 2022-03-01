@@ -10,7 +10,10 @@ declare module 'vscode' {
 	export namespace languages {
 		/**
 		 * Registers an inline completion provider.
+		 *
+		 *  @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
+		// TODO@API what are the rules when multiple providers apply
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
 	}
 
@@ -45,6 +48,7 @@ declare module 'vscode' {
 		readonly selectedCompletionInfo: SelectedCompletionInfo | undefined;
 	}
 
+	// TODO@API strongly consider to use vscode.TextEdit instead
 	export interface SelectedCompletionInfo {
 		range: Range;
 		text: string;
@@ -55,6 +59,9 @@ declare module 'vscode' {
 	/**
 	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
 	 */
+	// TODO@API align with CodeActionTriggerKind
+	// (1) rename Explicit to Invoke
+	// (2) swap order of Invoke and Automatic
 	export enum InlineCompletionTriggerKind {
 		/**
 		 * Completion was triggered automatically while editing.
@@ -69,15 +76,24 @@ declare module 'vscode' {
 		Explicit = 1,
 	}
 
+	/**
+	 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
+	*/
+	// TODO@API We could keep this and allow for `vscode.Command` instances that explain
+	// the result. That would replace the existing proposed menu-identifier and be more LSP friendly
 	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
 		items: T[];
 
+		/**
+		 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
+		*/
 		constructor(items: T[]);
 	}
 
 	export class InlineCompletionItem {
 		/**
-		 * The text to replace the range with.
+		 * The text to replace the range with. Must be set.
+		 * Is used both for the preview and the accept operation.
 		 *
 		 * The text the range refers to must be a subword of this value (`AB` and `BEF` are subwords of `ABCDEF`, but `Ab` is not).
 		 * Additionally, if possible, it should be a prefix of this value for a better user-experience.
@@ -85,7 +101,13 @@ declare module 'vscode' {
 		 * However, any indentation of the text to replace does not matter for the subword constraint.
 		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
 		*/
-		text: string;
+		// TODO@API support vscode.SnippetString in addition to string, see CompletionItem#insertText
+		insertText?: string;
+
+		/**
+		 * @deprecated Use `insertText` instead. Will be removed eventually.
+		*/
+		text?: string;
 
 		/**
 		 * The range to replace.
@@ -103,14 +125,18 @@ declare module 'vscode' {
 		 */
 		command?: Command;
 
+		constructor(insertText: string, range?: Range, command?: Command);
+	}
+
+
+
+	export interface InlineCompletionItem {
 		/**
 		 * If set to `true`, unopened closing brackets are removed and unclosed opening brackets are closed.
 		 * Defaults to `false`.
 		*/
 		completeBracketPairs?: boolean;
-		constructor(text: string, range?: Range, command?: Command);
 	}
-
 
 	/**
 	 * Be aware that this API will not ever be finalized.

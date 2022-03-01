@@ -10,7 +10,7 @@ import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { MetadataConsts } from 'vs/editor/common/languages';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, RenderLineInput, renderViewLine2 as renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { TestLineToken, TestLineTokens } from 'vs/editor/test/common/core/testLineToken';
 
 function createViewLineTokens(viewLineTokens: TestLineToken[]): IViewLineTokens {

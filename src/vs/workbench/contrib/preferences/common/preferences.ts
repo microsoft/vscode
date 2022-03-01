@@ -18,7 +18,7 @@ export interface IWorkbenchSettingsConfiguration {
 			useNaturalLanguageSearchPost: boolean;
 			enableNaturalLanguageSearch: boolean;
 			enableNaturalLanguageSearchFeedback: boolean;
-		}
+		};
 	};
 }
 

@@ -23,8 +23,8 @@ import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeH
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { IWindowState } from 'vs/platform/windows/electron-main/windows';
+import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IWindowState } from 'vs/platform/window/electron-main/window';
 
 export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
 
@@ -152,7 +152,7 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		});
 
-		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo: { id: any; from: any; args: any; }) => {
+		ipcMain.on('vscode:workbenchCommand', (_: unknown, commandInfo: { id: any; from: any; args: any }) => {
 			const { id, from, args } = commandInfo;
 
 			let parentWindow: BrowserWindow | null;

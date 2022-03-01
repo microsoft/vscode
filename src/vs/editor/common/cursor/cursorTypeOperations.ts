@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState, ReplaceCommandWithoutChangingPosition, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
-import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursor/cursorCommon';
+import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursorCommon';
 import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -584,7 +584,7 @@ export class TypeOperations {
 		// In order to avoid adding checks for `chIsAlreadyTyped` in all places, we will work
 		// with two conceptual positions, the position before `ch` and the position after `ch`
 		//
-		const positions: { lineNumber: number; beforeColumn: number; afterColumn: number; }[] = selections.map((s) => {
+		const positions: { lineNumber: number; beforeColumn: number; afterColumn: number }[] = selections.map((s) => {
 			const position = s.getPosition();
 			if (chIsAlreadyTyped) {
 				return { lineNumber: position.lineNumber, beforeColumn: position.column - ch.length, afterColumn: position.column };
@@ -788,7 +788,7 @@ export class TypeOperations {
 			const match = model.bracketPairs.findMatchingBracketUp(electricAction.matchOpenBracket, {
 				lineNumber: position.lineNumber,
 				column: endColumn
-			});
+			}, 500 /* give at most 500ms to compute */);
 
 			if (match) {
 				if (match.startLineNumber === position.lineNumber) {

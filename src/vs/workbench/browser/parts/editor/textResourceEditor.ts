@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -23,7 +23,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ModelConstants } from 'vs/editor/common/model';
@@ -77,15 +77,21 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 		const textEditorModel = resolvedModel.textEditorModel;
 		textEditor.setModel(textEditorModel);
 
-		// Apply options to editor if any
-		let optionsGotApplied = false;
-		if (options) {
-			optionsGotApplied = applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
+		// Restore view state (unless provided by options)
+		if (!isTextEditorViewState(options?.viewState)) {
+			const editorViewState = this.loadEditorViewState(input, context);
+			if (editorViewState) {
+				if (options?.selection) {
+					editorViewState.cursorState = []; // prevent duplicate selections via options
+				}
+
+				textEditor.restoreViewState(editorViewState);
+			}
 		}
 
-		// Otherwise restore View State unless disabled via settings
-		if (!optionsGotApplied) {
-			this.restoreTextResourceEditorViewState(input, context, textEditor);
+		// Apply options to editor if any
+		if (options) {
+			applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
 		}
 
 		// Since the resolved model provides information about being readonly
@@ -94,13 +100,6 @@ export class AbstractTextResourceEditor extends BaseTextEditor<ICodeEditorViewSt
 		// a resolved model might have more specific information about being
 		// readonly or not that the input did not have.
 		textEditor.updateOptions({ readOnly: resolvedModel.isReadonly() });
-	}
-
-	private restoreTextResourceEditorViewState(editor: AbstractTextResourceEditorInput, context: IEditorOpenContext, control: IEditor) {
-		const viewState = this.loadEditorViewState(editor, context);
-		if (viewState) {
-			control.restoreViewState(viewState);
-		}
 	}
 
 	/**

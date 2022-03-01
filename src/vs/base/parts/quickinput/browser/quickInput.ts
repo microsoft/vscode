@@ -59,7 +59,7 @@ export interface IQuickInputStyles {
 	button: IButtonStyles;
 	progressBar: IProgressBarStyles;
 	keybindingLabel: IKeybindingLabelStyles;
-	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color; };
+	list: IListStyles & { pickerGroupBorder?: Color; pickerGroupForeground?: Color };
 }
 
 export interface IQuickInputWidgetStyles {
@@ -1704,7 +1704,12 @@ export class QuickInputController extends Disposable {
 
 	focus() {
 		if (this.isDisplayed()) {
-			this.getUI().inputBox.setFocus();
+			const ui = this.getUI();
+			if (ui.inputBox.enabled) {
+				ui.inputBox.setFocus();
+			} else {
+				ui.list.domFocus();
+			}
 		}
 	}
 

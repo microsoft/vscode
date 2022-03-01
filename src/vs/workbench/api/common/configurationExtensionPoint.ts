@@ -48,7 +48,7 @@ const configurationEntrySchema: IJSONSchema = {
 						properties: {
 							isExecutable: {
 								type: 'boolean',
-								deprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `machine` value.'
+								markdownDeprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `machine` value.'
 							},
 							scope: {
 								type: 'string',
@@ -62,7 +62,7 @@ const configurationEntrySchema: IJSONSchema = {
 									nls.localize('scope.language-overridable.description', "Resource configuration that can be configured in language specific settings."),
 									nls.localize('scope.machine-overridable.description', "Machine configuration that can be configured also in workspace or folder settings.")
 								],
-								description: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, and `machine-overridable`.")
+								markdownDescription: nls.localize('scope.description', "Scope in which the configuration is applicable. Available scopes are `application`, `machine`, `window`, `resource`, and `machine-overridable`.")
 							},
 							enumDescriptions: {
 								type: 'array',

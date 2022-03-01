@@ -12,6 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./colorPicker';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
+import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { localize } from 'vs/nls';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -101,7 +102,7 @@ export class ColorPickerBody extends Disposable {
 		this.model.flushColor();
 	}
 
-	private onDidSaturationValueChange({ s, v }: { s: number, v: number }): void {
+	private onDidSaturationValueChange({ s, v }: { s: number; v: number }): void {
 		const hsva = this.model.color.hsva;
 		this.model.color = new Color(new HSVA(hsva.h, s, v, hsva.a));
 	}
@@ -134,8 +135,8 @@ class SaturationBox extends Disposable {
 	private height!: number;
 
 	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
-	private readonly _onDidChange = new Emitter<{ s: number, v: number }>();
-	readonly onDidChange: Event<{ s: number, v: number }> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<{ s: number; v: number }>();
+	readonly onDidChange: Event<{ s: number; v: number }> = this._onDidChange.event;
 
 	private readonly _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
@@ -157,7 +158,7 @@ class SaturationBox extends Disposable {
 
 		this.layout();
 
-		this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableGenericMouseDownListener(this.domNode, e => this.onMouseDown(e)));
 		this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
 		this.monitor = null;
 	}
@@ -172,7 +173,7 @@ class SaturationBox extends Disposable {
 
 		this.monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
+		const mouseUpListener = dom.addDisposableGenericMouseUpListener(document, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			if (this.monitor) {
@@ -257,7 +258,7 @@ abstract class Strip extends Disposable {
 		this.slider = dom.append(this.domNode, $('.slider'));
 		this.slider.style.top = `0px`;
 
-		this._register(dom.addDisposableGenericMouseDownListner(this.domNode, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableGenericMouseDownListener(this.domNode, e => this.onMouseDown(e)));
 		this.layout();
 	}
 
@@ -279,7 +280,7 @@ abstract class Strip extends Disposable {
 
 		monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
+		const mouseUpListener = dom.addDisposableGenericMouseUpListener(document, () => {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			monitor.stopMonitoring(true);
@@ -336,7 +337,7 @@ class HueStrip extends Strip {
 	}
 }
 
-export class ColorPickerWidget extends Widget {
+export class ColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
 
 	private static readonly ID = 'editor.contrib.colorPickerWidget';
 

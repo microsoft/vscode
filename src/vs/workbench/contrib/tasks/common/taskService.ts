@@ -33,7 +33,7 @@ export interface ProblemMatcherRunOptions {
 }
 
 export interface CustomizationProperties {
-	group?: string | { kind?: string; isDefault?: boolean; };
+	group?: string | { kind?: string; isDefault?: boolean };
 	problemMatcher?: string | string[];
 	isBackground?: boolean;
 }

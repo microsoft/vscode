@@ -139,7 +139,7 @@ suite('ConfigurationService', () => {
 			configuration: {
 				service: {
 					testSetting: string;
-				}
+				};
 			};
 		}
 

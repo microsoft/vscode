@@ -17,8 +17,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { HorizontalPosition } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
-import * as viewEvents from 'vs/editor/common/viewModel/viewEvents';
-import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import * as viewEvents from 'vs/editor/common/viewEvents';
+import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 /**
@@ -457,7 +457,7 @@ class MouseDownOperation extends Disposable {
 
 	private _getPositionOutsideEditor(e: EditorMouseEvent): IMouseTarget | null {
 		const editorContent = e.editorPos;
-		const model = this._context.model;
+		const model = this._context.viewModel;
 		const viewLayout = this._context.viewLayout;
 
 		const mouseColumn = this._getMouseColumn(e);
@@ -559,6 +559,8 @@ class MouseDownOperation extends Disposable {
 
 			leftButton: this._mouseState.leftButton,
 			middleButton: this._mouseState.middleButton,
+
+			onInjectedText: position.type === MouseTargetType.CONTENT_TEXT && position.detail.injectedText !== null
 		});
 	}
 }

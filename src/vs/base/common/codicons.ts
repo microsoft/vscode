@@ -39,12 +39,12 @@ export class Codicon implements CSSIcon {
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
 
 	// registry
-	private static _allCodicons : Codicon[] = [];
+	private static _allCodicons: Codicon[] = [];
 
 	/**
 	 * @returns Returns all default icons covered by the codicon font. Only to be used by the icon registry in platform.
 	 */
-	public static getAll() : readonly Codicon[] {
+	public static getAll(): readonly Codicon[] {
 		return Codicon._allCodicons;
 	}
 
@@ -542,6 +542,14 @@ export class Codicon implements CSSIcon {
 	public static readonly layoutMenubar = new Codicon('layout-menubar', { fontCharacter: '\\ebf6' });
 	public static readonly layoutCentered = new Codicon('layout-centered', { fontCharacter: '\\ebf7' });
 	public static readonly target = new Codicon('target', { fontCharacter: '\\ebf8' });
+	public static readonly indent = new Codicon('indent', { fontCharacter: '\\ebf9' });
+	public static readonly recordSmall = new Codicon('record-small', { fontCharacter: '\\ebfa' });
+	public static readonly errorSmall = new Codicon('error-small', { fontCharacter: '\\ebfb' });
+	public static readonly arrowCircleDown = new Codicon('arrow-circle-down', { fontCharacter: '\\ebfc' });
+	public static readonly arrowCircleLeft = new Codicon('arrow-circle-left', { fontCharacter: '\\ebfd' });
+	public static readonly arrowCircleRight = new Codicon('arrow-circle-right', { fontCharacter: '\\ebfe' });
+	public static readonly arrowCircleUp = new Codicon('arrow-circle-up', { fontCharacter: '\\ebff' });
+
 
 	// derived icons, that could become separate icons
 
