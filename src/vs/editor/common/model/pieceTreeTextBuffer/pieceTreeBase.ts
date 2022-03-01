@@ -691,7 +691,7 @@ export class PieceTreeBase {
 			m = searcher.next(searchText);
 
 			if (m) {
-				if (offsetInBuffer(m.index) >= end) {
+				if (offsetInBuffer(m.index) >= end || offsetInBuffer(m.index) + m[0].length > end) {
 					return resultLen;
 				}
 				this.positionInBuffer(node, offsetInBuffer(m.index) - startOffsetInBuffer, ret);
