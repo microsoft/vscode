@@ -13,7 +13,7 @@ fi
 if [ -f ~/.zshrc ]; then
 	. ~/.zshrc
 fi
-unset ZDOTDIR
+unset ZDOTDIR # ensure ~/.zlogout runs as expected
 
 IN_COMMAND_EXECUTION="1"
 LAST_HISTORY_ID=0
