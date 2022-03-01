@@ -9,7 +9,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { ResourcesDropHandler, DragAndDropObserver } from 'vs/workbench/browser/dnd';
@@ -19,6 +19,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isWeb } from 'vs/base/common/platform';
 
 export class EmptyView extends ViewPane {
 
@@ -55,7 +56,7 @@ export class EmptyView extends ViewPane {
 		this._register(new DragAndDropObserver(container, {
 			onDrop: e => {
 				container.style.backgroundColor = '';
-				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
+				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: !isWeb || isTemporaryWorkspace(this.contextService.getWorkspace()) });
 				dropHandler.handleDrop(e, () => undefined, () => undefined);
 			},
 			onDragEnter: () => {

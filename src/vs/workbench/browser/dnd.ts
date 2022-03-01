@@ -75,8 +75,8 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 
 	/**
 	 * Whether we probe for the dropped editor to be a workspace
-	 * allowing to open it as workspace instead of opening as
-	 * editor.
+	 * (i.e. code-workspace file or even a folder), allowing to
+	 * open it as workspace instead of opening as editor.
 	 */
 	allowWorkspaceOpen?: boolean;
 }
@@ -313,8 +313,9 @@ export async function extractFileListData(accessor: ServicesAccessor, files: Fil
 export interface IResourcesDropHandlerOptions {
 
 	/**
-	 * Whether to open the actual workspace when a workspace configuration file is dropped
-	 * or whether to open the configuration file within the editor as normal file.
+	 * Whether we probe for the dropped resource to be a workspace
+	 * (i.e. code-workspace file or even a folder), allowing to
+	 * open it as workspace instead of opening as editor.
 	 */
 	readonly allowWorkspaceOpen: boolean;
 }
