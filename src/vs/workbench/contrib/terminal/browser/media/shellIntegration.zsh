@@ -2,8 +2,21 @@
 #   Copyright (c) Microsoft Corporation. All rights reserved.
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
-
 autoload -Uz add-zsh-hook
+
+. ~/.zshenv
+if [ -z "$VSCODE_SHELL_LOGIN" ]; then
+	if [ -f ~/.zprofile ]; then
+		. ~/.zprofile
+	fi
+fi
+. ~/.zshrc
+if [ -z "$VSCODE_SHELL_LOGIN" ]; then
+	if [ -f ~/.zlogin ]; then
+	. ~/.zlogin
+fi
+fi
+
 
 IN_COMMAND_EXECUTION="1"
 LAST_HISTORY_ID=0
