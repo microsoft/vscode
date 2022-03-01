@@ -403,37 +403,6 @@
 						}
 					},
 					"additionalProperties": false
-				},
-				"vscode": {
-					"type": "object",
-					"properties": {
-						"extensions": {
-							"type": "array",
-							"description": "An array of extensions that should be installed into the container.",
-							"items": {
-								"type": "string",
-								"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
-								"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
-							}
-						},
-						"settings": {
-							"$ref": "vscode://schemas/settings/machine",
-							"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
-						},
-						"devPort": {
-							"type": "integer",
-							"description": "The port VS Code can use to connect to its backend."
-						}
-					},
-					"additionalProperties": false
-				},
-				"customizations": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "object",
-						"additionalProperties": true
-					},
-					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"required": [
@@ -837,37 +806,6 @@
 						}
 					},
 					"additionalProperties": false
-				},
-				"vscode": {
-					"type": "object",
-					"properties": {
-						"extensions": {
-							"type": "array",
-							"description": "An array of extensions that should be installed into the container.",
-							"items": {
-								"type": "string",
-								"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
-								"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
-							}
-						},
-						"settings": {
-							"$ref": "vscode://schemas/settings/machine",
-							"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
-						},
-						"devPort": {
-							"type": "integer",
-							"description": "The port VS Code can use to connect to its backend."
-						}
-					},
-					"additionalProperties": false
-				},
-				"customizations": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "object",
-						"additionalProperties": true
-					},
-					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"required": [
@@ -1237,37 +1175,6 @@
 						}
 					},
 					"additionalProperties": false
-				},
-				"vscode": {
-					"type": "object",
-					"properties": {
-						"extensions": {
-							"type": "array",
-							"description": "An array of extensions that should be installed into the container.",
-							"items": {
-								"type": "string",
-								"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
-								"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
-							}
-						},
-						"settings": {
-							"$ref": "vscode://schemas/settings/machine",
-							"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
-						},
-						"devPort": {
-							"type": "integer",
-							"description": "The port VS Code can use to connect to its backend."
-						}
-					},
-					"additionalProperties": false
-				},
-				"customizations": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "object",
-						"additionalProperties": true
-					},
-					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"required": [
@@ -1611,37 +1518,6 @@
 						}
 					},
 					"additionalProperties": false
-				},
-				"vscode": {
-					"type": "object",
-					"properties": {
-						"extensions": {
-							"type": "array",
-							"description": "An array of extensions that should be installed into the container.",
-							"items": {
-								"type": "string",
-								"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
-								"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
-							}
-						},
-						"settings": {
-							"$ref": "vscode://schemas/settings/machine",
-							"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
-						},
-						"devPort": {
-							"type": "integer",
-							"description": "The port VS Code can use to connect to its backend."
-						}
-					},
-					"additionalProperties": false
-				},
-				"customizations": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "object",
-						"additionalProperties": true
-					},
-					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"required": [
@@ -1950,37 +1826,6 @@
 						}
 					},
 					"additionalProperties": false
-				},
-				"vscode": {
-					"type": "object",
-					"properties": {
-						"extensions": {
-							"type": "array",
-							"description": "An array of extensions that should be installed into the container.",
-							"items": {
-								"type": "string",
-								"pattern": "^([a-z0-9A-Z][a-z0-9A-Z-]*)\\.([a-z0-9A-Z][a-z0-9A-Z-]*)(@(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\\+([0-9a-zA-Z-]+(?:\\.[0-9a-zA-Z-]+)*))?)?$",
-								"errorMessage": "Expected format: '${publisher}.${name}' or '${publisher}.${name}@${version}'. Example: 'ms-dotnettools.csharp'."
-							}
-						},
-						"settings": {
-							"$ref": "vscode://schemas/settings/machine",
-							"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
-						},
-						"devPort": {
-							"type": "integer",
-							"description": "The port VS Code can use to connect to its backend."
-						}
-					},
-					"additionalProperties": false
-				},
-				"customizations": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "object",
-						"additionalProperties": true
-					},
-					"description": "Tool-specific configuration. Each tool should use a JSON object subproperty with a unique name to group its customizations."
 				}
 			},
 			"additionalProperties": false
