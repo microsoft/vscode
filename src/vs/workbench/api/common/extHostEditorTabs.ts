@@ -34,6 +34,7 @@ export interface IEditorTabGroup {
 
 export interface IEditorTabGroups {
 	all: IEditorTabGroup[];
+	activeTabGroup: IEditorTabGroup | undefined;
 	onDidChangeTabGroup: Event<void>;
 }
 
@@ -53,6 +54,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	private _tabGroups: IEditorTabGroups = {
 		all: [],
+		activeTabGroup: undefined,
 		onDidChangeTabGroup: this._onDidChangeTabGroup.event
 	};
 
@@ -82,6 +84,11 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				activeTab,
 				tabs
 			}));
+			// If the currrent group is active, set the active group to be that group.
+			// We must use the same object so we pull from the array to allow for reference equality
+			if (group.isActive) {
+				this._tabGroups.activeTabGroup = this._tabGroups.all[this._tabGroups.all.length - 1];
+			}
 		}
 		this._onDidChangeTabGroup.fire();
 	}

@@ -102,6 +102,11 @@ declare module 'vscode' {
 		readonly all: TabGroup[];
 
 		/**
+		 * The currently active group
+		 */
+		readonly activeTabGroup: TabGroup | undefined;
+
+		/**
 		 * An {@link Event} which fires when a group changes.
 		 */
 		onDidChangeTabGroup: Event<void>;
