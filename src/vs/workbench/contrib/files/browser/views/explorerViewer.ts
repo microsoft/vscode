@@ -1004,7 +1004,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
 				// Native OS file DND into Web
-				if (containsDragType(originalEvent, 'Files') && isWeb) {
+				if (containsDragType(originalEvent, DataTransfers.FILES) && isWeb) {
 					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
 					await browserUpload.upload(target, originalEvent);
 				}

@@ -39,7 +39,6 @@ import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
 import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { withUndefinedAsNull } from 'vs/base/common/types';
-import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -695,10 +694,6 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof NativeDragAndDropData) {
-			if (isWeb) {
-				return false; // dropping files into editor is unsupported on web
-			}
-
 			return containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES);
 		}
 
