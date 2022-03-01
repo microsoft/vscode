@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as alertFn } from 'vs/base/browser/ui/aria/aria';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
@@ -133,7 +133,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _matchesCount!: HTMLElement;
 	private _prevBtn!: SimpleButton;
 	private _nextBtn!: SimpleButton;
-	private _toggleSelectionFind!: Checkbox;
+	private _toggleSelectionFind!: Toggle;
 	private _closeBtn!: SimpleButton;
 	private _replaceBtn!: SimpleButton;
 	private _replaceAllBtn!: SimpleButton;
@@ -1055,7 +1055,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		actionsContainer.appendChild(this._nextBtn.domNode);
 
 		// Toggle selection button
-		this._toggleSelectionFind = this._register(new Checkbox({
+		this._toggleSelectionFind = this._register(new Toggle({
 			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			isChecked: false

@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -593,7 +593,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 }
 
 interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
-	checkbox: Checkbox;
+	checkbox: Toggle;
 }
 
 interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
@@ -1769,7 +1769,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
-		const checkbox = new Checkbox({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
+		const checkbox = new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
