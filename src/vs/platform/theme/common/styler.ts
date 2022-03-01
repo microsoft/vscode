@@ -50,18 +50,18 @@ export function attachStyler<T extends IColorMapping>(themeService: IThemeServic
 	return themeService.onDidColorThemeChange(applyStyles);
 }
 
-export interface ICheckboxStyleOverrides extends IStyleOverrides {
+export interface IToggleStyleOverrides extends IStyleOverrides {
 	inputActiveOptionBorderColor?: ColorIdentifier;
 	inputActiveOptionForegroundColor?: ColorIdentifier;
 	inputActiveOptionBackgroundColor?: ColorIdentifier;
 }
 
-export function attachCheckboxStyler(widget: IThemable, themeService: IThemeService, style?: ICheckboxStyleOverrides): IDisposable {
+export function attachToggleStyler(widget: IThemable, themeService: IThemeService, style?: IToggleStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		inputActiveOptionBorder: style?.inputActiveOptionBorderColor || inputActiveOptionBorder,
 		inputActiveOptionForeground: style?.inputActiveOptionForegroundColor || inputActiveOptionForeground,
 		inputActiveOptionBackground: style?.inputActiveOptionBackgroundColor || inputActiveOptionBackground
-	} as ICheckboxStyleOverrides, widget);
+	} as IToggleStyleOverrides, widget);
 }
 
 export interface IBadgeStyleOverrides extends IStyleOverrides {

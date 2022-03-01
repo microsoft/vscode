@@ -119,7 +119,7 @@
 	cursor: default;
 }
 
-.monaco-workbench .simple-fr-find-part-wrapper .monaco-custom-checkbox.disabled {
+.monaco-workbench .simple-fr-find-part-wrapper .monaco-custom-toggle.disabled {
 	opacity: 0.3;
 	cursor: default;
 	user-select: none;
