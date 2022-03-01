@@ -6,6 +6,7 @@
 import { illegalArgument } from 'vs/base/common/errors';
 import { escapeIcons } from 'vs/base/common/iconLabels';
 import { isEqual } from 'vs/base/common/resources';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface IMarkdownString {
@@ -73,6 +74,29 @@ export class MarkdownString implements IMarkdownString {
 		this.value += '\n```\n';
 		return this;
 	}
+
+	appendLink(target: URI | URL | string, label: string, title?: string): MarkdownString {
+		this.value += '[';
+		this.value += this._escape(label, ']');
+		this.value += '](';
+		this.value += this._escape(String(target), ')');
+		if (title) {
+			this.value += ` "${this._escape(this._escape(title, '"'), ')')}"`;
+		}
+		this.value += ')';
+		return this;
+	}
+
+	private _escape(value: string, ch: string): string {
+		const r = new RegExp(escapeRegExpCharacters(ch), 'g');
+		return value.replace(r, (match, offset) => {
+			if (value.charAt(offset - 1) !== '\\') {
+				return `\\${match}`;
+			} else {
+				return match;
+			}
+		});
+	}
 }
 
 export function isEmptyMarkdownString(oneOrMany: IMarkdownString | IMarkdownString[] | null | undefined): boolean {
@@ -112,7 +136,7 @@ export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boo
 
 export function escapeMarkdownSyntaxTokens(text: string): string {
 	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
-	return text.replace(/[\\`*_{}[\]()#+\-!]/g, '\\$&');
+	return text.replace(/[\\`* _{ } [\]()# +\-!]/g, '\\$&');
 }
 
 export function removeMarkdownEscapes(text: string): string {
