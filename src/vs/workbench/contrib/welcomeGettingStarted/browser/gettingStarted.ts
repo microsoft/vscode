@@ -73,7 +73,7 @@ import { OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/works
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
-import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomePage/browser/welcomePage';
+import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
