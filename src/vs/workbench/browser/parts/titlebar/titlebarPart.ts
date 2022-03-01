@@ -594,7 +594,7 @@ registerThemingParticipant((theme, collector) => {
 	const titlebarActiveFg = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 	if (titlebarActiveFg) {
 		collector.addRule(`
-		.monaco-workbench .part.titlebar > .window-controls-container .window-icon {
+		.monaco-workbench .part.titlebar .window-controls-container .window-icon {
 			color: ${titlebarActiveFg};
 		}
 		`);
@@ -603,7 +603,7 @@ registerThemingParticipant((theme, collector) => {
 	const titlebarInactiveFg = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
 	if (titlebarInactiveFg) {
 		collector.addRule(`
-		.monaco-workbench .part.titlebar.inactive > .window-controls-container .window-icon {
+		.monaco-workbench .part.titlebar.inactive .window-controls-container .window-icon {
 				color: ${titlebarInactiveFg};
 			}
 		`);
