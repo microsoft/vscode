@@ -68,4 +68,24 @@ suite('ExtHostEditorTabs', function () {
 			assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 		}
 	});
+
+	test('Empty tab group', function () {
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [],
+			activeTab: undefined
+		}]);
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.all;
+		assert.strictEqual(first.activeTab, undefined);
+		assert.strictEqual(first.tabs.length, 0);
+	});
 });
