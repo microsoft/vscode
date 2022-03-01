@@ -27,7 +27,7 @@ export interface IToggleStyles {
 	inputActiveOptionBackground?: Color;
 }
 
-export interface ISimpleCheckboxStyles {
+export interface ICheckboxStyles {
 	checkboxBackground?: Color;
 	checkboxBorder?: Color;
 	checkboxForeground?: Color;
@@ -213,16 +213,16 @@ export class Toggle extends Widget {
 	}
 }
 
-export class SimpleCheckbox extends Widget {
+export class Checkbox extends Widget {
 	private checkbox: Toggle;
-	private styles: ISimpleCheckboxStyles;
+	private styles: ICheckboxStyles;
 
 	readonly domNode: HTMLElement;
 
 	constructor(private title: string, private isChecked: boolean) {
 		super();
 
-		this.checkbox = new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-simple-checkbox' });
+		this.checkbox = new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-checkbox' });
 
 		this.domNode = this.checkbox.domNode;
 
@@ -251,7 +251,7 @@ export class SimpleCheckbox extends Widget {
 		return this.domNode === document.activeElement;
 	}
 
-	style(styles: ISimpleCheckboxStyles): void {
+	style(styles: ICheckboxStyles): void {
 		this.styles = styles;
 
 		this.applyStyles();
