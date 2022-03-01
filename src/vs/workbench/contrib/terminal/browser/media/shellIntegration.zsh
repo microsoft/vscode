@@ -4,20 +4,24 @@
 # ---------------------------------------------------------------------------------------------
 autoload -Uz add-zsh-hook
 
-. ~/.zshenv
+if [ -f ~/.zshenv ]; then
+	. ~/.zshenv
+fi
 if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 	if [ -f ~/.zprofile ]; then
 		. ~/.zprofile
 	fi
 fi
-. ~/.zshrc
+if [ -f ~/.zshrc ]; then
+	. ~/.zshrc
+fi
 if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 	if [ -f ~/.zlogin ]; then
 		. ~/.zlogin
-		VSCODE_SHELL_LOGIN=""
 	fi
 fi
-
+unset VSCODE_SHELL_LOGIN
+unset ZDOTDIR
 
 IN_COMMAND_EXECUTION="1"
 LAST_HISTORY_ID=0
