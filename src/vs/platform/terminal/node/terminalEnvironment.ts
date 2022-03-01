@@ -76,7 +76,7 @@ export async function findExecutable(command: string, cwd?: string, paths?: stri
 	return await exists(fullPath) ? fullPath : undefined;
 }
 
-export interface IShellIntegrationInjection {
+export interface IShellIntegrationConfigInjection {
 	/**
 	 * A new set of arguments to use.
 	 */
@@ -103,7 +103,7 @@ export interface IShellIntegrationInjection {
 export function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
 	options: ITerminalProcessOptions['shellIntegration']
-): IShellIntegrationInjection | undefined {
+): IShellIntegrationConfigInjection | undefined {
 	// Shell integration arg injection is disabled when:
 	// - The global setting is disabled
 	// - There is no executable (not sure what script to run)
@@ -140,7 +140,7 @@ export function getShellIntegrationInjection(
 
 	// Linux & macOS
 	const envMixin: IProcessEnvironment = {};
-	const copyFiles: IShellIntegrationInjection['copyFiles'] = [];
+	const copyFiles: IShellIntegrationConfigInjection['copyFiles'] = [];
 	switch (shell) {
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {

@@ -19,7 +19,7 @@ import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
-import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationInjection } from 'vs/platform/terminal/node/terminalEnvironment';
+import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 const enum ShutdownConstants {
@@ -188,7 +188,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		this._logService.info('options', this._options);
-		let injection: IShellIntegrationInjection | undefined;
+		let injection: IShellIntegrationConfigInjection | undefined;
 		if (this._options.shellIntegration) {
 			// TODO: Do injection here
 			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration);
@@ -274,7 +274,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private async setupPtyProcess(
 		shellLaunchConfig: IShellLaunchConfig,
 		options: pty.IPtyForkOptions,
-		shellIntegrationInjection: IShellIntegrationInjection | undefined
+		shellIntegrationInjection: IShellIntegrationConfigInjection | undefined
 	): Promise<void> {
 		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
