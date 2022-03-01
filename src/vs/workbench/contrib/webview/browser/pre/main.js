@@ -878,7 +878,7 @@ onDomReady(() => {
 				}
 
 				const contentDocument = assertIsDefined(newFrame.contentDocument);
-				if (contentDocument.location.pathname === '/fake.html' && contentDocument.readyState !== 'loading') {
+				if (contentDocument.location.pathname.endsWith('/fake.html') && contentDocument.readyState !== 'loading') {
 					clearInterval(interval);
 					onFrameLoaded(contentDocument);
 				}
