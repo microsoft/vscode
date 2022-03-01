@@ -17,7 +17,6 @@
     "findTextInFiles",
     "fsChunks",
     "inlineCompletions",
-    "markdownStringBaseUri",
     "notebookCellExecutionState",
     "notebookConcatTextDocument",
     "notebookContentProvider",
