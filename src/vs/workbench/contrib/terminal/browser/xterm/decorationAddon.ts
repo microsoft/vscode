@@ -29,13 +29,12 @@ const enum DecorationSelector {
 	DefaultColor = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
-	FirstSplitContainer = '.pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm'
+	ShellIntegration = 'shell-integration'
 }
 
 const enum DecorationStyles {
 	DefaultDimension = 16,
-	MarginLeftFirstSplit = -17,
-	MarginLeft = -12
+	MarginLeft = -17,
 }
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number }
@@ -72,10 +71,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._refreshClasses();
 			} else if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
 				this.refreshLayouts();
-			} else if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-				this._commandStartedListener?.dispose();
-				this._commandFinishedListener?.dispose();
-				this._clearDecorations();
 			}
 		});
 	}
@@ -94,10 +89,15 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _clearDecorations(): void {
+	public clearDecorations(disposeOfListeners?: boolean): void {
+		if (disposeOfListeners) {
+			this._commandStartedListener?.dispose();
+			this._commandFinishedListener?.dispose();
+		}
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
 		for (const value of this._decorations.values()) {
+			value.decoration.element?.parentElement?.parentElement?.parentElement?.classList.remove(DecorationSelector.ShellIntegration);
 			value.decoration.dispose();
 			value.decoration.marker.dispose();
 			dispose(value.disposables);
@@ -149,6 +149,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (this._placeholderDecoration?.marker.id) {
 				this._decorations.delete(this._placeholderDecoration?.marker.id);
 			}
+			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
+				this.clearDecorations();
+				return;
+			}
 			this._placeholderDecoration?.dispose();
 			this.registerCommandDecoration(command);
 		});
@@ -198,18 +202,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		const lineHeight = this._configurationService.inspect(TerminalSettingId.LineHeight).value;
 		if (typeof fontSize === 'number' && typeof defaultFontSize === 'number' && typeof lineHeight === 'number') {
 			const scalar = (fontSize / defaultFontSize) <= 1 ? (fontSize / defaultFontSize) : 1;
-
 			// must be inlined to override the inlined styles from xterm
 			element.style.width = `${scalar * DecorationStyles.DefaultDimension}px`;
 			element.style.height = `${scalar * DecorationStyles.DefaultDimension * lineHeight}px`;
 			element.style.fontSize = `${scalar * DecorationStyles.DefaultDimension}px`;
-
-			// the first split terminal in the panel has more room
-			if (element.closest(DecorationSelector.FirstSplitContainer)) {
-				element.style.marginLeft = `${scalar * DecorationStyles.MarginLeftFirstSplit}px`;
-			} else {
-				element.style.marginLeft = `${scalar * DecorationStyles.MarginLeft}px`;
-			}
+			element.style.marginLeft = `${scalar * DecorationStyles.MarginLeft}px`;
 		}
 	}
 
@@ -221,6 +218,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			element.classList.remove(classes);
 		}
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
+		element.parentElement?.parentElement?.parentElement?.classList.add(DecorationSelector.ShellIntegration);
 		if (exitCode === undefined) {
 			element.classList.add(DecorationSelector.DefaultColor);
 			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);

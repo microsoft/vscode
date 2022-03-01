@@ -94,9 +94,13 @@
 }
 
 .monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm {
+.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm,
+.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view .xterm.shell-integration,
+.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view .xterm.shell-integration,
+.monaco-split-view2.vertical .split-view-view .xterm.shell-integration {
 	padding-left: 20px;
 }
+
 .monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm {
 	padding-right: 20px;
