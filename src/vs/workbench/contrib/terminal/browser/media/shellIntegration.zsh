@@ -13,8 +13,9 @@ fi
 . ~/.zshrc
 if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 	if [ -f ~/.zlogin ]; then
-	. ~/.zlogin
-fi
+		. ~/.zlogin
+		VSCODE_SHELL_LOGIN=""
+	fi
 fi
 
 
