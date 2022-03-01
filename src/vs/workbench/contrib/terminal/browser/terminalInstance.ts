@@ -1723,7 +1723,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		try {
 			const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
 			if (typeof cwd !== 'string') {
-				throw new Error('cwd is not a string');
+				throw new Error(`cwd is not a string ${cwd}`);
 			}
 		} catch (e: unknown) {
 			// Swallow this as it means the process has been killed

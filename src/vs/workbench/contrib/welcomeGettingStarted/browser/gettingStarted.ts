@@ -103,8 +103,8 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 }));
 
 type GettingStartedActionClassification = {
-	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'Help understand what actions are most commonly taken on the getting started page' };
+	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'As above' };
 };
 
 type GettingStartedActionEvent = {
@@ -1102,7 +1102,11 @@ export class GettingStartedPage extends EditorPane {
 				title: localize('recent', "Recent"),
 				klass: 'recently-opened',
 				limit: 5,
-				empty: $('.empty-recent', {}, 'You have no recent folders,', $('button.button-link', { 'x-dispatch': 'openFolder' }, 'open a folder'), 'to start.'),
+				empty: $('.empty-recent', {},
+					localize('noRecents', "You have no recent folders,"),
+					$('button.button-link', { 'x-dispatch': 'openFolder' }, localize('openFolder', "open a folder")),
+					localize('toStart', "to start.")),
+
 				more: $('.more', {},
 					$('button.button-link',
 						{

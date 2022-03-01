@@ -427,7 +427,11 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			type GettingStartedAutoOpenClassification = {
-				id: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+				id: {
+					classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight';
+					owner: 'JacksonKearl';
+					comment: 'Used to understand what walkthroughs are consulted most frequently';
+				};
 			};
 			type GettingStartedAutoOpenEvent = {
 				id: string;
