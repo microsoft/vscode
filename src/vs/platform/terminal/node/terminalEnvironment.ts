@@ -88,7 +88,7 @@ export interface IShellIntegrationConfigInjection {
 	/**
 	 * An optional array of files to copy from `source` to `dest`.
 	 */
-	copyFiles?: {
+	filesToCopy?: {
 		source: string;
 		dest: string;
 	}[];
@@ -140,7 +140,7 @@ export function getShellIntegrationInjection(
 
 	// Linux & macOS
 	const envMixin: IProcessEnvironment = {};
-	const copyFiles: IShellIntegrationConfigInjection['copyFiles'] = [];
+	const copyFiles: IShellIntegrationConfigInjection['filesToCopy'] = [];
 	switch (shell) {
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -196,7 +196,7 @@ export function getShellIntegrationInjection(
 			if (!options.showWelcome) {
 				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
 			}
-			return { newArgs, envMixin, copyFiles };
+			return { newArgs, envMixin, filesToCopy: copyFiles };
 		}
 	}
 

@@ -187,7 +187,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return firstError;
 		}
 
-		this._logService.info('options', this._options);
 		let injection: IShellIntegrationConfigInjection | undefined;
 		if (this._options.shellIntegration) {
 			// TODO: Do injection here
@@ -195,15 +194,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (!injection) {
 				this._logService.warn(`Shell integration cannot be enabled for executable "${this.shellLaunchConfig.executable}" and args`, this.shellLaunchConfig.args);
 			} else {
-				// TODO: Remove this log
-				this._logService.info('injection', injection);
 				if (injection.envMixin) {
 					for (const [key, value] of Object.entries(injection.envMixin)) {
 						this._ptyOptions.env ||= {};
 						this._ptyOptions.env[key] = value;
 					}
 				}
-				if (injection.copyFiles) {
+				if (injection.filesToCopy) {
 					// TODO: Handle files
 				}
 			}
