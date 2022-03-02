@@ -1083,7 +1083,7 @@ class InlineCompletionAdapter {
 					throw new Error('text or insertText must be defined');
 				}
 				return ({
-					text: insertText,
+					text: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,
