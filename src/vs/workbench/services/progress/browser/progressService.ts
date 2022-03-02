@@ -56,7 +56,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				}
 			}
 
-			if (this.viewsService.getViewProgressIndicator(location)) {
+			if (this.viewDescriptorService.getViewDescriptorById(location) !== null) {
 				return this.withViewProgress(location, task, { ...options, location });
 			}
 
