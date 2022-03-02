@@ -29,7 +29,8 @@ const enum DecorationSelector {
 	DefaultColor = 'default',
 	Codicon = 'codicon',
 	XtermDecoration = 'xterm-decoration',
-	ShellIntegration = 'shell-integration'
+	ShellIntegration = 'shell-integration',
+	Xterm = 'xterm'
 }
 
 const enum DecorationStyles {
@@ -93,13 +94,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (disableDecorations) {
 			this._commandStartedListener?.dispose();
 			this._commandFinishedListener?.dispose();
+			document.querySelectorAll(`.${DecorationSelector.Xterm}`).forEach(e => e.classList.remove(DecorationSelector.ShellIntegration));
 		}
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
 		for (const value of this._decorations.values()) {
-			if (disableDecorations) {
-				value.decoration.element?.parentElement?.parentElement?.parentElement?.classList.remove(DecorationSelector.ShellIntegration);
-			}
 			value.decoration.dispose();
 			value.decoration.marker.dispose();
 			dispose(value.disposables);
