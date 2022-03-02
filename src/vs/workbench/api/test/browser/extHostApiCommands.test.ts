@@ -1283,6 +1283,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		disposables.push(extHost.registerInlayHintsProvider(nullExtensionDescription, defaultSelector, <vscode.InlayHintsProvider>{
 			provideInlayHints() {
 				const hint = new types.InlayHint(new types.Position(0, 1), 'Foo', types.InlayHintKind.Parameter);
+				hint.textEdits = [types.TextEdit.insert(new types.Position(0, 0), 'Hello')];
 				return [hint];
 			}
 		}));
@@ -1296,6 +1297,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(first.label, 'Foo');
 		assert.strictEqual(first.position.line, 0);
 		assert.strictEqual(first.position.character, 1);
+		assert.strictEqual(first.textEdits?.length, 1);
+		assert.strictEqual(first.textEdits![0].newText, 'Hello');
 
 		assert.strictEqual(second.position.line, 10);
 		assert.strictEqual(second.position.character, 11);

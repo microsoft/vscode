@@ -126,19 +126,16 @@ export class ViewLinesChangedEvent {
 
 	public readonly type = ViewEventType.ViewLinesChanged;
 
-	/**
-	 * The first line that has changed.
-	 */
-	public readonly fromLineNumber: number;
-	/**
-	 * The last line that has changed.
-	 */
-	public readonly toLineNumber: number;
-
-	constructor(fromLineNumber: number, toLineNumber: number) {
-		this.fromLineNumber = fromLineNumber;
-		this.toLineNumber = toLineNumber;
-	}
+	constructor(
+		/**
+		 * The first line that has changed.
+		 */
+		public readonly fromLineNumber: number,
+		/**
+		 * The number of lines that have changed.
+		 */
+		public readonly count: number,
+	) { }
 }
 
 export class ViewLinesDeletedEvent {

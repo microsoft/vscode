@@ -495,6 +495,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
 				this._labelComputer?.refreshLabel();
 			}
+			if ((e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) ||
+				(e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled))) {
+				this.xterm?.clearDecorations();
+			}
 		}));
 		this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel());
 
@@ -1719,7 +1723,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		try {
 			const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
 			if (typeof cwd !== 'string') {
-				throw new Error('cwd is not a string');
+				throw new Error(`cwd is not a string ${cwd}`);
 			}
 		} catch (e: unknown) {
 			// Swallow this as it means the process has been killed

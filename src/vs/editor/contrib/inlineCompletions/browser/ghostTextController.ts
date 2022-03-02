@@ -156,6 +156,7 @@ export class ActiveGhostTextController extends Disposable {
 	private updateContextKeys(): void {
 		this.contextKeys.inlineCompletionVisible.set(
 			this.model.activeInlineCompletionsModel?.ghostText !== undefined
+			&& !this.model.activeInlineCompletionsModel.ghostText.isEmpty()
 		);
 
 		let startsWithIndentation = false;

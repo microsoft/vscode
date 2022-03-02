@@ -50,7 +50,7 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
 	private treeViews: Map<string, ExtHostTreeView<any>> = new Map<string, ExtHostTreeView<any>>();
-	private treeDragAndDropService: ITreeViewsService<vscode.TreeDataTransfer, any, any> = new TreeviewsService<vscode.TreeDataTransfer, any, any>();
+	private treeDragAndDropService: ITreeViewsService<vscode.DataTransfer, any, any> = new TreeviewsService<vscode.DataTransfer, any, any>();
 
 	constructor(
 		private _proxy: MainThreadTreeViewsShape,
@@ -296,10 +296,8 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 		this.dataProvider = options.treeDataProvider;
 		this.dndController = options.dragAndDropController;
-		if (this.dataProvider.onDidChangeTreeData2) {
-			this._register(this.dataProvider.onDidChangeTreeData2(elementOrElements => this._onDidChangeData.fire({ message: false, element: elementOrElements })));
-		} else if (this.dataProvider.onDidChangeTreeData) {
-			this._register(this.dataProvider.onDidChangeTreeData(element => this._onDidChangeData.fire({ message: false, element })));
+		if (this.dataProvider.onDidChangeTreeData) {
+			this._register(this.dataProvider.onDidChangeTreeData(elementOrElements => this._onDidChangeData.fire({ message: false, element: elementOrElements })));
 		}
 
 		let refreshingPromise: Promise<void> | null;
@@ -433,7 +431,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	async handleDrag(sourceTreeItemHandles: TreeItemHandle[], treeDataTransfer: ITreeDataTransfer, token: CancellationToken): Promise<vscode.TreeDataTransfer | undefined> {
+	async handleDrag(sourceTreeItemHandles: TreeItemHandle[], treeDataTransfer: ITreeDataTransfer, token: CancellationToken): Promise<vscode.DataTransfer | undefined> {
 		const extensionTreeItems: T[] = [];
 		for (const sourceHandle of sourceTreeItemHandles) {
 			const extensionItem = this.getExtensionElement(sourceHandle);
@@ -453,7 +451,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return !!this.dndController?.handleDrag;
 	}
 
-	async onDrop(treeDataTransfer: vscode.TreeDataTransfer, targetHandleOrNode: TreeItemHandle, token: CancellationToken): Promise<void> {
+	async onDrop(treeDataTransfer: vscode.DataTransfer, targetHandleOrNode: TreeItemHandle, token: CancellationToken): Promise<void> {
 		const target = this.getExtensionElement(targetHandleOrNode);
 		if (!target || !this.dndController?.handleDrop) {
 			return;

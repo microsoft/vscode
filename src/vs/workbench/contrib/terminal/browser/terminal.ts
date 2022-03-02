@@ -896,6 +896,11 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
+
+	/**
+	 * Clears decorations - for example, when shell integration is disabled.
+	 */
+	clearDecorations(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

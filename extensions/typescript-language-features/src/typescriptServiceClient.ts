@@ -731,7 +731,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
 			const parts = filepath.match(/^\^\/([^\/]+)\/(.+)$/);
 			if (parts) {
-				const resource = vscode.Uri.parse(parts[1] + ':' + parts[2]);
+				const resource = vscode.Uri.parse(parts[1] + ':/' + parts[2]);
 				return this.bufferSyncSupport.toVsCodeResource(resource);
 			}
 		}

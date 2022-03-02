@@ -15,7 +15,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, checkboxBackground, checkboxBorder, checkboxForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -71,9 +71,9 @@ import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
-import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomePage/browser/welcomePage';
+import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -103,8 +103,8 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 }));
 
 type GettingStartedActionClassification = {
-	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'Help understand what actions are most commonly taken on the getting started page' };
+	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'As above' };
 };
 
 type GettingStartedActionEvent = {
@@ -936,7 +936,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private async buildCategoriesSlide() {
 		this.categoriesSlideDisposables.clear();
-		const showOnStartupCheckbox = new Checkbox({
+		const showOnStartupCheckbox = new Toggle({
 			icon: Codicon.check,
 			actionClassName: 'getting-started-checkbox',
 			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
@@ -1102,7 +1102,11 @@ export class GettingStartedPage extends EditorPane {
 				title: localize('recent', "Recent"),
 				klass: 'recently-opened',
 				limit: 5,
-				empty: $('.empty-recent', {}, 'You have no recent folders,', $('button.button-link', { 'x-dispatch': 'openFolder' }, 'open a folder'), 'to start.'),
+				empty: $('.empty-recent', {},
+					localize('noRecents', "You have no recent folders,"),
+					$('button.button-link', { 'x-dispatch': 'openFolder' }, localize('openFolder', "open a folder")),
+					localize('toStart', "to start.")),
+
 				more: $('.more', {},
 					$('button.button-link',
 						{
@@ -1762,18 +1766,18 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured { border-top-color: ${newBadgeBackground}; }`);
 	}
 
-	const checkboxBackground = theme.getColor(simpleCheckboxBackground);
-	if (checkboxBackground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { background-color: ${checkboxBackground} !important; }`);
+	const checkboxBackgroundColor = theme.getColor(checkboxBackground);
+	if (checkboxBackgroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
 	}
 
-	const checkboxForeground = theme.getColor(simpleCheckboxForeground);
-	if (checkboxForeground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { color: ${checkboxForeground} !important; }`);
+	const checkboxForegroundColor = theme.getColor(checkboxForeground);
+	if (checkboxForegroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { color: ${checkboxForegroundColor} !important; }`);
 	}
 
-	const checkboxBorder = theme.getColor(simpleCheckboxBorder);
-	if (checkboxBorder) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { border-color: ${checkboxBorder} !important; }`);
+	const checkboxBorderColor = theme.getColor(checkboxBorder);
+	if (checkboxBorderColor) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { border-color: ${checkboxBorderColor} !important; }`);
 	}
 });

@@ -6,7 +6,7 @@
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -85,7 +85,7 @@ export class ModesHoverController implements IEditorContribution {
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 		}
 
-		this._toUnhook.add(this._editor.onMouseLeave(hideWidgetsEventHandler));
+		this._toUnhook.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._toUnhook.add(this._editor.onDidChangeModel(hideWidgetsEventHandler));
 		this._toUnhook.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
 	}
@@ -125,6 +125,15 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
 		this._isMouseDown = false;
+	}
+
+	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
+		const targetEm = (mouseEvent.event.browserEvent.relatedTarget) as HTMLElement;
+		if (this._contentWidget?.containsNode(targetEm)) {
+			// when the mouse is inside hover widget
+			return;
+		}
+		this._hideWidgets();
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
