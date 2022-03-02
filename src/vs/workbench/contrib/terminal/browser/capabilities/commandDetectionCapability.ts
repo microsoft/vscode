@@ -115,6 +115,10 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	handleCommandStart(): void {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
+		// Clear executed as it much happen after command start
+		this._currentCommand.commandExecutedMarker = undefined;
+		this._currentCommand.commandExecutedX = undefined;
+
 		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
 			this._commandMarkers.length = 0;

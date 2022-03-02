@@ -1338,10 +1338,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.capabilities.get(TerminalCapability.CommandDetection)?.hasInput === false) {
 			sendEtx = false;
 		}
-		if (sendEtx) {
-			this.sendText('\x03', false);
-		}
-		this.sendText(commandLine, true);
+		await this.sendText((sendEtx ? '\x03' : '') + commandLine, true);
 	}
 
 	setVisible(visible: boolean): void {
