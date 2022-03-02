@@ -59,6 +59,21 @@ export interface IEditorType {
 configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode);
 //#endregion
 
+//#region defaultBinaryEditor
+export const defaultBinaryEditorSettingId = 'workbench.defaultBinaryEditor';
+
+const defaultBinaryEditorConfigurationNode: IConfigurationNode = {
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.defaultBinaryEditor': {
+			type: 'string',
+			description: localize('workbench.defaultBinaryEditor', "The default editor for files detected as binary. If undefined the user will be presented with a picker."),
+		}
+	}
+};
+configurationRegistry.registerConfiguration(defaultBinaryEditorConfigurationNode);
+//#endregion
+
 //#region EditorResolverService types
 export enum RegisteredEditorPriority {
 	builtin = 'builtin',
