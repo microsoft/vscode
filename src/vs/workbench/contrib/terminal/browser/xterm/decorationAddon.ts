@@ -181,8 +181,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 						exitCode: command.exitCode
 					});
 			}
-
-			if (!element.classList.contains(DecorationSelector.Codicon)) {
+			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
 				// first render
 				this._updateLayout(element);
 				this._updateClasses(element, command.exitCode);
