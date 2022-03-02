@@ -28,9 +28,7 @@ const enum DecorationSelector {
 	ErrorColor = 'error',
 	DefaultColor = 'default',
 	Codicon = 'codicon',
-	XtermDecoration = 'xterm-decoration',
-	ShellIntegration = 'shell-integration',
-	Xterm = 'xterm'
+	XtermDecoration = 'xterm-decoration'
 }
 
 const enum DecorationStyles {
@@ -94,7 +92,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (disableDecorations) {
 			this._commandStartedListener?.dispose();
 			this._commandFinishedListener?.dispose();
-			document.querySelectorAll(`.${DecorationSelector.Xterm}`).forEach(e => e.classList.remove(DecorationSelector.ShellIntegration));
 		}
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
@@ -214,8 +211,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		for (const classes of element.classList) {
 			element.classList.remove(classes);
 		}
-		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
-		element.parentElement?.parentElement?.parentElement?.classList.add(DecorationSelector.ShellIntegration);
 		if (exitCode === undefined) {
 			element.classList.add(DecorationSelector.DefaultColor);
 			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
