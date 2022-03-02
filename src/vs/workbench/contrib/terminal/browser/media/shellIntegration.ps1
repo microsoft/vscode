@@ -55,13 +55,16 @@ function Global:Prompt() {
 	return $Result
 }
 
-# TODO: Gracefully fallback when PSReadLine is not loaded
-$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
-function Global:PSConsoleHostReadLine {
-	$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
-	# Write command executed sequence directly to Console to avoid the new line from Write-Host
-	[Console]::Write("`e]633;C`a")
-	$tmp
+# Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
+# still work thanks to the command line sequence
+if (Get-Module -Name PSReadLine) {
+	$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
+	function Global:PSConsoleHostReadLine {
+		$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
+		# Write command executed sequence directly to Console to avoid the new line from Write-Host
+		[Console]::Write("`e]633;C`a")
+		$tmp
+	}
 }
 
 # Set IsWindows property
