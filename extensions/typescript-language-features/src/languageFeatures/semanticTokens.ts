@@ -89,8 +89,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 		const tokenSpan = response.body.spans;
 
 		const builder = new vscode.SemanticTokensBuilder();
-		let i = 0;
-		while (i < tokenSpan.length) {
+		for (let i = 0; i < tokenSpan.length;) {
 			const offset = tokenSpan[i++];
 			const length = tokenSpan[i++];
 			const tsClassification = tokenSpan[i++];
