@@ -89,15 +89,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	public clearDecorations(disposeOfListeners?: boolean): void {
-		if (disposeOfListeners) {
+	public clearDecorations(disableDecorations?: boolean): void {
+		if (disableDecorations) {
 			this._commandStartedListener?.dispose();
 			this._commandFinishedListener?.dispose();
 		}
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
 		for (const value of this._decorations.values()) {
-			value.decoration.element?.parentElement?.parentElement?.parentElement?.classList.remove(DecorationSelector.ShellIntegration);
+			if (disableDecorations) {
+				value.decoration.element?.parentElement?.parentElement?.parentElement?.classList.remove(DecorationSelector.ShellIntegration);
+			}
 			value.decoration.dispose();
 			value.decoration.marker.dispose();
 			dispose(value.disposables);
@@ -146,9 +148,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 		this._commandFinishedListener = capability.onCommandFinished(command => {
-			if (this._placeholderDecoration?.marker.id) {
-				this._decorations.delete(this._placeholderDecoration?.marker.id);
-			}
 			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 				this.clearDecorations();
 				return;
@@ -167,12 +166,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!command.marker) {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
-
 		const decoration = this._terminal.registerDecoration({ marker: command.marker });
 		if (!decoration) {
 			return undefined;
 		}
 		decoration.onRender(element => {
+			decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 			if (beforeCommandExecution && !this._placeholderDecoration) {
 				this._placeholderDecoration = decoration;
 			} else {
