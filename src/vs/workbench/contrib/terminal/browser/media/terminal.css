@@ -162,15 +162,6 @@
 	border-top-style: solid;
 }
 
-.monaco-workbench .pane-body.integrated-terminal.enable-ligatures {
-	font-variant-ligatures: normal;
-}
-
-
-.monaco-workbench .pane-body.integrated-terminal.disable-bold .xterm-bold {
-	font-weight: normal !important;
-}
-
 /* Use the default cursor when alt is active to help with clicking to move cursor */
 .monaco-workbench .pane-body.integrated-terminal .terminal-groups-container.alt-active .xterm {
 	cursor: default;
