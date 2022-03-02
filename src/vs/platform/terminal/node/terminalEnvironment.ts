@@ -113,7 +113,7 @@ export function getShellIntegrationInjection(
 	}
 
 	const originalArgs = shellLaunchConfig.args;
-	const shell = path.basename(shellLaunchConfig.executable).toLowerCase();
+	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
 	const appRoot = path.dirname(FileAccess.asFileUri('', require).fsPath);
 	let newArgs: string[] | undefined;
 
@@ -214,8 +214,8 @@ export enum ShellIntegrationExecutable {
 }
 
 export const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -command', '. \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{1}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', '-command', '. \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{1}']);
+shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', '-command', '. \"{0}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{1}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{1}']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "{0}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
 shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
