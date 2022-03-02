@@ -719,6 +719,13 @@ export interface ITerminalInstance {
 	 */
 	sendPath(originalPath: string, addNewLine: boolean): Promise<void>;
 
+	/**
+	 * Run a command in the terminal by clearing output via ctrl+c if it exists (or shell
+	 * integration is disabled) and sending the command line.
+	 * @param commandLine The command and arguments to send as text.
+	 */
+	runCommand(commandLine: string): Promise<void>;
+
 	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
 	/** Scroll the terminal buffer to the bottom. */ scrollToBottom(): void;

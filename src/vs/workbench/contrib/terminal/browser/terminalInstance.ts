@@ -651,7 +651,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const lineDataEventAddon = new LineDataEventAddon();
 		this.xterm.raw.loadAddon(lineDataEventAddon);
 		this.updateAccessibilitySupport();
-		this.xterm.onDidRequestRunCommand(command => this.sendText(command, true));
+		this.xterm.onDidRequestRunCommand(command => this.runCommand(command));
 		// Write initial text, deferring onLineFeed listener when applicable to avoid firing
 		// onLineData events containing initialText
 		if (this._shellLaunchConfig.initialText) {
@@ -912,7 +912,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 			quickPick.onDidAccept(e => {
 				const result = quickPick.activeItems[0];
-				this.sendText(type === 'cwd' ? `cd ${result.label}` : result.label, true);
+				this.runCommand(type === 'cwd' ? `cd ${result.label}` : result.label);
 				quickPick.hide();
 			});
 			quickPick.show();
@@ -1328,6 +1328,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async sendPath(originalPath: string, addNewLine: boolean): Promise<void> {
 		const preparedPath = await preparePathForShell(originalPath, this.shellLaunchConfig.executable, this.title, this.shellType, this._processManager.backend, this._processManager.os);
 		return this.sendText(preparedPath, addNewLine);
+	}
+
+	async runCommand(commandLine: string): Promise<void> {
+		this.sendText('\x03', false); // ctrl+c
+		this.sendText(commandLine, true);
 	}
 
 	setVisible(visible: boolean): void {
