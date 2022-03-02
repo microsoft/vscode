@@ -89,15 +89,29 @@ suite('platform - terminalEnvironment', () => {
 				suite('should override args', () => {
 					test('when undefined, [], empty string', () => {
 						const enabledExpectedResult: IShellIntegrationConfigInjection = Object.freeze({
-							newArgs: ['-i']
+							newArgs: ['-i'],
+							envMixin: {
+								ZDOTDIR: "/tmp/vscode-zsh"
+							},
+							filesToCopy: [{
+								dest: "/tmp/vscode-zsh/.zshrc",
+								source: `${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh`
+							}]
 						});
-						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions), enabledExpectedResult);
-						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: '' }, enabledProcessOptions), enabledExpectedResult);
-						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: undefined }, enabledProcessOptions), enabledExpectedResult);
+						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions)?.newArgs, enabledExpectedResult);
+						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: '' }, enabledProcessOptions)?.newArgs, enabledExpectedResult);
+						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: undefined }, enabledProcessOptions)?.newArgs, enabledExpectedResult);
 					});
 					suite('should incorporate login arg', () => {
 						const enabledExpectedResult: IShellIntegrationConfigInjection = Object.freeze({
-							newArgs: ['-il']
+							newArgs: ['-il'],
+							envMixin: {
+								ZDOTDIR: "/tmp/vscode-zsh"
+							},
+							filesToCopy: [{
+								dest: "/tmp/vscode-zsh/.zshrc",
+								source: `${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh`
+							}]
 						});
 						test('when array', () => {
 							deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: ['-l'] }, enabledProcessOptions), enabledExpectedResult);
@@ -124,7 +138,8 @@ suite('platform - terminalEnvironment', () => {
 							newArgs: [
 								'--init-file',
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
-							]
+							],
+							envMixin: {}
 						});
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: [] }, enabledProcessOptions), enabledExpectedResult);
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: '' }, enabledProcessOptions), enabledExpectedResult);
@@ -142,9 +157,6 @@ suite('platform - terminalEnvironment', () => {
 						} as IShellIntegrationConfigInjection);
 						test('when array', () => {
 							deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: ['-l'] }, enabledProcessOptions), enabledExpectedResult);
-						});
-						test('when string', () => {
-							deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: '-l' }, enabledProcessOptions), enabledExpectedResult);
 						});
 					});
 					suite('should not modify args', () => {
