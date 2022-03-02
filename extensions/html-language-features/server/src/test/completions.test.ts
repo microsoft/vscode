@@ -94,6 +94,28 @@ suite('HTML Completion', () => {
 	});
 });
 
+suite('Live TSServer inside the HTML script tags', () => {
+	const fixtureRoot = path.resolve(__dirname, '../../src/test/jsdocImportFixtures');
+	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
+	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
+
+	test('Imports across files when using fixtured data from the file system', async () => {
+		await testCompletionFor('<html><script>/** @type {import("./jsDocTypes").SomeType } */\nconst a = {}; \n a.| \n</script><html>', {
+			items: [
+				{ label: 'other' },
+				{ label: 'property' },
+			]
+		}, indexHtmlUri, [fixtureWorkspace]);
+	});
+
+	test('Does not run the extended tsserver when _not_ using the local file system', async () => {
+		await testCompletionFor('<html><script>/** @type {import("./jsDocTypes").SomeType } */\nconst a {};\n a.|</script></html>', {
+			// As it's an 'any' then it has no completions
+			items: []
+		}, 'vfs://index.html', [{ name: 'vfs', uri: 'vfs://' }]);
+	});
+});
+
 suite('HTML Path Completion', () => {
 	const triggerSuggestCommand = {
 		title: 'Suggest',

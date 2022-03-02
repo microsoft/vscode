@@ -8,13 +8,41 @@ import { URI as Uri } from 'vscode-uri';
 
 import * as fs from 'fs';
 import { FileType } from 'vscode-css-languageservice';
+import { FileStat } from 'vscode-html-languageservice';
 
-export function getNodeFileFS(): FileSystemProvider {
+/**
+ * This extension is for the TSServer in the JavaScript mode which
+ * require sync access to stat's mtime due to TSServer API limitations
+ */
+export interface NodeRequestService extends FileSystemProvider {
+	statSync(location: string): FileStat
+}
+
+export function getNodeFileFS(): NodeRequestService {
 	function ensureFileUri(location: string) {
-		if (getScheme(location) !== 'file') {
-			throw new Error('fileSystemProvider can only handle file URLs');
+		if (getScheme(location) !== 'file' && getScheme(location) !== '') {
+			throw new Error(`fileSystemProvider can only handle file URLs, got ${getScheme(location)}`);
 		}
 	}
+
+	const fsStatToFileStat = (stats: fs.Stats) => {
+		let type = FileType.Unknown;
+		if (stats.isFile()) {
+			type = FileType.File;
+		} else if (stats.isDirectory()) {
+			type = FileType.Directory;
+		} else if (stats.isSymbolicLink()) {
+			type = FileType.SymbolicLink;
+		}
+
+		return {
+			type,
+			ctime: stats.ctime.getTime(),
+			mtime: stats.mtime.getTime(),
+			size: stats.size
+		};
+	};
+
 	return {
 		stat(location: string) {
 			ensureFileUri(location);
@@ -29,23 +57,15 @@ export function getNodeFileFS(): FileSystemProvider {
 						}
 					}
 
-					let type = FileType.Unknown;
-					if (stats.isFile()) {
-						type = FileType.File;
-					} else if (stats.isDirectory()) {
-						type = FileType.Directory;
-					} else if (stats.isSymbolicLink()) {
-						type = FileType.SymbolicLink;
-					}
-
-					c({
-						type,
-						ctime: stats.ctime.getTime(),
-						mtime: stats.mtime.getTime(),
-						size: stats.size
-					});
+					c(fsStatToFileStat(stats));
 				});
 			});
+		},
+		statSync(location: string) {
+			ensureFileUri(location);
+			const uri = Uri.parse(location);
+			const stats = fs.statSync(uri.fsPath);
+			return fsStatToFileStat(stats);
 		},
 		readDirectory(location: string) {
 			ensureFileUri(location);
