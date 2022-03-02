@@ -33,10 +33,9 @@ suite('platform - terminalEnvironment', () => {
 						`. "${expectedPs1}"`
 					]
 				});
-				test('when undefined, [], empty string, or empty string in array', () => {
+				test('when undefined, []', () => {
 					deepStrictEqual(getShellIntegrationInjection({ executable: pwshExe, args: [] }, enabledProcessOptions), enabledExpectedResult);
 					deepStrictEqual(getShellIntegrationInjection({ executable: pwshExe, args: undefined }, enabledProcessOptions), enabledExpectedResult);
-					deepStrictEqual(getShellIntegrationInjection({ executable: pwshExe, args: '' }, enabledProcessOptions), enabledExpectedResult);
 				});
 				suite('when no logo', () => {
 					test('array - case insensitive', () => {
@@ -87,7 +86,7 @@ suite('platform - terminalEnvironment', () => {
 		if (process.platform !== 'win32') {
 			suite('zsh', () => {
 				suite('should override args', () => {
-					test('when undefined, [], empty string', () => {
+					test('when undefined, []', () => {
 						const enabledExpectedResult: IShellIntegrationConfigInjection = Object.freeze({
 							newArgs: ['-i'],
 							envMixin: {
@@ -99,7 +98,6 @@ suite('platform - terminalEnvironment', () => {
 							}]
 						});
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions)?.newArgs, enabledExpectedResult);
-						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: '' }, enabledProcessOptions)?.newArgs, enabledExpectedResult);
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: undefined }, enabledProcessOptions)?.newArgs, enabledExpectedResult);
 					});
 					suite('should incorporate login arg', () => {
