@@ -13,7 +13,7 @@ on:
 jobs:
   windows:
     name: Windows
-    runs-on: windows-latest
+    runs-on: windows-2019
     timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
