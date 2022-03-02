@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// all constants are const
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { DocumentSelector } from '../utils/documentSelector';
-
-
-const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.${VersionRequirement.minor}`);
 
 // as we don't do deltas, for performance reasons, don't compute semantic tokens for documents above that limit
 const CONTENT_LENGTH_LIMIT = 100000;
@@ -22,27 +18,25 @@ export function register(
 	client: ITypeScriptServiceClient,
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, minTypeScriptVersion),
+		requireMinVersion(client, API.v370),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		const provider = new DocumentSemanticTokensProvider(client);
-		return vscode.Disposable.from(
-			// register only as a range provider
-			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector.semantic, provider, provider.getLegend()),
-		);
+		return vscode.languages.registerDocumentRangeSemanticTokensProvider(selector.semantic, provider, provider.getLegend());
 	});
 }
 
 class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensProvider, vscode.DocumentRangeSemanticTokensProvider {
 
-	constructor(private readonly client: ITypeScriptServiceClient) {
-	}
+	constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
 
-	getLegend(): vscode.SemanticTokensLegend {
+	public getLegend(): vscode.SemanticTokensLegend {
 		return new vscode.SemanticTokensLegend(tokenTypes, tokenModifiers);
 	}
 
-	async provideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
+	public async provideDocumentSemanticTokens(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 		const file = this.client.toOpenedFilePath(document);
 		if (!file || document.getText().length > CONTENT_LENGTH_LIMIT) {
 			return null;
@@ -50,7 +44,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 		return this.provideSemanticTokens(document, { file, start: 0, length: document.getText().length }, token);
 	}
 
-	async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
+	public async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 		const file = this.client.toOpenedFilePath(document);
 		if (!file || (document.offsetAt(range.end) - document.offsetAt(range.start) > CONTENT_LENGTH_LIMIT)) {
 			return null;
@@ -69,9 +63,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 
 		const versionBeforeRequest = document.version;
 
-		requestArg.format = '2020';
-
-		const response = await this.client.execute('encodedSemanticClassifications-full', requestArg, token, {
+		const response = await this.client.execute('encodedSemanticClassifications-full', { ...requestArg, format: '2020' }, token, {
 			cancelOnResourceChange: document.uri
 		});
 		if (response.type !== 'response' || !response.body) {
@@ -125,6 +117,7 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 				builder.push(line, startCharacter, endCharacter - startCharacter, tokenType, tokenModifiers);
 			}
 		}
+
 		return builder.build();
 	}
 }
@@ -146,7 +139,7 @@ function waitForDocumentChangesToEnd(document: vscode.TextDocument) {
 // typescript encodes type and modifiers in the classification:
 // TSClassification = (TokenType + 1) << 8 + TokenModifier
 
-declare const enum TokenType {
+const enum TokenType {
 	class = 0,
 	enum = 1,
 	interface = 2,
@@ -161,7 +154,8 @@ declare const enum TokenType {
 	method = 11,
 	_ = 12
 }
-declare const enum TokenModifier {
+
+const enum TokenModifier {
 	declaration = 0,
 	static = 1,
 	async = 2,
@@ -170,13 +164,10 @@ declare const enum TokenModifier {
 	local = 5,
 	_ = 6
 }
-declare const enum TokenEncodingConsts {
+
+const enum TokenEncodingConsts {
 	typeOffset = 8,
 	modifierMask = 255
-}
-declare const enum VersionRequirement {
-	major = 3,
-	minor = 7
 }
 
 function getTokenTypeFromClassification(tsClassification: number): number | undefined {
