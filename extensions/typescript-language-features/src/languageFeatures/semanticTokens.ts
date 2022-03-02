@@ -95,17 +95,12 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 			const length = tokenSpan[i++];
 			const tsClassification = tokenSpan[i++];
 
-			let tokenModifiers = 0;
-			let tokenType = getTokenTypeFromClassification(tsClassification);
-			if (tokenType !== undefined) {
-				tokenModifiers = getTokenModifierFromClassification(tsClassification);
-			} else {
-				// an old TypeScript server that uses the original ExperimentalProtocol.ClassificationType's
-				tokenType = tokenTypeMap[tsClassification];
-				if (tokenType === undefined) {
-					continue;
-				}
+			const tokenType = getTokenTypeFromClassification(tsClassification);
+			if (tokenType === undefined) {
+				continue;
 			}
+
+			const tokenModifiers = getTokenModifierFromClassification(tsClassification);
 
 			// we can use the document's range conversion methods because the result is at the same version as the document
 			const startPos = document.positionAt(offset);
@@ -202,41 +197,3 @@ tokenModifiers[TokenModifier.readonly] = 'readonly';
 tokenModifiers[TokenModifier.static] = 'static';
 tokenModifiers[TokenModifier.local] = 'local';
 tokenModifiers[TokenModifier.defaultLibrary] = 'defaultLibrary';
-
-// mapping for the original ExperimentalProtocol.ClassificationType from TypeScript (only used when plugin is not available)
-const tokenTypeMap: number[] = [];
-tokenTypeMap[ClassificationType.className] = TokenType.class;
-tokenTypeMap[ClassificationType.enumName] = TokenType.enum;
-tokenTypeMap[ClassificationType.interfaceName] = TokenType.interface;
-tokenTypeMap[ClassificationType.moduleName] = TokenType.namespace;
-tokenTypeMap[ClassificationType.typeParameterName] = TokenType.typeParameter;
-tokenTypeMap[ClassificationType.typeAliasName] = TokenType.type;
-tokenTypeMap[ClassificationType.parameterName] = TokenType.parameter;
-
-const enum ClassificationType {
-	comment = 1,
-	identifier = 2,
-	keyword = 3,
-	numericLiteral = 4,
-	operator = 5,
-	stringLiteral = 6,
-	regularExpressionLiteral = 7,
-	whiteSpace = 8,
-	text = 9,
-	punctuation = 10,
-	className = 11,
-	enumName = 12,
-	interfaceName = 13,
-	moduleName = 14,
-	typeParameterName = 15,
-	typeAliasName = 16,
-	parameterName = 17,
-	docCommentTagName = 18,
-	jsxOpenTagName = 19,
-	jsxCloseTagName = 20,
-	jsxSelfClosingTagName = 21,
-	jsxAttribute = 22,
-	jsxText = 23,
-	jsxAttributeStringLiteralValue = 24,
-	bigintLiteral = 25,
-}
