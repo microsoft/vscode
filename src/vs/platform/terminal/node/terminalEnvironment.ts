@@ -140,7 +140,6 @@ export function getShellIntegrationInjection(
 
 	// Linux & macOS
 	const envMixin: IProcessEnvironment = {};
-	const copyFiles: IShellIntegrationConfigInjection['filesToCopy'] = [];
 	switch (shell) {
 		case 'bash': {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -189,14 +188,15 @@ export function getShellIntegrationInjection(
 			// Move .zshrc into $ZDOTDIR as the way to activate the script
 			const zdotdir = path.join(os.tmpdir(), 'vscode-zsh');
 			envMixin['ZDOTDIR'] = zdotdir;
-			copyFiles.push({
+			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
+			filesToCopy.push({
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh'),
 				dest: path.join(zdotdir, '.zshrc')
 			});
 			if (!options.showWelcome) {
 				envMixin['VSCODE_SHELL_HIDE_WELCOME'] = '1';
 			}
-			return { newArgs, envMixin, filesToCopy: copyFiles };
+			return { newArgs, envMixin, filesToCopy };
 		}
 	}
 
