@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
+//@ts-check
 
-const updateGrammar = require('vscode-grammar-updater');
+import * as vscodeGrammarUpdater from 'vscode-grammar-updater';
 
 function adaptInjectionScope(grammar) {
 	// we're using the HTML grammar from https://github.com/textmate/html.tmbundle which has moved away from source.js.embedded.html
@@ -68,8 +68,8 @@ function fixBadRegex(grammar) {
 	}
 }
 
-updateGrammar.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
-updateGrammar.update('atom/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', grammar => {
+vscodeGrammarUpdater.update('atom/language-php', 'grammars/php.cson', './syntaxes/php.tmLanguage.json', fixBadRegex);
+vscodeGrammarUpdater.update('atom/language-php', 'grammars/html.cson', './syntaxes/html.tmLanguage.json', grammar => {
 	adaptInjectionScope(grammar);
 	includeDerivativeHtml(grammar);
 });
