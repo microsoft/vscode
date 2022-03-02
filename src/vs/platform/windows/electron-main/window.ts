@@ -514,9 +514,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The type of window crash to understand the nature of the crash better.' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The reason of the window crash to understand the nature of the crash better.' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The exit code of the window process to understand the nature of the crash better' };
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
