@@ -2179,7 +2179,13 @@ export class Repository implements Disposable {
 	private updateInputBoxPlaceholder(): void {
 		const branchName = this.headShortName;
 
-		if (branchName) {
+		if (this._indexGroup?.resourceStates.length === 0) {
+			if (this._workingTreeGroup?.resourceStates.length + this._untrackedGroup?.resourceStates.length > 0) {
+				this._sourceControl.inputBox.placeholder = localize('commitMessageNothingStaged', "(no changes staged yet)");
+			} else {
+				this._sourceControl.inputBox.placeholder = localize('commitMessageNothingChanged', "(nothing changed yet)");
+			}
+		} else if (branchName) {
 			// '{0}' will be replaced by the corresponding key-command later in the process, which is why it needs to stay.
 			this._sourceControl.inputBox.placeholder = localize('commitMessageWithHeadLabel', "Message ({0} to commit on '{1}')", '{0}', branchName);
 		} else {
