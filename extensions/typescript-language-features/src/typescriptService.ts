@@ -70,6 +70,7 @@ interface StandardTsServerRequests {
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
 	'fileReferences': [Proto.FileRequestArgs, Proto.FileReferencesResponse];
 	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
+	'encodedSemanticClassifications-full': [Proto.EncodedSemanticClassificationsRequestArgs, Proto.EncodedSemanticClassificationsResponse];
 }
 
 interface NoResponseTsServerRequests {

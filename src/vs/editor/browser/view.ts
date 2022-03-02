@@ -502,7 +502,7 @@ export class View extends ViewEventHandler {
 			}
 		}
 		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference);
+		this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference, widgetData.position?.positionAffinity ?? null);
 		this._scheduleRender();
 	}
 
