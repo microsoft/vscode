@@ -331,14 +331,13 @@ export interface ISerializedTerminalState {
 	id: number;
 	shellLaunchConfig: IShellLaunchConfig;
 	processDetails: IProcessDetails;
-	// TODO: "Options" is a bad name here, rename to not confuse with ITerminalProcessOptions
-	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
+	processLaunchConfig: IPersistentTerminalProcessLaunchConfig;
 	unicodeVersion: '6' | '11';
 	replayEvent: IPtyHostProcessReplayEvent;
 	timestamp: number;
 }
 
-export interface IPersistentTerminalProcessLaunchOptions {
+export interface IPersistentTerminalProcessLaunchConfig {
 	env: IProcessEnvironment;
 	executableEnv: IProcessEnvironment;
 	options: ITerminalProcessOptions;

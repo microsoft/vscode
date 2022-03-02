@@ -226,7 +226,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				// environment
 				for (const state of parsed) {
 					const freshEnv = await this._resolveEnvironmentForRevive(variableResolver, state.shellLaunchConfig);
-					state.processLaunchOptions.env = freshEnv;
+					state.processLaunchConfig.env = freshEnv;
 				}
 
 				await this._localPtyService.reviveTerminalProcesses(parsed, Intl.DateTimeFormat().resolvedOptions().locale);

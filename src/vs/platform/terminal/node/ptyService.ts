@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { getSystemShell } from 'vs/base/node/shell';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchOptions, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IRequestResolveVariablesEvent, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { Terminal as XtermTerminal } from 'xterm-headless';
@@ -110,7 +110,7 @@ export class PtyService extends Disposable implements IPtyService {
 						id: persistentProcessId,
 						shellLaunchConfig: persistentProcess.shellLaunchConfig,
 						processDetails: await this._buildProcessDetails(persistentProcessId, persistentProcess),
-						processLaunchOptions: persistentProcess.processLaunchOptions,
+						processLaunchConfig: persistentProcess.processLaunchOptions,
 						unicodeVersion: persistentProcess.unicodeVersion,
 						replayEvent: await persistentProcess.serializeNormalBuffer(),
 						timestamp: Date.now()
@@ -144,9 +144,9 @@ export class PtyService extends Disposable implements IPtyService {
 				terminal.replayEvent.events[0].cols,
 				terminal.replayEvent.events[0].rows,
 				terminal.unicodeVersion,
-				terminal.processLaunchOptions.env,
-				terminal.processLaunchOptions.executableEnv,
-				terminal.processLaunchOptions.options,
+				terminal.processLaunchConfig.env,
+				terminal.processLaunchConfig.executableEnv,
+				terminal.processLaunchConfig.options,
 				true,
 				terminal.processDetails.workspaceId,
 				terminal.processDetails.workspaceName,
@@ -181,7 +181,7 @@ export class PtyService extends Disposable implements IPtyService {
 		const id = ++this._lastPtyId;
 		const process = new TerminalProcess(shellLaunchConfig, cwd, cols, rows, env, executableEnv, options, this._logService);
 		process.onProcessData(event => this._onProcessData.fire({ id, event }));
-		const processLaunchOptions: IPersistentTerminalProcessLaunchOptions = {
+		const processLaunchOptions: IPersistentTerminalProcessLaunchConfig = {
 			env,
 			executableEnv,
 			options
@@ -479,7 +479,7 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly shouldPersistTerminal: boolean,
 		cols: number,
 		rows: number,
-		readonly processLaunchOptions: IPersistentTerminalProcessLaunchOptions,
+		readonly processLaunchOptions: IPersistentTerminalProcessLaunchConfig,
 		public unicodeVersion: '6' | '11',
 		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
