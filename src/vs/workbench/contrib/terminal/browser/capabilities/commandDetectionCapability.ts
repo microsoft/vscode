@@ -43,6 +43,24 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
+	get isInputting(): boolean {
+		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
+	}
+
+	get hasInput(): boolean | undefined {
+		if (!this.isInputting || !this._currentCommand?.commandStartMarker) {
+			return undefined;
+		}
+		if (this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
+			const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true, this._currentCommand.commandStartX);
+			if (!line) {
+				return undefined;
+			}
+			return line.length > 0;
+		}
+		return true;
+	}
+
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();

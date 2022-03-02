@@ -78,6 +78,13 @@ export interface ITerminalCapabilityImplMap {
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
+	/** Whether a command is currently being entered into the shell. */
+	readonly isInputting: boolean;
+	/**
+	 * Whether a command is currently being input. If the a command is current not being input or
+	 * the state cannot reliably be detected the fallback of undefined will be used.
+	 */
+	readonly hasInput: boolean | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	setCwd(value: string): void;

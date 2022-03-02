@@ -1331,7 +1331,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	async runCommand(commandLine: string): Promise<void> {
-		this.sendText('\x03', false); // ctrl+c
+		// Determine whether to send ETX (ctrl+c) before running the command. This should always
+		// happen unless command detection can reliably say that a command is being entered and
+		// there is no content in the prompt
+		let sendEtx = true;
+		if (this.capabilities.get(TerminalCapability.CommandDetection)?.hasInput === false) {
+			sendEtx = false;
+		}
+		if (sendEtx) {
+			this.sendText('\x03', false);
+		}
 		this.sendText(commandLine, true);
 	}
 
