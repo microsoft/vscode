@@ -182,7 +182,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 					});
 			}
 			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
-				// first render
+				// first render or buffer was cleared
 				this._updateLayout(element);
 				this._updateClasses(element, command.exitCode);
 			}
