@@ -8,9 +8,21 @@ import { update } from 'vscode-grammar-updater';
 
 function removeDom(grammar) {
 	grammar.repository['support-objects'].patterns = grammar.repository['support-objects'].patterns.filter(pattern => {
-		if (pattern.match && /\b(HTMLElement|ATTRIBUTE_NODE|stopImmediatePropagation)\b/g.test(pattern.match)) {
+		if (pattern.match && (
+			/\b(HTMLElement|ATTRIBUTE_NODE|stopImmediatePropagation)\b/g.test(pattern.match)
+			|| /\bJSON\b/g.test(pattern.match)
+			|| /\bMath\b/g.test(pattern.match)
+		)) {
 			return false;
 		}
+
+		if (pattern.name?.startsWith('support.class.error.')
+			|| pattern.name?.startsWith('support.class.builtin.')
+			|| pattern.name?.startsWith('support.function.')
+		) {
+			return false;
+		}
+
 		return true;
 	});
 	return grammar;
