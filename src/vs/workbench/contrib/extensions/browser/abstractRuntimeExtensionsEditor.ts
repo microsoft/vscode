@@ -23,7 +23,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
@@ -34,7 +34,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
-import { Action2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 
 interface IExtensionProfileInformation {
@@ -481,7 +481,13 @@ export class ShowRuntimeExtensionsAction extends Action2 {
 			id: 'workbench.action.showRuntimeExtensions',
 			title: { value: nls.localize('showRuntimeExtensions', "Show Running Extensions"), original: 'Show Running Extensions' },
 			category: CATEGORIES.Developer,
-			f1: true
+			f1: true,
+			menu: {
+				id: MenuId.ViewContainerTitle,
+				when: ContextKeyExpr.equals('viewContainer', 'workbench.view.extensions'),
+				group: '2_enablement',
+				order: 3
+			}
 		});
 	}
 
