@@ -67,7 +67,7 @@ jobs:
           # Electron <= 13 does not ship with correct config.gypi headers,
           # remove this once we update to newer versions.
           # Refs https://github.com/nodejs/node-gyp/pull/2497
-          $env:npm_config_force_process_config=true
+          $env:npm_config_force_process_config="true"
           yarn --frozen-lockfile --network-timeout 180000
       - name: Create node_modules archive
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
