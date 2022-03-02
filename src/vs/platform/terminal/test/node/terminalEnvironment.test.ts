@@ -86,36 +86,29 @@ suite('platform - terminalEnvironment', () => {
 		if (process.platform !== 'win32') {
 			suite('zsh', () => {
 				suite('should override args', () => {
+					const expectedDir = /.+\/vscode-zsh/;
+					const expectedDest = /.+\/vscode-zsh\/.zshrc/;
+					const expectedSource = /.+\/out\/vs\/workbench\/contrib\/terminal\/browser\/media\/shellIntegration.zsh/;
+					function assertIsEnabled(result: IShellIntegrationConfigInjection) {
+						strictEqual(Object.keys(result.envMixin!).length, 1);
+						ok(result.envMixin!['ZDOTDIR']?.match(expectedDir));
+						strictEqual(result.filesToCopy?.length, 1);
+						ok(result.filesToCopy[0].dest.match(expectedDest));
+						ok(result.filesToCopy[0].source.match(expectedSource));
+					}
 					test('when undefined, []', () => {
-						const enabledExpectedResult: IShellIntegrationConfigInjection = Object.freeze({
-							newArgs: ['-i'],
-							envMixin: {
-								ZDOTDIR: "/tmp/vscode-zsh"
-							},
-							filesToCopy: [{
-								dest: "/tmp/vscode-zsh/.zshrc",
-								source: `${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh`
-							}]
-						});
-						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions)?.newArgs, enabledExpectedResult);
-						deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: undefined }, enabledProcessOptions)?.newArgs, enabledExpectedResult);
+						const result1 = getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions);
+						deepStrictEqual(result1?.newArgs, ['-i']);
+						assertIsEnabled(result1);
+						const result2 = getShellIntegrationInjection({ executable: 'zsh', args: undefined }, enabledProcessOptions);
+						deepStrictEqual(result2?.newArgs, ['-i']);
+						assertIsEnabled(result2);
 					});
 					suite('should incorporate login arg', () => {
-						const enabledExpectedResult: IShellIntegrationConfigInjection = Object.freeze({
-							newArgs: ['-il'],
-							envMixin: {
-								ZDOTDIR: "/tmp/vscode-zsh"
-							},
-							filesToCopy: [{
-								dest: "/tmp/vscode-zsh/.zshrc",
-								source: `${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh`
-							}]
-						});
 						test('when array', () => {
-							deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: ['-l'] }, enabledProcessOptions), enabledExpectedResult);
-						});
-						test('when string', () => {
-							deepStrictEqual(getShellIntegrationInjection({ executable: 'zsh', args: '-l' }, enabledProcessOptions), enabledExpectedResult);
+							const result = getShellIntegrationInjection({ executable: 'zsh', args: ['-l'] }, enabledProcessOptions);
+							deepStrictEqual(result?.newArgs, ['-il']);
+							assertIsEnabled(result);
 						});
 					});
 					suite('should not modify args', () => {
