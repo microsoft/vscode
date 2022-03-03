@@ -79,6 +79,15 @@ export interface Readable<T> {
 	read(): T | null;
 }
 
+export function isReadable<T>(obj: unknown): obj is Readable<T> {
+	const candidate = obj as Readable<T> | undefined;
+	if (!candidate) {
+		return false;
+	}
+
+	return typeof candidate.read === 'function';
+}
+
 /**
  * A interface that emulates the API shape of a node.js writeable
  * stream for use in native and web environments.

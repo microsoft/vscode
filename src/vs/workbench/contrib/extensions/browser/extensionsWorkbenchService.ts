@@ -14,10 +14,10 @@ import { IPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
-	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult,
+	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult,
 	IExtensionsControlManifest, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -153,11 +153,11 @@ class Extension implements IExtension {
 	}
 
 	private get galleryIconUrl(): string | null {
-		return this.gallery ? this.gallery.assets.icon.uri : null;
+		return this.gallery?.assets.icon ? this.gallery.assets.icon.uri : null;
 	}
 
 	private get galleryIconUrlFallback(): string | null {
-		return this.gallery ? this.gallery.assets.icon.fallbackUri : null;
+		return this.gallery?.assets.icon ? this.gallery.assets.icon.fallbackUri : null;
 	}
 
 	private get defaultIconUrl(): string {

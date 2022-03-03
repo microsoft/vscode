@@ -2089,14 +2089,14 @@
 	},
 	{
 		"c": "require",
-		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js support.function.js",
+		"t": "text.html.derivative meta.embedded.block.html source.js meta.function-call.js entity.name.function.js",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "meta.embedded: #D4D4D4",
 			"light_vs": "meta.embedded: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{

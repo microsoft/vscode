@@ -52,7 +52,8 @@ suite('parseServerConnectionToken', () => {
 		assertIsError(await parseServerConnectionToken({ 'connection-token-file': '0', 'connection-token': '0' } as ServerParsedArgs, async () => 'defaultTokenValue'));
 	});
 
-	test('--connection-token-file', async () => {
+	test('--connection-token-file', async function () {
+		this.timeout(10000);
 		const testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'server-connection-token');
 		fs.mkdirSync(testDir, { recursive: true });
 		const filename = path.join(testDir, 'connection-token-file');

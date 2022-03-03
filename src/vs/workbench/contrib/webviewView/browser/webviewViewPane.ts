@@ -6,6 +6,7 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { generateUuid } from 'vs/base/common/uuid';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -160,16 +161,13 @@ export class WebviewViewPane extends ViewPane {
 
 		this._activated = true;
 
-		const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
+		const webviewId = generateUuid();
 		const webview = this.webviewService.createWebviewOverlay(
 			webviewId,
 			{ purpose: WebviewContentPurpose.WebviewView },
 			{},
 			this.extensionId ? { id: this.extensionId } : undefined
 		);
-		webview.state = this.viewState[storageKeys.webviewState];
-		this._webview.value = webview;
-
 		webview.state = this.viewState[storageKeys.webviewState];
 		this._webview.value = webview;
 

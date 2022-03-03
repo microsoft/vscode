@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/window/common/window';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { isUntitledWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
+import { isSavedWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
@@ -94,7 +94,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && configuration.scheme === schemeFilter && !isUntitledWorkspace(configuration, this.environmentService)) {
+			if (configuration && configuration.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService)) {
 				defaultWorkspacePath = resources.dirname(configuration) || undefined;
 			}
 		}

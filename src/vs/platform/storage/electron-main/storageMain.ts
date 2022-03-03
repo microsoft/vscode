@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
-import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint, StorageState } from 'vs/base/parts/storage/common/storage';
 import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
@@ -107,6 +107,8 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private readonly whenInitPromise = new DeferredPromise<void>();
 	readonly whenInit = this.whenInitPromise.p;
 
+	private state = StorageState.None;
+
 	constructor(
 		protected readonly logService: ILogService
 	) {
@@ -116,6 +118,10 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	init(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
+				if (this.state !== StorageState.None) {
+					return; // either closed or already initialized
+				}
+
 				try {
 
 					// Create storage via subclasses
@@ -143,6 +149,11 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 				} catch (error) {
 					this.logService.error(`StorageMain#initialize(): Unable to init storage due to ${error}`);
 				} finally {
+
+					// Update state
+					this.state = StorageState.Initialized;
+
+					// Mark init promise as completed
 					this.whenInitPromise.complete();
 				}
 			})();
@@ -184,11 +195,14 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 		// Ensure we are not accidentally leaving
 		// a pending initialized storage behind in
-		// case close() was called before init()
-		// finishes
+		// case `close()` was called before `init()`
+		// finishes.
 		if (this.initializePromise) {
 			await this.initializePromise;
 		}
+
+		// Update state
+		this.state = StorageState.Closed;
 
 		// Propagate to storage lib
 		await this._storage.close();
@@ -314,12 +328,5 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 				this.logService.error(`StorageMain#ensureWorkspaceStorageFolderMeta(): Unable to create workspace storage metadata due to ${error}`);
 			}
 		}
-	}
-}
-
-export class InMemoryStorageMain extends BaseStorageMain {
-
-	protected async doCreate(): Promise<IStorage> {
-		return new Storage(new InMemoryStorageDatabase());
 	}
 }

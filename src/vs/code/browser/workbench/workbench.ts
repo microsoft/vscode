@@ -375,7 +375,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				return true;
 			} else {
 				let result;
-				if (isStandalone) {
+				if (isStandalone()) {
 					result = window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
 				} else {
 					result = window.open(targetHref);

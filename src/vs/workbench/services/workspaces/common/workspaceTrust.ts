@@ -15,7 +15,7 @@ import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/rem
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { isVirtualResource } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isUntitledWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { ISingleFolderWorkspaceIdentifier, isSavedWorkspace, isSingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse, IWorkspaceTrustEnablementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -268,7 +268,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		let canonicalWorkspaceConfiguration = this.workspaceService.getWorkspace().configuration;
-		if (canonicalWorkspaceConfiguration && !isUntitledWorkspace(canonicalWorkspaceConfiguration, this.environmentService)) {
+		if (canonicalWorkspaceConfiguration && isSavedWorkspace(canonicalWorkspaceConfiguration, this.environmentService)) {
 			canonicalWorkspaceConfiguration = await this.getCanonicalUri(canonicalWorkspaceConfiguration);
 		}
 
@@ -319,7 +319,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private getWorkspaceUris(): URI[] {
 		const workspaceUris = this._canonicalWorkspace.folders.map(f => f.uri);
 		const workspaceConfiguration = this._canonicalWorkspace.configuration;
-		if (workspaceConfiguration && !isUntitledWorkspace(workspaceConfiguration, this.environmentService)) {
+		if (workspaceConfiguration && isSavedWorkspace(workspaceConfiguration, this.environmentService)) {
 			workspaceUris.push(workspaceConfiguration);
 		}
 

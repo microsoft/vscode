@@ -170,9 +170,10 @@ export class VariablesView extends ViewPane {
 				horizontalScrolling = undefined;
 			}
 		}));
-		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(e => {
+		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable) {
-				this.tree.updateChildren(e, false, true);
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
 			}
 		}));
 		this._register(this.debugService.onDidEndSession(() => {

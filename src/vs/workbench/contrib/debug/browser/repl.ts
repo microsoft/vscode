@@ -151,9 +151,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(async session => this.onDidFocusSession(session)));
-		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(e => {
+		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable && this.tree.hasNode(e)) {
-				this.tree.updateChildren(e, false, true);
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
 			}
 		}));
 		this._register(this.debugService.onWillNewSession(async newSession => {

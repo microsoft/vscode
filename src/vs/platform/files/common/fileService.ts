@@ -369,9 +369,9 @@ export class FileService extends Disposable implements IFileService {
 			}
 
 			// optimization: if the provider has unbuffered write capability and the data
-			// to write is a Readable, we consume up to 3 chunks and try to write the data
-			// unbuffered to reduce the overhead. If the Readable has more data to provide
-			// we continue to write buffered.
+			// to write is not a buffer, we consume up to 3 chunks and try to write the data
+			// unbuffered to reduce the overhead. If the stream or readable has more data
+			// to provide we continue to write buffered.
 			let bufferOrReadableOrStreamOrBufferedStream: VSBuffer | VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream;
 			if (hasReadWriteCapability(provider) && !(bufferOrReadableOrStream instanceof VSBuffer)) {
 				if (isReadableStream(bufferOrReadableOrStream)) {

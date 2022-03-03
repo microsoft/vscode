@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IDiffEditor } from 'vs/editor/common/editorCommon';
+import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput, IBaseUntypedEditorInput } from 'vs/platform/editor/common/editor';
 import type { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInstantiationService, IConstructorSignature, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -1324,4 +1324,20 @@ export const enum EditorsOrder {
 	 * Editors sorted by sequential order
 	 */
 	SEQUENTIAL
+}
+
+export function isTextEditorViewState(candidate: unknown): candidate is IEditorViewState {
+	const viewState = candidate as IEditorViewState | undefined;
+	if (!viewState) {
+		return false;
+	}
+
+	const diffEditorViewState = viewState as IDiffEditorViewState;
+	if (diffEditorViewState.modified) {
+		return isTextEditorViewState(diffEditorViewState.modified);
+	}
+
+	const codeEditorViewState = viewState as ICodeEditorViewState;
+
+	return !!(codeEditorViewState.contributionsState && codeEditorViewState.viewState && Array.isArray(codeEditorViewState.cursorState));
 }

@@ -360,7 +360,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		async getSemanticTokens(document: TextDocument): Promise<SemanticTokenData[]> {
 			const jsDocument = jsDocuments.get(document);
 			const jsLanguageService = await host.getLanguageService(jsDocument);
-			return getSemanticTokens(jsLanguageService, jsDocument, jsDocument.uri);
+			return [...getSemanticTokens(jsLanguageService, jsDocument, jsDocument.uri)];
 		},
 		getSemanticTokenLegend(): { types: string[]; modifiers: string[] } {
 			return getSemanticTokenLegend();

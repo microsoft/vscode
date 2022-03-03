@@ -66,8 +66,8 @@ suite('HTML Semantic Tokens', () => {
 		];
 		await assertTokens(input, [
 			t(3, 6, 1, 'variable.declaration'), t(3, 13, 2, 'variable.declaration'), t(3, 19, 1, 'variable'),
-			t(5, 15, 1, 'variable.declaration.readonly'), t(5, 20, 2, 'variable'), t(5, 26, 1, 'variable'), t(5, 30, 1, 'variable.readonly'),
-			t(6, 11, 1, 'variable.declaration'),
+			t(5, 15, 1, 'variable.declaration.readonly.local'), t(5, 20, 2, 'variable'), t(5, 26, 1, 'variable'), t(5, 30, 1, 'variable.readonly.local'),
+			t(6, 11, 1, 'variable.declaration.local'),
 			t(7, 10, 2, 'variable')
 		]);
 	});
@@ -87,8 +87,8 @@ suite('HTML Semantic Tokens', () => {
 		];
 		await assertTokens(input, [
 			t(3, 11, 3, 'function.declaration'), t(3, 15, 2, 'parameter.declaration'),
-			t(4, 11, 3, 'function'), t(4, 15, 4, 'interface'), t(4, 20, 3, 'method'), t(4, 24, 2, 'parameter'),
-			t(6, 6, 6, 'variable'), t(6, 13, 8, 'property'), t(6, 24, 5, 'method'), t(6, 35, 7, 'method'), t(6, 43, 1, 'parameter.declaration'), t(6, 48, 3, 'function'), t(6, 52, 1, 'parameter')
+			t(4, 11, 3, 'function'), t(4, 15, 4, 'variable.defaultLibrary'), t(4, 20, 3, 'method.defaultLibrary'), t(4, 24, 2, 'parameter'),
+			t(6, 6, 6, 'variable.defaultLibrary'), t(6, 13, 8, 'property.defaultLibrary'), t(6, 24, 5, 'method.defaultLibrary'), t(6, 35, 7, 'method.defaultLibrary'), t(6, 43, 1, 'parameter.declaration'), t(6, 48, 3, 'function'), t(6, 52, 1, 'parameter')
 		]);
 	});
 
@@ -135,8 +135,8 @@ suite('HTML Semantic Tokens', () => {
 		];
 		await assertTokens(input, [
 			t(3, 12, 8, 'interface.declaration'), t(3, 23, 1, 'property.declaration'), t(3, 34, 1, 'property.declaration'),
-			t(4, 8, 1, 'variable.declaration.readonly'), t(4, 30, 8, 'interface'),
-			t(5, 8, 3, 'variable.declaration.readonly'), t(5, 15, 1, 'parameter.declaration'), t(5, 18, 8, 'interface'), t(5, 31, 1, 'parameter'), t(5, 33, 1, 'property'), t(5, 37, 1, 'parameter'), t(5, 39, 1, 'property')
+			t(4, 8, 1, 'variable.declaration.readonly'), t(4, 14, 1, 'property.declaration'), t(4, 20, 1, 'property.declaration'), t(4, 30, 8, 'interface'),
+			t(5, 8, 3, 'function.declaration.readonly'), t(5, 15, 1, 'parameter.declaration'), t(5, 18, 8, 'interface'), t(5, 31, 1, 'parameter'), t(5, 33, 1, 'property'), t(5, 37, 1, 'parameter'), t(5, 39, 1, 'property')
 		]);
 	});
 
@@ -155,9 +155,9 @@ suite('HTML Semantic Tokens', () => {
 		];
 		await assertTokens(input, [
 			t(3, 8, 1, 'variable.declaration.readonly'),
-			t(4, 8, 1, 'class.declaration'), t(4, 28, 1, 'property.declaration.static.readonly'), t(4, 42, 3, 'property.declaration.static'), t(4, 47, 3, 'interface'),
-			t(5, 13, 1, 'enum.declaration'), t(5, 17, 1, 'property.declaration.readonly'), t(5, 24, 1, 'property.declaration.readonly'), t(5, 28, 1, 'property.readonly'),
-			t(6, 2, 7, 'variable'), t(6, 10, 3, 'method'), t(6, 14, 1, 'variable.readonly'), t(6, 18, 1, 'class'), t(6, 20, 1, 'property.static.readonly'), t(6, 24, 1, 'class'), t(6, 26, 3, 'property.static'), t(6, 30, 6, 'property.readonly'),
+			t(4, 8, 1, 'class.declaration'), t(4, 28, 1, 'property.declaration.static.readonly'), t(4, 42, 3, 'property.declaration.static'), t(4, 47, 3, 'interface.defaultLibrary'),
+			t(5, 13, 1, 'enum.declaration'), t(5, 17, 1, 'enumMember.declaration.readonly'), t(5, 24, 1, 'enumMember.declaration.readonly'), t(5, 28, 1, 'enumMember.readonly'),
+			t(6, 2, 7, 'variable.defaultLibrary'), t(6, 10, 3, 'method.defaultLibrary'), t(6, 14, 1, 'variable.readonly'), t(6, 18, 1, 'class'), t(6, 20, 1, 'property.static.readonly'), t(6, 24, 1, 'class'), t(6, 26, 3, 'property.static'), t(6, 30, 6, 'property.readonly.defaultLibrary'),
 		]);
 	});
 
@@ -176,9 +176,9 @@ suite('HTML Semantic Tokens', () => {
 			/*9*/'</html>',
 		];
 		await assertTokens(input, [
-			t(3, 7, 5, 'type.declaration'), t(3, 15, 3, 'interface') /* to investiagte */,
+			t(3, 7, 5, 'type.declaration'), t(3, 15, 3, 'interface.defaultLibrary') /* to investiagte */,
 			t(4, 11, 1, 'function.declaration'), t(4, 13, 1, 'typeParameter.declaration'), t(4, 23, 5, 'type'), t(4, 30, 1, 'parameter.declaration'), t(4, 33, 1, 'typeParameter'), t(4, 47, 1, 'typeParameter'),
-			t(5, 12, 1, 'typeParameter'), t(5, 29, 3, 'interface'), t(5, 41, 5, 'type'),
+			t(5, 12, 1, 'typeParameter'), t(5, 29, 3, 'class.defaultLibrary'), t(5, 41, 5, 'type'),
 		]);
 	});
 
@@ -197,7 +197,7 @@ suite('HTML Semantic Tokens', () => {
 		];
 		await assertTokens(input, [
 			t(3, 11, 1, 'function.declaration'), t(3, 13, 1, 'typeParameter.declaration'), t(3, 16, 2, 'parameter.declaration'), t(3, 20, 1, 'typeParameter'), t(3, 24, 1, 'typeParameter'), t(3, 39, 2, 'parameter'),
-			t(6, 2, 6, 'variable'), t(6, 9, 5, 'method')
+			t(6, 2, 6, 'variable.defaultLibrary'), t(6, 9, 5, 'method.defaultLibrary')
 		]);
 	});
 
@@ -215,11 +215,11 @@ suite('HTML Semantic Tokens', () => {
 			/*9*/'</html>',
 		];
 		await assertTokens(input, [
-			t(3, 2, 6, 'variable'), t(3, 9, 5, 'method')
+			t(3, 2, 6, 'variable.defaultLibrary'), t(3, 9, 5, 'method.defaultLibrary')
 		], [Range.create(Position.create(2, 0), Position.create(4, 0))]);
 
 		await assertTokens(input, [
-			t(6, 2, 6, 'variable'),
+			t(6, 2, 6, 'variable.defaultLibrary'),
 		], [Range.create(Position.create(6, 2), Position.create(6, 8))]);
 	});
 

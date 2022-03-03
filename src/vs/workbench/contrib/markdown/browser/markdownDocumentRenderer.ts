@@ -161,7 +161,7 @@ function sanitize(documentContent: string, allowUnknownProtocols: boolean): stri
 		for (const attr of ['href', 'src']) {
 			if (node.hasAttribute(attr)) {
 				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
+				if (!allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
 					node.removeAttribute(attr);
 				}
 			}

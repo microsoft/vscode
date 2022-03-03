@@ -18,7 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IRequestResolveVariablesEvent, IShellLaunchConfigDto, ITerminalLaunchError, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TitleEventSource, ISerializedTerminalState, IPtyHostController, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -44,6 +44,7 @@ export interface ICreateTerminalProcessArguments {
 	activeWorkspaceFolder: IWorkspaceFolderData | null;
 	activeFileResource: UriComponents | undefined;
 	shouldPersistTerminal: boolean;
+	options: ITerminalProcessOptions;
 	cols: number;
 	rows: number;
 	unicodeVersion: '6' | '11';
@@ -114,7 +115,16 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 		return this._channel.call('$restartPtyHost', []);
 	}
 
-	async createProcess(shellLaunchConfig: IShellLaunchConfigDto, configuration: ICompleteTerminalConfiguration, activeWorkspaceRootUri: URI | undefined, shouldPersistTerminal: boolean, cols: number, rows: number, unicodeVersion: '6' | '11'): Promise<ICreateTerminalProcessResult> {
+	async createProcess(
+		shellLaunchConfig: IShellLaunchConfigDto,
+		configuration: ICompleteTerminalConfiguration,
+		activeWorkspaceRootUri: URI | undefined,
+		options: ITerminalProcessOptions,
+		shouldPersistTerminal: boolean,
+		cols: number,
+		rows: number,
+		unicodeVersion: '6' | '11'
+	): Promise<ICreateTerminalProcessResult> {
 		// Be sure to first wait for the remote configuration
 		await this._configurationService.whenRemoteConfigurationLoaded();
 
@@ -167,6 +177,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			activeWorkspaceFolder,
 			activeFileResource,
 			shouldPersistTerminal,
+			options,
 			cols,
 			rows,
 			unicodeVersion,

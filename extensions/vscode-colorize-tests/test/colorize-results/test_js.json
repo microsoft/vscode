@@ -145,14 +145,14 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js entity.name.function.js",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -301,14 +301,14 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js entity.name.function.js",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -457,14 +457,14 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js entity.name.function.js",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -613,14 +613,14 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js entity.name.function.js",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -769,14 +769,14 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js entity.name.function.js",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -1117,14 +1117,14 @@
 	},
 	{
 		"c": "require",
-		"t": "source.js meta.var.expr.js meta.function-call.js support.function.js",
+		"t": "source.js meta.var.expr.js meta.function-call.js entity.name.function.js",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{

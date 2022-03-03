@@ -168,9 +168,10 @@ export class DebugHoverWidget implements IContentWidget {
 			}
 		}));
 
-		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(e => {
+		this.toDispose.push(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable && this.tree.hasNode(e)) {
-				this.tree.updateChildren(e, false, true);
+				await this.tree.updateChildren(e, false, true);
+				await this.tree.expand(e);
 			}
 		}));
 	}

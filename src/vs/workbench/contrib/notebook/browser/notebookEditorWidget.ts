@@ -425,7 +425,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.markupFontSize || e.insertToolbarAlignment) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
-				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
+				this._webview?.updateOptions({
+					...this.notebookOptions.computeWebviewOptions(),
+					fontFamily: this._generateFontFamily()
+				});
 			}
 
 			if (this._dimension && this._isVisible) {
@@ -616,6 +619,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		DOM.append(parent, this._overflowContainer);
 	}
 
+	private _generateFontFamily() {
+		return this._fontInfo?.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
+	}
+
 	private _createLayoutStyles(): void {
 		this._styleElement = DOM.createStyleSheet(this._body);
 		const {
@@ -647,7 +654,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._generateFontInfo();
 		}
 
-		const fontFamily = this._fontInfo?.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
+		const fontFamily = this._generateFontFamily();
 
 		styleSheets.push(`
 		:root {
@@ -1098,7 +1105,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				|| oldBottomToolbarDimensions.bottomToolbarHeight !== newBottomToolbarDimensions.bottomToolbarHeight) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
-				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
+				this._webview?.updateOptions({
+					...this.notebookOptions.computeWebviewOptions(),
+					fontFamily: this._generateFontFamily()
+				});
 			}
 			type WorkbenchNotebookOpenClassification = {
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -1348,7 +1358,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			didDragMarkupCell: that._didDragMarkupCell.bind(that),
 			didDropMarkupCell: that._didDropMarkupCell.bind(that),
 			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that)
-		}, id, resource, this._notebookOptions.computeWebviewOptions(), this.notebookRendererMessaging.getScoped(this._uuid));
+		}, id, resource, {
+			...this._notebookOptions.computeWebviewOptions(),
+			fontFamily: this._generateFontFamily()
+		}, this.notebookRendererMessaging.getScoped(this._uuid));
 
 		this._webview.element.style.width = '100%';
 

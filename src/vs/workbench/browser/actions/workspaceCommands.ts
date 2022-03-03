@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { dirname, removeTrailingPathSeparator } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -69,7 +69,7 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: removeTrailingPathSeparator(folder) })));
+		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })));
 	}
 });
 
@@ -84,7 +84,7 @@ CommandsRegistry.registerCommand({
 			return;
 		}
 
-		await workspaceEditingService.updateFolders(0, contextService.getWorkspace().folders.length, folders.map(folder => ({ uri: removeTrailingPathSeparator(folder) })));
+		await workspaceEditingService.updateFolders(0, contextService.getWorkspace().folders.length, folders.map(folder => ({ uri: folder })));
 	}
 });
 

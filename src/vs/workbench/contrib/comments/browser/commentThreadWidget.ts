@@ -346,6 +346,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	async update(commentThread: languages.CommentThread) {
+		const isReplying = this._commentReplyComponent?.editor.hasTextFocus();
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 		this._threadIsEmpty.set(!newCommentsLen);
@@ -442,6 +443,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		this.setFocusedComment(this._focusedComment);
+		if (isReplying) {
+			this._commentReplyComponent?.editor.focus();
+		}
 	}
 
 	protected override _onWidth(widthInPixel: number): void {

@@ -961,7 +961,6 @@ function registerCloseEditorCommands() {
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-
 			};
 
 			type WorkbenchEditorReopenEvent = {

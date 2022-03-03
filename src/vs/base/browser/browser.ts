@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
@@ -124,7 +124,7 @@ class PixelRatioFacade {
 	private _pixelRatioMonitor: PixelRatioImpl | null = null;
 	private _getOrCreatePixelRatioMonitor(): PixelRatioImpl {
 		if (!this._pixelRatioMonitor) {
-			this._pixelRatioMonitor = new PixelRatioImpl();
+			this._pixelRatioMonitor = markAsSingleton(new PixelRatioImpl());
 		}
 		return this._pixelRatioMonitor;
 	}
@@ -142,6 +142,13 @@ class PixelRatioFacade {
 	public get onDidChange(): Event<number> {
 		return this._getOrCreatePixelRatioMonitor().onDidChange;
 	}
+}
+
+export function addMatchMediaChangeListener(query: string | MediaQueryList, callback: (this: MediaQueryList, ev: MediaQueryListEvent) => any): void {
+	if (typeof query === 'string') {
+		query = window.matchMedia(query);
+	}
+	query.addEventListener('change', callback);
 }
 
 /**
@@ -186,4 +193,15 @@ export const isSafari = (!isChrome && (userAgent.indexOf('Safari') >= 0));
 export const isWebkitWebView = (!isChrome && !isSafari && isWebKit);
 export const isElectron = (userAgent.indexOf('Electron/') >= 0);
 export const isAndroid = (userAgent.indexOf('Android') >= 0);
-export const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+let standalone = false;
+if (window.matchMedia) {
+	const matchMedia = window.matchMedia('(display-mode: standalone)');
+	standalone = matchMedia.matches;
+	addMatchMediaChangeListener(matchMedia, ({ matches }) => {
+		standalone = matches;
+	});
+}
+export function isStandalone(): boolean {
+	return standalone;
+}

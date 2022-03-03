@@ -18,7 +18,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations, TestingDecorationService } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
