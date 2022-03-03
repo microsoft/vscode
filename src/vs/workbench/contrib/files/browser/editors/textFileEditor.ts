@@ -34,7 +34,6 @@ import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { defaultBinaryEditorSettingId } from 'vs/workbench/services/editor/common/editorResolverService';
 
 /**
  * An implementation of editor for file system resources.
@@ -213,7 +212,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 
-		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>(defaultBinaryEditorSettingId);
+		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.defaultBinaryEditor');
 		const groupToOpen = this.group ?? this.editorGroupService.activeGroup;
 		const editorOptions = {
 			...options,
