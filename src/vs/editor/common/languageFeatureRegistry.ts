@@ -26,7 +26,7 @@ function isExclusive(selector: LanguageSelector): boolean {
 	}
 }
 
-export interface NotebooTypeResolver {
+export interface NotebookTypeResolver {
 	(uri: URI): string | undefined;
 }
 
@@ -38,7 +38,7 @@ export class LanguageFeatureRegistry<T> {
 	private readonly _onDidChange = new Emitter<number>();
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(private readonly _notebookTypeResolver?: NotebooTypeResolver) { }
+	constructor(private readonly _notebookTypeResolver?: NotebookTypeResolver) { }
 
 	register(selector: LanguageSelector, provider: T): IDisposable {
 
