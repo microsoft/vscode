@@ -114,10 +114,6 @@ export class LanguageFeatureRegistry<T> {
 
 	private _orderedForEach(model: ITextModel, callback: (provider: Entry<T>) => any): void {
 
-		if (!model) {
-			return;
-		}
-
 		this._updateScores(model);
 
 		for (const entry of this._entries) {
