@@ -87,10 +87,7 @@ export class ResourceGlobMatcher extends Disposable {
 		}
 	}
 
-	matches(
-		resource: URI,
-		hasSibling?: (name: string) => boolean
-	): boolean {
+	matches(resource: URI): boolean {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 
 		let expressionForRoot: ParsedExpression | undefined;
@@ -111,6 +108,6 @@ export class ResourceGlobMatcher extends Disposable {
 			resourcePathToMatch = resource.fsPath; // TODO@isidor: support non-file URIs
 		}
 
-		return !!expressionForRoot && typeof resourcePathToMatch === 'string' && !!expressionForRoot(resourcePathToMatch, undefined, hasSibling);
+		return !!expressionForRoot && typeof resourcePathToMatch === 'string' && !!expressionForRoot(resourcePathToMatch);
 	}
 }

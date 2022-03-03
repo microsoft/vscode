@@ -29,9 +29,13 @@ export class SettingsDocument {
 			return this.provideFilesAssociationsCompletionItems(location, range);
 		}
 
-		// files.exclude, search.exclude, explorer.autoRevealExclude
-		if (location.path[0] === 'files.exclude' || location.path[0] === 'search.exclude' || location.path[0] === 'explorer.autoRevealExclude') {
+		// files.exclude, search.exclude
+		if (location.path[0] === 'files.exclude' || location.path[0] === 'search.exclude') {
 			return this.provideExcludeCompletionItems(location, range);
+		}
+		// explorer.autoRevealExclude doesn't support when conditions
+		if (location.path[0] === 'explorer.autoRevealExclude') {
+			return this.provideExcludeCompletionItems(location, range, false);
 		}
 
 		// files.defaultLanguage
@@ -118,7 +122,7 @@ export class SettingsDocument {
 		return Promise.resolve(completions);
 	}
 
-	private provideExcludeCompletionItems(location: Location, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideExcludeCompletionItems(location: Location, range: vscode.Range, suggestWhenConditions = true): vscode.ProviderResult<vscode.CompletionItem[]> {
 		const completions: vscode.CompletionItem[] = [];
 
 		// Key
@@ -137,12 +141,14 @@ export class SettingsDocument {
 				range
 			}));
 
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('derivedLabel', "Files with Siblings by Name"),
-				documentation: localize('derivedDescription', "Match files that have siblings with the same name but a different extension."),
-				snippet: location.isAtPropertyKey ? '"**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" }' : '{ "**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" } }',
-				range
-			}));
+			if (suggestWhenConditions) {
+				completions.push(this.newSnippetCompletionItem({
+					label: localize('derivedLabel', "Files with Siblings by Name"),
+					documentation: localize('derivedDescription', "Match files that have siblings with the same name but a different extension."),
+					snippet: location.isAtPropertyKey ? '"**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" }' : '{ "**/*.${1:source-extension}": { "when": "$(basename).${2:target-extension}" } }',
+					range
+				}));
+			}
 
 			completions.push(this.newSnippetCompletionItem({
 				label: localize('topFolderLabel', "Folder by Name (Top Level)"),
@@ -170,13 +176,14 @@ export class SettingsDocument {
 		else {
 			completions.push(this.newSimpleCompletionItem('false', range, localize('falseDescription', "Disable the pattern.")));
 			completions.push(this.newSimpleCompletionItem('true', range, localize('trueDescription', "Enable the pattern.")));
-
-			completions.push(this.newSnippetCompletionItem({
-				label: localize('derivedLabel', "Files with Siblings by Name"),
-				documentation: localize('siblingsDescription', "Match files that have siblings with the same name but a different extension."),
-				snippet: '{ "when": "$(basename).${1:extension}" }',
-				range
-			}));
+			if (suggestWhenConditions) {
+				completions.push(this.newSnippetCompletionItem({
+					label: localize('derivedLabel', "Files with Siblings by Name"),
+					documentation: localize('siblingsDescription', "Match files that have siblings with the same name but a different extension."),
+					snippet: '{ "when": "$(basename).${1:extension}" }',
+					range
+				}));
+			}
 		}
 
 		return Promise.resolve(completions);

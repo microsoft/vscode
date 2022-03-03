@@ -88,6 +88,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		};
 		autoReveal: boolean | 'focusNoScroll';
 		autoRevealExclude: IExpression;
+		enableAutoRevealExcludes: boolean;
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		enableUndo: boolean;

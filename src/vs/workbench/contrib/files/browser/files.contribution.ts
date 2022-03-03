@@ -358,27 +358,17 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.autoRevealExclude': {
 			'type': 'object',
-			'markdownDescription': nls.localize('autoRevealExclude', "Configure glob patterns for excluding files and folders from being revealed and selected in the explorer when they are opened. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
-			'default': { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
+			'markdownDescription': nls.localize('autoRevealExclude', "Configure glob patterns for excluding files and folders from being revealed and selected in the explorer when they are opened. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options). Note that `when` conditions are not supported for this setting."),
+			'default': {},
 			'additionalProperties': {
-				'anyOf': [
-					{
-						'type': 'boolean',
-						'description': nls.localize('explorer.autoRevealExclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
-					},
-					{
-						type: 'object',
-						properties: {
-							when: {
-								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
-								pattern: '\\w*\\$\\(basename\\)\\w*',
-								default: '$(basename).ext',
-								description: nls.localize('explorer.autoRevealExclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
-							}
-						}
-					}
-				]
+				'type': 'boolean',
+				'description': nls.localize('explorer.autoRevealExclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
 			}
+		},
+		'explorer.enableAutoRevealExcludes': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('enableAutoRevealExcludes', "When enabled, files that match the `#explorer.autoRevealExclude#` setting will not be revealed when they are opened."),
+			'default': false,
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',

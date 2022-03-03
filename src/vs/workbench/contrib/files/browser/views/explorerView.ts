@@ -59,6 +59,9 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
 import { ResourceMap } from 'vs/base/common/map';
+import { IExpression } from 'vs/base/common/glob';
+import { mixin, deepClone } from 'vs/base/common/objects';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -167,6 +170,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private dragHandler!: DelayedDragHandler;
 	private autoReveal: boolean | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
+	private revealExcludeMatcher: ResourceGlobMatcher;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -211,6 +215,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
 
 		this.explorerService.registerView(this);
+
+		this.revealExcludeMatcher = this._register(new ResourceGlobMatcher(
+			(uri) => getRevealExcludes(configurationService.getValue<IFilesConfiguration>({ resource: uri })),
+			(event) => event.affectsConfiguration('explorer.autoRevealExclude'),
+			contextService, configurationService));
 	}
 
 	get name(): string {
@@ -364,7 +373,14 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 					// No action needed, active file is already focused and selected
 					return;
 				}
-				this.explorerService.select(activeFile, reveal);
+
+				const shouldReveal = this.configurationService.getValue<IFilesConfiguration>({ resource: activeFile }).explorer.enableAutoRevealExcludes
+					? !this.revealExcludeMatcher.matches(activeFile)
+					: true;
+
+				if (shouldReveal) {
+					this.explorerService.select(activeFile, reveal);
+				}
 			}
 		}
 	}
@@ -992,3 +1008,24 @@ registerAction2(class extends Action2 {
 		explorerView.collapseAll();
 	}
 });
+
+
+function getRevealExcludes(configuration: IFilesConfiguration): IExpression {
+	const fileExcludes = configuration && configuration.files && configuration.files.exclude;
+	const revealExcludes = configuration && configuration.explorer && configuration.explorer.autoRevealExclude;
+
+	if (!fileExcludes && !revealExcludes) {
+		return {};
+	}
+
+	if (!fileExcludes || !revealExcludes) {
+		return fileExcludes || revealExcludes;
+	}
+
+	let allExcludes: IExpression = Object.create(null);
+	// clone the config as it could be frozen
+	allExcludes = mixin(allExcludes, deepClone(fileExcludes));
+	allExcludes = mixin(allExcludes, deepClone(revealExcludes), true);
+
+	return allExcludes;
+}
