@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * This module contains utility functions related to the environment, cwd and paths.
+ */
+
 import * as path from 'vs/base/common/path';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -11,12 +15,6 @@ import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { format } from 'vs/base/common/strings';
-
-/**
- * This module contains utility functions related to the environment, cwd and paths.
- */
 
 export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {
@@ -400,136 +398,4 @@ export function createTerminalEnvironment(
 		addTerminalEnvironmentKeys(env, version, locale, detectLocale);
 	}
 	return env;
-}
-export enum ShellIntegrationExecutable {
-	WindowsPwsh = 'windows-pwsh',
-	WindowsPwshLogin = 'windows-pwsh-login',
-	Pwsh = 'pwsh',
-	PwshLogin = 'pwsh-login',
-	Zsh = 'zsh',
-	ZshLogin = 'zsh-login',
-	Bash = 'bash'
-}
-
-export const shellIntegrationArgs: Map<ShellIntegrationExecutable, string[]> = new Map();
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwsh, ['-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.WindowsPwshLogin, ['-l', '-noexit', ' -command', '. \"${execInstallFolder}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1\"{0}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Pwsh, ['-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"{0}']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.PwshLogin, ['-l', '-noexit', '-command', '. "${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1"']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Zsh, ['-i']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.ZshLogin, ['-il']);
-shellIntegrationArgs.set(ShellIntegrationExecutable.Bash, ['--init-file', '${execInstallFolder}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh']);
-const loginArgs = ['-login', '-l'];
-const pwshImpliedArgs = ['-nol', '-nologo'];
-export function injectShellIntegrationArgs(
-	logService: ILogService,
-	configurationService: IConfigurationService,
-	env: IProcessEnvironment,
-	enableShellIntegration: boolean,
-	shellLaunchConfig: IShellLaunchConfig,
-	os?: OperatingSystem
-): { args: string | string[] | undefined; enableShellIntegration: boolean } {
-	// Shell integration arg injection is disabled when:
-	// - The global setting is disabled
-	// - There is no executable (not sure what script to run)
-	// - The terminal is used by a feature like tasks or debugging
-	if (!enableShellIntegration || !shellLaunchConfig.executable || shellLaunchConfig.isFeatureTerminal) {
-		return { args: shellLaunchConfig.args, enableShellIntegration: false };
-	}
-
-	const originalArgs = shellLaunchConfig.args;
-	const shell = path.basename(shellLaunchConfig.executable).toLowerCase();
-	let newArgs: string[] | undefined;
-
-	if (os === OperatingSystem.Windows) {
-		if (shell === 'pwsh.exe') {
-			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
-			} else if (arePwshLoginArgs(originalArgs)) {
-				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwshLogin);
-			} else {
-				logService.warn(`Shell integration cannot be enabled when custom args ${originalArgs} are provided for ${shell} on Windows.`);
-			}
-		}
-		if (newArgs) {
-			const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
-			const additionalArgs = showWelcome ? '' : ' -HideWelcome';
-			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], additionalArgs);
-		}
-	} else {
-		switch (shell) {
-			case 'bash': {
-				if (!originalArgs || originalArgs.length === 0) {
-					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-				} else if (areZshBashLoginArgs(originalArgs)) {
-					env['VSCODE_SHELL_LOGIN'] = '1';
-					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
-				}
-				const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
-				if (!showWelcome) {
-					env['VSCODE_SHELL_HIDE_WELCOME'] = '1';
-				}
-				break;
-			}
-			case 'pwsh': {
-				if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
-					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Pwsh);
-				} else if (arePwshLoginArgs(originalArgs)) {
-					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.PwshLogin);
-				}
-				if (newArgs) {
-					const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
-					const additionalArgs = showWelcome ? '' : ' -HideWelcome';
-					newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
-					newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], additionalArgs);
-				}
-				break;
-			}
-			case 'zsh': {
-				if (!originalArgs || originalArgs.length === 0) {
-					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh);
-				} else if (areZshBashLoginArgs(originalArgs)) {
-					newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin);
-				} else if (originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.Zsh) || originalArgs === shellIntegrationArgs.get(ShellIntegrationExecutable.ZshLogin)) {
-					newArgs = originalArgs;
-				}
-				// Set _ZDOTDIR which will defer setting ZDOTDIR to the pty host
-				env['_ZDOTDIR'] = '1';
-				const showWelcome = configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome);
-				if (!showWelcome) {
-					env['VSCODE_SHELL_HIDE_WELCOME'] = '1';
-				}
-				break;
-			}
-		}
-		if (!newArgs) {
-			logService.warn(`Shell integration cannot be enabled when custom args ${originalArgs} are provided for ${shell}.`);
-		}
-	}
-	return { args: newArgs || originalArgs, enableShellIntegration: newArgs !== undefined };
-}
-
-function arePwshLoginArgs(originalArgs: string | string[]): boolean {
-	if (typeof originalArgs === 'string') {
-		return loginArgs.includes(originalArgs.toLowerCase());
-	} else {
-		return originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase()) ||
-			(originalArgs.length === 2 &&
-				(((loginArgs.includes(originalArgs[0].toLowerCase())) || loginArgs.includes(originalArgs[1].toLowerCase())))
-				&& ((pwshImpliedArgs.includes(originalArgs[0].toLowerCase())) || pwshImpliedArgs.includes(originalArgs[1].toLowerCase())));
-	}
-}
-
-function arePwshImpliedArgs(originalArgs: string | string[]): boolean {
-	if (typeof originalArgs === 'string') {
-		return pwshImpliedArgs.includes(originalArgs.toLowerCase());
-	} else {
-		return originalArgs.length === 0 || originalArgs?.length === 1 && pwshImpliedArgs.includes(originalArgs[0].toLowerCase());
-	}
-}
-
-function areZshBashLoginArgs(originalArgs: string | string[]): boolean {
-	return originalArgs === 'string' && loginArgs.includes(originalArgs.toLowerCase())
-		|| typeof originalArgs !== 'string' && originalArgs.length === 1 && loginArgs.includes(originalArgs[0].toLowerCase());
 }
