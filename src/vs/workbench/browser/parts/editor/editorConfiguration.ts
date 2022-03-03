@@ -130,11 +130,11 @@ export class DefaultBinaryEditorConfiguration extends Disposable implements IWor
 		this.configurationNode = {
 			...workbenchConfigurationNodeBase,
 			properties: {
-				'workbench.defaultBinaryEditor': {
+				'workbench.editor.defaultBinaryEditor': {
 					type: 'string',
 					// This allows for intellisense autocompletion
 					enum: editorIds,
-					description: localize('workbench.defaultBinaryEditor', "The default editor for files detected as binary. If undefined the user will be presented with a picker."),
+					description: localize('workbench.editor.defaultBinaryEditor', "The default editor for files detected as binary. If undefined the user will be presented with a picker."),
 				}
 			}
 		};

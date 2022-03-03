@@ -212,7 +212,7 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 
-		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.defaultBinaryEditor');
+		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.editor.defaultBinaryEditor');
 		const groupToOpen = this.group ?? this.editorGroupService.activeGroup;
 		const editorOptions = {
 			...options,
