@@ -110,6 +110,18 @@ export class TerminalViewPane extends ViewPane {
 				this._terminalTabbedView?.rerenderTabs();
 			}
 		}));
+		configurationService.onDidChangeConfiguration(e => {
+			if ((e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) && !configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) ||
+				(e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled) && !configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled))) {
+				this._parentDomElement?.classList.remove('shell-integration');
+			} else if (configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled) && configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)) {
+				this._parentDomElement?.classList.add('shell-integration');
+			}
+		});
+
+		if (configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled) && configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled)) {
+			this._parentDomElement?.classList.add('shell-integration');
+		}
 	}
 
 	override renderBody(container: HTMLElement): void {
