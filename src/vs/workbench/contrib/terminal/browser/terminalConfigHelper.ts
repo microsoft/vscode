@@ -13,11 +13,10 @@ import { IBrowserTerminalConfigHelper, LinuxDistro } from 'vs/workbench/contrib/
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 
@@ -43,7 +42,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IProductService private readonly _productService: IProductService,
 	) {
@@ -154,7 +152,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	getFont(xtermCore?: XTermCore, excludeDimensions?: boolean): ITerminalFont {
+	getFont(xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
@@ -240,13 +238,6 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 						{
 							label: nls.localize('install', 'Install'),
 							run: () => {
-								/* __GDPR__
-								"terminalLaunchRecommendation:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-								}
-								*/
-								this._telemetryService.publicLog('terminalLaunchRecommendation:popup', { userReaction: 'install', extId });
 								this._instantiationService.createInstance(InstallRecommendedExtensionAction, extId).run();
 							}
 						}
@@ -254,14 +245,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 					{
 						sticky: true,
 						neverShowAgain: { id: 'terminalConfigHelper/launchRecommendationsIgnore', scope: NeverShowAgainScope.GLOBAL },
-						onCancel: () => {
-							/* __GDPR__
-								"terminalLaunchRecommendation:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							this._telemetryService.publicLog('terminalLaunchRecommendation:popup', { userReaction: 'cancelled' });
-						}
+						onCancel: () => { }
 					}
 				);
 			}

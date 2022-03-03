@@ -13,8 +13,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, args): {
 	viewType: string;
 	displayName: string;
-	options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; };
-	filenamePattern: (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
+	options: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata };
+	filenamePattern: (string | glob.IRelativePattern | { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern })[];
 }[] => {
 	const notebookService = accessor.get<INotebookService>(INotebookService);
 	const contentProviders = notebookService.getContributedNotebookTypes();
@@ -36,7 +36,7 @@ CommandsRegistry.registerCommand('_resolveNotebookContentProvider', (accessor, a
 			}
 
 			return null;
-		}).filter(pattern => pattern !== null) as (string | glob.IRelativePattern | { include: string | glob.IRelativePattern, exclude: string | glob.IRelativePattern; })[];
+		}).filter(pattern => pattern !== null) as (string | glob.IRelativePattern | { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern })[];
 
 		return {
 			viewType: provider.id,
@@ -69,6 +69,7 @@ CommandsRegistry.registerCommand('_resolveNotebookKernels', async (accessor, arg
 	return kernels.all.map(provider => ({
 		id: provider.id,
 		label: provider.label,
+		kind: provider.kind,
 		description: provider.description,
 		detail: provider.detail,
 		isPreferred: false, // todo@jrieken,@rebornix

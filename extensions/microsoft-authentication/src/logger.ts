@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 
-type LogLevel = 'Info' | 'Error';
+type LogLevel = 'Trace' | 'Info' | 'Error';
 
 class Log {
 	private output: vscode.OutputChannel;
@@ -22,6 +22,10 @@ class Log {
 			return data.message;
 		}
 		return data.toString();
+	}
+
+	public trace(message: string, data?: any): void {
+		this.logLevel('Trace', message, data);
 	}
 
 	public info(message: string, data?: any): void {

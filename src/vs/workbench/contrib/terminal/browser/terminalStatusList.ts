@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 /**
@@ -34,7 +36,7 @@ export interface ITerminalStatus {
 	 * An icon representing the status, if this is not specified it will not show up on the terminal
 	 * tab and will use the generic `info` icon when hovering.
 	 */
-	icon?: Codicon;
+	icon?: ThemeIcon;
 	/**
 	 * What to show for this status in the terminal's hover.
 	 */
@@ -141,23 +143,21 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 	}
 
 	private _applyAnimationSetting(status: ITerminalStatus): ITerminalStatus {
-		if (!status.icon?.id.endsWith('~spin') || this._configurationService.getValue(TerminalSettingId.TabsEnableAnimation)) {
+		if (!status.icon || ThemeIcon.getModifier(status.icon) !== 'spin' || this._configurationService.getValue(TerminalSettingId.TabsEnableAnimation)) {
 			return status;
 		}
-		let id = status.icon.id.split('~')[0];
+		let icon;
 		// Loading without animation is just a curved line that doesn't mean anything
-		if (id === 'loading') {
-			id = 'play';
-		}
-		const codicon = iconRegistry.get(id);
-		if (!codicon) {
-			return status;
+		if (status.icon.id === spinningLoading.id) {
+			icon = Codicon.play;
+		} else {
+			icon = ThemeIcon.modify(status.icon, undefined);
 		}
 		// Clone the status when changing the icon so that setting changes are applied without a
 		// reload being needed
 		return {
 			...status,
-			icon: codicon
+			icon
 		};
 	}
 }

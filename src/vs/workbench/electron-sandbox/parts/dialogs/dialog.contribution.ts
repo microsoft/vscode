@@ -48,7 +48,7 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 
 		this.model = (this.dialogService as DialogService).model;
 
-		this._register(this.model.onDidShowDialog(() => {
+		this._register(this.model.onWillShowDialog(() => {
 			if (!this.currentDialog) {
 				this.processDialogs();
 			}

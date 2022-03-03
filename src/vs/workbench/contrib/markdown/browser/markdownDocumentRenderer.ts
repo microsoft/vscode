@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
-import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const DEFAULT_MARKDOWN_STYLES = `
@@ -151,7 +150,7 @@ code > div {
 `;
 
 const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-function sanitize(documentContent: string): string {
+function sanitize(documentContent: string, allowUnknownProtocols: boolean): string {
 
 	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
@@ -159,10 +158,10 @@ function sanitize(documentContent: string): string {
 		const anchor = document.createElement('a');
 
 		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
+		for (const attr of ['href', 'src']) {
 			if (node.hasAttribute(attr)) {
 				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
+				if (!allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
 					node.removeAttribute(attr);
 				}
 			}
@@ -171,17 +170,20 @@ function sanitize(documentContent: string): string {
 
 	try {
 		return dompurify.sanitize(documentContent, {
-			ALLOWED_TAGS: [
-				'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
-				'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
-				'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
-				'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr', 'checkbox', 'checklist', 'vertically-centered'
-			],
-			ALLOWED_ATTR: [
-				'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
-				'width', 'height', 'align', 'x-dispatch',
-				'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
-			],
+			...{
+				ALLOWED_TAGS: [
+					'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
+					'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
+					'dd', 'kbd', 'q', 'samp', 'var', 'hr', 'ruby', 'rt', 'rp', 'li', 'tr', 'td', 'th', 's', 'strike', 'summary', 'details',
+					'caption', 'figure', 'figcaption', 'abbr', 'bdo', 'cite', 'dfn', 'mark', 'small', 'span', 'time', 'wbr', 'checkbox', 'checklist', 'vertically-centered'
+				],
+				ALLOWED_ATTR: [
+					'href', 'data-href', 'data-command', 'target', 'title', 'name', 'src', 'alt', 'class', 'id', 'role', 'tabindex', 'style', 'data-code',
+					'width', 'height', 'align', 'x-dispatch',
+					'required', 'checked', 'placeholder', 'when-checked', 'checked-on',
+				],
+			},
+			...(allowUnknownProtocols ? { ALLOW_UNKNOWN_PROTOCOLS: true } : {}),
 		});
 	} finally {
 		dompurify.removeHook('afterSanitizeAttributes');
@@ -196,22 +198,25 @@ function sanitize(documentContent: string): string {
 export async function renderMarkdownDocument(
 	text: string,
 	extensionService: IExtensionService,
-	modeService: IModeService,
+	languageService: ILanguageService,
 	shouldSanitize: boolean = true,
+	allowUnknownProtocols: boolean = false,
 ): Promise<string> {
 
-	const highlight = (code: string, lang: string, callback: ((error: any, code: string) => void) | undefined): any => {
+	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
 		if (!callback) {
 			return code;
 		}
+
+		if (typeof lang !== 'string') {
+			callback(null, `<code>${code}</code>`);
+			return '';
+		}
+
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			let support: ITokenizationSupport | undefined;
-			const languageId = modeService.getModeIdForLanguageName(lang);
-			if (languageId) {
-				modeService.triggerMode(languageId);
-				support = await TokenizationRegistry.getPromise(languageId) ?? undefined;
-			}
-			callback(null, `<code>${tokenizeToString(code, modeService.languageIdCodec, support)}</code>`);
+			const languageId = languageService.getLanguageIdByLanguageName(lang);
+			const html = await tokenizeToString(languageService, code, languageId);
+			callback(null, `<code>${html}</code>`);
 		});
 		return '';
 	};
@@ -220,7 +225,7 @@ export async function renderMarkdownDocument(
 		marked(text, { highlight }, (err, value) => err ? reject(err) : resolve(value));
 	}).then(raw => {
 		if (shouldSanitize) {
-			return sanitize(raw);
+			return sanitize(raw, allowUnknownProtocols);
 		} else {
 			return raw;
 		}

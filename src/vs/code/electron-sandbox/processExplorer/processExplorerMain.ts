@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet } from 'vs/base/browser/dom';
+import 'vs/css!./media/processExplorer';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
+import { localize } from 'vs/nls';
+import { $, append, createStyleSheet } from 'vs/base/browser/dom';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
@@ -13,8 +15,6 @@ import { ProcessItem } from 'vs/base/common/processes';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import 'vs/css!./media/processExplorer';
-import { localize } from 'vs/nls';
 import { IRemoteDiagnosticError, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
@@ -22,7 +22,7 @@ import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfig
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -115,7 +115,7 @@ class ProcessHeaderTreeRenderer implements ITreeRenderer<ProcessInformation, voi
 	}
 	renderElement(node: ITreeNode<ProcessInformation, void>, index: number, templateData: IProcessItemTemplateData, height: number | undefined): void {
 		templateData.name.textContent = localize('name', "Process Name");
-		templateData.CPU.textContent = localize('cpu', "CPU %");
+		templateData.CPU.textContent = localize('cpu', "CPU (%)");
 		templateData.PID.textContent = localize('pid', "PID");
 		templateData.memory.textContent = localize('memory', "Memory (MB)");
 
@@ -181,12 +181,14 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 			const windowTitle = this.mapPidToWindowTitle.get(element.pid);
 			name = windowTitle !== undefined ? `${name} (${this.mapPidToWindowTitle.get(element.pid)})` : name;
 		}
+		const pid = element.pid.toFixed(0);
 
 		templateData.name.textContent = name;
 		templateData.name.title = element.cmd;
 
 		templateData.CPU.textContent = element.load.toFixed(0);
-		templateData.PID.textContent = element.pid.toFixed(0);
+		templateData.PID.textContent = pid;
+		templateData.PID.parentElement!.id = `pid-${pid}`;
 
 		const memory = this.platform === 'win32' ? element.mem : (this.totalMem * (element.mem / 100));
 		templateData.memory.textContent = (memory / ByteSize.MB).toFixed(0);
@@ -199,7 +201,7 @@ class ProcessRenderer implements ITreeRenderer<ProcessItem, void, IProcessItemTe
 
 interface MachineProcessInformation {
 	name: string;
-	rootProcess: ProcessItem | IRemoteDiagnosticError
+	rootProcess: ProcessItem | IRemoteDiagnosticError;
 }
 
 interface ProcessInformation {
@@ -263,8 +265,6 @@ class ProcessExplorer {
 		this.lastRequestTime = Date.now();
 		ipcRenderer.send('vscode:windowsInfoRequest');
 		ipcRenderer.send('vscode:listProcesses');
-
-
 	}
 
 	private setEventHandlers(data: ProcessExplorerData): void {
@@ -450,9 +450,23 @@ class ProcessExplorer {
 		items.push({
 			label: localize('copy', "Copy"),
 			click: () => {
-				const row = document.getElementById(pid.toString());
-				if (row) {
-					this.nativeHostService.writeClipboardText(row.innerText);
+				// Collect the selected pids
+				const selectionPids = this.tree?.getSelection()?.map(e => {
+					if (!e || !('pid' in e)) {
+						return undefined;
+					}
+					return e.pid;
+				}).filter(e => !!e) as number[];
+				// If the selection does not contain the right clicked item, copy the right clicked
+				// item only.
+				if (!selectionPids?.includes(pid)) {
+					selectionPids.length = 0;
+					selectionPids.push(pid);
+				}
+				const rows = selectionPids?.map(e => document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+				if (rows) {
+					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
+					this.nativeHostService.writeClipboardText(text.join('\n'));
 				}
 			}
 		});
@@ -504,7 +518,7 @@ function createCodiconStyleSheet() {
 	const codiconStyleSheet = createStyleSheet();
 	codiconStyleSheet.id = 'codiconStyles';
 
-	const iconsStyleSheet = getIconsStyleSheet();
+	const iconsStyleSheet = getIconsStyleSheet(undefined);
 	function updateAll() {
 		codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 	}

@@ -256,7 +256,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 		// Target cannot be dirty if not writing into buffer
 		if (this.textFileService.isDirty(this.resource)) {
-			return Promise.reject(new Error(localize('errorKeybindingsFileDirty', "Unable to write because the keybindings configuration file is dirty. Please save it first and then try again.")));
+			return Promise.reject(new Error(localize('errorKeybindingsFileDirty', "Unable to write because the keybindings configuration file has unsaved changes. Please save it first and then try again.")));
 		}
 
 		return this.resolveModelReference()
@@ -286,7 +286,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			});
 	}
 
-	private parse(model: ITextModel): { result: IUserFriendlyKeybinding[], parseErrors: json.ParseError[] } {
+	private parse(model: ITextModel): { result: IUserFriendlyKeybinding[]; parseErrors: json.ParseError[] } {
 		const parseErrors: json.ParseError[] = [];
 		const result = json.parse(model.getValue(), parseErrors, { allowTrailingComma: true, allowEmptyContent: true });
 		return { result, parseErrors };

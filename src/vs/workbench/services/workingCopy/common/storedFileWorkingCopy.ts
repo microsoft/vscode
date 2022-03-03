@@ -430,7 +430,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		let size: number;
 		let etag: string;
 		try {
-			const metadata = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			const metadata = await this.fileService.stat(this.resource);
 			mtime = metadata.mtime;
 			ctime = metadata.ctime;
 			size = metadata.size;
@@ -593,7 +593,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
-			isSymbolicLink: false
+			isSymbolicLink: false,
+			children: undefined
 		});
 
 		// Update existing model if we had been resolved
@@ -764,7 +765,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		await this.doSave(options);
 		this.trace('[stored file working copy] save() - exit');
 
-		return true;
+		return this.hasState(StoredFileWorkingCopyState.SAVED);
 	}
 
 	private async doSave(options: IStoredFileWorkingCopySaveOptions): Promise<void> {
@@ -961,7 +962,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: IStoredFileWorkingCopySaveOptions): void {
-		this.logService.error(`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(true), this.typeId);
+		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error)(`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(true), this.typeId);
 
 		// Return early if the save() call was made asking to
 		// handle the save error itself.
@@ -1164,8 +1165,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		}
 	}
 
-	joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void> {
-		return this.saveSequentializer.pending ?? Promise.resolve();
+	async joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void> {
+		return this.saveSequentializer.pending;
 	}
 
 	//#endregion

@@ -7,12 +7,13 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ConfigurationChangedEvent, IComputedEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation } from 'vs/editor/common/model';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IDimension } from 'vs/editor/common/core/dimension';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -114,54 +115,6 @@ export interface IModelChangedEvent {
 	 * The `uri` of the new model or null.
 	 */
 	readonly newModelUrl: URI | null;
-}
-
-export interface IDimension {
-	width: number;
-	height: number;
-}
-
-/**
- * A change
- */
-export interface IChange {
-	readonly originalStartLineNumber: number;
-	readonly originalEndLineNumber: number;
-	readonly modifiedStartLineNumber: number;
-	readonly modifiedEndLineNumber: number;
-}
-/**
- * A character level change.
- */
-export interface ICharChange extends IChange {
-	readonly originalStartColumn: number;
-	readonly originalEndColumn: number;
-	readonly modifiedStartColumn: number;
-	readonly modifiedEndColumn: number;
-}
-/**
- * A line change
- */
-export interface ILineChange extends IChange {
-	readonly charChanges: ICharChange[] | undefined;
-}
-
-/**
- * @internal
- */
-export interface IConfiguration extends IDisposable {
-	onDidChangeFast(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
-	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
-
-	readonly options: IComputedEditorOptions;
-
-	setMaxLineNumber(maxLineNumber: number): void;
-	setViewLineCount(viewLineCount: number): void;
-	updateOptions(newOptions: Readonly<IEditorOptions>): void;
-	getRawOptions(): IEditorOptions;
-	observeReferenceElement(dimension?: IDimension): void;
-	updatePixelRatio(): void;
-	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 
 // --- view
@@ -341,8 +294,9 @@ export interface IEditor {
 	/**
 	 * Set the primary position of the cursor. This will remove any secondary cursors.
 	 * @param position New primary cursor's position
+	 * @param source Source of the call that caused the position
 	 */
-	setPosition(position: IPosition): void;
+	setPosition(position: IPosition, source?: string): void;
 
 	/**
 	 * Scroll vertically as necessary and reveal a line.
@@ -399,29 +353,35 @@ export interface IEditor {
 	/**
 	 * Set the primary selection of the editor. This will remove any secondary cursors.
 	 * @param selection The new selection
+	 * @param source Source of the call that caused the selection
 	 */
-	setSelection(selection: IRange): void;
+	setSelection(selection: IRange, source?: string): void;
 	/**
 	 * Set the primary selection of the editor. This will remove any secondary cursors.
 	 * @param selection The new selection
+	 * @param source Source of the call that caused the selection
 	 */
-	setSelection(selection: Range): void;
+	setSelection(selection: Range, source?: string): void;
 	/**
 	 * Set the primary selection of the editor. This will remove any secondary cursors.
 	 * @param selection The new selection
+	 * @param source Source of the call that caused the selection
 	 */
-	setSelection(selection: ISelection): void;
+	setSelection(selection: ISelection, source?: string): void;
 	/**
 	 * Set the primary selection of the editor. This will remove any secondary cursors.
 	 * @param selection The new selection
+	 * @param source Source of the call that caused the selection
 	 */
-	setSelection(selection: Selection): void;
+	setSelection(selection: Selection, source?: string): void;
 
 	/**
 	 * Set the selections for all the cursors of the editor.
 	 * Cursors will be removed or added, as necessary.
+	 * @param selections The new selection
+	 * @param source Source of the call that caused the selection
 	 */
-	setSelections(selections: readonly ISelection[]): void;
+	setSelections(selections: readonly ISelection[], source?: string): void;
 
 	/**
 	 * Scroll vertically as necessary and reveal lines.
@@ -618,10 +578,22 @@ export interface IThemeDecorationRenderOptions {
 
 	overviewRulerColor?: string | ThemeColor;
 
+	/**
+	 * @deprecated
+	 */
 	before?: IContentDecorationRenderOptions;
+	/**
+	 * @deprecated
+	 */
 	after?: IContentDecorationRenderOptions;
 
+	/**
+	 * @deprecated
+	 */
 	beforeInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
+	/**
+	 * @deprecated
+	 */
 	afterInjectedText?: IContentDecorationRenderOptions & { affectsLetterSpacing?: boolean };
 }
 
@@ -667,7 +639,13 @@ export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions 
  * @internal
  */
 export interface IThemeDecorationInstanceRenderOptions {
+	/**
+	 * @deprecated
+	 */
 	before?: IContentDecorationRenderOptions;
+	/**
+	 * @deprecated
+	 */
 	after?: IContentDecorationRenderOptions;
 }
 

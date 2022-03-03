@@ -10,13 +10,14 @@ import { Event } from 'vs/base/common/event';
 import { VIEW_PANE_ID, ISCMService, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorResourceAccessor } from 'vs/workbench/common/editor';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { stripIcons } from 'vs/base/common/iconLabels';
+import { Schemas } from 'vs/base/common/network';
 
 function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
@@ -188,6 +189,79 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.focusDisposable.dispose();
 		this.statusBarDisposable.dispose();
 		this.badgeDisposable.dispose();
+		this.disposables = dispose(this.disposables);
+		dispose(this.repositoryDisposables.values());
+		this.repositoryDisposables.clear();
+	}
+}
+
+export class SCMActiveResourceContextKeyController implements IWorkbenchContribution {
+
+	private activeResourceHasChangesContextKey: IContextKey<boolean>;
+	private activeResourceRepositoryContextKey: IContextKey<ISCMRepository | undefined>;
+	private disposables = new DisposableStore();
+	private repositoryDisposables = new Set<IDisposable>();
+
+	constructor(
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ISCMService private readonly scmService: ISCMService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+	) {
+		this.activeResourceHasChangesContextKey = contextKeyService.createKey('scmActiveResourceHasChanges', false);
+		this.activeResourceRepositoryContextKey = contextKeyService.createKey('scmActiveResourceRepository', undefined);
+
+		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+
+		for (const repository of this.scmService.repositories) {
+			this.onDidAddRepository(repository);
+		}
+
+		editorService.onDidActiveEditorChange(this.updateContextKey, this, this.disposables);
+	}
+
+	private onDidAddRepository(repository: ISCMRepository): void {
+		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
+		const changeDisposable = onDidChange(() => this.updateContextKey());
+
+		const onDidRemove = Event.filter(this.scmService.onDidRemoveRepository, e => e === repository);
+		const removeDisposable = onDidRemove(() => {
+			disposable.dispose();
+			this.repositoryDisposables.delete(disposable);
+			this.updateContextKey();
+		});
+
+		const disposable = combinedDisposable(changeDisposable, removeDisposable);
+		this.repositoryDisposables.add(disposable);
+	}
+
+	private updateContextKey(): void {
+		const activeResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
+
+		if (activeResource?.scheme === Schemas.file || activeResource?.scheme === Schemas.vscodeRemote) {
+			const activeResourceRepository = this.scmService.repositories
+				.find(r => r.provider.rootUri &&
+					this.uriIdentityService.extUri.isEqualOrParent(activeResource, r.provider.rootUri));
+
+			this.activeResourceRepositoryContextKey.set(activeResourceRepository);
+
+			for (const resourceGroup of activeResourceRepository?.provider.groups.elements ?? []) {
+				if (resourceGroup.elements
+					.some(scmResource =>
+						this.uriIdentityService.extUri.isEqual(activeResource, scmResource.sourceUri))) {
+					this.activeResourceHasChangesContextKey.set(true);
+					return;
+				}
+			}
+
+			this.activeResourceHasChangesContextKey.set(false);
+		} else {
+			this.activeResourceHasChangesContextKey.set(false);
+			this.activeResourceRepositoryContextKey.set(undefined);
+		}
+	}
+
+	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		dispose(this.repositoryDisposables.values());
 		this.repositoryDisposables.clear();

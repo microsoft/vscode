@@ -6,7 +6,7 @@
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -22,11 +22,10 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
-	update?: { mode?: string; };
+	update?: { mode?: string };
 	debug?: { console?: { wordWrap?: boolean } };
 	editor?: { accessibilitySupport?: 'on' | 'off' | 'auto' };
 	security?: { workspace?: { trust?: { enabled?: boolean } } };
-	files?: { legacyWatcher?: string, experimentalSandboxedFileService?: boolean };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -38,8 +37,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private updateMode: string | undefined;
 	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 	private workspaceTrustEnabled: boolean | undefined;
-	private legacyFileWatcher: string | undefined = undefined;
-	private experimentalSandboxedFileService: boolean | undefined = undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -99,18 +96,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 			// Workspace trust
 			if (typeof config?.security?.workspace?.trust?.enabled === 'boolean' && config.security?.workspace.trust.enabled !== this.workspaceTrustEnabled) {
 				this.workspaceTrustEnabled = config.security.workspace.trust.enabled;
-				changed = true;
-			}
-
-			// Legacy File Watcher
-			if (typeof config.files?.legacyWatcher === 'string' && config.files.legacyWatcher !== this.legacyFileWatcher) {
-				this.legacyFileWatcher = config.files.legacyWatcher;
-				changed = true;
-			}
-
-			// Experimental Sandboxed File Service
-			if (typeof config.files?.experimentalSandboxedFileService === 'boolean' && config.files.experimentalSandboxedFileService !== this.experimentalSandboxedFileService) {
-				this.experimentalSandboxedFileService = config.files.experimentalSandboxedFileService;
 				changed = true;
 			}
 		}

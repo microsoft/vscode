@@ -16,7 +16,7 @@ For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all te
 
     yarn test-browser --browser webkit --browser chromium
 
-Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit`, and (soon’ish) `firefox` (using playwright). This complements our electron-based unit test runner and adds more coverage of supported platforms. Notes:
+Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit`, and (soon'ish) `firefox` (using playwright). This complements our electron-based unit test runner and adds more coverage of supported platforms. Notes:
 
 - these tests are part of the continuous build, that means you might have test failures that only happen with webkit on _windows_ or _chromium_ on linux
 - you can run these tests locally via yarn `test-browser --browser chromium --browser webkit`

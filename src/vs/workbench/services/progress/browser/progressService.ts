@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService, IProgressOptions, IProgressStep, ProgressLocation, IProgress, Progress, IProgressCompositeOptions, IProgressNotificationOptions, IProgressRunner, IProgressIndicator, IProgressWindowOptions, IProgressDialogOptions } from 'vs/platform/progress/common/progress';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService, Severity, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
@@ -225,8 +225,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			// Create a promise that we can resolve as needed
 			// when the outside calls dispose on us
-			let promiseResolve: () => void;
-			const promise = new Promise<void>(resolve => promiseResolve = resolve);
+			const promise = new DeferredPromise<void>();
 
 			this.withWindowProgress({
 				location: ProgressLocation.Window,
@@ -249,16 +248,16 @@ export class ProgressService extends Disposable implements IProgressService {
 
 				// Continue to report progress as it happens
 				const onDidReportListener = progressStateModel.onDidReport(step => reportProgress(step));
-				promise.finally(() => onDidReportListener.dispose());
+				promise.p.finally(() => onDidReportListener.dispose());
 
 				// When the progress model gets disposed, we are done as well
-				Event.once(progressStateModel.onWillDispose)(() => promiseResolve());
+				Event.once(progressStateModel.onWillDispose)(() => promise.complete());
 
-				return promise;
+				return promise.p;
 			});
 
 			// Dispose means completing our promise
-			return toDisposable(() => promiseResolve());
+			return toDisposable(() => promise.complete());
 		};
 
 		const createNotification = (message: string, silent: boolean, increment?: number): INotificationHandle => {
@@ -409,7 +408,8 @@ export class ProgressService extends Disposable implements IProgressService {
 	private withPaneCompositeProgress<P extends Promise<R>, R = unknown>(paneCompositeId: string, viewContainerLocation: ViewContainerLocation, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
 
 		// show in viewlet
-		const promise = this.withCompositeProgress(this.paneCompositeService.getProgressIndicator(paneCompositeId, viewContainerLocation), task, options);
+		const progressIndicator = this.paneCompositeService.getProgressIndicator(paneCompositeId, viewContainerLocation);
+		const promise = progressIndicator ? this.withCompositeProgress(progressIndicator, task, options) : task({ report: () => { } });
 
 		// show on activity bar
 		if (viewContainerLocation === ViewContainerLocation.Sidebar) {
@@ -422,7 +422,8 @@ export class ProgressService extends Disposable implements IProgressService {
 	private withViewProgress<P extends Promise<R>, R = unknown>(viewId: string, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
 
 		// show in viewlet
-		const promise = this.withCompositeProgress(this.viewsService.getViewProgressIndicator(viewId), task, options);
+		const progressIndicator = this.viewsService.getViewProgressIndicator(viewId);
+		const promise = progressIndicator ? this.withCompositeProgress(progressIndicator, task, options) : task({ report: () => { } });
 
 		const location = this.viewDescriptorService.getViewLocationById(viewId);
 		if (location !== ViewContainerLocation.Sidebar) {
@@ -466,33 +467,55 @@ export class ProgressService extends Disposable implements IProgressService {
 		});
 	}
 
-	private withCompositeProgress<P extends Promise<R>, R = unknown>(progressIndicator: IProgressIndicator | undefined, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
-		let progressRunner: IProgressRunner | undefined = undefined;
+	private withCompositeProgress<P extends Promise<R>, R = unknown>(progressIndicator: IProgressIndicator, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
+		let discreteProgressRunner: IProgressRunner | undefined = undefined;
+
+		function updateProgress(stepOrTotal: IProgressStep | number | undefined): IProgressRunner | undefined {
+
+			// Figure out whether discrete progress applies
+			// by figuring out the "total" progress to show
+			// and the increment if any.
+			let total: number | undefined = undefined;
+			let increment: number | undefined = undefined;
+			if (typeof stepOrTotal !== 'undefined') {
+				if (typeof stepOrTotal === 'number') {
+					total = stepOrTotal;
+				} else if (typeof stepOrTotal.increment === 'number') {
+					total = stepOrTotal.total ?? 100; // always percentage based
+					increment = stepOrTotal.increment;
+				}
+			}
+
+			// Discrete
+			if (typeof total === 'number') {
+				if (!discreteProgressRunner) {
+					discreteProgressRunner = progressIndicator.show(total, options.delay);
+					promise.catch(() => undefined /* ignore */).finally(() => discreteProgressRunner?.done());
+				}
+
+				if (typeof increment === 'number') {
+					discreteProgressRunner.worked(increment);
+				}
+			}
+
+			// Infinite
+			else {
+				if (discreteProgressRunner) {
+					discreteProgressRunner.done();
+				}
+				progressIndicator.showWhile(promise, options.delay);
+			}
+
+			return discreteProgressRunner;
+		}
 
 		const promise = task({
 			report: progress => {
-				if (!progressRunner) {
-					return;
-				}
-
-				if (typeof progress.increment === 'number') {
-					progressRunner.worked(progress.increment);
-				}
-
-				if (typeof progress.total === 'number') {
-					progressRunner.total(progress.total);
-				}
+				updateProgress(progress);
 			}
 		});
 
-		if (progressIndicator) {
-			if (typeof options.total === 'number') {
-				progressRunner = progressIndicator.show(options.total, options.delay);
-				promise.catch(() => undefined /* ignore */).finally(() => progressRunner ? progressRunner.done() : undefined);
-			} else {
-				progressIndicator.showWhile(promise, options.delay);
-			}
-		}
+		updateProgress(options.total);
 
 		return promise;
 	}
@@ -513,7 +536,9 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		const createDialog = (message: string) => {
 			const buttons = options.buttons || [];
-			buttons.push(options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss"));
+			if (!options.sticky) {
+				buttons.push(options.cancellable ? localize('cancel', "Cancel") : localize('dismiss', "Dismiss"));
+			}
 
 			dialog = new Dialog(
 				this.layoutService.container,
@@ -523,6 +548,8 @@ export class ProgressService extends Disposable implements IProgressService {
 					type: 'pending',
 					detail: options.detail,
 					cancelId: buttons.length - 1,
+					disableCloseAction: options.sticky,
+					disableDefaultAction: options.sticky,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 						if (resolved?.commandId) {

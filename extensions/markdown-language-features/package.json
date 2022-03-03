@@ -5,7 +5,6 @@
   "version": "1.0.0",
   "icon": "icon.png",
   "publisher": "vscode",
-  "enableProposedApi": true,
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
@@ -47,7 +46,80 @@
         "displayName": "Markdown it renderer",
         "entrypoint": "./notebook-out/index.js",
         "mimeTypes": [
-          "text/markdown"
+          "text/markdown",
+          "text/latex",
+          "text/x-css",
+          "text/x-html",
+          "text/x-json",
+          "text/x-typescript",
+          "text/x-abap",
+          "text/x-apex",
+          "text/x-azcli",
+          "text/x-bat",
+          "text/x-cameligo",
+          "text/x-clojure",
+          "text/x-coffee",
+          "text/x-cpp",
+          "text/x-csharp",
+          "text/x-csp",
+          "text/x-css",
+          "text/x-dart",
+          "text/x-dockerfile",
+          "text/x-ecl",
+          "text/x-fsharp",
+          "text/x-go",
+          "text/x-graphql",
+          "text/x-handlebars",
+          "text/x-hcl",
+          "text/x-html",
+          "text/x-ini",
+          "text/x-java",
+          "text/x-javascript",
+          "text/x-julia",
+          "text/x-kotlin",
+          "text/x-less",
+          "text/x-lexon",
+          "text/x-lua",
+          "text/x-m3",
+          "text/x-markdown",
+          "text/x-mips",
+          "text/x-msdax",
+          "text/x-mysql",
+          "text/x-objective-c/objective",
+          "text/x-pascal",
+          "text/x-pascaligo",
+          "text/x-perl",
+          "text/x-pgsql",
+          "text/x-php",
+          "text/x-postiats",
+          "text/x-powerquery",
+          "text/x-powershell",
+          "text/x-pug",
+          "text/x-python",
+          "text/x-r",
+          "text/x-razor",
+          "text/x-redis",
+          "text/x-redshift",
+          "text/x-restructuredtext",
+          "text/x-ruby",
+          "text/x-rust",
+          "text/x-sb",
+          "text/x-scala",
+          "text/x-scheme",
+          "text/x-scss",
+          "text/x-shell",
+          "text/x-solidity",
+          "text/x-sophia",
+          "text/x-sql",
+          "text/x-st",
+          "text/x-swift",
+          "text/x-systemverilog",
+          "text/x-tcl",
+          "text/x-twig",
+          "text/x-typescript",
+          "text/x-vb",
+          "text/x-xml",
+          "text/x-yaml"
         ]
       }
     ],
@@ -99,7 +171,7 @@
       "editor/title": [
         {
           "command": "markdown.showPreviewToSide",
-          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "when": "editorLangId == markdown && !notebookEditorFocused && !hasCustomMarkdownPreview",
           "alt": "markdown.showPreview",
           "group": "navigation"
         },
@@ -127,14 +199,14 @@
       "explorer/context": [
         {
           "command": "markdown.showPreview",
-          "when": "resourceLangId == markdown",
+          "when": "resourceLangId == markdown && !hasCustomMarkdownPreview",
           "group": "navigation"
         }
       ],
       "editor/title/context": [
         {
           "command": "markdown.showPreview",
-          "when": "resourceLangId == markdown",
+          "when": "resourceLangId == markdown && !hasCustomMarkdownPreview",
           "group": "1_open"
         }
       ],
@@ -297,6 +369,12 @@
             "%configuration.markdown.links.openLocation.beside%"
           ]
         },
+        "markdown.suggest.paths.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.markdown.suggest.paths.enabled.description%",
+          "scope": "resource"
+        },
         "markdown.trace": {
           "type": "string",
           "enum": [
@@ -331,7 +409,7 @@
     "customEditors": [
       {
         "viewType": "vscode.markdown.preview.editor",
-        "displayName": "Markdown Preview (Experimental)",
+        "displayName": "Markdown Preview",
         "priority": "option",
         "selector": [
           {
@@ -354,9 +432,10 @@
   "dependencies": {
     "dompurify": "^2.3.3",
     "highlight.js": "^10.4.1",
-    "markdown-it": "^12.2.0",
+    "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
-    "vscode-extension-telemetry": "0.4.2",
+    "morphdom": "^2.6.1",
+    "@vscode/extension-telemetry": "0.4.6",
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {

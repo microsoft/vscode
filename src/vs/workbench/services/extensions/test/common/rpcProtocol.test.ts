@@ -47,7 +47,7 @@ suite('RPCProtocol', () => {
 		let A = new RPCProtocol(a_protocol);
 		let B = new RPCProtocol(b_protocol);
 
-		const bIdentifier = new ProxyIdentifier<BClass>(false, 'bb');
+		const bIdentifier = new ProxyIdentifier<BClass>('bb');
 		const bInstance = new BClass();
 		B.set(bIdentifier, bInstance);
 		bProxy = A.getProxy(bIdentifier);
@@ -213,7 +213,7 @@ suite('RPCProtocol', () => {
 	});
 
 	test('SerializableObjectWithBuffers is correctly transfered', function (done) {
-		delegate = (a1: SerializableObjectWithBuffers<{ string: string, buff: VSBuffer }>, a2: number) => {
+		delegate = (a1: SerializableObjectWithBuffers<{ string: string; buff: VSBuffer }>, a2: number) => {
 			return new SerializableObjectWithBuffers({ string: a1.value.string + ' world', buff: a1.value.buff });
 		};
 

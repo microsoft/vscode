@@ -8,10 +8,10 @@ import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
-import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
 
@@ -77,13 +77,14 @@ export class PointerEventHandler extends MouseHandler {
 
 				leftButton: false,
 				middleButton: false,
+				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
 			});
 		}
 	}
 
 	private onChange(e: GestureEvent): void {
 		if (this._lastPointerType === 'touch') {
-			this._context.model.deltaScrollNow(-e.translationX, -e.translationY);
+			this._context.viewModel.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 		}
 	}
 
@@ -126,7 +127,7 @@ class TouchHandler extends MouseHandler {
 	}
 
 	private onChange(e: GestureEvent): void {
-		this._context.model.deltaScrollNow(-e.translationX, -e.translationY);
+		this._context.viewModel.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 	}
 }
 

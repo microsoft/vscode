@@ -5,15 +5,15 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import * as modes from 'vs/editor/common/modes';
+import * as languages from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
@@ -35,12 +35,15 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export class CommentNode extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
-	private _md: HTMLElement;
+	private _md: HTMLElement | undefined;
 	private _clearTimeout: any;
 
 	private _editAction: Action | null = null;
@@ -53,6 +56,8 @@ export class CommentNode extends Disposable {
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel | null = null;
 	private _isPendingLabel!: HTMLElement;
+	private _timestamp: HTMLElement | undefined;
+	private _timestampWidget: TimestampWidget | undefined;
 	private _contextKeyService: IContextKeyService;
 	private _commentContextValue: IContextKey<string>;
 
@@ -69,8 +74,8 @@ export class CommentNode extends Disposable {
 	public isEditing: boolean = false;
 
 	constructor(
-		private commentThread: modes.CommentThread,
-		public comment: modes.Comment,
+		private commentThread: languages.CommentThread,
+		public comment: languages.Comment,
 		private owner: string,
 		private resource: URI,
 		private parentEditor: ICodeEditor,
@@ -80,10 +85,11 @@ export class CommentNode extends Disposable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
 		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
+		@ILanguageService private languageService: ILanguageService,
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 
@@ -103,29 +109,62 @@ export class CommentNode extends Disposable {
 		this.createHeader(this._commentDetailsContainer);
 
 		this._body = dom.append(this._commentDetailsContainer, dom.$(`div.comment-body.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
-		this._md = this.markdownRenderer.render(comment.body).element;
-		this._body.appendChild(this._md);
+		this.updateCommentBody(this.comment.body);
 
 		if (this.comment.commentReactions && this.comment.commentReactions.length && this.comment.commentReactions.filter(reaction => !!reaction.count).length) {
 			this.createReactionsContainer(this._commentDetailsContainer);
 		}
 
-		this._domNode.setAttribute('aria-label', `${comment.userName}, ${comment.body.value}`);
+		this._domNode.setAttribute('aria-label', `${comment.userName}, ${this.commentBodyValue}`);
 		this._domNode.setAttribute('role', 'treeitem');
 		this._clearTimeout = null;
 
 		this._register(dom.addDisposableListener(this._domNode, dom.EventType.CLICK, () => this.isEditing || this._onDidClick.fire(this)));
 	}
 
+	private updateCommentBody(body: string | IMarkdownString) {
+		this._body.innerText = '';
+		this._md = undefined;
+		if (typeof body === 'string') {
+			this._body.innerText = body;
+		} else {
+			this._md = this.markdownRenderer.render(body).element;
+			this._body.appendChild(this._md);
+		}
+	}
+
 	public get onDidClick(): Event<CommentNode> {
 		return this._onDidClick.event;
+	}
+
+	private createTimestamp(container: HTMLElement) {
+		this._timestamp = dom.append(container, dom.$('span.timestamp-container'));
+		this.updateTimestamp(this.comment.timestamp);
+	}
+
+	private updateTimestamp(raw?: string) {
+		if (!this._timestamp) {
+			return;
+		}
+
+		const timestamp = raw !== undefined ? new Date(raw) : undefined;
+		if (!timestamp) {
+			this._timestampWidget?.dispose();
+		} else {
+			if (!this._timestampWidget) {
+				this._timestampWidget = new TimestampWidget(this.configurationService, this._timestamp, timestamp);
+				this._register(this._timestampWidget);
+			} else {
+				this._timestampWidget.setTimestamp(timestamp);
+			}
+		}
 	}
 
 	private createHeader(commentDetailsContainer: HTMLElement): void {
 		const header = dom.append(commentDetailsContainer, dom.$(`div.comment-title.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
-
+		this.createTimestamp(header);
 		this._isPendingLabel = dom.append(header, dom.$('span.isPending'));
 
 		if (this.comment.label) {
@@ -138,7 +177,7 @@ export class CommentNode extends Disposable {
 		this.createActionsToolbar();
 	}
 
-	private getToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[] } {
+	private getToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {
 		const contributedActions = menu.getActions({ shouldForwardArgs: true });
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -230,7 +269,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	private createReactionPicker(reactionGroup: modes.CommentReaction[]): ToggleReactionsAction {
+	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
 		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
@@ -330,14 +369,18 @@ export class CommentNode extends Disposable {
 		}
 	}
 
+	get commentBodyValue(): string {
+		return (typeof this.comment.body === 'string') ? this.comment.body : this.comment.body.value;
+	}
+
 	private createCommentEditor(editContainer: HTMLElement): void {
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
 		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentEditor, this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
-		this._commentEditorModel = this.modelService.createModel('', this.modeService.createByFilepathOrFirstLine(resource), resource, false);
+		this._commentEditorModel = this.modelService.createModel('', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 
 		this._commentEditor.setModel(this._commentEditorModel);
-		this._commentEditor.setValue(this.comment.body.value);
+		this._commentEditor.setValue(this.commentBodyValue);
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
 		this._commentEditor.focus();
 
@@ -353,14 +396,14 @@ export class CommentNode extends Disposable {
 		let commentThread = this.commentThread;
 		commentThread.input = {
 			uri: this._commentEditor.getModel()!.uri,
-			value: this.comment.body.value
+			value: this.commentBodyValue
 		};
 		this.commentService.setActiveCommentThread(commentThread);
 
 		this._commentEditorDisposables.push(this._commentEditor.onDidFocusEditorWidget(() => {
 			commentThread.input = {
 				uri: this._commentEditor!.getModel()!.uri,
-				value: this.comment.body.value
+				value: this.commentBodyValue
 			};
 			this.commentService.setActiveCommentThread(commentThread);
 		}));
@@ -449,7 +492,7 @@ export class CommentNode extends Disposable {
 			this._actionsToolbarContainer.classList.remove('hidden');
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
-			if (this.comment.mode === modes.CommentMode.Editing) {
+			if (this.comment.mode === languages.CommentMode.Editing) {
 				this._commentEditor?.focus();
 			}
 		} else {
@@ -474,16 +517,14 @@ export class CommentNode extends Disposable {
 		}));
 	}
 
-	update(newComment: modes.Comment) {
+	update(newComment: languages.Comment) {
 
 		if (newComment.body !== this.comment.body) {
-			this._body.removeChild(this._md);
-			this._md = this.markdownRenderer.render(newComment.body).element;
-			this._body.appendChild(this._md);
+			this.updateCommentBody(newComment.body);
 		}
 
 		if (newComment.mode !== undefined && newComment.mode !== this.comment.mode) {
-			if (newComment.mode === modes.CommentMode.Editing) {
+			if (newComment.mode === languages.CommentMode.Editing) {
 				this.switchToEditMode();
 			} else {
 				this.removeCommentEditor();
@@ -516,6 +557,10 @@ export class CommentNode extends Disposable {
 		} else {
 			this._commentContextValue.reset();
 		}
+
+		if (this.comment.timestamp) {
+			this.updateTimestamp(this.comment.timestamp);
+		}
 	}
 
 	focus() {
@@ -529,7 +574,7 @@ export class CommentNode extends Disposable {
 	}
 }
 
-function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: [string, Array<MenuItemAction | SubmenuItemAction>][], target: IAction[] | { primary: IAction[]; secondary: IAction[] }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (useAlternativeActions) {

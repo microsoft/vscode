@@ -24,11 +24,9 @@ function rangesEqual(a: ICellRange[], b: ICellRange[]) {
 // Handle first, then we migrate to ICellRange competely
 // Challenge is List View talks about `element`, which needs extra work to convert to ICellRange as we support Folding and Cell Move
 export class NotebookCellSelectionCollection extends Disposable {
+
 	private readonly _onDidChangeSelection = this._register(new Emitter<string>());
 	get onDidChangeSelection(): Event<string> { return this._onDidChangeSelection.event; }
-	constructor() {
-		super();
-	}
 
 	private _primary: ICellRange | null = null;
 

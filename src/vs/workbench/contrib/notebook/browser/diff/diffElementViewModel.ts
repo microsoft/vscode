@@ -6,17 +6,17 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellDiffViewModelLayoutChangeEvent, DiffSide, DIFF_CELL_MARGIN, IDiffElementLayoutInfo } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
-import { CellLayoutState, IGenericCellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellLayoutState, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { hash } from 'vs/base/common/hash';
-import { format } from 'vs/base/common/jsonFormatter';
-import { applyEdits } from 'vs/base/common/jsonEdit';
-import { ICellOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { toFormattedString } from 'vs/base/common/jsonFormatter';
+import { ICellOutput, IOutputDto, IOutputItemDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { URI } from 'vs/base/common/uri';
 import { NotebookDiffEditorEventDispatcher, NotebookDiffViewEventType } from 'vs/workbench/contrib/notebook/browser/diff/eventDispatcher';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 
 export enum PropertyFoldingState {
 	Expanded,
@@ -36,7 +36,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	public outputFoldingState: PropertyFoldingState;
 	protected _layoutInfoEmitter = this._register(new Emitter<CellDiffViewModelLayoutChangeEvent>());
 	onDidLayoutChange = this._layoutInfoEmitter.event;
-	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean; }>());
+	protected _stateChangeEmitter = this._register(new Emitter<{ renderOutput: boolean }>());
 	onDidStateChange = this._stateChangeEmitter.event;
 	protected _layoutInfo!: IDiffElementLayoutInfo;
 
@@ -115,8 +115,8 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified',
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		readonly initData: {
-			metadataStatusHeight: number,
-			outputStatusHeight: number
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
 		}
 	) {
 		super();
@@ -243,7 +243,7 @@ export abstract class DiffElementViewModelBase extends Disposable {
 	}
 
 	private estimateEditorHeight(lineHeight: number | undefined = 20): number {
-		let hasScrolling = false;
+		const hasScrolling = false;
 		const verticalScrollbarHeight = hasScrolling ? 12 : 0; // take zoom level into account
 		// const editorPadding = this.viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		const lineCount = Math.max(this.original?.textModel.textBuffer.getLineCount() ?? 1, this.modified?.textModel.textBuffer.getLineCount() ?? 1);
@@ -274,8 +274,8 @@ export abstract class DiffElementViewModelBase extends Disposable {
 		this.editorEventDispatcher.emit([{ type: NotebookDiffViewEventType.CellLayoutChanged, source: this._layoutInfo }]);
 	}
 
-	abstract checkIfOutputsModified(): boolean;
-	abstract checkMetadataIfModified(): boolean;
+	abstract checkIfOutputsModified(): false | { reason: string | undefined };
+	abstract checkMetadataIfModified(): false | { reason: string | undefined };
 	abstract isOutputEmpty(): boolean;
 	abstract getRichOutputTotalHeight(): number;
 	abstract getCellByUri(cellUri: URI): IGenericCellViewModel;
@@ -338,8 +338,8 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 		type: 'unchanged' | 'modified',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
-			metadataStatusHeight: number,
-			outputStatusHeight: number
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
 		}
 	) {
 		super(
@@ -375,11 +375,28 @@ export class SideBySideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	checkIfOutputsModified() {
-		return !this.mainDocumentTextModel.transientOptions.transientOutputs && !outputsEqual(this.original?.outputs ?? [], this.modified?.outputs ?? []);
+		if (this.mainDocumentTextModel.transientOptions.transientOutputs) {
+			return false;
+		}
+
+		const ret = outputsEqual(this.original?.outputs ?? [], this.modified?.outputs ?? []);
+
+		if (ret === OutputComparison.Unchanged) {
+			return false;
+		}
+
+		return {
+			reason: ret === OutputComparison.Metadata ? 'Output metadata is changed' : undefined
+		};
 	}
 
-	checkMetadataIfModified(): boolean {
-		return hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormatedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+	checkMetadataIfModified() {
+		const modified = hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.original?.metadata || {}, this.original?.language)) !== hash(getFormattedMetadataJSON(this.mainDocumentTextModel, this.modified?.metadata ?? {}, this.modified?.language));
+		if (modified) {
+			return { reason: undefined };
+		} else {
+			return false;
+		}
 	}
 
 	updateOutputHeight(diffSide: DiffSide, index: number, height: number) {
@@ -472,8 +489,8 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		type: 'insert' | 'delete',
 		editorEventDispatcher: NotebookDiffEditorEventDispatcher,
 		initData: {
-			metadataStatusHeight: number,
-			outputStatusHeight: number
+			metadataStatusHeight: number;
+			outputStatusHeight: number;
 		}
 	) {
 		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData);
@@ -489,11 +506,11 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 
-	checkIfOutputsModified(): boolean {
+	checkIfOutputsModified(): false | { reason: string | undefined } {
 		return false;
 	}
 
-	checkMetadataIfModified(): boolean {
+	checkMetadataIfModified(): false | { reason: string | undefined } {
 		return false;
 	}
 
@@ -536,9 +553,15 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 }
 
+const enum OutputComparison {
+	Unchanged = 0,
+	Metadata = 1,
+	Other = 2
+}
+
 function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 	if (original.length !== modified.length) {
-		return false;
+		return OutputComparison.Other;
 	}
 
 	const len = original.length;
@@ -547,11 +570,11 @@ function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 		const b = modified[i];
 
 		if (hash(a.metadata) !== hash(b.metadata)) {
-			return false;
+			return OutputComparison.Metadata;
 		}
 
 		if (a.outputs.length !== b.outputs.length) {
-			return false;
+			return OutputComparison.Other;
 		}
 
 		for (let j = 0; j < a.outputs.length; j++) {
@@ -559,32 +582,32 @@ function outputsEqual(original: ICellOutput[], modified: ICellOutput[]) {
 			const bOutputItem = b.outputs[j];
 
 			if (aOutputItem.mime !== bOutputItem.mime) {
-				return false;
+				return OutputComparison.Other;
 			}
 
 			if (aOutputItem.data.buffer.length !== bOutputItem.data.buffer.length) {
-				return false;
+				return OutputComparison.Other;
 			}
 
 			for (let k = 0; k < aOutputItem.data.buffer.length; k++) {
 				if (aOutputItem.data.buffer[k] !== bOutputItem.data.buffer[k]) {
-					return false;
+					return OutputComparison.Other;
 				}
 			}
 		}
 	}
 
-	return true;
+	return OutputComparison.Unchanged;
 }
 
-export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
+export function getFormattedMetadataJSON(documentTextModel: NotebookTextModel, metadata: NotebookCellMetadata, language?: string) {
 	let filteredMetadata: { [key: string]: any } = {};
 
 	if (documentTextModel) {
 		const transientCellMetadata = documentTextModel.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(metadata)]);
-		for (let key of keys) {
+		for (const key of keys) {
 			if (!(transientCellMetadata[key as keyof NotebookCellMetadata])
 			) {
 				filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
@@ -594,13 +617,47 @@ export function getFormatedMetadataJSON(documentTextModel: NotebookTextModel, me
 		filteredMetadata = metadata;
 	}
 
-	const content = JSON.stringify({
+	const obj = {
 		language,
 		...filteredMetadata
-	});
+	};
 
-	const edits = format(content, undefined, {});
-	const metadataSource = applyEdits(content, edits);
+	const metadataSource = toFormattedString(obj, {});
 
 	return metadataSource;
+}
+
+export function getStreamOutputData(outputs: IOutputItemDto[]) {
+	if (!outputs.length) {
+		return null;
+	}
+
+	const first = outputs[0];
+	const mime = first.mime;
+	const sameStream = !outputs.find(op => op.mime !== mime);
+
+	if (sameStream) {
+		return outputs.map(opit => opit.data.toString()).join('');
+	} else {
+		return null;
+	}
+}
+
+export function getFormattedOutputJSON(outputs: IOutputDto[]) {
+	if (outputs.length === 1) {
+		const streamOutputData = getStreamOutputData(outputs[0].outputs);
+		if (streamOutputData) {
+			return streamOutputData;
+		}
+	}
+
+	return JSON.stringify(outputs.map(output => {
+		return ({
+			metadata: output.metadata,
+			outputItems: output.outputs.map(opit => ({
+				mimeType: opit.mime,
+				data: opit.data.toString()
+			}))
+		});
+	}), undefined, '\t');
 }

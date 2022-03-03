@@ -44,7 +44,7 @@ export enum ExperimentActionType {
 	ExtensionSearchResults = 'ExtensionSearchResults'
 }
 
-export type LocalizedPromptText = { [locale: string]: string; };
+export type LocalizedPromptText = { [locale: string]: string };
 
 export interface IExperimentActionPromptProperties {
 	promptText: string | LocalizedPromptText;
@@ -52,7 +52,7 @@ export interface IExperimentActionPromptProperties {
 }
 
 export interface IExperimentActionPromptCommand {
-	text: string | { [key: string]: string; };
+	text: string | { [key: string]: string };
 	externalLink?: string;
 	curatedExtensionsKey?: string;
 	curatedExtensionsList?: string[];
@@ -105,7 +105,7 @@ interface IRawExperiment {
 		newUser?: boolean;
 		displayLanguage?: string;
 		// Evaluates to true iff all the given user settings are deeply equal
-		userSetting?: { [key: string]: unknown; };
+		userSetting?: { [key: string]: unknown };
 		// Start the experiment if the number of activation events have happened over the last week:
 		activationEvent?: {
 			event: string | string[];
@@ -227,16 +227,17 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	protected async getExperiments(): Promise<IRawExperiment[] | null> {
-		if (!this.productService.experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
+		const experimentsUrl = this.configurationService.getValue<string>('_workbench.experimentsUrl') || this.productService.experimentsUrl;
+		if (!experimentsUrl || this.configurationService.getValue('workbench.enableExperiments') === false) {
 			return [];
 		}
 
 		try {
-			const context = await this.requestService.request({ type: 'GET', url: this.productService.experimentsUrl }, CancellationToken.None);
+			const context = await this.requestService.request({ type: 'GET', url: experimentsUrl }, CancellationToken.None);
 			if (context.res.statusCode !== 200) {
 				return null;
 			}
-			const result = await asJson<{ experiments?: IRawExperiment; }>(context);
+			const result = await asJson<{ experiments?: IRawExperiment }>(context);
 			return result && Array.isArray(result.experiments) ? result.experiments : [];
 		} catch (_e) {
 			// Bad request or invalid JSON
@@ -299,9 +300,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			const promises = rawExperiments.map(experiment => this.evaluateExperiment(experiment));
 			return Promise.all(promises).then(() => {
 				type ExperimentsClassification = {
-					experiments: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+					experiments: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				};
-				this.telemetryService.publicLog2<{ experiments: IExperiment[]; }, ExperimentsClassification>('experiments', { experiments: this._experiments });
+				this.telemetryService.publicLog2<{ experiments: string[] }, ExperimentsClassification>('experiments', { experiments: this._experiments.map(e => e.id) });
 			});
 		});
 	}

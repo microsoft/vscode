@@ -8,16 +8,30 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerProcess, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
-import { getDelayedChannel, IChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IOnDidTerminateSharedProcessWorkerProcess, ipcSharedProcessWorkerChannelName, ISharedProcessWorkerProcess, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
+import { IPCClient, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export const ISharedProcessWorkerWorkbenchService = createDecorator<ISharedProcessWorkerWorkbenchService>('sharedProcessWorkerWorkbenchService');
 
-export interface IWorkerChannel extends IDisposable {
-	channel: IChannel;
+export interface ISharedProcessWorker extends IDisposable {
+
+	/**
+	 * A IPC client to communicate to the worker process.
+	 */
+	client: IPCClient<string>;
+
+	/**
+	 * A promise that resolves to an object once the
+	 * worker process terminates, giving information
+	 * how the process terminated.
+	 *
+	 * This can be used to figure out whether the worker
+	 * should be restarted in case of an unexpected
+	 * termination.
+	 */
+	onDidTerminate: Promise<IOnDidTerminateSharedProcessWorkerProcess>;
 }
 
 export interface ISharedProcessWorkerWorkbenchService {
@@ -41,13 +55,12 @@ export interface ISharedProcessWorkerWorkbenchService {
 	 * window and the communication channel allows to dynamically update the processes
 	 * after the fact.
 	 *
-	 * @param process information around the process to fork
-	 * @param channelName the name of the channel the process will respond to
+	 * @param process information around the process to fork as worker
 	 *
-	 * @returns the worker channel to communicate with. Provides a `dispose` method that
+	 * @returns the worker IPC client to communicate with. Provides a `dispose` method that
 	 * allows to terminate the worker if needed.
 	 */
-	createWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string): IWorkerChannel;
+	createWorker(process: ISharedProcessWorkerProcess): Promise<ISharedProcessWorker>;
 }
 
 export class SharedProcessWorkerWorkbenchService extends Disposable implements ISharedProcessWorkerWorkbenchService {
@@ -71,21 +84,8 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 		super();
 	}
 
-	createWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string): IWorkerChannel {
-		const cts = new CancellationTokenSource();
-
-		return {
-			channel: getDelayedChannel(this.doCreateWorkerChannel(process, channelName, cts.token)),
-			dispose: () => cts.dispose(true)
-		};
-	}
-
-	private async doCreateWorkerChannel(process: ISharedProcessWorkerProcess, channelName: string, token: CancellationToken): Promise<IChannel> {
-		this.logService.trace('Renderer->SharedProcess#createWorkerChannel');
-
-		// Dispose when cancelled
-		const disposables = new DisposableStore();
-		token.onCancellationRequested(() => disposables.dispose());
+	async createWorker(process: ISharedProcessWorkerProcess): Promise<ISharedProcessWorker> {
+		this.logService.trace('Renderer->SharedProcess#createWorker');
 
 		// Get ready to acquire the message port from the shared process worker
 		const nonce = generateUuid();
@@ -94,12 +94,13 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 
 		// Actually talk with the shared process service
 		// to create a new process from a worker
-		this.sharedProcessWorkerService.createWorker({
+		const onDidTerminate = this.sharedProcessWorkerService.createWorker({
 			process,
 			reply: { windowId: this.windowId, channel: responseChannel, nonce }
 		});
 
 		// Dispose worker upon disposal via shared process service
+		const disposables = new DisposableStore();
 		disposables.add(toDisposable(() => {
 			this.logService.trace('Renderer->SharedProcess#disposeWorker', process);
 
@@ -110,11 +111,9 @@ export class SharedProcessWorkerWorkbenchService extends Disposable implements I
 		}));
 
 		const port = await portPromise;
-
+		const client = disposables.add(new MessagePortClient(port, `window:${this.windowId},module:${process.moduleId}`));
 		this.logService.trace('Renderer->SharedProcess#createWorkerChannel: connection established');
 
-		const client = disposables.add(new MessagePortClient(port, `window:${this.windowId},module:${process.moduleId}`));
-
-		return client.getChannel(channelName);
+		return { client, onDidTerminate, dispose: () => disposables.dispose() };
 	}
 }

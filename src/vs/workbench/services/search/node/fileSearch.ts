@@ -59,7 +59,7 @@ export class FileWalker {
 	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression | undefined;
 
-	private walkedPaths: { [path: string]: boolean; };
+	private walkedPaths: { [path: string]: boolean };
 
 	constructor(config: IFileQuery) {
 		this.config = config;
@@ -102,6 +102,7 @@ export class FileWalker {
 
 	cancel(): void {
 		this.isCanceled = true;
+		killCmds.forEach(cmd => cmd());
 	}
 
 	walk(folderQueries: IFolderQuery[], extraFiles: URI[], onResult: (result: IRawFileMatch) => void, onMessage: (message: IProgressMessage) => void, done: (error: Error | null, isLimitHit: boolean) => void): void {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { INativeOpenFileRequest } from 'vs/platform/window/common/window';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,7 +31,9 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		this._register(nativeHostService.onDidResumeOS(() => this._onOsResume()));
 
 		this._terminalService.setNativeDelegate({
-			getWindowCount: () => nativeHostService.getWindowCount()
+			getWindowCount: () => nativeHostService.getWindowCount(),
+			openDevTools: () => nativeHostService.openDevTools(),
+			toggleDevTools: () => nativeHostService.toggleDevTools()
 		});
 
 		const connection = remoteAgentService.getConnection();
@@ -41,7 +43,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	}
 
 	private _onOsResume(): void {
-		this._terminalService.instances.forEach(instance => instance.forceRedraw());
+		this._terminalService.instances.forEach(instance => instance.xterm?.forceRedraw());
 	}
 
 	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {

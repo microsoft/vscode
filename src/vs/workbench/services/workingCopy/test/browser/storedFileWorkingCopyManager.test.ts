@@ -148,6 +148,48 @@ suite('StoredFileWorkingCopyManager', () => {
 		assert.strictEqual(didResolve, true);
 	});
 
+	test('resolve (sync) - model disposed when error and first call to resolve', async () => {
+		const resource = URI.file('/path/index.txt');
+
+		accessor.fileService.readShouldThrowError = new FileOperationError('fail', FileOperationResult.FILE_OTHER_ERROR);
+
+		try {
+			let error: Error | undefined = undefined;
+			try {
+				await manager.resolve(resource);
+			} catch (e) {
+				error = e;
+			}
+
+			assert.ok(error);
+			assert.strictEqual(manager.workingCopies.length, 0);
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+	});
+
+	test('resolve (sync) - model not disposed when error and model existed before', async () => {
+		const resource = URI.file('/path/index.txt');
+
+		await manager.resolve(resource);
+
+		accessor.fileService.readShouldThrowError = new FileOperationError('fail', FileOperationResult.FILE_OTHER_ERROR);
+
+		try {
+			let error: Error | undefined = undefined;
+			try {
+				await manager.resolve(resource, { reload: { async: false } });
+			} catch (e) {
+				error = e;
+			}
+
+			assert.ok(error);
+			assert.strictEqual(manager.workingCopies.length, 1);
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+	});
+
 	test('resolve with initial contents', async () => {
 		const resource = URI.file('/test.html');
 

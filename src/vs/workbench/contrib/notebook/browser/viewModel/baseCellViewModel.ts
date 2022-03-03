@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, IReference } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -16,7 +17,9 @@ import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFocusMode, CellViewModelStateChangeEvent, CursorAtBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
+import { CellEditState, CellFocusMode, CursorAtBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -102,8 +105,10 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this._focusMode;
 	}
 	set focusMode(newMode: CellFocusMode) {
-		this._focusMode = newMode;
-		this._onDidChangeState.fire({ focusModeChanged: true });
+		if (this._focusMode !== newMode) {
+			this._focusMode = newMode;
+			this._onDidChangeState.fire({ focusModeChanged: true });
+		}
 	}
 
 	protected _textEditor?: ICodeEditor;
@@ -112,10 +117,11 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 	private _editorListeners: IDisposable[] = [];
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
+	private _editorTransientState: IWordWrapTransientState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
 
-	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }>());
-	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[], removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
+	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>());
+	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
 
 	private _resolvedDecorations = new Map<string, {
 		id?: string;
@@ -147,6 +153,24 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	protected _textModelRef: IReference<IResolvedTextEditorModel> | undefined;
 
+	private _inputCollapsed: boolean = false;
+	get isInputCollapsed(): boolean {
+		return this._inputCollapsed;
+	}
+	set isInputCollapsed(v: boolean) {
+		this._inputCollapsed = v;
+		this._onDidChangeState.fire({ inputCollapsedChanged: true });
+	}
+
+	private _outputCollapsed: boolean = false;
+	get isOutputCollapsed(): boolean {
+		return this._outputCollapsed;
+	}
+	set isOutputCollapsed(v: boolean) {
+		this._outputCollapsed = v;
+		this._onDidChangeState.fire({ outputCollapsedChanged: true });
+	}
+
 	constructor(
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
@@ -155,6 +179,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		private readonly _configurationService: IConfigurationService,
 		private readonly _modelService: ITextModelService,
 		private readonly _undoRedoService: IUndoRedoService,
+		private readonly _codeEditorService: ICodeEditorService,
 		// private readonly _keymapService: INotebookKeymapService
 	) {
 		super();
@@ -164,8 +189,8 @@ export abstract class BaseCellViewModel extends Disposable {
 		}));
 
 		this._register(model.onDidChangeInternalMetadata(e => {
-			this._onDidChangeState.fire({ internalMetadataChanged: true, runStateChanged: e.runStateChanged });
-			if (e.runStateChanged || e.lastRunSuccessChanged) {
+			this._onDidChangeState.fire({ internalMetadataChanged: true });
+			if (e.lastRunSuccessChanged) {
 				// Statusbar visibility may change
 				this.layoutChange({});
 			}
@@ -176,6 +201,14 @@ export abstract class BaseCellViewModel extends Disposable {
 				this.lineNumbers = 'inherit';
 			}
 		}));
+
+		if (this.model.collapseState?.inputCollapsed) {
+			this._inputCollapsed = true;
+		}
+
+		if (this.model.collapseState?.outputCollapsed) {
+			this._outputCollapsed = true;
+		}
 	}
 
 
@@ -219,6 +252,10 @@ export abstract class BaseCellViewModel extends Disposable {
 			this._restoreViewState(this._editorViewStates);
 		}
 
+		if (this._editorTransientState) {
+			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
+		}
+
 		this._resolvedDecorations.forEach((value, key) => {
 			if (key.startsWith('_lazy_')) {
 				// lazy ones
@@ -239,6 +276,7 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	detachTextEditor() {
 		this.saveViewState();
+		this.saveTransientState();
 		// decorations need to be cleared first as editors can be resued.
 		this._resolvedDecorations.forEach(value => {
 			const resolvedid = value.id;
@@ -249,7 +287,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._textEditor = undefined;
-		this._editorListeners.forEach(e => e.dispose());
+		dispose(this._editorListeners);
 		this._editorListeners = [];
 		this._onDidChangeEditorAttachState.fire();
 
@@ -273,6 +311,14 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 
 		this._editorViewStates = this._textEditor.saveViewState();
+	}
+
+	private saveTransientState() {
+		if (!this._textEditor || !this._textEditor.hasModel()) {
+			return;
+		}
+
+		this._editorTransientState = readTransientState(this._textEditor.getModel(), this._codeEditorService);
 	}
 
 	saveEditorViewState() {
@@ -428,7 +474,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
@@ -437,7 +483,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
 		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
 	}
 
@@ -552,7 +598,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	override dispose() {
 		super.dispose();
 
-		this._editorListeners.forEach(e => e.dispose());
+		dispose(this._editorListeners);
 		this._undoRedoService.removeElements(this.uri);
 
 		if (this._textModelRef) {

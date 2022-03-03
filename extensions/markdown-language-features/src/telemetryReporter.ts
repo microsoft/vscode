@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as vscode from 'vscode';
-import { default as VSCodeTelemetryReporter } from 'vscode-extension-telemetry';
+import { default as VSCodeTelemetryReporter } from '@vscode/extension-telemetry';
 
 interface IPackageInfo {
 	name: string;

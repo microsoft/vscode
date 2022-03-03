@@ -10,11 +10,10 @@ import { getExpandedBodySize, getBreakpointMessageAndIcon } from 'vs/workbench/c
 import { dispose } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { IBreakpointData, IBreakpointUpdateData, State } from 'vs/workbench/contrib/debug/common/debug';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 
@@ -341,7 +340,6 @@ suite('Debug - Breakpoints', () => {
 		const languageId = 'testMode';
 		const textModel = createTextModel(
 			['this is line one', 'this is line two', '    this is line three it has whitespace at start', 'this is line four', 'this is line five'].join('\n'),
-			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageId
 		);
 		addBreakpointsAndCheckEvents(model, modelUri, [
@@ -358,7 +356,7 @@ suite('Debug - Breakpoints', () => {
 		assert.deepStrictEqual(decorations[1].range, new Range(2, 4, 2, 5));
 		assert.deepStrictEqual(decorations[2].range, new Range(3, 5, 3, 6));
 		assert.strictEqual(decorations[0].options.beforeContentClassName, undefined);
-		assert.strictEqual(decorations[1].options.beforeContentClassName, `debug-breakpoint-placeholder`);
+		assert.strictEqual(decorations[1].options.before?.inlineClassName, `debug-breakpoint-placeholder`);
 		assert.strictEqual(decorations[0].options.overviewRuler?.position, OverviewRulerLane.Left);
 		const expected = new MarkdownString().appendCodeblock(languageId, 'Expression condition: x > 5');
 		assert.deepStrictEqual(decorations[0].options.glyphMarginHoverMessage, expected);

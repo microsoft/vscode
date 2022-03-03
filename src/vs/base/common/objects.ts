@@ -190,7 +190,7 @@ export function getOrDefault<T, R>(obj: T, fn: (obj: T) => R | undefined, defaul
 	return typeof result === 'undefined' ? defaultValue : result;
 }
 
-type obj = { [key: string]: any; };
+type obj = { [key: string]: any };
 /**
  * Returns an object that has keys for each value that is different in the base object. Keys
  * that do not exist in the target but in the base object are not considered.
@@ -229,9 +229,9 @@ export function getCaseInsensitive(target: obj, key: string): any {
 
 export function filter(obj: obj, predicate: (key: string, value: any) => boolean): obj {
 	const result = Object.create(null);
-	for (const key of Object.keys(obj)) {
-		if (predicate(key, obj[key])) {
-			result[key] = obj[key];
+	for (const [key, value] of Object.entries(obj)) {
+		if (predicate(key, value)) {
+			result[key] = value;
 		}
 	}
 	return result;

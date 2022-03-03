@@ -14,12 +14,13 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { ConfiguredInput } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ITextModel } from 'vs/editor/common/model';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -27,8 +28,8 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 	constructor(
 		context: {
-			getAppRoot: () => string | undefined,
-			getExecPath: () => string | undefined
+			getAppRoot: () => string | undefined;
+			getExecPath: () => string | undefined;
 		},
 		envVariablesPromise: Promise<IProcessEnvironment>,
 		editorService: IEditorService,
@@ -82,12 +83,22 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 			},
 			getSelectedText: (): string | undefined => {
 				const activeTextEditorControl = editorService.activeTextEditorControl;
+
+				let activeModel: ITextModel | null = null;
 				if (isCodeEditor(activeTextEditorControl)) {
-					const editorModel = activeTextEditorControl.getModel();
-					const editorSelection = activeTextEditorControl.getSelection();
-					if (editorModel && editorSelection) {
-						return editorModel.getValueInRange(editorSelection);
+					activeModel = activeTextEditorControl.getModel();
+				}
+				if (isDiffEditor(activeTextEditorControl)) {
+					if (activeTextEditorControl.getOriginalEditor().hasTextFocus()) {
+						activeModel = activeTextEditorControl.getOriginalEditor().getModel();
+					} else {
+						activeModel = activeTextEditorControl.getModifiedEditor().getModel();
 					}
+				}
+
+				const activeSelection = activeTextEditorControl?.getSelection();
+				if (activeModel && activeSelection) {
+					return activeModel.getValueInRange(activeSelection);
 				}
 				return undefined;
 			},
@@ -102,7 +113,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return undefined;
 			}
-		}, labelService, envVariablesPromise);
+		}, labelService, pathService.userHome().then(home => home.path), envVariablesPromise);
 	}
 
 	public override async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
@@ -201,7 +212,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					result = await this.showUserInput(name, inputs);
 					break;
 
-				case 'command':
+				case 'command': {
 					// use the name as a command ID #12735
 					const commandId = (variableToCommandMap ? variableToCommandMap[name] : undefined) || name;
 					result = await this.commandService.executeCommand(commandId, configuration);
@@ -209,6 +220,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						throw new Error(nls.localize('commandVariable.noStringType', "Cannot substitute command variable '{0}' because command did not return a result of type string.", commandId));
 					}
 					break;
+				}
 				default:
 					// Try to resolve it as a contributed variable
 					if (this._contributedVariables.has(variable)) {

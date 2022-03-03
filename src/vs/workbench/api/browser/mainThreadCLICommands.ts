@@ -18,7 +18,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
@@ -31,8 +31,11 @@ CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: 
 	return openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
 });
 
-CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) {
+CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options: IOpenWindowOptions) {
 	const commandService = accessor.get(ICommandService);
+	if (!toOpen.length) {
+		return commandService.executeCommand('_files.newWindow', options);
+	}
 	return commandService.executeCommand('_files.windowOpen', toOpen, options);
 });
 
@@ -42,7 +45,7 @@ CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accesso
 });
 
 interface ManageExtensionsArgs {
-	list?: { showVersions?: boolean, category?: string; };
+	list?: { showVersions?: boolean; category?: string };
 	install?: (string | URI)[];
 	uninstall?: string[];
 	force?: boolean;
@@ -68,7 +71,7 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
 		if (Array.isArray(args.install) && args.install.length) {
 			try {
-				await cliService.installExtensions(revive(args.install), [], true, !!args.force, output);
+				await cliService.installExtensions(revive(args.install), [], { isMachineScoped: true }, !!args.force, output);
 			} catch (e) {
 				lines.push(e.message);
 			}

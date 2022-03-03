@@ -24,6 +24,8 @@
 	},
 	"include": [
 		"./typings",
-		"./vs"
+		"./vs",
+		"vscode-dts/vscode.proposed.*.d.ts",
+		"vscode-dts/vscode.d.ts"
 	]
 }

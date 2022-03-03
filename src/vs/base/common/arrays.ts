@@ -198,7 +198,7 @@ export function sortedDiff<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>,
  * Takes two *sorted* arrays and computes their delta (removed, added elements).
  * Finishes in `Math.min(before.length, after.length)` steps.
  */
-export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, compare: (a: T, b: T) => number): { removed: T[], added: T[] } {
+export function delta<T>(before: ReadonlyArray<T>, after: ReadonlyArray<T>, compare: (a: T, b: T) => number): { removed: T[]; added: T[] } {
 	const splices = sortedDiff(before, after, compare);
 	const removed: T[] = [];
 	const added: T[] = [];
@@ -254,7 +254,7 @@ export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: numb
 			const result = array.slice(0, n).sort(compare);
 			for (let i = n, m = Math.min(n + batch, o); i < o; i = m, m = Math.min(m + batch, o)) {
 				if (i > n) {
-					await new Promise(resolve => setTimeout(resolve)); // nextTick() would starve I/O.
+					await new Promise(resolve => setTimeout(resolve)); // any other delay function would starve I/O
 				}
 				if (token && token.isCancellationRequested) {
 					throw canceled();
@@ -300,7 +300,7 @@ export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
 }
 
 /**
- * Moves the element in the array for the provided positions.
+ * @deprecated Use `Array.copyWithin` instead
  */
 export function move(array: any[], from: number, to: number): void {
 	array.splice(to, 0, array.splice(from, 1)[0]);
@@ -339,17 +339,17 @@ export function distinct<T>(array: ReadonlyArray<T>, keyFn: (value: T) => any = 
 	});
 }
 
-export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
+	const seen = new Set<R>();
 
 	return element => {
 		const key = keyFn(element);
 
-		if (seen[key]) {
+		if (seen.has(key)) {
 			return false;
 		}
 
-		seen[key] = true;
+		seen.add(key);
 		return true;
 	};
 }
@@ -421,9 +421,9 @@ export function range(arg: number, to?: number): number[] {
 	return result;
 }
 
-export function index<T>(array: ReadonlyArray<T>, indexer: (t: T) => string): { [key: string]: T; };
-export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper: (t: T) => R): { [key: string]: R; };
-export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper?: (t: T) => R): { [key: string]: R; } {
+export function index<T>(array: ReadonlyArray<T>, indexer: (t: T) => string): { [key: string]: T };
+export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper: (t: T) => R): { [key: string]: R };
+export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, mapper?: (t: T) => R): { [key: string]: R } {
 	return array.reduce((r, t) => {
 		r[indexer(t)] = mapper ? mapper(t) : t;
 		return r;
@@ -592,37 +592,62 @@ function getActualStartIndex<T>(array: T[], start: number): number {
 }
 
 /**
- * Like Math.min with a delegate, and returns the winning index
- */
-export function minIndex<T>(array: readonly T[], fn: (value: T) => number): number {
-	let minValue = Number.MAX_SAFE_INTEGER;
-	let minIdx = 0;
-	array.forEach((value, i) => {
-		const thisValue = fn(value);
-		if (thisValue < minValue) {
-			minValue = thisValue;
-			minIdx = i;
-		}
-	});
+ * A comparator `c` defines a total order `<=` on `T` as following:
+ * `c(a, b) <= 0` iff `a` <= `b`.
+ * We also have `c(a, b) == 0` iff `c(b, a) == 0`.
+*/
+export type Comparator<T> = (a: T, b: T) => number;
 
-	return minIdx;
+export function compareBy<TItem, TCompareBy>(selector: (item: TItem) => TCompareBy, comparator: Comparator<TCompareBy>): Comparator<TItem> {
+	return (a, b) => comparator(selector(a), selector(b));
 }
 
 /**
- * Like Math.max with a delegate, and returns the winning index
- */
-export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): number {
-	let minValue = Number.MIN_SAFE_INTEGER;
-	let maxIdx = 0;
-	array.forEach((value, i) => {
-		const thisValue = fn(value);
-		if (thisValue > minValue) {
-			minValue = thisValue;
-			maxIdx = i;
-		}
-	});
+ * The natural order on numbers.
+*/
+export const numberComparator: Comparator<number> = (a, b) => a - b;
 
-	return maxIdx;
+/**
+ * Returns the first item that is equal to or greater than every other item.
+*/
+export function findMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
+	if (items.length === 0) {
+		return undefined;
+	}
+
+	let max = items[0];
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
+		if (comparator(item, max) > 0) {
+			max = item;
+		}
+	}
+	return max;
+}
+
+/**
+ * Returns the last item that is equal to or greater than every other item.
+*/
+export function findLastMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
+	if (items.length === 0) {
+		return undefined;
+	}
+
+	let max = items[0];
+	for (let i = 1; i < items.length; i++) {
+		const item = items[i];
+		if (comparator(item, max) >= 0) {
+			max = item;
+		}
+	}
+	return max;
+}
+
+/**
+ * Returns the first item that is equal to or less than every other item.
+*/
+export function findMinBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
+	return findMaxBy(items, (a, b) => -comparator(a, b));
 }
 
 export class ArrayQueue<T> {
@@ -675,5 +700,17 @@ export class ArrayQueue<T> {
 
 	peek(): T | undefined {
 		return this.items[this.firstIdx];
+	}
+
+	dequeue(): T | undefined {
+		const result = this.items[this.firstIdx];
+		this.firstIdx++;
+		return result;
+	}
+
+	takeCount(count: number): T[] {
+		const result = this.items.slice(this.firstIdx, this.firstIdx + count);
+		this.firstIdx += count;
+		return result;
 	}
 }

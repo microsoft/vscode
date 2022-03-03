@@ -17,7 +17,6 @@
   ],
   "main": "./client/out/node/cssClientMain",
   "browser": "./client/dist/browser/cssClientMain",
-  "enableProposedApi": true,
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
@@ -850,7 +849,7 @@
   "dependencies": {
     "vscode-languageclient": "^7.0.0",
     "vscode-nls": "^5.0.0",
-    "vscode-uri": "^3.0.2"
+    "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
     "@types/node": "14.x"

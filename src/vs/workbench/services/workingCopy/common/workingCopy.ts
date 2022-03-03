@@ -58,7 +58,7 @@ export interface IWorkingCopyBackupMeta {
 	[key: string]: unknown;
 
 	/**
-	 * `typeId` is a reverved property that cannot be used
+	 * `typeId` is a reserved property that cannot be used
 	 * as backup metadata.
 	 */
 	typeId?: never;

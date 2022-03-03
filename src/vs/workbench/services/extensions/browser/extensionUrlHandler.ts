@@ -82,7 +82,7 @@ export interface ExtensionUrlHandlerEvent {
 }
 
 export interface ExtensionUrlHandlerClassification extends GDPRClassification<ExtensionUrlHandlerEvent> {
-	readonly extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight'; };
+	readonly extensionId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 }
 
 /**
@@ -99,7 +99,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	readonly _serviceBrand: undefined;
 
 	private extensionHandlers = new Map<string, IURLHandler>();
-	private uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
+	private uriBuffer = new Map<string, { timestamp: number; uri: URI }[]>();
 	private userTrustedExtensionsStorage: UserTrustedExtensionIdStorage;
 	private disposable: IDisposable;
 
@@ -261,7 +261,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 
 			// Extension is disabled. Enable the extension and reload the window to handle.
 			else if (this.extensionEnablementService.canChangeEnablement(extension)) {
-				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/accept', { extensionId: extensionIdentifier.id });
+				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/start', { extensionId: extensionIdentifier.id });
 				const result = await this.dialogService.confirm({
 					message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and reload the window to open the URL?", extension.manifest.displayName || extension.manifest.name),
 					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
@@ -342,7 +342,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	// forget about all uris buffered more than 5 minutes ago
 	private garbageCollect(): void {
 		const now = new Date().getTime();
-		const uriBuffer = new Map<string, { timestamp: number, uri: URI }[]>();
+		const uriBuffer = new Map<string, { timestamp: number; uri: URI }[]>();
 
 		this.uriBuffer.forEach((uris, extensionId) => {
 			uris = uris.filter(({ timestamp }) => now - timestamp < FIVE_MINUTES);

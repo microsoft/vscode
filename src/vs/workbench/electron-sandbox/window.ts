@@ -8,29 +8,29 @@ import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
 import { EventType, EventHelper, addDisposableListener, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
-import { Separator } from 'vs/base/common/actions';
+import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
+import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { env } from 'vs/base/common/process';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { LifecyclePhase, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -46,7 +46,7 @@ import { Schemas } from 'vs/base/common/network';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
-import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
+import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/tunnel/common/tunnel';
 import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
@@ -61,6 +61,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class NativeWindow extends Disposable {
 
@@ -111,7 +113,8 @@ export class NativeWindow extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
+		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super();
 
@@ -155,11 +158,7 @@ export class NativeWindow extends Disposable {
 			try {
 				await this.commandService.executeCommand(request.id, ...args);
 
-				type CommandExecutedClassifcation = {
-					id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-					from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-				};
-				this.telemetryService.publicLog2<{ id: String, from: String }, CommandExecutedClassifcation>('commandExecuted', { id: request.id, from: request.from });
+				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: request.id, from: request.from });
 			} catch (error) {
 				this.notificationService.error(error);
 			}
@@ -203,7 +202,7 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
 
 		// Proxy Login Dialog
-		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
+		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
 			const rememberCredentials = this.storageService.getBoolean(NativeWindow.REMEMBER_PROXY_CREDENTIALS_KEY, StorageScope.GLOBAL);
 			const result = await this.dialogService.input(Severity.Warning, localize('proxyAuthRequired', "Proxy Authentication Required"),
 				[
@@ -264,7 +263,7 @@ export class NativeWindow extends Disposable {
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
 
 		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.environmentService.configuration.filesToWait;
+		const filesToWait = this.environmentService.filesToWait;
 		if (filesToWait) {
 			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}
@@ -311,11 +310,90 @@ export class NativeWindow extends Disposable {
 			Event.map(Event.filter(this.nativeHostService.onDidUnmaximizeWindow, id => id === this.nativeHostService.windowId), () => false)
 		)(e => this.onDidChangeWindowMaximized(e)));
 
-		this.onDidChangeWindowMaximized(this.environmentService.configuration.maximized ?? false);
+		this.onDidChangeWindowMaximized(this.environmentService.window.maximized ?? false);
 
 		// Detect panel position to determine minimum width
 		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
 		this.onDidChangePanelPosition(this.layoutService.getPanelPosition());
+
+		// Lifecycle
+		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
+		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
+		this._register(this.lifecycleService.onWillShutdown((e) => this.onWillShutdown(e)));
+	}
+
+	private onBeforeShutdown({ reason }: BeforeShutdownEvent): void {
+		this.progressService.withProgress({
+			location: ProgressLocation.Window, 	// use window progress to not be too annoying about this operation
+			delay: 800,							// delay so that it only appears when operation takes a long time
+			title: this.toShutdownLabel(reason, false),
+		}, () => {
+			return Event.toPromise(Event.any(
+				this.lifecycleService.onWillShutdown, 	// dismiss this dialog when we shutdown
+				this.lifecycleService.onShutdownVeto, 	// or when shutdown was vetoed
+				this.dialogService.onWillShowDialog		// or when a dialog asks for input
+			));
+		});
+	}
+
+	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
+		this.dialogService.show(Severity.Error, this.toShutdownLabel(reason, true), undefined, {
+			detail: localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error))
+		});
+	}
+
+	private onWillShutdown({ reason, force }: WillShutdownEvent): void {
+		this.progressService.withProgress({
+			location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
+			buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
+			delay: 800,										// delay so that it only appears when operation takes a long time
+			cancellable: false,								// do not allow to cancel
+			sticky: true,									// do not allow to dismiss
+			title: this.toShutdownLabel(reason, false)
+		}, () => {
+			return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
+		}, () => {
+			force();
+		});
+	}
+
+	private toShutdownLabel(reason: ShutdownReason, isError: boolean): string {
+		if (isError) {
+			switch (reason) {
+				case ShutdownReason.CLOSE:
+					return localize('shutdownErrorClose', "An unexpected error prevented the window to close");
+				case ShutdownReason.QUIT:
+					return localize('shutdownErrorQuit', "An unexpected error prevented the application to quit");
+				case ShutdownReason.RELOAD:
+					return localize('shutdownErrorReload', "An unexpected error prevented the window to reload");
+				case ShutdownReason.LOAD:
+					return localize('shutdownErrorLoad', "An unexpected error prevented to change the workspace");
+			}
+		}
+
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				return localize('shutdownTitleClose', "Closing the window is taking longer than expected...");
+			case ShutdownReason.QUIT:
+				return localize('shutdownTitleQuit', "Quitting the application is taking longer than expected...");
+			case ShutdownReason.RELOAD:
+				return localize('shutdownTitleReload', "Reloading the window is taking longer than expected...");
+			case ShutdownReason.LOAD:
+				return localize('shutdownTitleLoad', "Changing the workspace is taking longer than expected...");
+		}
+	}
+
+	private toForceShutdownLabel(reason: ShutdownReason): string {
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				return localize('shutdownForceClose', "Close Anyway");
+			case ShutdownReason.QUIT:
+				return localize('shutdownForceQuit', "Quit Anyway");
+			case ShutdownReason.RELOAD:
+				return localize('shutdownForceReload', "Reload Anyway");
+			case ShutdownReason.LOAD:
+				return localize('shutdownForceLoad', "Change Anyway");
+		}
 	}
 
 	private onWindowResize(e: UIEvent, retry: boolean): void {
@@ -475,7 +553,7 @@ export class NativeWindow extends Disposable {
 
 		// Check for cyclic dependencies
 		if (require.hasDependencyCycle()) {
-			if (env['CI'] || env['BUILD_ARTIFACTSTAGINGDIRECTORY']) {
+			if (isCI) {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
 			} else {

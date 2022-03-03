@@ -152,6 +152,7 @@ export class TestResultService implements ITestResultService {
 		}
 
 		const resolved: ResolvedTestRunRequest = {
+			isUiTriggered: false,
 			targets: [],
 			exclude: req.exclude,
 			isAutoRun: false,

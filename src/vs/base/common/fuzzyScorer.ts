@@ -208,8 +208,11 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			// }
 		}
 
-		// Inside word upper case bonus (camel case)
-		else if (isUpper(target.charCodeAt(targetIndex))) {
+		// Inside word upper case bonus (camel case). We only give this bonus if we're not in a contiguous sequence.
+		// For example:
+		// NPE => NullPointerException = boost
+		// HTTP => HTTP = not boost
+		else if (isUpper(target.charCodeAt(targetIndex)) && matchesSequenceLength === 0) {
 			score += 2;
 
 			// if (DEBUG) {
@@ -882,7 +885,7 @@ export function prepareQuery(original: string): IPreparedQuery {
 	return { original, originalLowercase, pathNormalized, normalized, normalizedLowercase, values, containsPathSeparator, expectContiguousMatch: expectExactMatch };
 }
 
-function normalizeQuery(original: string): { pathNormalized: string, normalized: string, normalizedLowercase: string } {
+function normalizeQuery(original: string): { pathNormalized: string; normalized: string; normalizedLowercase: string } {
 	let pathNormalized: string;
 	if (isWindows) {
 		pathNormalized = original.replace(/\//g, sep); // Help Windows users to search for paths when using slash

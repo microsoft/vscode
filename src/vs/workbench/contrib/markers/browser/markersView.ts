@@ -30,14 +30,14 @@ import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilte
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
+import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersTreeAccessibilityProvider, MarkersViewModel } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { IMarker, IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -46,16 +46,17 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, withSelection } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { groupBy } from 'vs/base/common/arrays';
 import { ResourceMap } from 'vs/base/common/map';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IMarkersView } from 'vs/workbench/contrib/markers/browser/markers';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -84,9 +85,9 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 	private readonly panelState: MementoObject;
 
-	private _onDidChangeFilterStats = this._register(new Emitter<{ total: number, filtered: number }>());
-	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }> = this._onDidChangeFilterStats.event;
-	private cachedFilterStats: { total: number; filtered: number; } | undefined = undefined;
+	private _onDidChangeFilterStats = this._register(new Emitter<{ total: number; filtered: number }>());
+	readonly onDidChangeFilterStats: Event<{ total: number; filtered: number }> = this._onDidChangeFilterStats.event;
+	private cachedFilterStats: { total: number; filtered: number } | undefined = undefined;
 
 	private currentResourceGotAddedToMarkersData: boolean = false;
 	private readonly markersViewModel: MarkersViewModel;
@@ -215,22 +216,9 @@ export class MarkersView extends ViewPane implements IMarkersView {
 	}
 
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
-		const { resource, selection, event, data } = element instanceof Marker ? { resource: element.resource, selection: element.range, event: 'problems.selectDiagnostic', data: this.getTelemetryData(element.marker) } :
-			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw, event: 'problems.selectRelatedInformation', data: this.getTelemetryData(element.marker) } : { resource: null, selection: null, event: null, data: null };
-		if (resource && selection && event) {
-			/* __GDPR__
-			"problems.selectDiagnostic" : {
-				"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-				"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-			}
-			*/
-			/* __GDPR__
-				"problems.selectRelatedInformation" : {
-					"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog(event, data);
+		const { resource, selection } = element instanceof Marker ? { resource: element.resource, selection: element.range } :
+			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw } : { resource: null, selection: null };
+		if (resource && selection) {
 			this.editorService.openEditor({
 				resource,
 				options: {
@@ -268,7 +256,12 @@ export class MarkersView extends ViewPane implements IMarkersView {
 					} else {
 						// Update resource
 						for (const updated of markerOrChange.updated) {
-							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
+							this.tree.setChildren(updated, createResourceMarkersIterator(updated), {
+								/* Pass Identitiy Provider only when updating while the tree is visible */
+								diffIdentityProvider: {
+									getId(element: MarkerElement): string { return element.id; }
+								}
+							});
 							this.tree.rerender(updated);
 						}
 					}
@@ -340,7 +333,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		this.renderMessage();
 	}
 
-	private getFilesExcludeExpressions(): { root: URI, expression: IExpression }[] | IExpression {
+	private getFilesExcludeExpressions(): { root: URI; expression: IExpression }[] | IExpression {
 		if (!this.filters.excludedFiles) {
 			return [];
 		}
@@ -399,7 +392,18 @@ export class MarkersView extends ViewPane implements IMarkersView {
 				filter: this.filter,
 				accessibilityProvider,
 				identityProvider,
-				dnd: new ResourceDragAndDrop(this.instantiationService),
+				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, (element) => {
+					if (element instanceof ResourceMarkers) {
+						return element.resource;
+					}
+					if (element instanceof Marker) {
+						return withSelection(element.resource, element.range);
+					}
+					if (element instanceof RelatedInformation) {
+						return withSelection(element.raw.resource, element.raw);
+					}
+					return null;
+				}),
 				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
@@ -420,18 +424,6 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
-		}));
-		this._register(this.tree.onDidChangeCollapseState(({ node }) => {
-			const { element } = node;
-			if (element instanceof RelatedInformation && !node.collapsed) {
-				/* __GDPR__
-				"problems.expandRelatedInformation" : {
-					"source": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
-					"code" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-				}
-				*/
-				this.telemetryService.publicLog('problems.expandRelatedInformation', this.getTelemetryData(element.marker));
-			}
 		}));
 
 		this._register(this.tree.onContextMenu(this.onContextMenu, this));
@@ -519,7 +511,6 @@ export class MarkersView extends ViewPane implements IMarkersView {
 
 		// Markers Filters
 		disposables.push(this.filters.onDidChange((event: IMarkersFiltersChangeEvent) => {
-			this.reportFilteringUsed();
 			if (event.activeFile) {
 				this.refreshPanel();
 			} else if (event.filterText || event.excludedFiles || event.showWarnings || event.showErrors || event.showInfos) {
@@ -835,7 +826,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		return super.getActionViewItem(action);
 	}
 
-	getFilterStats(): { total: number; filtered: number; } {
+	getFilterStats(): { total: number; filtered: number } {
 		if (!this.cachedFilterStats) {
 			this.cachedFilterStats = this.computeFilterStats();
 		}
@@ -843,7 +834,7 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		return this.cachedFilterStats;
 	}
 
-	private computeFilterStats(): { total: number; filtered: number; } {
+	private computeFilterStats(): { total: number; filtered: number } {
 		let filtered = 0;
 		if (this.tree) {
 			const root = this.tree.getNode();
@@ -858,30 +849,6 @@ export class MarkersView extends ViewPane implements IMarkersView {
 		}
 
 		return { total: this.markersModel.total, filtered };
-	}
-
-	private getTelemetryData({ source, code }: IMarker): any {
-		return { source, code };
-	}
-
-	private reportFilteringUsed(): void {
-		const data = {
-			errors: this.filters.showErrors,
-			warnings: this.filters.showWarnings,
-			infos: this.filters.showInfos,
-			activeFile: this.filters.activeFile,
-			excludedFiles: this.filters.excludedFiles,
-		};
-		/* __GDPR__
-			"problems.filter" : {
-				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"activeFile": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"excludedFiles": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this.telemetryService.publicLog('problems.filter', data);
 	}
 
 	override saveState(): void {

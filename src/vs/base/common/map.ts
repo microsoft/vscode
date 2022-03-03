@@ -130,6 +130,7 @@ export class ConfigKeysIterator implements IKeyIterator<string> {
 export class PathIterator implements IKeyIterator<string> {
 
 	private _value!: string;
+	private _valueLen!: number;
 	private _from!: number;
 	private _to!: number;
 
@@ -139,21 +140,29 @@ export class PathIterator implements IKeyIterator<string> {
 	) { }
 
 	reset(key: string): this {
-		this._value = key.replace(/\\$|\/$/, '');
 		this._from = 0;
 		this._to = 0;
+		this._value = key;
+		this._valueLen = key.length;
+		for (let pos = key.length - 1; pos >= 0; pos--, this._valueLen--) {
+			const ch = this._value.charCodeAt(pos);
+			if (!(ch === CharCode.Slash || this._splitOnBackslash && ch === CharCode.Backslash)) {
+				break;
+			}
+		}
+
 		return this.next();
 	}
 
 	hasNext(): boolean {
-		return this._to < this._value.length;
+		return this._to < this._valueLen;
 	}
 
 	next(): this {
 		// this._data = key.split(/[\\/]/).filter(s => !!s);
 		this._from = this._to;
 		let justSeps = true;
-		for (; this._to < this._value.length; this._to++) {
+		for (; this._to < this._valueLen; this._to++) {
 			const ch = this._value.charCodeAt(this._to);
 			if (ch === CharCode.Slash || this._splitOnBackslash && ch === CharCode.Backslash) {
 				if (justSeps) {
@@ -323,8 +332,8 @@ export class TernarySearchTree<K, V> {
 		return new TernarySearchTree<URI, E>(new UriIterator(ignorePathCasing));
 	}
 
-	static forPaths<E>(): TernarySearchTree<string, E> {
-		return new TernarySearchTree<string, E>(new PathIterator());
+	static forPaths<E>(ignorePathCasing = false): TernarySearchTree<string, E> {
+		return new TernarySearchTree<string, E>(new PathIterator(undefined, !ignorePathCasing));
 	}
 
 	static forStrings<E>(): TernarySearchTree<string, E> {
@@ -599,7 +608,7 @@ export class TernarySearchTree<K, V> {
 					stack[i][1] = node.rotateLeft();
 				} else {
 					// right, left -> double rotate
-					node.right = stack[i + 1][1] = stack[i + 1][1].rotateRight();
+					node.right = node.right!.rotateRight();
 					stack[i][1] = node.rotateLeft();
 				}
 
@@ -610,7 +619,7 @@ export class TernarySearchTree<K, V> {
 					stack[i][1] = node.rotateRight();
 				} else {
 					// left, right -> double rotate
-					node.left = stack[i + 1][1] = stack[i + 1][1].rotateLeft();
+					node.left = node.left!.rotateLeft();
 					stack[i][1] = node.rotateRight();
 				}
 			}
@@ -741,13 +750,17 @@ interface ResourceMapKeyFn {
 	(resource: URI): string;
 }
 
+class ResourceMapEntry<T> {
+	constructor(readonly uri: URI, readonly value: T) { }
+}
+
 export class ResourceMap<T> implements Map<URI, T> {
 
 	private static readonly defaultToKey = (resource: URI) => resource.toString();
 
 	readonly [Symbol.toStringTag] = 'ResourceMap';
 
-	private readonly map: Map<string, T>;
+	private readonly map: Map<string, ResourceMapEntry<T>>;
 	private readonly toKey: ResourceMapKeyFn;
 
 	/**
@@ -774,12 +787,12 @@ export class ResourceMap<T> implements Map<URI, T> {
 	}
 
 	set(resource: URI, value: T): this {
-		this.map.set(this.toKey(resource), value);
+		this.map.set(this.toKey(resource), new ResourceMapEntry(resource, value));
 		return this;
 	}
 
 	get(resource: URI): T | undefined {
-		return this.map.get(this.toKey(resource));
+		return this.map.get(this.toKey(resource))?.value;
 	}
 
 	has(resource: URI): boolean {
@@ -802,30 +815,32 @@ export class ResourceMap<T> implements Map<URI, T> {
 		if (typeof thisArg !== 'undefined') {
 			clb = clb.bind(thisArg);
 		}
-		for (let [index, value] of this.map) {
-			clb(value, URI.parse(index), <any>this);
+		for (let [_, entry] of this.map) {
+			clb(entry.value, entry.uri, <any>this);
 		}
 	}
 
-	values(): IterableIterator<T> {
-		return this.map.values();
+	*values(): IterableIterator<T> {
+		for (let entry of this.map.values()) {
+			yield entry.value;
+		}
 	}
 
 	*keys(): IterableIterator<URI> {
-		for (let key of this.map.keys()) {
-			yield URI.parse(key);
+		for (let entry of this.map.values()) {
+			yield entry.uri;
 		}
 	}
 
 	*entries(): IterableIterator<[URI, T]> {
-		for (let tuple of this.map.entries()) {
-			yield [URI.parse(tuple[0]), tuple[1]];
+		for (let entry of this.map.values()) {
+			yield [entry.uri, entry.value];
 		}
 	}
 
 	*[Symbol.iterator](): IterableIterator<[URI, T]> {
-		for (let item of this.map) {
-			yield [URI.parse(item[0]), item[1]];
+		for (let [, entry] of this.map) {
+			yield [entry.uri, entry.value];
 		}
 	}
 }

@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { shuffle } from 'vs/base/common/arrays';
+import { randomPath } from 'vs/base/common/extpath';
 import { ConfigKeysIterator, LinkedMap, LRUCache, PathIterator, ResourceMap, StringIterator, TernarySearchTree, Touch, UriIterator } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -747,6 +748,68 @@ suite('Map', () => {
 		assertTstDfs(trie, ['ad', 1], ['ae', 1], ['af', 1], ['az', 1]);
 	});
 
+	test('TernarySearchTree: Cannot read property \'1\' of undefined #138284', function () {
+
+		const keys = [
+			URI.parse('fake-fs:/C'),
+			URI.parse('fake-fs:/A'),
+			URI.parse('fake-fs:/D'),
+			URI.parse('fake-fs:/B'),
+		];
+
+		const tst = TernarySearchTree.forUris<boolean>();
+
+		for (let item of keys) {
+			tst.set(item, true);
+		}
+
+		assert.ok(tst._isBalanced());
+		tst.delete(keys[0]);
+		assert.ok(tst._isBalanced());
+	});
+
+	test('TernarySearchTree: Cannot read property \'1\' of undefined #138284 (simple)', function () {
+
+		const keys = ['C', 'A', 'D', 'B',];
+		const tst = TernarySearchTree.forStrings<boolean>();
+		for (let item of keys) {
+			tst.set(item, true);
+		}
+		assertTstDfs(tst, ['A', true], ['B', true], ['C', true], ['D', true]);
+
+		tst.delete(keys[0]);
+		assertTstDfs(tst, ['A', true], ['B', true], ['D', true]);
+
+		{
+			const tst = TernarySearchTree.forStrings<boolean>();
+			tst.set('C', true);
+			tst.set('A', true);
+			tst.set('B', true);
+			assertTstDfs(tst, ['A', true], ['B', true], ['C', true]);
+		}
+
+	});
+
+	test('TernarySearchTree: Cannot read property \'1\' of undefined #138284 (random)', function () {
+		for (let round = 10; round >= 0; round--) {
+			const keys: URI[] = [];
+			for (let i = 0; i < 100; i++) {
+				keys.push(URI.from({ scheme: 'fake-fs', path: randomPath(undefined, undefined, 10) }));
+			}
+			const tst = TernarySearchTree.forUris<boolean>();
+
+			for (let item of keys) {
+				tst.set(item, true);
+				assert.ok(tst._isBalanced());
+			}
+
+			for (let item of keys) {
+				tst.delete(item);
+				assert.ok(tst._isBalanced());
+			}
+		}
+	});
+
 	test('TernarySearchTree (PathSegments) - lookup', function () {
 
 		const map = new TernarySearchTree<string, number>(new PathIterator());
@@ -1188,6 +1251,25 @@ suite('Map', () => {
 
 		assert.strictEqual(map.get(windowsFile), 'true');
 		assert.strictEqual(map.get(uncFile), 'true');
+	});
+
+	test('ResourceMap - files (ignorecase, BUT preservecase)', function () {
+		const map = new ResourceMap<number>(uri => extUriIgnorePathCase.getComparisonKey(uri));
+
+		const fileA = URI.parse('file://some/filea');
+		const fileAUpper = URI.parse('file://SOME/FILEA');
+
+		map.set(fileA, 1);
+		assert.strictEqual(map.get(fileA), 1);
+		assert.strictEqual(map.get(fileAUpper), 1);
+		assert.deepStrictEqual(Array.from(map.keys()).map(String), [fileA].map(String));
+		assert.deepStrictEqual(Array.from(map), [[fileA, 1]]);
+
+		map.set(fileAUpper, 1);
+		assert.strictEqual(map.get(fileA), 1);
+		assert.strictEqual(map.get(fileAUpper), 1);
+		assert.deepStrictEqual(Array.from(map.keys()).map(String), [fileAUpper].map(String));
+		assert.deepStrictEqual(Array.from(map), [[fileAUpper, 1]]);
 	});
 });
 

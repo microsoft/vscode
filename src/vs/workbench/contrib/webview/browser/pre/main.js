@@ -6,11 +6,12 @@
 
 /// <reference lib="dom" />
 
-
-const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
+const isSafari = (
+	navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
 	navigator.userAgent &&
 	navigator.userAgent.indexOf('CriOS') === -1 &&
-	navigator.userAgent.indexOf('FxiOS') === -1;
+	navigator.userAgent.indexOf('FxiOS') === -1
+);
 
 const isFirefox = (
 	navigator.userAgent &&
@@ -48,11 +49,11 @@ const trackFocus = ({ onFocus, onBlur }) => {
 };
 
 const getActiveFrame = () => {
-	return /** @type {HTMLIFrameElement} */ (document.getElementById('active-frame'));
+	return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('active-frame'));
 };
 
 const getPendingFrame = () => {
-	return /** @type {HTMLIFrameElement} */ (document.getElementById('pending-frame'));
+	return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('pending-frame'));
 };
 
 /**
@@ -151,6 +152,12 @@ defaultStyles.textContent = `
 	}
 	::-webkit-scrollbar-thumb:active {
 		background-color: var(--vscode-scrollbarSlider-activeBackground);
+	}
+	::highlight(find-highlight) {
+		background-color: var(--vscode-editor-findMatchHighlightBackground);
+	}
+	::highlight(current-find-highlight) {
+		background-color: var(--vscode-editor-findMatchBackground);
 	}`;
 
 /**
@@ -203,12 +210,10 @@ const workerReady = new Promise((resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
-	const swPath = `service-worker.js${self.location.search}`;
-
-	navigator.serviceWorker.register(swPath).then(
-		async registration => {
-			await navigator.serviceWorker.ready;
-
+	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`;
+	navigator.serviceWorker.register(swPath)
+		.then(() => navigator.serviceWorker.ready)
+		.then(async registration => {
 			/**
 			 * @param {MessageEvent} event
 			 */
@@ -235,8 +240,8 @@ const workerReady = new Promise((resolve, reject) => {
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);
 
-			const postVersionMessage = () => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'version' });
+			const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
+				controller.postMessage({ channel: 'version' });
 			};
 
 			// At this point, either the service worker is ready and
@@ -244,35 +249,32 @@ const workerReady = new Promise((resolve, reject) => {
 			// Note that navigator.serviceWorker.controller could be a
 			// controller from a previously loaded service worker.
 			const currentController = navigator.serviceWorker.controller;
-			if (currentController && currentController.scriptURL.endsWith(swPath)) {
+			if (currentController?.scriptURL.endsWith(swPath)) {
 				// service worker already loaded & ready to receive messages
-				postVersionMessage();
+				postVersionMessage(currentController);
 			} else {
 				// either there's no controlling service worker, or it's an old one:
 				// wait for it to change before posting the message
 				const onControllerChange = () => {
 					navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
-					postVersionMessage();
+					postVersionMessage(navigator.serviceWorker.controller);
 				};
 				navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 			}
-		},
-		error => {
+		}).catch(error => {
 			reject(new Error(`Could not register service workers: ${error}.`));
 		});
 });
 
 const hostMessaging = new class HostMessaging {
+
 	constructor() {
+		this.channel = new MessageChannel();
+
 		/** @type {Map<string, Array<(event: MessageEvent, data: any) => void>>} */
 		this.handlers = new Map();
 
-		window.addEventListener('message', (e) => {
-			if (e.origin !== parentOrigin) {
-				console.log(`skipping webview message due to mismatched origins: ${e.origin} ${parentOrigin}`);
-				return;
-			}
-
+		this.channel.port1.onmessage = (e) => {
 			const channel = e.data.channel;
 			const handlers = this.handlers.get(channel);
 			if (handlers) {
@@ -282,15 +284,16 @@ const hostMessaging = new class HostMessaging {
 			} else {
 				console.log('no handler for ', e);
 			}
-		});
+		};
 	}
 
 	/**
 	 * @param {string} channel
 	 * @param {any} data
+	 * @param {any} [transfer]
 	 */
-	postMessage(channel, data) {
-		window.parent.postMessage({ target: ID, channel, data }, parentOrigin);
+	postMessage(channel, data, transfer) {
+		this.channel.port1.postMessage({ channel, data }, transfer);
 	}
 
 	/**
@@ -304,6 +307,10 @@ const hostMessaging = new class HostMessaging {
 			this.handlers.set(channel, handlers);
 		}
 		handlers.push(handler);
+	}
+
+	signalReady() {
+		window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
 	}
 }();
 
@@ -350,7 +357,7 @@ const unloadMonitor = new class {
 		});
 	}
 
-	onIframeLoaded(/** @type {HTMLIFrameElement} */frame) {
+	onIframeLoaded(/** @type {HTMLIFrameElement} */ frame) {
 		frame.contentWindow.addEventListener('keydown', e => {
 			this.isModifierKeyDown = e.metaKey || e.ctrlKey || e.altKey;
 		});
@@ -447,7 +454,7 @@ const applyStyles = (document, body) => {
  * @param {MouseEvent} event
  */
 const handleInnerClick = (event) => {
-	if (!event || !event.view || !event.view.document) {
+	if (!event?.view?.document) {
 		return;
 	}
 
@@ -460,8 +467,8 @@ const handleInnerClick = (event) => {
 			if (node.getAttribute('href') === '#') {
 				event.view.scrollTo(0, 0);
 			} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
-				const fragment = node.hash.substr(1, node.hash.length - 1);
-				const scrollTarget = event.view.document.getElementById(decodeURIComponent(fragment));
+				const fragment = node.hash.slice(1);
+				const scrollTarget = event.view.document.getElementById(fragment) ?? event.view.document.getElementById(decodeURIComponent(fragment));
 				scrollTarget?.scrollIntoView();
 			} else {
 				hostMessaging.postMessage('did-click-link', node.href.baseVal || node.href);
@@ -475,24 +482,23 @@ const handleInnerClick = (event) => {
 /**
  * @param {MouseEvent} event
  */
-const handleAuxClick =
-	(event) => {
-		// Prevent middle clicks opening a broken link in the browser
-		if (!event.view || !event.view.document) {
-			return;
-		}
+const handleAuxClick = (event) => {
+	// Prevent middle clicks opening a broken link in the browser
+	if (!event?.view?.document) {
+		return;
+	}
 
-		if (event.button === 1) {
-			for (const pathElement of event.composedPath()) {
-				/** @type {any} */
-				const node = pathElement;
-				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
-					event.preventDefault();
-					return;
-				}
+	if (event.button === 1) {
+		for (const pathElement of event.composedPath()) {
+			/** @type {any} */
+			const node = pathElement;
+			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+				event.preventDefault();
+				return;
 			}
 		}
-	};
+	}
+};
 
 /**
  * @param {KeyboardEvent} e
@@ -502,7 +508,7 @@ const handleInnerKeydown = (e) => {
 	// make sure we block the browser from dispatching it. Instead VS Code
 	// handles these events and will dispatch a copy/paste back to the webview
 	// if needed
-	if (isUndoRedo(e) || isPrint(e)) {
+	if (isUndoRedo(e) || isPrint(e) || isFindEvent(e)) {
 		e.preventDefault();
 	} else if (isCopyPasteOrCut(e)) {
 		if (onElectron) {
@@ -567,6 +573,15 @@ function isPrint(e) {
 	return hasMeta && e.key.toLowerCase() === 'p';
 }
 
+/**
+ * @param {KeyboardEvent} e
+ * @return {boolean}
+ */
+function isFindEvent(e) {
+	const hasMeta = e.ctrlKey || e.metaKey;
+	return hasMeta && e.key.toLowerCase() === 'f';
+}
+
 let isHandlingScroll = false;
 
 /**
@@ -597,7 +612,7 @@ const handleInnerScroll = (event) => {
 
 	const target = /** @type {HTMLDocument | null} */ (event.target);
 	const currentTarget = /** @type {Window | null} */ (event.currentTarget);
-	if (!target || !currentTarget || !target.body) {
+	if (!currentTarget || !target?.body) {
 		return;
 	}
 
@@ -684,6 +699,15 @@ function toContentHtml(data) {
 	newDocument.head.prepend(defaultStyles.cloneNode(true));
 
 	applyStyles(newDocument, newDocument.body);
+
+	// Strip out unsupported http-equiv tags
+	for (const metaElement of Array.from(newDocument.querySelectorAll('meta'))) {
+		const httpEquiv = metaElement.getAttribute('http-equiv');
+		if (httpEquiv && !/^(content-security-policy|default-style|content-type)$/i.test(httpEquiv)) {
+			console.warn(`Removing unsupported meta http-equiv: ${httpEquiv}`);
+			metaElement.remove();
+		}
+	}
 
 	// Check for CSP
 	const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
@@ -844,7 +868,7 @@ onDomReady(() => {
 		}
 
 		if (!options.allowScripts && isSafari) {
-			// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
+			// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired: https://bugs.webkit.org/show_bug.cgi?id=33604
 			// Use polling instead.
 			const interval = setInterval(() => {
 				// If the frame is no longer mounted, loading has stopped
@@ -854,7 +878,7 @@ onDomReady(() => {
 				}
 
 				const contentDocument = assertIsDefined(newFrame.contentDocument);
-				if (contentDocument.readyState !== 'loading') {
+				if (contentDocument.location.pathname.endsWith('/fake.html') && contentDocument.readyState !== 'loading') {
 					clearInterval(interval);
 					onFrameLoaded(contentDocument);
 				}
@@ -903,8 +927,6 @@ onDomReady(() => {
 				});
 				pendingMessages = [];
 			}
-
-			hostMessaging.postMessage('did-load');
 		};
 
 		/**
@@ -951,8 +973,6 @@ onDomReady(() => {
 
 			unloadMonitor.onIframeLoaded(newFrame);
 		}
-
-		hostMessaging.postMessage('did-set-content', undefined);
 	});
 
 	// Forward message to the embedded iframe
@@ -980,6 +1000,49 @@ onDomReady(() => {
 		assertIsDefined(target.contentDocument).execCommand(data);
 	});
 
+	/** @type {string | undefined} */
+	let lastFindValue = undefined;
+
+	hostMessaging.onMessage('find', (_event, data) => {
+		const target = getActiveFrame();
+		if (!target) {
+			return;
+		}
+
+		if (!data.previous && lastFindValue !== data.value) {
+			// Reset selection so we start search at the head of the last search
+			const selection = target.contentWindow.getSelection();
+			selection.collapse(selection.anchorNode);
+		}
+		lastFindValue = data.value;
+
+		const didFind = (/** @type {any} */ (target.contentWindow)).find(
+			data.value,
+			/* caseSensitive*/ false,
+			/* backwards*/ data.previous,
+			/* wrapAround*/ true,
+			/* wholeWord */ false,
+			/* searchInFrames*/ false,
+			false);
+		hostMessaging.postMessage('did-find', didFind);
+	});
+
+	hostMessaging.onMessage('find-stop', (_event, data) => {
+		const target = getActiveFrame();
+		if (!target) {
+			return;
+		}
+
+		lastFindValue = undefined;
+
+		if (!data.clearSelection) {
+			const selection = target.contentWindow.getSelection();
+			for (let i = 0; i < selection.rangeCount; i++) {
+				selection.removeRange(selection.getRangeAt(i));
+			}
+		}
+	});
+
 	trackFocus({
 		onFocus: () => hostMessaging.postMessage('did-focus'),
 		onBlur: () => hostMessaging.postMessage('did-blur')
@@ -994,6 +1057,5 @@ onDomReady(() => {
 		}
 	};
 
-	// signal ready
-	hostMessaging.postMessage('webview-ready', {});
+	hostMessaging.signalReady();
 });

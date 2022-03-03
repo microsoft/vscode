@@ -17,11 +17,11 @@ import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from '
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import * as marked from 'vs/base/common/marked/marked';
+import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { resolvePath } from 'vs/base/common/resources';
+import { dirname, resolvePath } from 'vs/base/common/resources';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 
@@ -30,9 +30,8 @@ export interface MarkedOptions extends marked.MarkedOptions {
 }
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
-	codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
-	asyncRenderCallback?: () => void;
-	baseUrl?: URI;
+	readonly codeBlockRenderer?: (languageId: string, value: string) => Promise<HTMLElement>;
+	readonly asyncRenderCallback?: () => void;
 }
 
 /**
@@ -41,7 +40,7 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
  * **Note** that for most cases you should be using [`MarkdownRenderer`](./src/vs/editor/browser/core/markdownRenderer.ts)
  * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement, dispose: () => void } {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): { element: HTMLElement; dispose: () => void } {
 	const disposables = new DisposableStore();
 	let isDisposed = false;
 
@@ -71,19 +70,22 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const _href = function (href: string, isDomUri: boolean): string {
 		const data = markdown.uris && markdown.uris[href];
-		if (!data) {
-			return href; // no uri exists
-		}
 		let uri = URI.revive(data);
 		if (isDomUri) {
 			if (href.startsWith(Schemas.data + ':')) {
 				return href;
+			}
+			if (!uri) {
+				uri = URI.parse(href);
 			}
 			// this URI will end up as "src"-attribute of a dom node
 			// and because of that special rewriting needs to be done
 			// so that the URI uses a protocol that's understood by
 			// browsers (like http or https)
 			return FileAccess.asBrowserUri(uri).toString(true);
+		}
+		if (!uri) {
+			return href;
 		}
 		if (URI.parse(href).toString() === uri.toString()) {
 			return href; // no transformation performed
@@ -100,19 +102,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	const withInnerHTML = new Promise<void>(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
+
 	renderer.image = (href: string, title: string, text: string) => {
 		let dimensions: string[] = [];
 		let attributes: string[] = [];
 		if (href) {
 			({ href, dimensions } = parseHrefAndDimensions(href));
-			href = _href(href, true);
-			try {
-				const hrefAsUri = URI.parse(href);
-				if (options.baseUrl && hrefAsUri.scheme === Schemas.file) { // absolute or relative local path, or file: uri
-					href = resolvePath(options.baseUrl, href).toString();
-				}
-			} catch (err) { }
-
 			attributes.push(`src="${href}"`);
 		}
 		if (text) {
@@ -127,24 +122,25 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		return '<img ' + attributes.join(' ') + '>';
 	};
 	renderer.link = (href, title, text): string => {
+		if (typeof href !== 'string') {
+			return '';
+		}
+
 		// Remove markdown escapes. Workaround for https://github.com/chjj/marked/issues/829
 		if (href === text) { // raw link case
 			text = removeMarkdownEscapes(text);
 		}
 		href = _href(href, false);
-		if (options.baseUrl) {
-			const hasScheme = /^\w[\w\d+.-]*:/.test(href);
-			if (!hasScheme) {
-				href = resolvePath(options.baseUrl, href).toString();
-			}
+		if (markdown.baseUri) {
+			href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
 		}
-		title = removeMarkdownEscapes(title);
+		title = typeof title === 'string' ? removeMarkdownEscapes(title) : '';
 		href = removeMarkdownEscapes(href);
 		if (
 			!href
-			|| href.match(/^data:|javascript:/i)
-			|| (href.match(/^command:/i) && !markdown.isTrusted)
-			|| href.match(/^command:(\/\/\/)?_workbench\.downloadResource/i)
+			|| /^data:|javascript:/i.test(href)
+			|| (/^command:/i.test(href) && !markdown.isTrusted)
+			|| /^command:(\/\/\/)?_workbench\.downloadResource/i.test(href)
 		) {
 			// drop the link
 			return text;
@@ -156,7 +152,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				.replace(/>/g, '&gt;')
 				.replace(/"/g, '&quot;')
 				.replace(/'/g, '&#39;');
-			return `<a href="#" data-href="${href}" title="${title || href}">${text}</a>`;
+			return `<a data-href="${href}" title="${title || href}">${text}</a>`;
 		}
 	};
 	renderer.paragraph = (text): string => {
@@ -165,13 +161,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	if (options.codeBlockRenderer) {
 		renderer.code = (code, lang) => {
-			const value = options.codeBlockRenderer!(lang, code);
+			const value = options.codeBlockRenderer!(lang ?? '', code);
 			// when code-block rendering is async we return sync
 			// but update the node with the real result later.
 			const id = defaultGenerator.nextId();
 			raceCancellation(Promise.all([value, withInnerHTML]), cts.token).then(values => {
 				if (!isDisposed && values) {
-					const span = <HTMLDivElement>element.querySelector(`div[data-code="${id}"]`);
+					const span = element.querySelector<HTMLDivElement>(`div[data-code="${id}"]`);
 					if (span) {
 						DOM.reset(span, values[0]);
 					}
@@ -202,8 +198,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				}
 			}
 			try {
-				const href = target.dataset['href'];
+				let href = target.dataset['href'];
 				if (href) {
+					if (markdown.baseUri) {
+						href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+					}
 					options.actionHandler!.callback(href, mouseEvent);
 				}
 			} catch (err) {
@@ -250,7 +249,25 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		renderedMarkdown = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
 	}
 
-	element.innerHTML = sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string;
+	const htmlParser = new DOMParser();
+	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown(markdown, renderedMarkdown) as unknown as string, 'text/html');
+
+	markdownHtmlDoc.body.querySelectorAll('img')
+		.forEach(img => {
+			const src = img.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
+			if (src) {
+				let href = src;
+				try {
+					if (markdown.baseUri) { // absolute or relative local path, or file: uri
+						href = resolveWithBaseUri(URI.from(markdown.baseUri), href);
+					}
+				} catch (err) { }
+
+				img.src = _href(href, true);
+			}
+		});
+
+	element.innerHTML = sanitizeRenderedMarkdown(markdown, markdownHtmlDoc.body.innerHTML) as unknown as string;
 
 	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
@@ -273,6 +290,19 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			disposables.dispose();
 		}
 	};
+}
+
+function resolveWithBaseUri(baseUri: URI, href: string): string {
+	const hasScheme = /^\w[\w\d+.-]*:/.test(href);
+	if (hasScheme) {
+		return href;
+	}
+
+	if (baseUri.path.endsWith('/')) {
+		return resolvePath(baseUri, href).toString();
+	} else {
+		return resolvePath(dirname(baseUri), href).toString();
+	}
 }
 
 function sanitizeRenderedMarkdown(
@@ -320,7 +350,7 @@ function sanitizeRenderedMarkdown(
 	}
 }
 
-function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { config: dompurify.Config, allowedSchemes: string[] } {
+function getSanitizerOptions(options: { readonly isTrusted?: boolean }): { config: dompurify.Config; allowedSchemes: string[] } {
 	const allowedSchemes = [
 		Schemas.http,
 		Schemas.https,

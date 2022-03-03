@@ -9,7 +9,7 @@ import { IListOptions, IListOptionsUpdate, IListStyles, List } from 'vs/base/bro
 import { ISplitViewDescriptor, IView, Orientation, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { ITableColumn, ITableContextMenuEvent, ITableEvent, ITableGestureEvent, ITableMouseEvent, ITableRenderer, ITableTouchEvent, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IThemable } from 'vs/base/common/styler';
@@ -148,9 +148,11 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 	readonly domNode: HTMLElement;
 	private splitview: SplitView;
 	private list: List<TRow>;
-	private columnLayoutDisposable: IDisposable;
-	private cachedHeight: number = 0;
 	private styleElement: HTMLStyleElement;
+	protected readonly disposables = new DisposableStore();
+
+	private cachedWidth: number = 0;
+	private cachedHeight: number = 0;
 
 	get onDidChangeFocus(): Event<ITableEvent<TRow>> { return this.list.onDidChangeFocus; }
 	get onDidChangeSelection(): Event<ITableEvent<TRow>> { return this.list.onDidChangeSelection; }
@@ -196,21 +198,27 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 			views: headers.map(view => ({ size: view.column.weight, view }))
 		};
 
-		this.splitview = new SplitView(this.domNode, {
+		this.splitview = this.disposables.add(new SplitView(this.domNode, {
 			orientation: Orientation.HORIZONTAL,
 			scrollbarVisibility: ScrollbarVisibility.Hidden,
 			getSashOrthogonalSize: () => this.cachedHeight,
 			descriptor
-		});
+		}));
 
 		this.splitview.el.style.height = `${virtualDelegate.headerRowHeight}px`;
 		this.splitview.el.style.lineHeight = `${virtualDelegate.headerRowHeight}px`;
 
 		const renderer = new TableListRenderer(columns, renderers, i => this.splitview.getViewSize(i));
-		this.list = new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], _options);
+		this.list = this.disposables.add(new List(user, this.domNode, asListVirtualDelegate(virtualDelegate), [renderer], _options));
 
-		this.columnLayoutDisposable = Event.any(...headers.map(h => h.onDidLayout))
-			(([index, size]) => renderer.layoutColumn(index, size));
+		Event.any(...headers.map(h => h.onDidLayout))
+			(([index, size]) => renderer.layoutColumn(index, size), null, this.disposables);
+
+		this.splitview.onDidSashReset(index => {
+			const totalWeight = columns.reduce((r, c) => r + c.weight, 0);
+			const size = columns[index].weight / totalWeight * this.cachedWidth;
+			this.splitview.resizeView(index, size);
+		}, null, this.disposables);
 
 		this.styleElement = createStyleSheet(this.domNode);
 		this.style({});
@@ -248,6 +256,7 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 		height = height ?? getContentHeight(this.domNode);
 		width = width ?? getContentWidth(this.domNode);
 
+		this.cachedWidth = width;
 		this.cachedHeight = height;
 		this.splitview.layout(width);
 
@@ -337,8 +346,6 @@ export class Table<TRow> implements ISpliceable<TRow>, IThemable, IDisposable {
 	}
 
 	dispose(): void {
-		this.splitview.dispose();
-		this.list.dispose();
-		this.columnLayoutDisposable.dispose();
+		this.disposables.dispose();
 	}
 }

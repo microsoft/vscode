@@ -24,7 +24,7 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const config = <{ allowed: string[], verbs: string[] }>context.options[0];
+		const config = <{ allowed: string[]; verbs: string[] }>context.options[0];
 		const allowed = new Set(config.allowed);
 		const verbs = new Set(config.verbs);
 
@@ -88,7 +88,7 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 		if (def.type === AST_NODE_TYPES.Identifier) {
 			return def;
-		} else if ((def.type === AST_NODE_TYPES.TSPropertySignature || def.type === AST_NODE_TYPES.ClassProperty) && def.key.type === AST_NODE_TYPES.Identifier) {
+		} else if ((def.type === AST_NODE_TYPES.TSPropertySignature || def.type === AST_NODE_TYPES.Property) && def.key.type === AST_NODE_TYPES.Identifier) {
 			return def.key;
 		}
 

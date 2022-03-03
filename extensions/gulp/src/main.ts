@@ -179,7 +179,7 @@ class FolderDetector {
 		for (const filename of await fs.promises.readdir(root)) {
 
 			const ext = path.extname(filename);
-			if (ext !== '.js' && ext !== '.mjs' && ext !== '.cjs') {
+			if (ext !== '.js' && ext !== '.mjs' && ext !== '.cjs' && ext !== '.ts') {
 				continue;
 			}
 

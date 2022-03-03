@@ -4,13 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter } from 'vscode';
-import { dirname, sep } from 'path';
+import { dirname, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import * as byline from 'byline';
 
+export const isMacintosh = process.platform === 'darwin';
+export const isWindows = process.platform === 'win32';
+
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
+}
+
+export function logTimestamp(): string {
+	return `[${new Date().toISOString()}]`;
 }
 
 export interface IDisposable {
@@ -168,7 +175,7 @@ export async function mkdirp(path: string, mode?: number): Promise<boolean> {
 }
 
 export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
-	const seen: { [key: string]: boolean; } = Object.create(null);
+	const seen: { [key: string]: boolean } = Object.create(null);
 
 	return element => {
 		const key = keyFn(element);
@@ -280,8 +287,14 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	return null;
 }
 
-function isWindowsPath(path: string): boolean {
-	return /^[a-zA-Z]:\\/.test(path);
+function normalizePath(path: string): string {
+	// Windows & Mac are currently being handled
+	// as case insensitive file systems in VS Code.
+	if (isWindows || isMacintosh) {
+		return path.toLowerCase();
+	}
+
+	return path;
 }
 
 export function isDescendant(parent: string, descendant: string): boolean {
@@ -293,23 +306,26 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		parent += sep;
 	}
 
-	// Windows is case insensitive
-	if (isWindowsPath(parent)) {
-		parent = parent.toLowerCase();
-		descendant = descendant.toLowerCase();
-	}
-
-	return descendant.startsWith(parent);
+	return normalizePath(descendant).startsWith(normalizePath(parent));
 }
 
 export function pathEquals(a: string, b: string): boolean {
-	// Windows is case insensitive
-	if (isWindowsPath(a)) {
-		a = a.toLowerCase();
-		b = b.toLowerCase();
+	return normalizePath(a) === normalizePath(b);
+}
+
+/**
+ * Given the `repository.root` compute the relative path while trying to preserve
+ * the casing of the resource URI. The `repository.root` segment of the path can
+ * have a casing mismatch if the folder/workspace is being opened with incorrect
+ * casing.
+ */
+export function relativePath(from: string, to: string): string {
+	if (isDescendant(from, to) && from.length < to.length) {
+		return to.substring(from.length + 1);
 	}
 
-	return a === b;
+	// Fallback to `path.relative`
+	return relative(from, to);
 }
 
 export function* splitInChunks(array: string[], maxChunkLength: number): IterableIterator<string[]> {
@@ -379,7 +395,7 @@ export class Limiter<T> {
 	}
 }
 
-type Completion<T> = { success: true, value: T } | { success: false, err: any };
+type Completion<T> = { success: true; value: T } | { success: false; err: any };
 
 export class PromiseSource<T> {
 

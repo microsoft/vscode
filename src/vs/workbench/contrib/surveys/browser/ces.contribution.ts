@@ -13,7 +13,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -30,7 +30,7 @@ const REMIND_LATER_DATE_KEY = 'ces/remindLaterDate';
 class CESContribution extends Disposable implements IWorkbenchContribution {
 
 	private promptDelayer = this._register(new ThrottledDelayer<void>(0));
-	private readonly tasExperimentService: ITASExperimentService | undefined;
+	private readonly tasExperimentService: IWorkbenchAssignmentService | undefined;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -38,7 +38,7 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@ITASExperimentService tasExperimentService: ITASExperimentService,
+		@IWorkbenchAssignmentService tasExperimentService: IWorkbenchAssignmentService,
 	) {
 		super();
 
@@ -57,6 +57,12 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async promptUser() {
+		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
+		if (!isCandidate) {
+			this.skipSurvey();
+			return;
+		}
+
 		const sendTelemetry = (userReaction: 'accept' | 'remindLater' | 'neverShowAgain' | 'cancelled') => {
 			/* __GDPR__
 			"cesSurvey:popup" : {
@@ -113,12 +119,6 @@ class CESContribution extends Disposable implements IWorkbenchContribution {
 	}
 
 	private async schedulePrompt(): Promise<void> {
-		const isCandidate = await this.tasExperimentService?.getTreatment<boolean>('CESSurvey');
-		if (!isCandidate) {
-			this.skipSurvey();
-			return;
-		}
-
 		let waitTimeToShowSurvey = 0;
 		const remindLaterDate = this.storageService.get(REMIND_LATER_DATE_KEY, StorageScope.GLOBAL, '');
 		if (remindLaterDate) {

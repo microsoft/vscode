@@ -6,10 +6,11 @@
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { Disposable, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
+import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { InMemoryStorageDatabase, IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export const IS_NEW_KEY = '__$__isNewStorageMarker';
 const TARGET_KEY = '__$__targetStorageMarker';
@@ -140,7 +141,7 @@ export interface IStorageService {
 	/**
 	 * Migrate the storage contents to another workspace.
 	 */
-	migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
+	migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void>;
 
 	/**
 	 * Whether the storage for the given scope was created during this session or
@@ -217,7 +218,7 @@ export interface IStorageTargetChangeEvent {
 }
 
 interface IKeyTargets {
-	[key: string]: StorageTarget
+	[key: string]: StorageTarget;
 }
 
 export interface IStorageServiceOptions {
@@ -244,7 +245,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	private readonly flushWhenIdleScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), this.options.flushInterval));
 	private readonly runFlushWhenIdle = this._register(new MutableDisposable());
 
-	constructor(private options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
+	constructor(private readonly options: IStorageServiceOptions = { flushInterval: AbstractStorageService.DEFAULT_FLUSH_INTERVAL }) {
 		super();
 	}
 
@@ -271,8 +272,14 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		if (!this.initializationPromise) {
 			this.initializationPromise = (async () => {
 
-				// Ask subclasses to initialize storage
-				await this.doInitialize();
+				// Init all storage locations
+				mark('code/willInitStorage');
+				try {
+					// Ask subclasses to initialize storage
+					await this.doInitialize();
+				} finally {
+					mark('code/didInitStorage');
+				}
 
 				// On some OS we do not get enough time to persist state on shutdown (e.g. when
 				// Windows restarts after applying updates). In other cases, VSCode might crash,
@@ -454,16 +461,33 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 
-	async flush(reason: WillSaveStateReason = WillSaveStateReason.NONE): Promise<void> {
+	async flush(reason = WillSaveStateReason.NONE): Promise<void> {
 
 		// Signal event to collect changes
 		this._onWillSaveState.fire({ reason });
 
-		// Await flush
-		await Promises.settled([
-			this.getStorage(StorageScope.GLOBAL)?.whenFlushed() ?? Promise.resolve(),
-			this.getStorage(StorageScope.WORKSPACE)?.whenFlushed() ?? Promise.resolve()
-		]);
+		const globalStorage = this.getStorage(StorageScope.GLOBAL);
+		const workspaceStorage = this.getStorage(StorageScope.WORKSPACE);
+
+		switch (reason) {
+
+			// Unspecific reason: just wait when data is flushed
+			case WillSaveStateReason.NONE:
+				await Promises.settled([
+					globalStorage?.whenFlushed() ?? Promise.resolve(),
+					workspaceStorage?.whenFlushed() ?? Promise.resolve()
+				]);
+				break;
+
+			// Shutdown: we want to flush as soon as possible
+			// and not hit any delays that might be there
+			case WillSaveStateReason.SHUTDOWN:
+				await Promises.settled([
+					globalStorage?.flush(0) ?? Promise.resolve(),
+					workspaceStorage?.flush(0) ?? Promise.resolve()
+				]);
+				break;
+		}
 	}
 
 	async logStorage(): Promise<void> {
@@ -486,7 +510,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 	protected abstract getLogDetails(scope: StorageScope): string | undefined;
 
-	abstract migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
+	abstract migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void>;
 }
 
 export class InMemoryStorageService extends AbstractStorageService {
@@ -511,7 +535,7 @@ export class InMemoryStorageService extends AbstractStorageService {
 
 	protected async doInitialize(): Promise<void> { }
 
-	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
+	async migrate(toWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
 		// not supported
 	}
 }
@@ -540,7 +564,7 @@ export async function logStorage(global: Map<string, string>, workspace: Map<str
 	});
 
 	console.group(`Storage: Global (path: ${globalPath})`);
-	let globalValues: { key: string, value: string }[] = [];
+	let globalValues: { key: string; value: string }[] = [];
 	globalItems.forEach((value, key) => {
 		globalValues.push({ key, value });
 	});
@@ -550,7 +574,7 @@ export async function logStorage(global: Map<string, string>, workspace: Map<str
 	console.log(globalItemsParsed);
 
 	console.group(`Storage: Workspace (path: ${workspacePath})`);
-	let workspaceValues: { key: string, value: string }[] = [];
+	let workspaceValues: { key: string; value: string }[] = [];
 	workspaceItems.forEach((value, key) => {
 		workspaceValues.push({ key, value });
 	});

@@ -7,17 +7,16 @@ import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { IFoundBracket } from 'vs/editor/common/model';
+import { IFoundBracket } from 'vs/editor/common/textModelBracketPairs';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITokenizationSupport, MetadataConsts, TokenizationRegistry, StandardTokenType } from 'vs/editor/common/modes';
-import { CharacterPair } from 'vs/editor/common/modes/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ViewLineToken } from 'vs/editor/test/common/core/viewLineToken';
-import { createModelServices, createTextModel, createTextModel2 } from 'vs/editor/test/common/editorTestUtils';
+import { ITokenizationSupport, MetadataConsts, TokenizationRegistry, StandardTokenType, EncodedTokenizationResult } from 'vs/editor/common/languages';
+import { CharacterPair } from 'vs/editor/common/languages/languageConfiguration';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { TestLineToken } from 'vs/editor/test/common/core/testLineToken';
+import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('TextModelWithTokens', () => {
 
@@ -79,7 +78,6 @@ suite('TextModelWithTokens', () => {
 
 		const model = disposables.add(createTextModel(
 			contents.join('\n'),
-			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageId
 		));
 
@@ -99,7 +97,7 @@ suite('TextModelWithTokens', () => {
 						}
 					}
 
-					let actual = model.findPrevBracket({
+					let actual = model.bracketPairs.findPrevBracket({
 						lineNumber: lineNumber,
 						column: column
 					});
@@ -125,7 +123,7 @@ suite('TextModelWithTokens', () => {
 						}
 					}
 
-					let actual = model.findNextBracket({
+					let actual = model.bracketPairs.findNextBracket({
 						lineNumber: lineNumber,
 						column: column
 					});
@@ -150,12 +148,12 @@ suite('TextModelWithTokens', () => {
 });
 
 function assertIsNotBracket(model: TextModel, lineNumber: number, column: number) {
-	const match = model.matchBracket(new Position(lineNumber, column));
+	const match = model.bracketPairs.matchBracket(new Position(lineNumber, column));
 	assert.strictEqual(match, null, 'is not matching brackets at ' + lineNumber + ', ' + column);
 }
 
 function assertIsBracket(model: TextModel, testPosition: Position, expected: [Range, Range]): void {
-	const actual = model.matchBracket(testPosition);
+	const actual = model.bracketPairs.matchBracket(testPosition);
 	assert.deepStrictEqual(actual, expected, 'matches brackets at ' + testPosition);
 }
 
@@ -184,7 +182,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 		let text =
 			')]}{[(' + '\n' +
 			')]}{[(';
-		let model = createTextModel(text, undefined, languageId);
+		let model = createTextModel(text, languageId);
 
 		assertIsNotBracket(model, 1, 1);
 		assertIsNotBracket(model, 1, 2);
@@ -212,7 +210,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			'}, bar: {hallo: [{' + '\n' +
 			'}, {' + '\n' +
 			'}]}}';
-		let model = createTextModel(text, undefined, languageId);
+		let model = createTextModel(text, languageId);
 
 		let brackets: [Position, Range, Range][] = [
 			[new Position(1, 11), new Range(1, 11, 1, 12), new Range(5, 4, 5, 5)],
@@ -241,7 +239,7 @@ suite('TextModelWithTokens - bracket matching', () => {
 			[new Position(5, 5), new Range(5, 4, 5, 5), new Range(1, 11, 1, 12)],
 		];
 
-		let isABracket: { [lineNumber: number]: { [col: number]: boolean; }; } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
+		let isABracket: { [lineNumber: number]: { [col: number]: boolean } } = { 1: {}, 2: {}, 3: {}, 4: {}, 5: {} };
 		for (let i = 0, len = brackets.length; i < len; i++) {
 			let [testPos, b1, b2] = brackets[i];
 			assertIsBracket(model, testPos, [b1, b2]);
@@ -292,7 +290,7 @@ suite('TextModelWithTokens', () => {
 			'end;',
 		].join('\n');
 
-		const model = disposables.add(createTextModel(text, undefined, languageId));
+		const model = disposables.add(createTextModel(text, languageId));
 
 		// <if> ... <end ifa> is not matched
 		assertIsNotBracket(model, 10, 9);
@@ -331,7 +329,7 @@ suite('TextModelWithTokens', () => {
 			'endrecord',
 		].join('\n');
 
-		const model = disposables.add(createTextModel(text, undefined, languageId));
+		const model = disposables.add(createTextModel(text, languageId));
 
 		// <recordbegin> ... <endrecord> is matched
 		assertIsBracket(model, new Position(1, 1), [new Range(1, 1, 1, 12), new Range(4, 1, 4, 10)]);
@@ -345,11 +343,12 @@ suite('TextModelWithTokens', () => {
 	});
 
 	test('issue #95843: Highlighting of closing braces is indicating wrong brace when cursor is behind opening brace', () => {
-		const [instantiationService, disposables] = createModelServices();
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
 		const mode1 = 'testMode1';
 		const mode2 = 'testMode2';
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(IModeService).languageIdCodec);
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 
 		disposables.add(ModesRegistry.registerLanguage({ id: mode1 }));
 		disposables.add(ModesRegistry.registerLanguage({ id: mode2 }));
@@ -366,9 +365,9 @@ suite('TextModelWithTokens', () => {
 		) >>> 0;
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				switch (line) {
 					case 'function f() {': {
 						const tokens = new Uint32Array([
@@ -380,7 +379,7 @@ suite('TextModelWithTokens', () => {
 							12, otherMetadata1,
 							13, otherMetadata1,
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '  return <p>{true}</p>;': {
 						const tokens = new Uint32Array([
@@ -398,13 +397,13 @@ suite('TextModelWithTokens', () => {
 							21, otherMetadata2,
 							22, otherMetadata2,
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata1
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 				}
 				throw new Error(`Unexpected`);
@@ -427,14 +426,13 @@ suite('TextModelWithTokens', () => {
 			],
 		}));
 
-		const model = disposables.add(createTextModel2(
+		const model = disposables.add(instantiateTextModel(
 			instantiationService,
 			[
 				'function f() {',
 				'  return <p>{true}</p>;',
 				'}',
 			].join('\n'),
-			undefined,
 			mode1
 		));
 
@@ -442,16 +440,17 @@ suite('TextModelWithTokens', () => {
 		model.forceTokenization(2);
 		model.forceTokenization(3);
 
-		assert.deepStrictEqual(model.matchBracket(new Position(2, 14)), [new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]);
+		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 14)), [new Range(2, 13, 2, 14), new Range(2, 18, 2, 19)]);
 
 		disposables.dispose();
 	});
 
 	test('issue #88075: TypeScript brace matching is incorrect in `${}` strings', () => {
-		const [instantiationService, disposables] = createModelServices();
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
 		const mode = 'testMode';
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(IModeService).languageIdCodec);
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 
 		const encodedMode = languageIdCodec!.encodeLanguageId(mode);
 
@@ -465,15 +464,15 @@ suite('TextModelWithTokens', () => {
 		) >>> 0;
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				switch (line) {
 					case 'function hello() {': {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '    console.log(`${100}`);': {
 						const tokens = new Uint32Array([
@@ -483,13 +482,13 @@ suite('TextModelWithTokens', () => {
 							22, stringMetadata,
 							24, otherMetadata,
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new TokenizationResult2(tokens, state);
+						return new EncodedTokenizationResult(tokens, state);
 					}
 				}
 				throw new Error(`Unexpected`);
@@ -505,14 +504,13 @@ suite('TextModelWithTokens', () => {
 			],
 		}));
 
-		const model = disposables.add(createTextModel2(
+		const model = disposables.add(instantiateTextModel(
 			instantiationService,
 			[
 				'function hello() {',
 				'    console.log(`${100}`);',
 				'}'
 			].join('\n'),
-			undefined,
 			mode
 		));
 
@@ -520,8 +518,8 @@ suite('TextModelWithTokens', () => {
 		model.forceTokenization(2);
 		model.forceTokenization(3);
 
-		assert.deepStrictEqual(model.matchBracket(new Position(2, 23)), null);
-		assert.deepStrictEqual(model.matchBracket(new Position(2, 20)), null);
+		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 23)), null);
+		assert.deepStrictEqual(model.bracketPairs.matchBracket(new Position(2, 20)), null);
 
 		disposables.dispose();
 	});
@@ -531,7 +529,7 @@ suite('TextModelWithTokens', () => {
 suite('TextModelWithTokens regression tests', () => {
 
 	test('microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
-		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: ViewLineToken[]): void {
+		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: TestLineToken[]): void {
 			if (forceTokenization) {
 				model.forceTokenization(lineNumber);
 			}
@@ -547,7 +545,7 @@ suite('TextModelWithTokens regression tests', () => {
 					foreground: _actual.getForeground(i)
 				};
 			}
-			let decode = (token: ViewLineToken) => {
+			let decode = (token: TestLineToken) => {
 				return {
 					endIndex: token.endIndex,
 					foreground: token.getForeground()
@@ -561,16 +559,16 @@ suite('TextModelWithTokens regression tests', () => {
 		const LANG_ID2 = 'indicisiveMode2';
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				let myId = ++_tokenId;
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;
 				tokens[1] = (
 					myId << MetadataConsts.FOREGROUND_OFFSET
 				) >>> 0;
-				return new TokenizationResult2(tokens, state);
+				return new EncodedTokenizationResult(tokens, state);
 			}
 		};
 
@@ -596,11 +594,11 @@ suite('TextModelWithTokens regression tests', () => {
 		registration1.dispose();
 		registration2.dispose();
 
-		function createViewLineToken(endIndex: number, foreground: number): ViewLineToken {
+		function createViewLineToken(endIndex: number, foreground: number): TestLineToken {
 			let metadata = (
 				(foreground << MetadataConsts.FOREGROUND_OFFSET)
 			) >>> 0;
-			return new ViewLineToken(endIndex, metadata);
+			return new TestLineToken(endIndex, metadata);
 		}
 	});
 
@@ -628,9 +626,9 @@ suite('TextModelWithTokens regression tests', () => {
 			'\tEnd Sub',
 			'',
 			'End Module',
-		].join('\n'), undefined, languageId));
+		].join('\n'), languageId));
 
-		const actual = model.matchBracket(new Position(4, 1));
+		const actual = model.bracketPairs.matchBracket(new Position(4, 1));
 		assert.deepStrictEqual(actual, [new Range(4, 1, 4, 7), new Range(9, 1, 9, 11)]);
 
 		disposables.dispose();
@@ -653,16 +651,17 @@ suite('TextModelWithTokens regression tests', () => {
 			'     sequence "inner"',
 			'     endsequence',
 			'endsequence',
-		].join('\n'), undefined, languageId));
+		].join('\n'), languageId));
 
-		const actual = model.matchBracket(new Position(3, 9));
+		const actual = model.bracketPairs.matchBracket(new Position(3, 9));
 		assert.deepStrictEqual(actual, [new Range(3, 6, 3, 17), new Range(2, 6, 2, 14)]);
 
 		disposables.dispose();
 	});
 
 	test('issue #63822: Wrong embedded language detected for empty lines', () => {
-		const [instantiationService, disposables] = createModelServices();
+		const disposables = new DisposableStore();
+		const instantiationService = createModelServices(disposables);
 
 		const outerMode = 'outerMode';
 		const innerMode = 'innerMode';
@@ -670,25 +669,25 @@ suite('TextModelWithTokens regression tests', () => {
 		disposables.add(ModesRegistry.registerLanguage({ id: outerMode }));
 		disposables.add(ModesRegistry.registerLanguage({ id: innerMode }));
 
-		const languageIdCodec = instantiationService.invokeFunction((accessor) => accessor.get(IModeService).languageIdCodec);
+		const languageIdCodec = instantiationService.get(ILanguageService).languageIdCodec;
 		const encodedInnerMode = languageIdCodec.encodeLanguageId(innerMode);
 
 		const tokenizationSupport: ITokenizationSupport = {
-			getInitialState: () => NULL_STATE,
+			getInitialState: () => NullState,
 			tokenize: undefined!,
-			tokenize2: (line, hasEOL, state) => {
+			tokenizeEncoded: (line, hasEOL, state) => {
 				let tokens = new Uint32Array(2);
 				tokens[0] = 0;
 				tokens[1] = (
 					encodedInnerMode << MetadataConsts.LANGUAGEID_OFFSET
 				) >>> 0;
-				return new TokenizationResult2(tokens, state);
+				return new EncodedTokenizationResult(tokens, state);
 			}
 		};
 
 		disposables.add(TokenizationRegistry.register(outerMode, tokenizationSupport));
 
-		const model = disposables.add(createTextModel2(instantiationService, 'A model with one line', undefined, outerMode));
+		const model = disposables.add(instantiateTextModel(instantiationService, 'A model with one line', outerMode));
 
 		model.forceTokenization(1);
 		assert.strictEqual(model.getLanguageIdAtPosition(1, 1), innerMode);
@@ -699,21 +698,25 @@ suite('TextModelWithTokens regression tests', () => {
 
 suite('TextModel.getLineIndentGuide', () => {
 	function assertIndentGuides(lines: [number, number, number, number, string][], tabSize: number): void {
+		const languageId = 'testLang';
+		const registration = ModesRegistry.registerLanguage({ id: languageId });
+
 		let text = lines.map(l => l[4]).join('\n');
-		let model = createTextModel(text);
+		let model = createTextModel(text, languageId);
 		model.updateOptions({ tabSize: tabSize });
 
-		let actualIndents = model.getLinesIndentGuides(1, model.getLineCount());
+		let actualIndents = model.guides.getLinesIndentGuides(1, model.getLineCount());
 
 		let actual: [number, number, number, number, string][] = [];
 		for (let line = 1; line <= model.getLineCount(); line++) {
-			const activeIndentGuide = model.getActiveIndentGuide(line, 1, model.getLineCount());
+			const activeIndentGuide = model.guides.getActiveIndentGuide(line, 1, model.getLineCount());
 			actual[line - 1] = [actualIndents[line - 1], activeIndentGuide.startLineNumber, activeIndentGuide.endLineNumber, activeIndentGuide.indent, model.getLineContent(line)];
 		}
 
 		assert.deepStrictEqual(actual, lines);
 
 		model.dispose();
+		registration.dispose();
 	}
 
 	test('getLineIndentGuide one level 2', () => {
@@ -888,7 +891,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			'}',
 		].join('\n'));
 
-		const actual = model.getActiveIndentGuide(2, 4, 9);
+		const actual = model.guides.getActiveIndentGuide(2, 4, 9);
 		assert.deepStrictEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
 		model.dispose();
 	});
