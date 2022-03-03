@@ -95,9 +95,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					profileId++;
 				}
 
-				const profile = new TestRunProfileImpl(this.proxy, controllerId, profileId, label, group, runHandler, isDefault, tag);
-				profiles.set(profileId, profile);
-				return profile;
+				return new TestRunProfileImpl(this.proxy, profiles, controllerId, profileId, label, group, runHandler, isDefault, tag);
 			},
 			createTestItem(id, label, uri) {
 				return new TestItemImpl(controllerId, id, label, uri);
@@ -875,6 +873,7 @@ class TestObservers {
 
 export class TestRunProfileImpl implements vscode.TestRunProfile {
 	readonly #proxy: MainThreadTestingShape;
+	#profiles?: Map<number, vscode.TestRunProfile>;
 	private _configureHandler?: (() => void);
 
 	public get label() {
@@ -925,6 +924,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 
 	constructor(
 		proxy: MainThreadTestingShape,
+		profiles: Map<number, vscode.TestRunProfile>,
 		public readonly controllerId: string,
 		public readonly profileId: number,
 		private _label: string,
@@ -934,6 +934,8 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		public _tag: vscode.TestTag | undefined = undefined,
 	) {
 		this.#proxy = proxy;
+		this.#profiles = profiles;
+		profiles.set(profileId, this);
 
 		const groupBitset = profileGroupToBitset[kind];
 		if (typeof groupBitset !== 'number') {
@@ -952,7 +954,10 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 	}
 
 	dispose(): void {
-		this.#proxy.$removeTestProfile(this.controllerId, this.profileId);
+		if (this.#profiles?.delete(this.profileId)) {
+			this.#profiles = undefined;
+			this.#proxy.$removeTestProfile(this.controllerId, this.profileId);
+		}
 	}
 }
 
