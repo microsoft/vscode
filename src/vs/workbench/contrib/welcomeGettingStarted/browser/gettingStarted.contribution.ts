@@ -24,12 +24,13 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { StartupPageContribution, } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 
 
@@ -183,23 +184,48 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
-		const commandService = accessor.get(ICommandService);
-		const contextService = accessor.get(IContextKeyService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const gettingStartedService = accessor.get(IWalkthroughsService);
+	private getQuickPickItems(
+		contextService: IContextKeyService,
+		gettingStartedService: IWalkthroughsService
+	): IQuickPickItem[] {
 		const categories = gettingStartedService.getWalkthroughs();
-		const selection = await quickInputService.pick(categories
+		return categories
 			.filter(c => contextService.contextMatchesRules(c.when))
 			.map(x => ({
 				id: x.id,
 				label: x.title,
 				detail: x.description,
 				description: x.source,
-			})), { canPickMany: false, matchOnDescription: true, matchOnDetail: true, title: localize('pickWalkthroughs', "Open Walkthrough...") });
-		if (selection) {
-			commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
-		}
+			}));
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const commandService = accessor.get(ICommandService);
+		const contextService = accessor.get(IContextKeyService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const gettingStartedService = accessor.get(IWalkthroughsService);
+		const extensionService = accessor.get(IExtensionService);
+
+		const quickPick = quickInputService.createQuickPick();
+		quickPick.canSelectMany = false;
+		quickPick.matchOnDescription = true;
+		quickPick.matchOnDetail = true;
+		quickPick.title = localize('pickWalkthroughs', "Open Walkthrough...");
+		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
+		quickPick.busy = true;
+		quickPick.onDidAccept(() => {
+			const selection = quickPick.selectedItems[0];
+			if (selection) {
+				commandService.executeCommand('workbench.action.openWalkthrough', selection.id);
+			}
+			quickPick.hide();
+		});
+		quickPick.onDidHide(() => quickPick.dispose());
+		quickPick.show();
+		await extensionService.whenInstalledExtensionsRegistered();
+		quickPick.busy = false;
+		await gettingStartedService.installedExtensionsRegistered;
+		quickPick.items = this.getQuickPickItems(contextService, gettingStartedService);
 	}
 });
 
