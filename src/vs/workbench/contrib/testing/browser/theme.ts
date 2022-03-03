@@ -66,8 +66,8 @@ export const testingPeekHeaderBackground = registerColor('testing.peekHeaderBack
 
 export const testMessageSeverityColors: {
 	[K in TestMessageType]: {
-		decorationForeground: string,
-		marginBackground: string,
+		decorationForeground: string;
+		marginBackground: string;
 	};
 } = {
 	[TestMessageType.Error]: {
@@ -102,7 +102,7 @@ export const testStatesToIconColors: { [K in TestResultState]?: string } = {
 	[TestResultState.Passed]: testingColorIconPassed,
 	[TestResultState.Queued]: testingColorIconQueued,
 	[TestResultState.Unset]: testingColorIconUnset,
-	[TestResultState.Skipped]: testingColorIconUnset,
+	[TestResultState.Skipped]: testingColorIconSkipped,
 };
 
 

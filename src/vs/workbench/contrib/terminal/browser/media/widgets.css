@@ -5,11 +5,20 @@
 
 .monaco-workbench .terminal-widget-container {
 	position: absolute;
-	left: 0;
-	bottom: 0;
-	right: 0;
+	left: 10px;
+	bottom: 2px;
+	right: 10px;
 	top: 0;
 	overflow: visible;
+}
+
+.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-widget-container,
+.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-widget-container {
+	left: 20px;
+}
+.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-widget-container,
+.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-widget-container {
+	right: 20px;
 }
 
 .monaco-workbench .terminal-overlay-widget {
@@ -21,28 +30,23 @@
 
 .monaco-workbench .terminal-hover-target {
 	position: absolute;
-	z-index: 30;
+	z-index: 33;
 }
 
 .monaco-workbench .terminal-env-var-info {
 	position: absolute;
-	right: 2px;
+	right: 10px; /* room for scroll bar */
 	top: 0;
 	width: 28px;
 	height: 28px;
 	text-align: center;
-	z-index: 10;
+	z-index: 32;
 	opacity: 0.5;
 }
 
 .monaco-workbench .terminal-env-var-info:hover,
 .monaco-workbench .terminal-env-var-info.requires-action {
 	opacity: 1;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .terminal-env-var-info {
-	/* Adjust for reduced margin in splits */
-	right: -8px;
 }
 
 .monaco-workbench .terminal-env-var-info.codicon {

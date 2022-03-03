@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
-function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
+function testCommand(lines: string[], selections: Selection[], edits: ISingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
 	withTestCodeEditor(lines, {}, (editor, viewModel) => {
 		const model = editor.getModel()!;
 

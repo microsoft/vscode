@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
+import { promises as fs } from 'fs';
 import type * as pty from 'node-pty';
+import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, ProcessCapability } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 const enum ShutdownConstants {
@@ -68,8 +71,8 @@ const enum Constants {
 }
 
 interface IWriteObject {
-	data: string,
-	isBinary: boolean
+	data: string;
+	isBinary: boolean;
 }
 
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
@@ -79,7 +82,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _properties: IProcessPropertyMap = {
 		cwd: '',
 		initialCwd: '',
-		fixedDimensions: { cols: undefined, rows: undefined }
+		fixedDimensions: { cols: undefined, rows: undefined },
+		title: '',
+		shellType: undefined,
+		hasChildProcesses: true,
+		resolvedShellLaunchConfig: {},
+		overrideDimensions: undefined
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
@@ -97,7 +105,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _delayedResizer: DelayedResizer | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
-	private _capabilities: ProcessCapability[] = [];
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
@@ -106,25 +113,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
 	get shellType(): TerminalShellType { return this._windowsShellHelper ? this._windowsShellHelper.shellType : undefined; }
 
-	get capabilities(): ProcessCapability[] { return this._capabilities; }
-
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
-	private readonly _onProcessExit = this._register(new Emitter<number>());
-	readonly onProcessExit = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
-	readonly onProcessTitleChanged = this._onProcessTitleChanged.event;
-	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
-	readonly onProcessShellTypeChanged = this._onProcessShellTypeChanged.event;
-	private readonly _onDidChangeHasChildProcesses = this._register(new Emitter<boolean>());
-	readonly onDidChangeHasChildProcesses = this._onDidChangeHasChildProcesses.event;
 	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
-
-	onProcessOverrideDimensions?: Event<ITerminalDimensionsOverride | undefined> | undefined;
-	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig> | undefined;
+	private readonly _onProcessExit = this._register(new Emitter<number>());
+	readonly onProcessExit = this._onProcessExit.event;
 
 	constructor(
 		readonly shellLaunchConfig: IShellLaunchConfig,
@@ -136,7 +132,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		 * environment used for `findExecutable`
 		 */
 		private readonly _executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		private readonly _options: ITerminalProcessOptions,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
@@ -151,12 +147,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConpty = this._options.windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
 			cwd,
 			// TODO: When node-pty is updated this cast can be removed
-			env: env as { [key: string]: string; },
+			env: env as { [key: string]: string },
 			cols,
 			rows,
 			useConpty,
@@ -178,13 +174,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			// WindowsShellHelper is used to fetch the process title and shell type
 			this.onProcessReady(e => {
 				this._windowsShellHelper = this._register(new WindowsShellHelper(e.pid));
-				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onProcessShellTypeChanged.fire(e)));
-				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onProcessTitleChanged.fire(e)));
+				this._register(this._windowsShellHelper.onShellTypeChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellType, value: e })));
+				this._register(this._windowsShellHelper.onShellNameChanged(e => this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: e })));
 			});
-		}
-		// Enable the cwd detection capability if the process supports it
-		if (isLinux || isMacintosh) {
-			this.capabilities.push(ProcessCapability.CwdDetection);
 		}
 	}
 
@@ -195,8 +187,40 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return firstError;
 		}
 
+		let injection: IShellIntegrationConfigInjection | undefined;
+		if (this._options.shellIntegration) {
+			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration);
+			if (!injection) {
+				this._logService.warn(`Shell integration cannot be enabled for executable "${this.shellLaunchConfig.executable}" and args`, this.shellLaunchConfig.args);
+			} else {
+				if (injection.envMixin) {
+					for (const [key, value] of Object.entries(injection.envMixin)) {
+						this._ptyOptions.env ||= {};
+						this._ptyOptions.env[key] = value;
+					}
+				}
+				if (injection.filesToCopy) {
+					for (const f of injection.filesToCopy) {
+						await fs.mkdir(path.dirname(f.dest), { recursive: true });
+						await fs.copyFile(f.source, f.dest);
+					}
+				}
+			}
+		}
+
+		// Handle zsh shell integration - Set $ZDOTDIR to a temp dir and create $ZDOTDIR/.zshrc
+		if (this.shellLaunchConfig.env?.['_ZDOTDIR'] === '1') {
+			const zdotdir = path.join(tmpdir(), 'vscode-zsh');
+			await fs.mkdir(zdotdir, { recursive: true });
+			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh');
+			await fs.copyFile(source, path.join(zdotdir, '.zshrc'));
+			this._ptyOptions.env = this._ptyOptions.env || {};
+			this._ptyOptions.env['ZDOTDIR'] = zdotdir;
+			delete this._ptyOptions.env['_ZDOTDIR'];
+		}
+
 		try {
-			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions);
+			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -246,14 +270,18 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		return undefined;
 	}
 
-	private async setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): Promise<void> {
-		const args = shellLaunchConfig.args || [];
+	private async setupPtyProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		options: pty.IPtyForkOptions,
+		shellIntegrationInjection: IShellIntegrationConfigInjection | undefined
+	): Promise<void> {
+		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._childProcessMonitor = this._register(new ChildProcessMonitor(ptyProcess.pid, this._logService));
-		this._childProcessMonitor.onDidChangeHasChildProcesses(this._onDidChangeHasChildProcesses.fire, this._onDidChangeHasChildProcesses);
+		this._childProcessMonitor.onDidChangeHasChildProcesses(value => this._onDidChangeProperty.fire({ type: ProcessPropertyType.HasChildProcesses, value }));
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessReady(() => c());
 		});
@@ -352,7 +380,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd, capabilities: this.capabilities, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {
@@ -360,7 +388,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return;
 		}
 		this._currentTitle = ptyProcess.process;
-		this._onProcessTitleChanged.fire(this._currentTitle);
+		this._onDidChangeProperty.fire({ type: ProcessPropertyType.Title, value: this._currentTitle });
 	}
 
 	shutdown(immediate: boolean): void {
@@ -401,23 +429,34 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this.input(data, true);
 	}
 
-	async refreshProperty<T extends ProcessPropertyType>(type: ProcessPropertyType): Promise<IProcessPropertyMap[T]> {
-		if (type === ProcessPropertyType.Cwd) {
-			const newCwd = await this.getCwd();
-			if (newCwd !== this._properties.cwd) {
-				this._properties.cwd = newCwd;
-				this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
+	async refreshProperty<T extends ProcessPropertyType>(type: T): Promise<IProcessPropertyMap[T]> {
+		switch (type) {
+			case ProcessPropertyType.Cwd: {
+				const newCwd = await this.getCwd();
+				if (newCwd !== this._properties.cwd) {
+					this._properties.cwd = newCwd;
+					this._onDidChangeProperty.fire({ type: ProcessPropertyType.Cwd, value: this._properties.cwd });
+				}
+				return newCwd as IProcessPropertyMap[T];
 			}
-			return newCwd;
-		} else {
-			return this.getInitialCwd();
+			case ProcessPropertyType.InitialCwd: {
+				const initialCwd = await this.getInitialCwd();
+				if (initialCwd !== this._properties.initialCwd) {
+					this._properties.initialCwd = initialCwd;
+					this._onDidChangeProperty.fire({ type: ProcessPropertyType.InitialCwd, value: this._properties.initialCwd });
+				}
+				return initialCwd as IProcessPropertyMap[T];
+			}
+			case ProcessPropertyType.Title:
+				return this.currentTitle as IProcessPropertyMap[T];
+			default:
+				return this.shellType as IProcessPropertyMap[T];
 		}
 	}
 
-	async updateProperty<T extends ProcessPropertyType>(type: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
-		//TODO: why is the type check necessary?
-		if (type === ProcessPropertyType.FixedDimensions && typeof value !== 'string') {
-			this._properties.fixedDimensions = value;
+	async updateProperty<T extends ProcessPropertyType>(type: T, value: IProcessPropertyMap[T]): Promise<void> {
+		if (type === ProcessPropertyType.FixedDimensions) {
+			this._properties.fixedDimensions = value as IProcessPropertyMap[ProcessPropertyType.FixedDimensions];
 		}
 	}
 
@@ -478,7 +517,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			} catch (e) {
 				// Swallow error if the pty has already exited
 				this._logService.trace('IPty#resize exception ' + e.message);
-				if (this._exitCode !== undefined && e.message !== 'ioctl(2) failed, EBADF') {
+				if (this._exitCode !== undefined &&
+					e.message !== 'ioctl(2) failed, EBADF' &&
+					e.message !== 'Cannot resize a pty that has already exited') {
 					throw e;
 				}
 			}
@@ -563,8 +604,8 @@ class DelayedResizer extends Disposable {
 	cols: number | undefined;
 	private _timeout: NodeJS.Timeout;
 
-	private readonly _onTrigger = this._register(new Emitter<{ rows?: number, cols?: number }>());
-	get onTrigger(): Event<{ rows?: number, cols?: number }> { return this._onTrigger.event; }
+	private readonly _onTrigger = this._register(new Emitter<{ rows?: number; cols?: number }>());
+	get onTrigger(): Event<{ rows?: number; cols?: number }> { return this._onTrigger.event; }
 
 	constructor() {
 		super();

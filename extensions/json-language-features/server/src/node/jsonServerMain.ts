@@ -5,8 +5,7 @@
 
 import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
 import { formatError } from '../utils/runner';
-import { RuntimeEnvironment, startServer } from '../jsonServer';
-import { RequestService } from '../requests';
+import { RequestService, RuntimeEnvironment, startServer } from '../jsonServer';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
 import { URI as Uri } from 'vscode-uri';

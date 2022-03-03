@@ -64,7 +64,7 @@ class ZIndexRegistry {
 		this.zIndexMap.forEach((zIndex, name) => {
 			ruleBuilder += `${this.getVarName(name)}: ${zIndex};\n`;
 		});
-		createCSSRule('*', ruleBuilder, this.styleSheet);
+		createCSSRule(':root', ruleBuilder, this.styleSheet);
 	}
 }
 

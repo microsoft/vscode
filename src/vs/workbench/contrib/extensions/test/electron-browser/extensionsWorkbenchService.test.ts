@@ -11,12 +11,12 @@ import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurat
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform
+	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
+import { anExtensionManagementServerService, TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -34,9 +34,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionType, IExtension, ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentServiceImpl';
+import { RemoteAgentService } from 'vs/workbench/services/remote/electron-sandbox/remoteAgentService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -94,14 +95,15 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onUninstallExtension: uninstallEvent.event,
 			onDidUninstallExtension: didUninstallEvent.event,
 			async getInstalled() { return []; },
-			async getExtensionsReport() { return []; },
+			async getExtensionsControlManifest() { return { malicious: [] }; },
 			async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata) {
 				local.identifier.uuid = metadata.id;
 				local.publisherDisplayName = metadata.publisherDisplayName;
 				local.publisherId = metadata.publisherId;
 				return local;
 			},
-			async canInstall() { return true; }
+			async canInstall() { return true; },
+			getTargetPlatform: async () => getTargetPlatform(platform, arch)
 		});
 
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
@@ -123,6 +125,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 	});
@@ -306,6 +309,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local1, local2]);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery1));
+		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', gallery1);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery1]);
 		testObject = await aWorkbenchService();
 		await testObject.queryLocal();
 
@@ -426,7 +431,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 	test('test canInstall returns true for extensions with gallery', async () => {
 		const local = aLocalExtension('a', { version: '1.0.1' }, { type: ExtensionType.User });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension(local.manifest.name, { identifier: local.identifier })));
+		const gallery = aGalleryExtension(local.manifest.name, { identifier: local.identifier });
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', gallery);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
 		testObject = await aWorkbenchService();
 		const target = testObject.local[0];
 
@@ -1452,24 +1460,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		});
 	}
 
-	function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null, webExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
-		return {
-			_serviceBrand: undefined,
-			localExtensionManagementServer,
-			remoteExtensionManagementServer,
-			webExtensionManagementServer,
-			getExtensionManagementServer: (extension: IExtension) => {
-				if (extension.location.scheme === Schemas.file) {
-					return localExtensionManagementServer;
-				}
-				if (extension.location.scheme === Schemas.vscodeRemote) {
-					return remoteExtensionManagementServer;
-				}
-				return webExtensionManagementServer;
-			}
-		};
-	}
-
 	function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IExtensionManagementService, remoteExtensionManagementService?: IExtensionManagementService): IExtensionManagementServerService {
 		const localExtensionManagementServer: IExtensionManagementServer = {
 			id: 'vscode-local',
@@ -1481,21 +1471,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			label: 'remote',
 			extensionManagementService: remoteExtensionManagementService || createExtensionManagementService(),
 		};
-		return {
-			_serviceBrand: undefined,
-			localExtensionManagementServer,
-			remoteExtensionManagementServer,
-			webExtensionManagementServer: null,
-			getExtensionManagementServer: (extension: IExtension) => {
-				if (extension.location.scheme === Schemas.file) {
-					return localExtensionManagementServer;
-				}
-				if (extension.location.scheme === Schemas.vscodeRemote) {
-					return remoteExtensionManagementServer;
-				}
-				throw new Error('');
-			}
-		};
+		return anExtensionManagementServerService(localExtensionManagementServer, remoteExtensionManagementServer, null);
 	}
 
 	function createExtensionManagementService(installed: ILocalExtension[] = []): IExtensionManagementService {
@@ -1511,7 +1487,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				local.publisherDisplayName = metadata.publisherDisplayName;
 				local.publisherId = metadata.publisherId;
 				return local;
-			}
+			},
+			getTargetPlatform: async () => getTargetPlatform(platform, arch),
+			async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [] }; },
 		};
 	}
 });

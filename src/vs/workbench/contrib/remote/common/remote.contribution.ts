@@ -16,8 +16,6 @@ import { IOutputChannelRegistry, Extensions as OutputExt, } from 'vs/workbench/s
 import { localize } from 'vs/nls';
 import { joinPath } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TunnelFactoryContribution } from 'vs/workbench/contrib/remote/common/tunnelFactory';
-import { ShowCandidateContribution } from 'vs/workbench/contrib/remote/common/showCandidate';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -25,6 +23,12 @@ import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/d
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { PersistentConnection } from 'vs/platform/remote/common/remoteAgentConnection';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
 export class LabelContribution implements IWorkbenchContribution {
 	constructor(
@@ -153,13 +157,100 @@ class RemoteInvalidWorkspaceDetector extends Disposable implements IWorkbenchCon
 	}
 }
 
+class InitialRemoteConnectionHealthContribution implements IWorkbenchContribution {
+
+	constructor(
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+	) {
+		if (this._environmentService.remoteAuthority) {
+			this._checkInitialRemoteConnectionHealth();
+		}
+	}
+
+	private async _checkInitialRemoteConnectionHealth(): Promise<void> {
+		try {
+			await this._remoteAgentService.getRawEnvironment();
+
+			type RemoteConnectionSuccessClassification = {
+				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			};
+			type RemoteConnectionSuccessEvent = {
+				web: boolean;
+				remoteName: string | undefined;
+			};
+			this._telemetryService.publicLog2<RemoteConnectionSuccessEvent, RemoteConnectionSuccessClassification>('remoteConnectionSuccess', {
+				web: isWeb,
+				remoteName: getRemoteName(this._environmentService.remoteAuthority)
+			});
+
+		} catch (err) {
+
+			type RemoteConnectionFailureClassification = {
+				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+				message: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			};
+			type RemoteConnectionFailureEvent = {
+				web: boolean;
+				remoteName: string | undefined;
+				message: string;
+			};
+			this._telemetryService.publicLog2<RemoteConnectionFailureEvent, RemoteConnectionFailureClassification>('remoteConnectionFailure', {
+				web: isWeb,
+				remoteName: getRemoteName(this._environmentService.remoteAuthority),
+				message: err ? err.message : ''
+			});
+
+		}
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(LabelContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteChannelsContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteInvalidWorkspaceDetector, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteLogOutputChannels, LifecyclePhase.Restored);
-workbenchContributionsRegistry.registerWorkbenchContribution(TunnelFactoryContribution, LifecyclePhase.Ready);
-workbenchContributionsRegistry.registerWorkbenchContribution(ShowCandidateContribution, LifecyclePhase.Ready);
+workbenchContributionsRegistry.registerWorkbenchContribution(InitialRemoteConnectionHealthContribution, LifecyclePhase.Ready);
+
+const enableDiagnostics = true;
+
+if (enableDiagnostics) {
+	class TriggerReconnectAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.triggerReconnect',
+				title: { value: localize('triggerReconnect', "Connection: Trigger Reconnect"), original: 'Connection: Trigger Reconnect' },
+				category: CATEGORIES.Developer,
+				f1: true,
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			PersistentConnection.debugTriggerReconnection();
+		}
+	}
+
+	class PauseSocketWriting extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.pauseSocketWriting',
+				title: { value: localize('pauseSocketWriting', "Connection: Pause socket writing"), original: 'Connection: Pause socket writing' },
+				category: CATEGORIES.Developer,
+				f1: true,
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			PersistentConnection.debugPauseSocketWriting();
+		}
+	}
+
+	registerAction2(TriggerReconnectAction);
+	registerAction2(PauseSocketWriting);
+}
 
 const extensionKindSchema: IJSONSchema = {
 	type: 'string',
@@ -218,7 +309,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'remote.portsAttributes': {
 				type: 'object',
 				patternProperties: {
-					'(^\\d+(\\-\\d+)?$)|(.+)': {
+					'(^\\d+(-\\d+)?$)|(.+)': {
 						type: 'object',
 						description: localize('remote.portsAttributes.port', "A port, range of ports (ex. \"40000-55000\"), host and port (ex. \"db:1234\"), or regular expression (ex. \".+\\\\/server.js\").  For a port number or range, the attributes will apply to that port number or range of port numbers. Attributes which use a regular expression will apply to ports whose associated process command line matches the expression."),
 						properties: {

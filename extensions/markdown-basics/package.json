@@ -66,6 +66,7 @@
           "meta.embedded.block.pug": "jade",
           "meta.embedded.block.javascript": "javascript",
           "meta.embedded.block.json": "json",
+          "meta.embedded.block.jsonc": "jsonc",
           "meta.embedded.block.less": "less",
           "meta.embedded.block.objc": "objc",
           "meta.embedded.block.scss": "scss",
@@ -87,7 +88,13 @@
         "language": "markdown",
         "path": "./snippets/markdown.code-snippets"
       }
-    ]
+    ],
+    "configurationDefaults": {
+      "[markdown]": {
+          "editor.unicodeHighlight.ambiguousCharacters": false,
+          "editor.unicodeHighlight.invisibleCharacters": false
+      }
+    }
   },
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin microsoft/vscode-markdown-tm-grammar syntaxes/markdown.tmLanguage ./syntaxes/markdown.tmLanguage.json"

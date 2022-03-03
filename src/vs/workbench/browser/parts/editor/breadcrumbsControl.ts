@@ -34,13 +34,14 @@ import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } fr
 import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { onDidChangeZoomLevel } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/browser';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IOutline } from 'vs/workbench/services/outline/browser/outline';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -150,6 +151,8 @@ export interface IBreadcrumbsControlOptions {
 	showPlaceholder: boolean;
 }
 
+const separatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight, localize('separatorIcon', 'Icon for the separator in the breadcrumbs.'));
+
 export class BreadcrumbsControl {
 
 	static readonly HEIGHT = 22;
@@ -193,7 +196,6 @@ export class BreadcrumbsControl {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IFileService private readonly _fileService: IFileService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -208,7 +210,7 @@ export class BreadcrumbsControl {
 		this._cfTitleScrollbarSizing = BreadcrumbsConfig.TitleScrollbarSizing.bindTo(configurationService);
 
 		const sizing = this._cfTitleScrollbarSizing.getValue() ?? 'default';
-		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing]);
+		this._widget = new BreadcrumbsWidget(this.domNode, BreadcrumbsControl.SCROLLBAR_SIZES[sizing], separatorIcon);
 		this._widget.onDidSelectItem(this._onSelectEvent, this, this._disposables);
 		this._widget.onDidFocusItem(this._onFocusEvent, this, this._disposables);
 		this._widget.onDidChangeFocus(this._updateCkBreadcrumbsActive, this, this._disposables);
@@ -310,8 +312,8 @@ export class BreadcrumbsControl {
 		const configListener = this._cfShowIcons.onDidChange(updateBreadcrumbs);
 		updateBreadcrumbs();
 		this._breadcrumbsDisposables.clear();
-		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(listener);
+		this._breadcrumbsDisposables.add(model);
 		this._breadcrumbsDisposables.add(configListener);
 		this._breadcrumbsDisposables.add(toDisposable(() => this._widget.setItems([])));
 
@@ -357,10 +359,6 @@ export class BreadcrumbsControl {
 		const { element } = event.item as FileItem | OutlineItem;
 		this._editorGroup.focus();
 
-		type BreadcrumbSelect = { type: string };
-		type BreadcrumbSelectClassification = { type: { classification: 'SystemMetaData', purpose: 'FeatureInsight' }; };
-		this._telemetryService.publicLog2<BreadcrumbSelect, BreadcrumbSelectClassification>('breadcrumbs/select', { type: event.item instanceof OutlineItem ? 'symbol' : 'file' });
-
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
 			// reveal the item
@@ -382,7 +380,7 @@ export class BreadcrumbsControl {
 		let picker: BreadcrumbsPicker;
 		let pickerAnchor: { x: number; y: number };
 
-		interface IHideData { didPick?: boolean, source?: BreadcrumbsControl }
+		interface IHideData { didPick?: boolean; source?: BreadcrumbsControl }
 
 		this._contextViewService.showContextView({
 			render: (parent: HTMLElement) => {
@@ -393,7 +391,7 @@ export class BreadcrumbsControl {
 				}
 
 				let selectListener = picker.onWillPickElement(() => this._contextViewService.hideContextView({ source: this, didPick: true }));
-				let zoomListener = onDidChangeZoomLevel(() => this._contextViewService.hideContextView({ source: this }));
+				let zoomListener = PixelRatio.onDidChange(() => this._contextViewService.hideContextView({ source: this }));
 
 				let focusTracker = dom.trackFocus(parent);
 				let blurListener = focusTracker.onDidBlur(() => {

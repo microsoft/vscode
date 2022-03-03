@@ -19,7 +19,7 @@ export class OutlineViewState {
 	private _filterOnType = true;
 	private _sortBy = OutlineSortOrder.ByPosition;
 
-	private readonly _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
+	private readonly _onDidChange = new Emitter<{ followCursor?: boolean; sortBy?: boolean; filterOnType?: boolean }>();
 	readonly onDidChange = this._onDidChange.event;
 
 	dispose(): void {

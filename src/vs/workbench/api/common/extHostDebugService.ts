@@ -16,7 +16,7 @@ import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstract
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor, IDebugAdapterImpl, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
@@ -32,6 +32,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { withNullAsUndefined } from 'vs/base/common/types';
 import * as process from 'vs/base/common/process';
 import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
+import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -642,7 +643,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		});
 	}
 
-	public async $provideDebugAdapter(adapterFactoryHandle: number, sessionDto: IDebugSessionDto): Promise<IAdapterDescriptor> {
+	public async $provideDebugAdapter(adapterFactoryHandle: number, sessionDto: IDebugSessionDto): Promise<Dto<IAdapterDescriptor>> {
 		const adapterDescriptorFactory = this.getAdapterDescriptorFactoryByHandle(adapterFactoryHandle);
 		if (!adapterDescriptorFactory) {
 			return Promise.reject(new Error('no adapter descriptor factory found for handle'));
@@ -693,7 +694,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	// private & dto helpers
 
-	private convertToDto(x: vscode.DebugAdapterDescriptor): IAdapterDescriptor {
+	private convertToDto(x: vscode.DebugAdapterDescriptor): Dto<IAdapterDescriptor> {
 
 		if (x instanceof DebugAdapterExecutable) {
 			return <IDebugAdapterExecutable>{
@@ -714,7 +715,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 				path: x.path
 			};
 		} else if (x instanceof DebugAdapterInlineImplementation) {
-			return <IDebugAdapterImpl>{
+			return <Dto<IAdapterDescriptor>>{
 				type: 'implementation',
 				implementation: x.implementation
 			};
@@ -940,21 +941,26 @@ export class ExtHostDebugConsole {
 
 export class ExtHostVariableResolverService extends AbstractVariableResolverService {
 
-	constructor(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors | undefined, configurationService: ExtHostConfigProvider, editorTabs: IExtHostEditorTabs, workspaceService?: IExtHostWorkspace) {
+	constructor(folders: vscode.WorkspaceFolder[],
+		editorService: ExtHostDocumentsAndEditors | undefined,
+		configurationService: ExtHostConfigProvider,
+		editorTabs: IExtHostEditorTabs,
+		workspaceService?: IExtHostWorkspace,
+		userHome?: string) {
 		function getActiveUri(): URI | undefined {
 			if (editorService) {
 				const activeEditor = editorService.activeEditor();
 				if (activeEditor) {
 					return activeEditor.document.uri;
 				}
-				const tabs = editorTabs.tabs.filter(tab => tab.isActive);
-				if (tabs.length > 0) {
+				const activeTab = editorTabs.tabGroups.all.find(group => group.isActive)?.activeTab;
+				if (activeTab !== undefined) {
 					// Resolve a resource from the tab
-					const asSideBySideResource = tabs[0].resource as { primary?: URI, secondary?: URI } | undefined;
+					const asSideBySideResource = activeTab.resource as { primary?: URI; secondary?: URI } | undefined;
 					if (asSideBySideResource && (asSideBySideResource.primary || asSideBySideResource.secondary)) {
 						return asSideBySideResource.primary ?? asSideBySideResource.secondary;
 					} else {
-						return tabs[0].resource as URI | undefined;
+						return activeTab.resource as URI | undefined;
 					}
 				}
 			}
@@ -1018,7 +1024,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				}
 				return undefined;
 			}
-		}, undefined, Promise.resolve(process.env));
+		}, undefined, userHome ? Promise.resolve(userHome) : undefined, Promise.resolve(process.env));
 	}
 }
 

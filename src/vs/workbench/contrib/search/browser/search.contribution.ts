@@ -10,10 +10,11 @@ import * as platform from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { assertIsDefined, assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
-import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/gotoLineQuickAccess';
+import { ToggleCaseSensitiveKeybinding, TogglePreserveCaseKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/browser/findModel';
+import { AbstractGotoLineQuickAccessProvider } from 'vs/editor/contrib/quickAccess/browser/gotoLineQuickAccess';
 import * as nls from 'vs/nls';
-import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, MenuRegistry, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { ICommandAction } from 'vs/platform/action/common/action';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -45,8 +46,8 @@ import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
-import { resolveResourcesForSearchIncludes } from 'vs/workbench/contrib/search/common/queryBuilder';
-import { getWorkspaceSymbols, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
+import { resolveResourcesForSearchIncludes } from 'vs/workbench/services/search/common/queryBuilder';
+import { getWorkspaceSymbols, IWorkspaceSymbol, SearchStateKey, SearchUIState } from 'vs/workbench/contrib/search/common/search';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { FileMatch, FileMatchOrMatch, FolderMatch, ISearchWorkbenchService, Match, RenderableMatch, SearchWorkbenchService } from 'vs/workbench/contrib/search/common/searchModel';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
@@ -824,7 +825,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[SEARCH_EXCLUDE_CONFIG]: {
 			type: 'object',
-			markdownDescription: nls.localize('exclude', "Configure glob patterns for excluding files and folders in fulltext searches and quick open. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			markdownDescription: nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders in fulltext searches and quick open. Inherits all glob patterns from the `#files.exclude#` setting."),
 			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
 			additionalProperties: {
 				anyOf: [
@@ -866,6 +867,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.maintainFileSearchCache': {
 			type: 'boolean',
+			deprecationMessage: nls.localize('maintainFileSearchCacheDeprecated', "The search cache is kept in the extension host which never shuts down, so this setting is no longer needed."),
 			description: nls.localize('search.maintainFileSearchCache', "When enabled, the searchService process will be kept alive instead of being shut down after an hour of inactivity. This will keep the file search cache in memory."),
 			default: false
 		},
@@ -878,6 +880,12 @@ configurationRegistry.registerConfiguration({
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
 			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use global `.gitignore` and `.ignore` files when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			default: false,
+			scope: ConfigurationScope.RESOURCE
+		},
+		'search.useParentIgnoreFiles': {
+			type: 'boolean',
+			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
@@ -979,7 +987,7 @@ configurationRegistry.registerConfiguration({
 		'search.seedOnFocus': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
+			markdownDescription: nls.localize('search.seedOnFocus', "Update the search query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
 		},
 		'search.searchOnTypeDebouncePeriod': {
 			type: 'number',
@@ -1025,19 +1033,15 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
-		},
-		'search.forceSearchProcess': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('search.forceSearchProcess', "When enabled, search in a local window runs in a separate search process instead of the extension host.")
 		}
 	}
 });
 
-CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', function (accessor, ...args) {
+CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', async function (accessor, ...args): Promise<IWorkspaceSymbol[]> {
 	const [query] = args;
 	assertType(typeof query === 'string');
-	return getWorkspaceSymbols(query);
+	const result = await getWorkspaceSymbols(query);
+	return result.map(item => item.symbol);
 });
 
 // Go to menu

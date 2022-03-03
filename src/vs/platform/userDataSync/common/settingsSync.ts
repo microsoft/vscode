@@ -6,22 +6,20 @@
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
-import { applyEdits, setProperty } from 'vs/base/common/jsonEdit';
-import { Edit } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
-import { IUserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { FileOperationError, FileOperationResult, IFileContent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { getIgnoredSettings, isEmpty, merge, updateIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
-import { Change, CONFIGURATION_SYNC_STORE_KEY, IRemoteUserData, ISyncData, ISyncResourceHandle, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
+import { Change, CONFIGURATION_SYNC_STORE_KEY, IRemoteUserData, ISyncResourceHandle, IUserDataManifest, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, IUserDataSyncUtilService, SyncResource, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_CONFIGURATION_SCOPE, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface ISettingsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
@@ -60,12 +58,12 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IUserConfigurationFileService private readonly userConfigurationFileService: IUserConfigurationFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService, uriIdentityService);
 	}
 
 	async getRemoteUserDataSyncConfiguration(manifest: IUserDataManifest | null): Promise<IUserDataSyncConfiguration> {
@@ -134,6 +132,20 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			previewResult,
 			acceptedResource: this.acceptedResource,
 		}];
+	}
+
+	protected async hasRemoteChanged(lastSyncUserData: IRemoteUserData): Promise<boolean> {
+		const lastSettingsSyncContent: ISettingsSyncContent | null = this.getSettingsSyncContent(lastSyncUserData);
+		if (lastSettingsSyncContent === null) {
+			return true;
+		}
+
+		const fileContent = await this.getLocalFileContent();
+		const localContent: string = fileContent ? fileContent.value.toString().trim() : '';
+		const ignoredSettings = await this.getIgnoredSettings();
+		const formattingOptions = await this.getFormattingOptions();
+		const result = merge(localContent || '{}', lastSettingsSyncContent.settings, lastSettingsSyncContent.settings, ignoredSettings, [], formattingOptions);
+		return result.remoteContent !== null;
 	}
 
 	protected async getMergeResult(resourcePreview: ISettingsResourcePreview, token: CancellationToken): Promise<IMergeResult> {
@@ -255,7 +267,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return false;
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
 		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : this.localResource;
 		return [{ resource: this.extUri.joinPath(uri, 'settings.json'), comparableResource }];
 	}
@@ -327,48 +339,12 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return getIgnoredSettings(defaultIgnoredSettings, this.configurationService, content);
 	}
 
-	protected override async writeFileContent(newContent: string, oldContent: IFileContent, force: boolean): Promise<void> {
-		await this.userConfigurationFileService.write(VSBuffer.fromString(newContent), force ? undefined : { etag: oldContent.etag, mtime: oldContent.mtime });
-	}
-
 	private validateContent(content: string): void {
 		if (this.hasErrors(content)) {
 			throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
 		}
 	}
 
-	async recoverSettings(): Promise<void> {
-		try {
-			const fileContent = await this.getLocalFileContent();
-			if (!fileContent) {
-				return;
-			}
-
-			const syncData: ISyncData = JSON.parse(fileContent.value.toString());
-			if (!isSyncData(syncData)) {
-				return;
-			}
-
-			this.telemetryService.publicLog2('sync/settingsCorrupted');
-			const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
-			if (!settingsSyncContent || !settingsSyncContent.settings) {
-				return;
-			}
-
-			let settings = settingsSyncContent.settings;
-			const formattingOptions = await this.getFormattingOptions();
-			for (const key in syncData) {
-				if (['version', 'content', 'machineId'].indexOf(key) === -1 && (syncData as any)[key] !== undefined) {
-					const edits: Edit[] = setProperty(settings, [key], (syncData as any)[key], formattingOptions);
-					if (edits.length) {
-						settings = applyEdits(settings, edits);
-					}
-				}
-			}
-
-			await this.fileService.writeFile(this.file, VSBuffer.fromString(settings));
-		} catch (e) {/* ignore */ }
-	}
 }
 
 export class SettingsInitializer extends AbstractInitializer {
@@ -377,8 +353,9 @@ export class SettingsInitializer extends AbstractInitializer {
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 	) {
-		super(SyncResource.Settings, environmentService, logService, fileService);
+		super(SyncResource.Settings, environmentService, logService, fileService, uriIdentityService);
 	}
 
 	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
@@ -417,16 +394,4 @@ export class SettingsInitializer extends AbstractInitializer {
 		return null;
 	}
 
-}
-
-function isSyncData(thing: any): thing is ISyncData {
-	if (thing
-		&& (thing.version !== undefined && typeof thing.version === 'number')
-		&& (thing.content !== undefined && typeof thing.content === 'string')
-		&& (thing.machineId !== undefined && typeof thing.machineId === 'string')
-	) {
-		return true;
-	}
-
-	return false;
 }

@@ -15,7 +15,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditableData } from 'vs/workbench/common/views';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
@@ -32,7 +32,7 @@ export class ExplorerService implements IExplorerService {
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 
 	private readonly disposables = new DisposableStore();
-	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
+	private editable: { stat: ExplorerItem; data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
 	private _lexicographicOptions: LexicographicOptions;
 	private cutItems: ExplorerItem[] | undefined;
@@ -55,7 +55,7 @@ export class ExplorerService implements IExplorerService {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
 		this._lexicographicOptions = this.configurationService.getValue('explorer.sortOrderLexicographicOptions');
 
-		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService);
+		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService);
 		this.disposables.add(this.model);
 		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
 
@@ -80,15 +80,12 @@ export class ExplorerService implements IExplorerService {
 			// Or if they affect not yet resolved parts of the explorer. If that is the case we will not refresh.
 			events.forEach(e => {
 				if (!shouldRefresh) {
-					const added = e.rawAdded;
-					if (added) {
-						for (const [resource] of added) {
-							const parent = this.model.findClosest(dirname(resource));
-							// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
-							if (parent && !parent.getChild(basename(resource))) {
-								shouldRefresh = true;
-								break;
-							}
+					for (const resource of e.rawAdded) {
+						const parent = this.model.findClosest(dirname(resource));
+						// Parent of the added resource is resolved and the explorer model is not aware of the added resource - we need to refresh
+						if (parent && !parent.getChild(basename(resource))) {
+							shouldRefresh = true;
+							break;
 						}
 					}
 				}
@@ -102,11 +99,15 @@ export class ExplorerService implements IExplorerService {
 
 		this.disposables.add(this.fileService.onDidFilesChange(e => {
 			this.fileChangeEvents.push(e);
+			// Don't mess with the file tree while in the process of editing. #112293
+			if (this.editable) {
+				return;
+			}
 			if (!this.onFileChangesScheduler.isScheduled()) {
 				this.onFileChangesScheduler.schedule();
 			}
 		}));
-		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
 		this.disposables.add(Event.any<{ scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(async e => {
 			let affected = false;
 			this.model.roots.forEach(r => {
@@ -152,7 +153,7 @@ export class ExplorerService implements IExplorerService {
 		return this.view.getContext(respectMultiSelection);
 	}
 
-	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
+	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
 		const cancellationTokenSource = new CancellationTokenSource();
 		const promise = this.progressService.withProgress(<IProgressNotificationOptions | IProgressCompositeOptions>{
 			location: options.progressLocation || ProgressLocation.Window,
@@ -200,6 +201,10 @@ export class ExplorerService implements IExplorerService {
 		}
 		const isEditing = this.isEditable(stat);
 		await this.view.setEditable(stat, isEditing);
+
+		if (!this.editable && this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
+			this.onFileChangesScheduler.schedule();
+		}
 	}
 
 	async setToCopy(items: ExplorerItem[], cut: boolean): Promise<void> {
@@ -214,7 +219,7 @@ export class ExplorerService implements IExplorerService {
 		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
 	}
 
-	getEditable(): { stat: ExplorerItem, data: IEditableData } | undefined {
+	getEditable(): { stat: ExplorerItem; data: IEditableData } | undefined {
 		return this.editable;
 	}
 
@@ -248,7 +253,7 @@ export class ExplorerService implements IExplorerService {
 			const stat = await this.fileService.resolve(root.resource, options);
 
 			// Convert to model
-			const modelStat = ExplorerItem.create(this.fileService, stat, undefined, options.resolveTo);
+			const modelStat = ExplorerItem.create(this.fileService, this.configurationService, stat, undefined, options.resolveTo);
 			// Update Input with disk Stat
 			ExplorerItem.mergeLocalWithDisk(modelStat, root);
 			const item = root.find(resource);
@@ -294,12 +299,12 @@ export class ExplorerService implements IExplorerService {
 					if (!p.isDirectoryResolved) {
 						const stat = await this.fileService.resolve(p.resource, { resolveMetadata });
 						if (stat) {
-							const modelStat = ExplorerItem.create(this.fileService, stat, p.parent);
+							const modelStat = ExplorerItem.create(this.fileService, this.configurationService, stat, p.parent);
 							ExplorerItem.mergeLocalWithDisk(modelStat, p);
 						}
 					}
 
-					const childElement = ExplorerItem.create(this.fileService, addedElement, p.parent);
+					const childElement = ExplorerItem.create(this.fileService, this.configurationService, addedElement, p.parent);
 					// Make sure to remove any previous version of the file if any
 					p.removeChild(childElement);
 					p.addChild(childElement);
@@ -360,6 +365,10 @@ export class ExplorerService implements IExplorerService {
 
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
 		let shouldRefresh = false;
+
+		if (event?.affectedKeys.some(x => x.startsWith('explorer.experimental.fileNesting.'))) {
+			shouldRefresh = true;
+		}
 
 		const configSortOrder = configuration?.explorer?.sortOrder || SortOrder.Default;
 		if (this._sortOrder !== configSortOrder) {

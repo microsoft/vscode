@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
-import { generateUuid } from 'vs/base/common/uuid';
 import { Promises } from 'vs/base/node/pfs';
-import { InMemoryStorageDatabase, IStorage, Storage, StorageHint } from 'vs/base/parts/storage/common/storage';
+import { InMemoryStorageDatabase, IStorage, Storage, StorageHint, StorageState } from 'vs/base/parts/storage/common/storage';
 import { ISQLiteStorageDatabaseLoggingOptions, SQLiteStorageDatabase } from 'vs/base/parts/storage/node/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
-import { currentSessionDateStorageKey, firstSessionDateStorageKey, instanceStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { currentSessionDateStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 export interface IStorageMainOptions {
 
@@ -45,6 +45,18 @@ export interface IStorageMain extends IDisposable {
 	 * Access to all cached items of this storage service.
 	 */
 	readonly items: Map<string, string>;
+
+	/**
+	 * Allows to join on the `init` call having completed
+	 * to be able to safely use the storage.
+	 */
+	readonly whenInit: Promise<void>;
+
+	/**
+	 * Provides access to the `IStorage` implementation which will be
+	 * in-memory for as long as the storage has not been initialized.
+	 */
+	readonly storage: IStorage;
 
 	/**
 	 * Required call to ensure the service can be used.
@@ -87,9 +99,15 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	private readonly _onDidCloseStorage = this._register(new Emitter<void>());
 	readonly onDidCloseStorage = this._onDidCloseStorage.event;
 
-	private storage: IStorage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
+	private _storage: IStorage = new Storage(new InMemoryStorageDatabase()); // storage is in-memory until initialized
+	get storage(): IStorage { return this._storage; }
 
 	private initializePromise: Promise<void> | undefined = undefined;
+
+	private readonly whenInitPromise = new DeferredPromise<void>();
+	readonly whenInit = this.whenInitPromise.p;
+
+	private state = StorageState.None;
 
 	constructor(
 		protected readonly logService: ILogService
@@ -100,6 +118,10 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 	init(): Promise<void> {
 		if (!this.initializePromise) {
 			this.initializePromise = (async () => {
+				if (this.state !== StorageState.None) {
+					return; // either closed or already initialized
+				}
+
 				try {
 
 					// Create storage via subclasses
@@ -108,8 +130,8 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					// Replace our in-memory storage with the real
 					// once as soon as possible without awaiting
 					// the init call.
-					this.storage.dispose();
-					this.storage = storage;
+					this._storage.dispose();
+					this._storage = storage;
 
 					// Re-emit storage changes via event
 					this._register(storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
@@ -126,6 +148,13 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 					}
 				} catch (error) {
 					this.logService.error(`StorageMain#initialize(): Unable to init storage due to ${error}`);
+				} finally {
+
+					// Update state
+					this.state = StorageState.Initialized;
+
+					// Mark init promise as completed
+					this.whenInitPromise.complete();
 				}
 			})();
 		}
@@ -146,34 +175,37 @@ abstract class BaseStorageMain extends Disposable implements IStorageMain {
 
 	protected abstract doCreate(): Promise<IStorage>;
 
-	get items(): Map<string, string> { return this.storage.items; }
+	get items(): Map<string, string> { return this._storage.items; }
 
 	get(key: string, fallbackValue: string): string;
 	get(key: string, fallbackValue?: string): string | undefined;
 	get(key: string, fallbackValue?: string): string | undefined {
-		return this.storage.get(key, fallbackValue);
+		return this._storage.get(key, fallbackValue);
 	}
 
 	set(key: string, value: string | boolean | number | undefined | null): Promise<void> {
-		return this.storage.set(key, value);
+		return this._storage.set(key, value);
 	}
 
 	delete(key: string): Promise<void> {
-		return this.storage.delete(key);
+		return this._storage.delete(key);
 	}
 
 	async close(): Promise<void> {
 
 		// Ensure we are not accidentally leaving
 		// a pending initialized storage behind in
-		// case close() was called before init()
-		// finishes
+		// case `close()` was called before `init()`
+		// finishes.
 		if (this.initializePromise) {
 			await this.initializePromise;
 		}
 
+		// Update state
+		this.state = StorageState.Closed;
+
 		// Propagate to storage lib
-		await this.storage.close();
+		await this._storage.close();
 
 		// Signal as event
 		this._onDidCloseStorage.fire();
@@ -214,12 +246,6 @@ export class GlobalStorageMain extends BaseStorageMain implements IStorageMain {
 
 	private updateTelemetryState(storage: IStorage): void {
 
-		// Instance UUID (once)
-		const instanceId = storage.get(instanceStorageKey, undefined);
-		if (instanceId === undefined) {
-			storage.set(instanceStorageKey, generateUuid());
-		}
-
 		// First session date (once)
 		const firstSessionDate = storage.get(firstSessionDateStorageKey, undefined);
 		if (firstSessionDate === undefined) {
@@ -258,7 +284,7 @@ export class WorkspaceStorageMain extends BaseStorageMain implements IStorageMai
 		}), { hint: wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined });
 	}
 
-	private async prepareWorkspaceStorageFolder(): Promise<{ storageFilePath: string, wasCreated: boolean }> {
+	private async prepareWorkspaceStorageFolder(): Promise<{ storageFilePath: string; wasCreated: boolean }> {
 
 		// Return early if using inMemory storage
 		if (this.options.useInMemoryStorage) {

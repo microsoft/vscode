@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/issueReporter';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
+import { localize } from 'vs/nls';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Delayer } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
@@ -17,17 +19,13 @@ import { escape } from 'vs/base/common/strings';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-sandbox/issue/issueReporterModel';
 import BaseHtml from 'vs/code/electron-sandbox/issue/issueReporterPage';
-import 'vs/css!./media/issueReporter';
-import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -70,7 +68,8 @@ export class IssueReporter extends Disposable {
 	constructor(private readonly configuration: IssueReporterWindowConfiguration) {
 		super();
 
-		this.initServices(configuration);
+		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
+		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
 
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id === configuration.data.extensionId) : undefined;
 		this.issueReporterModel = new IssueReporterModel({
@@ -253,15 +252,6 @@ export class IssueReporter extends Disposable {
 		}
 
 		this.updateExtensionSelector(installedExtensions);
-	}
-
-	private initServices(configuration: IssueReporterWindowConfiguration): void {
-		const serviceCollection = new ServiceCollection();
-		const mainProcessService = new ElectronIPCMainProcessService(configuration.windowId);
-		serviceCollection.set(IMainProcessService, mainProcessService);
-
-		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
-		serviceCollection.set(INativeHostService, this.nativeHostService);
 	}
 
 	private setEventHandlers(): void {
@@ -798,7 +788,7 @@ export class IssueReporter extends Disposable {
 		return isValid;
 	}
 
-	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string, repositoryName: string }): Promise<boolean> {
+	private async submitToGitHub(issueTitle: string, issueBody: string, gitHubDetails: { owner: string; repositoryName: string }): Promise<boolean> {
 		const url = `https://api.github.com/repos/${gitHubDetails.owner}/${gitHubDetails.repositoryName}/issues`;
 		const init = {
 			method: 'POST',
@@ -906,7 +896,7 @@ export class IssueReporter extends Disposable {
 				: this.configuration.product.reportIssueUrl!;
 	}
 
-	private parseGitHubUrl(url: string): undefined | { repositoryName: string, owner: string } {
+	private parseGitHubUrl(url: string): undefined | { repositoryName: string; owner: string } {
 		// Assumes a GitHub url to a particular repo, https://github.com/repositoryName/owner.
 		// Repository name and owner cannot contain '/'
 		const match = /^https?:\/\/github\.com\/([^\/]*)\/([^\/]*).*/.exec(url);

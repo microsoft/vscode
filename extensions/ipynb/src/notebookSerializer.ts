@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { nbformat } from '@jupyterlab/coreutils';
+import * as nbformat from '@jupyterlab/nbformat';
 import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
@@ -22,7 +22,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		} catch {
 		}
 
-		let json = contents ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+		let json = contents && /\S/.test(contents) ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
 
 		if (json.__webview_backup) {
 			const backupId = json.__webview_backup;
@@ -38,6 +38,10 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 				contents = json.contents;
 				json = JSON.parse(contents) as Partial<nbformat.INotebookContent>;
 			}
+		}
+
+		if (json.nbformat && json.nbformat < 4) {
+			throw new Error('Only Jupyter notebooks version 4+ are supported');
 		}
 
 		// Then compute indent from the contents (only use first 1K characters as a perf optimization)

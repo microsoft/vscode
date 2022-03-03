@@ -7,11 +7,12 @@ import * as assert from 'assert';
 import { IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ICommand, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { createTestCodeEditor2, createTestCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { ITextModel } from 'vs/editor/common/model';
+import { instantiateTestCodeEditor, createCodeEditorServices } from 'vs/editor/test/browser/testCodeEditor';
+import { instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 export function testCommand(
 	lines: string[],
@@ -23,12 +24,13 @@ export function testCommand(
 	forceTokenization?: boolean,
 	prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void
 ): void {
-	const [instantiationService, disposables] = createTestCodeEditorServices();
+	const disposables = new DisposableStore();
+	const instantiationService = createCodeEditorServices(disposables);
 	if (prepare) {
 		instantiationService.invokeFunction(prepare, disposables);
 	}
-	const model = disposables.add(instantiationService.createInstance(TextModel, lines.join('\n'), TextModel.DEFAULT_CREATION_OPTIONS, languageId, null));
-	const editor = disposables.add(createTestCodeEditor2(instantiationService, model, {}));
+	const model = instantiateTextModel(instantiationService, lines.join('\n'), languageId);
+	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model));
 	const viewModel = editor.getViewModel()!;
 
 	if (forceTokenization) {
@@ -50,8 +52,8 @@ export function testCommand(
 /**
  * Extract edit operations if command `command` were to execute on model `model`
  */
-export function getEditOperation(model: ITextModel, command: ICommand): IIdentifiedSingleEditOperation[] {
-	let operations: IIdentifiedSingleEditOperation[] = [];
+export function getEditOperation(model: ITextModel, command: ICommand): ISingleEditOperation[] {
+	let operations: ISingleEditOperation[] = [];
 	let editOperationBuilder: IEditOperationBuilder = {
 		addEditOperation: (range: IRange, text: string, forceMoveMarkers: boolean = false) => {
 			operations.push({

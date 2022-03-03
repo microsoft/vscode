@@ -21,13 +21,12 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
+import { getTitleBarStyle } from 'vs/platform/window/common/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 
 export class TitlebarPart extends BrowserTitleBarPart {
-	private windowControls: HTMLElement | undefined;
 	private maxRestoreControl: HTMLElement | undefined;
 	private dragRegion: HTMLElement | undefined;
 	private resizer: HTMLElement | undefined;
@@ -184,12 +183,10 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 
 		// Draggable region that we can manipulate for #52522
-		this.dragRegion = prepend(this.element, $('div.titlebar-drag-region'));
+		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// Window Controls (Native Windows/Linux)
-		if (!isMacintosh) {
-			this.windowControls = append(this.element, $('div.window-controls-container'));
-
+		if (!isMacintosh && this.windowControls) {
 			// Minimize
 			const minimizeIcon = append(this.windowControls, $('div.window-icon.window-minimize' + Codicon.chromeMinimize.cssSelector));
 			this._register(addDisposableListener(minimizeIcon, EventType.CLICK, e => {
@@ -214,7 +211,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 
 			// Resizer
-			this.resizer = append(this.element, $('div.resizer'));
+			this.resizer = append(this.rootContainer, $('div.resizer'));
 
 			this._register(this.layoutService.onDidChangeWindowMaximized(maximized => this.onDidChangeWindowMaximized(maximized)));
 			this.onDidChangeWindowMaximized(this.layoutService.isWindowMaximized());
@@ -227,29 +224,14 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
-				(this.title.style as any).zoom = `${1 / getZoomFactor()}`;
-				if (isWindows || isLinux) {
-					if (this.appIcon) {
-						(this.appIcon.style as any).zoom = `${1 / getZoomFactor()}`;
-					}
-
-					if (this.windowControls) {
-						(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
-					}
-				}
+				this.rootContainer.style.height = `${100.0 * getZoomFactor()}%`;
+				this.rootContainer.style.width = `${100.0 * getZoomFactor()}%`;
+				this.rootContainer.style.transform = `scale(${1 / getZoomFactor()})`;
 			} else {
-				(this.title.style as any).zoom = '';
-				if (isWindows || isLinux) {
-					if (this.appIcon) {
-						(this.appIcon.style as any).zoom = '';
-					}
-
-					if (this.windowControls) {
-						(this.windowControls.style as any).zoom = '';
-					}
-				}
+				this.rootContainer.style.height = `100%`;
+				this.rootContainer.style.width = `100%`;
+				this.rootContainer.style.transform = '';
 			}
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());

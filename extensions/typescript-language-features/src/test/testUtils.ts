@@ -9,8 +9,13 @@ import * as os from 'os';
 import { join } from 'path';
 import * as vscode from 'vscode';
 
-function rndName() {
-	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
+export function rndName() {
+	let name = '';
+	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+	for (let i = 0; i < 10; i++) {
+		name += possible.charAt(Math.floor(Math.random() * possible.length));
+	}
+	return name;
 }
 
 export function createRandomFile(contents = '', fileExtension = 'txt'): Thenable<vscode.Uri> {
@@ -148,7 +153,7 @@ export function onChangedDocument(documentUri: vscode.Uri, disposables: vscode.D
 
 export async function retryUntilDocumentChanges(
 	documentUri: vscode.Uri,
-	options: { retries: number, timeout: number },
+	options: { retries: number; timeout: number },
 	disposables: vscode.Disposable[],
 	exec: () => Thenable<unknown>,
 ) {

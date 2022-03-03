@@ -17,7 +17,7 @@ import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';
 
 
-type IconPath = URI | { light: URI, dark: URI };
+type IconPath = URI | { readonly light: URI; readonly dark: URI };
 
 class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
@@ -135,7 +135,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 		return this.#visible;
 	}
 
-	_updateViewState(newState: { active: boolean; visible: boolean; viewColumn: vscode.ViewColumn; }) {
+	_updateViewState(newState: { active: boolean; visible: boolean; viewColumn: vscode.ViewColumn }) {
 		if (this.#isDisposed) {
 			return;
 		}
@@ -151,7 +151,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 	public reveal(viewColumn?: vscode.ViewColumn, preserveFocus?: boolean): void {
 		this.assertNotDisposed();
 		this.#proxy.$reveal(this.#handle, {
-			viewColumn: viewColumn ? typeConverters.ViewColumn.from(viewColumn) : undefined,
+			viewColumn: typeof viewColumn === 'undefined' ? undefined : typeConverters.ViewColumn.from(viewColumn),
 			preserveFocus: !!preserveFocus
 		});
 	}
@@ -190,7 +190,7 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		extension: IExtensionDescription,
 		viewType: string,
 		title: string,
-		showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean },
+		showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn; preserveFocus?: boolean },
 		options: (vscode.WebviewPanelOptions & vscode.WebviewOptions) = {},
 	): vscode.WebviewPanel {
 		const viewColumn = typeof showOptions === 'object' ? showOptions.viewColumn : showOptions;
@@ -281,7 +281,7 @@ export class ExtHostWebviewPanels implements extHostProtocol.ExtHostWebviewPanel
 		initData: {
 			title: string;
 			state: any;
-			webviewOptions: extHostProtocol.IWebviewOptions;
+			webviewOptions: extHostProtocol.IWebviewContentOptions;
 			panelOptions: extHostProtocol.IWebviewPanelOptions;
 		},
 		position: EditorGroupColumn

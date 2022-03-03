@@ -19,7 +19,7 @@ export interface CommandOptions {
 	 * The environment of the executed program or shell. If omitted
 	 * the parent process' environment is used.
 	 */
-	env?: { [key: string]: string; };
+	env?: { [key: string]: string };
 }
 
 export interface Executable {
@@ -108,7 +108,7 @@ export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve
 	}, {} as Record<string, boolean>);
 	const keysToRemove = [
 		/^ELECTRON_.+$/,
-		/^VSCODE_.+$/,
+		/^VSCODE_(?!SHELL_LOGIN).+$/,
 		/^SNAP(|_.*)$/,
 		/^GDK_PIXBUF_.+$/,
 	];

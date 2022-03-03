@@ -19,10 +19,10 @@ export interface IMarkersView extends IView {
 	readonly onDidFocusFilter: Event<void>;
 	readonly onDidClearFilterText: Event<void>;
 	readonly filters: MarkersFilters;
-	readonly onDidChangeFilterStats: Event<{ total: number, filtered: number }>;
+	readonly onDidChangeFilterStats: Event<{ total: number; filtered: number }>;
 	focusFilter(): void;
 	clearFilterText(): void;
-	getFilterStats(): { total: number, filtered: number };
+	getFilterStats(): { total: number; filtered: number };
 
 	getFocusElement(): MarkerElement | undefined;
 	getFocusedSelectedElements(): MarkerElement[] | null;

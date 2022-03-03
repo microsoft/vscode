@@ -8,9 +8,9 @@ import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { score } from 'vs/editor/common/modes/languageSelector';
+import { score } from 'vs/editor/common/languageSelector';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -42,8 +42,8 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		this._disposables.add(extHostDocuments.onDidChangeDocument(e => {
 			const cellIdx = this._cellUris.get(e.document.uri);
 			if (cellIdx !== undefined) {
-				this._cellLengths.changeValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
-				this._cellLines.changeValue(cellIdx, this._cells[cellIdx].document.lineCount);
+				this._cellLengths.setValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
+				this._cellLines.setValue(cellIdx, this._cells[cellIdx].document.lineCount);
 				this._versionId += 1;
 				this._onDidChange.fire(undefined);
 			}
@@ -74,7 +74,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		const cellLengths: number[] = [];
 		const cellLineCounts: number[] = [];
 		for (const cell of this._notebook.getCells()) {
-			if (cell.kind === types.NotebookCellKind.Code && (!this._selector || score(this._selector, cell.document.uri, cell.document.languageId, true))) {
+			if (cell.kind === types.NotebookCellKind.Code && (!this._selector || score(this._selector, cell.document.uri, cell.document.languageId, true, undefined))) {
 				this._cellUris.set(cell.document.uri, this._cells.length);
 				this._cells.push(cell);
 				cellLengths.push(cell.document.getText().length + 1);

@@ -11,7 +11,6 @@ export const ITelemetryService = createDecorator<ITelemetryService>('telemetrySe
 export interface ITelemetryInfo {
 	sessionId: string;
 	machineId: string;
-	instanceId: string;
 	firstSessionDate: string;
 	msftInternal?: boolean;
 }
@@ -66,7 +65,6 @@ export interface ICustomEndpointTelemetryService {
 }
 
 // Keys
-export const instanceStorageKey = 'telemetry.instanceId';
 export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
 export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';

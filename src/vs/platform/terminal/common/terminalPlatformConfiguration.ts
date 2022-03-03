@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
@@ -27,8 +27,8 @@ const terminalProfileBaseProperties: IJSONSchemaMap = {
 	icon: {
 		description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
 		type: 'string',
-		enum: Array.from(iconRegistry.all, icon => icon.id),
-		markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
+		enum: Array.from(Codicon.getAll(), icon => icon.id),
+		markdownEnumDescriptions: Array.from(Codicon.getAll(), icon => `$(${icon.id})`),
 	},
 	color: {
 		description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
@@ -70,9 +70,27 @@ const terminalProfileSchema: IJSONSchema = {
 	}
 };
 
+const terminalAutomationProfileSchema: IJSONSchema = {
+	type: 'object',
+	required: ['path'],
+	properties: {
+		path: {
+			description: localize('terminalAutomationProfile.path', 'A single path to a shell executable.'),
+			type: ['string'],
+			items: {
+				type: 'string'
+			}
+		},
+		...terminalProfileBaseProperties
+	}
+};
+
 const shellDeprecationMessageLinux = localize('terminal.integrated.shell.linux.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.linux#`', '`#terminal.integrated.defaultProfile.linux#`');
 const shellDeprecationMessageOsx = localize('terminal.integrated.shell.osx.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.osx#`', '`#terminal.integrated.defaultProfile.osx#`');
 const shellDeprecationMessageWindows = localize('terminal.integrated.shell.windows.deprecation', "This is deprecated, the new recommended way to configure your default shell is by creating a terminal profile in {0} and setting its profile name as the default in {1}. This will currently take priority over the new profiles settings but that will change in the future.", '`#terminal.integrated.profiles.windows#`', '`#terminal.integrated.defaultProfile.windows#`');
+const automationShellDeprecationMessageLinux = localize('terminal.integrated.automationShell.linux.deprecation', "This is deprecated, the new recommended way to configure your automation shell is by creating a terminal automation profile with {0}. This will currently take priority over the new automation profile settings but that will change in the future.", '`#terminal.integrated.automationProfile.linux#`');
+const automationShellDeprecationMessageOsx = localize('terminal.integrated.automationShell.osx.deprecation', "This is deprecated, the new recommended way to configure your automation shell is by creating a terminal automation profile with {0}. This will currently take priority over the new automation profile settings but that will change in the future.", '`#terminal.integrated.automationProfile.osx#`');
+const automationShellDeprecationMessageWindows = localize('terminal.integrated.automationShell.windows.deprecation', "This is deprecated, the new recommended way to configure your automation shell is by creating a terminal automation profile with {0}. This will currently take priority over the new automation profile settings but that will change in the future.", '`#terminal.integrated.automationProfile.windows#`');
 
 const terminalPlatformConfiguration: IConfigurationNode = {
 	id: 'terminal',
@@ -87,7 +105,8 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.linux`', '`shellArgs`'),
 			type: ['string', 'null'],
-			default: null
+			default: null,
+			markdownDeprecationMessage: automationShellDeprecationMessageLinux
 		},
 		[TerminalSettingId.AutomationShellMacOs]: {
 			restricted: true,
@@ -96,7 +115,8 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.osx`', '`shellArgs`'),
 			type: ['string', 'null'],
-			default: null
+			default: null,
+			markdownDeprecationMessage: automationShellDeprecationMessageOsx
 		},
 		[TerminalSettingId.AutomationShellWindows]: {
 			restricted: true,
@@ -105,7 +125,62 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 				comment: ['{0} and {1} are the `shell` and `shellArgs` settings keys']
 			}, "A path that when set will override {0} and ignore {1} values for automation-related terminal usage like tasks and debug.", '`terminal.integrated.shell.windows`', '`shellArgs`'),
 			type: ['string', 'null'],
-			default: null
+			default: null,
+			markdownDeprecationMessage: automationShellDeprecationMessageWindows
+		},
+		[TerminalSettingId.AutomationProfileLinux]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.automationProfile.linux', "The terminal profile to use on Linux for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.linux#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
+			]
+		},
+		[TerminalSettingId.AutomationProfileMacOs]: {
+			restricted: true,
+			description: localize('terminal.integrated.automationProfile.osx', "The terminal profile to use on macOS for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.osx#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
+			]
+		},
+		[TerminalSettingId.AutomationProfileWindows]: {
+			restricted: true,
+			description: localize('terminal.integrated.automationProfile.windows', "The terminal profile to use for automation-related terminal usage like tasks and debug. This setting will currently be ignored if {0} is set.", '#terminal.integrated.automationShell.windows#'),
+			type: ['object', 'null'],
+			default: null,
+			'anyOf': [
+				{ type: 'null' },
+				terminalAutomationProfileSchema
+			],
+			defaultSnippets: [
+				{
+					body: {
+						path: '${1}',
+						icon: '${2}'
+					}
+				}
+			]
 		},
 		[TerminalSettingId.ShellLinux]: {
 			restricted: true,
@@ -373,7 +448,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: true
 		},
 		[TerminalSettingId.IgnoreProcessNames]: {
-			description: localize('terminal.integrated.confirmIgnoreProcesses', "Configurable to provide a custom setting to ignore processes"),
+			description: localize('terminal.integrated.confirmIgnoreProcesses', "A set of process names to ignore when using the {0} setting.", '`terminal.integrated.confirmOnKill`'),
 			type: 'array',
 			items: {
 				type: 'string',
@@ -400,7 +475,7 @@ export function registerTerminalPlatformConfiguration() {
 }
 
 let defaultProfilesConfiguration: IConfigurationNode | undefined;
-export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem, profiles: ITerminalProfile[] }, extensionContributedProfiles?: readonly IExtensionTerminalProfile[]) {
+export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: { os: OperatingSystem; profiles: ITerminalProfile[] }, extensionContributedProfiles?: readonly IExtensionTerminalProfile[]) {
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	let profileEnum;
 	if (detectedProfiles) {

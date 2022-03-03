@@ -65,7 +65,7 @@ export class WindowDriverChannelClient implements IWindowDriver {
 		return this.channel.call('getElements', [selector, recursive]);
 	}
 
-	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number, y: number }> {
+	getElementXY(selector: string, xoffset?: number, yoffset?: number): Promise<{ x: number; y: number }> {
 		return this.channel.call('getElementXY', [selector, xoffset, yoffset]);
 	}
 

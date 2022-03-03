@@ -20,6 +20,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	protected readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 
 	/**
@@ -190,7 +191,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * this operation or `undefined` to indicate that the operation
 	 * failed or was canceled.
 	 */
-	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
 		return this;
 	}
 
@@ -203,7 +204,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * of this operation or `undefined` to indicate that the operation
 	 * failed or was canceled.
 	 */
-	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | undefined> {
+	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
 		return this;
 	}
 
@@ -271,7 +272,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * resource editor input that e.g. can be used to serialize the
 	 * editor input into a form that it can be restored.
 	 *
-	 * May return `undefined` if a untyped representatin is not supported.
+	 * May return `undefined` if an untyped representation is not supported.
 	 *
 	 * @param options additional configuration for the expected return type.
 	 * When `preserveViewState` is provided, implementations should try to

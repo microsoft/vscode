@@ -9,7 +9,7 @@
 	display: flex;
 	flex-direction: column;
 	margin: 0px auto;
-	max-width: 1000px;
+	max-width: 80%;
 }
 
 .extension-editor .clickable {
@@ -86,6 +86,26 @@
 	font-size: 10px;
 	font-style: italic;
 	margin-left: 10px;
+}
+
+.extension-editor > .header > .details > .title > .pre-release {
+	margin-left: 10px;
+	padding: 0px 4px;
+	border-radius: 4px;
+	background-color: var(--vscode-extensionIcon-preReleaseForeground);
+	color: #ffffff;
+	display: flex;
+	align-items: center;
+}
+
+.extension-editor > .header > .details > .title > .pre-release > .codicon.codicon-extensions-pre-release {
+	color: #ffffff;
+	font-size: 14px;
+}
+
+.extension-editor > .header > .details > .title > .pre-release > .pre-release-text {
+	font-size: 10px;
+	padding-left: 3px;
 }
 
 .monaco-workbench.vs .extension-editor > .header > .details > .title > .preview {
@@ -249,13 +269,32 @@
 	margin-top: 2px;
 }
 
+.extension-editor > .header > .details > .pre-release-text p,
 .extension-editor > .header > .details > .actions-status-container > .status > .status-text p {
 	margin-top: 0px;
 	margin-bottom: 0px;
 }
 
+.extension-editor > .header > .details > .pre-release-text a,
+.extension-editor > .header > .details > .actions-status-container > .status > .status-text a {
+	color: var(--vscode-textLink-foreground)
+}
+
+.extension-editor > .header > .details > .pre-release-text a:hover,
 .extension-editor > .header > .details > .actions-status-container > .status > .status-text a:hover {
 	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground)
+}
+
+.extension-editor > .header > .details > .pre-release-text a:active,
+.extension-editor > .header > .details > .actions-status-container > .status > .status-text a:active {
+	color: var(--vscode-textLink-activeForeground)
+}
+
+.extension-editor > .header > .details > .pre-release-text:not(:empty){
+	margin-top: 5px;
+	display: flex;
+	font-size: 90%;
 }
 
 .extension-editor > .header > .details > .recommendation {
@@ -394,6 +433,12 @@
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
 	display: block;
 	cursor: pointer;
+}
+
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {

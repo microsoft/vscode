@@ -25,14 +25,14 @@ export const getFileResults = (
 		text = new TextDecoder('utf-16be').decode(bytes);
 	} else {
 		text = new TextDecoder('utf8').decode(bytes);
-		if (text.slice(0, 1000).includes('�') && bytes.includes(0)) {
+		if (text.slice(0, 1000).includes('\uFFFD') && bytes.includes(0)) {
 			return [];
 		}
 	}
 
 	const results: ITextSearchResult[] = [];
 
-	const patternIndecies: { matchStartIndex: number; matchedText: string; }[] = [];
+	const patternIndecies: { matchStartIndex: number; matchedText: string }[] = [];
 
 	let patternMatch: RegExpExecArray | null = null;
 	let remainingResultQuota = options.remainingResultQuota;
@@ -45,7 +45,7 @@ export const getFileResults = (
 		const contextLinesNeeded = new Set<number>();
 		const resultLines = new Set<number>();
 
-		const lineRanges: { start: number; end: number; }[] = [];
+		const lineRanges: { start: number; end: number }[] = [];
 		const readLine = (lineNumber: number) => text.slice(lineRanges[lineNumber].start, lineRanges[lineNumber].end);
 
 		let prevLineEnd = 0;

@@ -382,9 +382,9 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		platformInfo = platformInfo || result;
 
 		// these are the relevant attributes
-		let program = platformInfo.program || result.program;
+		const program = platformInfo.program || result.program;
 		const args = platformInfo.args || result.args;
-		let runtime = platformInfo.runtime || result.runtime;
+		const runtime = platformInfo.runtime || result.runtime;
 		const runtimeArgs = platformInfo.runtimeArgs || result.runtimeArgs;
 
 		if (runtime) {

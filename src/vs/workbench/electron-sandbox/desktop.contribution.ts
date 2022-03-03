@@ -19,11 +19,8 @@ import { IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { PartsSplash } from 'vs/workbench/electron-sandbox/splash';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { InstallShellScriptAction, UninstallShellScriptAction } from 'vs/workbench/electron-sandbox/actions/installActions';
-import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 
 // Actions
@@ -323,11 +320,4 @@ import { TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 	}
 
 	jsonRegistry.registerSchema(argvDefinitionFileSchemaId, schema);
-})();
-
-// Workbench Contributions
-(function registerWorkbenchContributions() {
-
-	// Splash
-	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(PartsSplash, LifecyclePhase.Starting);
 })();

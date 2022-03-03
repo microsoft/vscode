@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nbformat } from '@jupyterlab/coreutils';
+import * as nbformat from '@jupyterlab/nbformat';
 import { extensions, NotebookCellData, NotebookCellExecutionSummary, NotebookCellKind, NotebookCellOutput, NotebookCellOutputItem, NotebookData } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
 
@@ -22,7 +22,10 @@ export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 		(metadata?.kernelspec as any)?.language;
 
 	// Default to python language only if the Python extension is installed.
-	const defaultLanguage = extensions.getExtension('ms-python.python') ? 'python' : 'plaintext';
+	const defaultLanguage =
+		extensions.getExtension('ms-python.python')
+			? 'python'
+			: (extensions.getExtension('ms-dotnettools.dotnet-interactive-vscode') ? 'csharp' : 'python');
 
 	// Note, whatever language is returned here, when the user selects a kernel, the cells (of blank documents) get updated based on that kernel selection.
 	return translateKernelLanguageToMonaco(jupyterLanguage || defaultLanguage);

@@ -13,16 +13,17 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { editorCodeLensForeground, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/core/editorColorRegistry';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { editorCodeLensForeground, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
+import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -32,13 +33,14 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant, themeColorFromId, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import { testingRunAllIcon, testingRunIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { testMessageSeverityColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { DefaultGutterClickAction, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IncrementalTestCollectionItem, InternalTestItem, IRichLocation, ITestMessage, ITestRunProfile, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState, maxPriority } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -47,6 +49,8 @@ import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testPro
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getContextForTestItem, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+
+const MAX_INLINE_MESSAGE_LENGTH = 128;
 
 function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
@@ -71,6 +75,9 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	private generation = 0;
 	private readonly changeEmitter = new Emitter<void>();
 	private readonly decorationCache = new ResourceMap<{
+		/** Whether tests in the resource have been updated, requiring rerendering */
+		testRangesUpdated: boolean;
+		/** Counter for the results rendered in the document */
 		generation: number;
 		value: TestDecorations<ITestDecoration>;
 	}>();
@@ -103,12 +110,34 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 		const debounceInvalidate = this._register(new RunOnceScheduler(() => this.invalidate(), 100));
 
+		// If ranges were updated in the document, mark that we should explicitly
+		// sync decorations to the published lines, since we assume that everything
+		// is up to date. This prevents issues, as in #138632, #138835, #138922.
+		this._register(this.testService.onWillProcessDiff(diff => {
+			for (const entry of diff) {
+				let uri: URI | undefined | null;
+				if (entry.op === TestDiffOpType.Add || entry.op === TestDiffOpType.Update) {
+					uri = entry.item.item?.uri;
+				} else if (entry.op === TestDiffOpType.Remove) {
+					uri = this.testService.collection.getNodeById(entry.itemId)?.item.uri;
+				}
+
+				const rec = uri && this.decorationCache.get(uri);
+				if (rec) {
+					rec.testRangesUpdated = true;
+				}
+			}
+
+			if (!debounceInvalidate.isScheduled()) {
+				debounceInvalidate.schedule();
+			}
+		}));
+
 		this._register(Event.any(
 			this.results.onResultsChanged,
 			this.results.onTestChanged,
 			this.testService.excluded.onTestExclusionsChanged,
 			this.testService.showInlineOutput.onDidChange,
-			this.testService.onDidProcessDiff,
 			Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(TestingConfigKeys.GutterEnabled)),
 		)(() => {
 			if (!debounceInvalidate.isScheduled()) {
@@ -131,7 +160,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		}
 
 		const cached = this.decorationCache.get(resource);
-		if (cached?.generation === this.generation) {
+		if (cached && cached.generation === this.generation && !cached.testRangesUpdated) {
 			return cached.value;
 		}
 
@@ -164,11 +193,13 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 	private applyDecorations(model: ITextModel) {
 		const gutterEnabled = getTestingConfiguration(this.configurationService, TestingConfigKeys.GutterEnabled);
 		const uriStr = model.uri.toString();
-		const lastDecorations = this.decorationCache.get(model.uri)?.value ?? new TestDecorations();
+		const cached = this.decorationCache.get(model.uri);
+		const testRangesUpdated = cached?.testRangesUpdated;
+		const lastDecorations = cached?.value ?? new TestDecorations();
 		const newDecorations = new TestDecorations<ITestDecoration>();
 
 		model.changeDecorations(accessor => {
-			const runDecorations = new TestDecorations<{ line: number; id: ''; test: IncrementalTestCollectionItem, resultItem: TestResultItem | undefined }>();
+			const runDecorations = new TestDecorations<{ line: number; id: ''; test: IncrementalTestCollectionItem; resultItem: TestResultItem | undefined }>();
 			for (const test of this.testService.collection.all) {
 				if (!test.item.range || test.item.uri?.toString() !== uriStr) {
 					continue;
@@ -181,7 +212,13 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 
 			for (const [line, tests] of runDecorations.lines()) {
 				const multi = tests.length > 1;
-				const existing = lastDecorations.findOnLine(line, d => multi ? d instanceof MultiRunTestDecoration : d instanceof RunSingleTestDecoration) as RunTestDecoration;
+				let existing = lastDecorations.findOnLine(line, d => multi ? d instanceof MultiRunTestDecoration : d instanceof RunSingleTestDecoration) as RunTestDecoration | undefined;
+
+				// see comment in the constructor for what's going on here
+				if (existing && testRangesUpdated && model.getDecorationRange(existing.id)?.startLineNumber !== line) {
+					existing = undefined;
+				}
+
 				if (existing) {
 					if (existing.replaceOptions(tests, gutterEnabled)) {
 						accessor.changeDecorationOptions(existing.id, existing.editorDecoration.options);
@@ -191,7 +228,6 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 					newDecorations.push(multi
 						? this.instantiationService.createInstance(MultiRunTestDecoration, tests, gutterEnabled, model)
 						: this.instantiationService.createInstance(RunSingleTestDecoration, tests[0].test, tests[0].resultItem, model, gutterEnabled));
-
 				}
 			}
 
@@ -231,7 +267,7 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 								continue;
 							}
 
-							const messageUri = m.type === TestMessageType.Info ? undefined : buildTestUri({
+							const messageUri = buildTestUri({
 								type: TestUriType.ResultActualOutput,
 								messageIndex: i,
 								taskIndex: taskId,
@@ -260,7 +296,11 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				}
 			}
 
-			this.decorationCache.set(model.uri, { generation: this.generation, value: newDecorations });
+			this.decorationCache.set(model.uri, {
+				generation: this.generation,
+				testRangesUpdated: false,
+				value: newDecorations,
+			});
 		});
 
 		return newDecorations;
@@ -271,7 +311,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	/**
 	 * Gets the decorations associated with the given code editor.
 	 */
-	public static get(editor: ICodeEditor): TestingDecorations {
+	public static get(editor: ICodeEditor): TestingDecorations | null {
 		return editor.getContribution<TestingDecorations>(Testing.DecorationsContributionId);
 	}
 
@@ -284,6 +324,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITestService private readonly testService: ITestService,
 		@ITestingDecorationsService private readonly decorations: ITestingDecorationsService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -366,7 +407,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 		this.decorations.syncDecorations(uri);
 
 		(async () => {
-			for await (const _test of testsInFile(this.testService.collection, uri)) {
+			for await (const _test of testsInFile(this.testService.collection, this.uriIdentityService, uri)) {
 				// consume the iterator so that all tests in the file get expanded. Or
 				// at least until the URI changes. If new items are requested, changes
 				// will be trigged in the `onDidProcessDiff` callback.
@@ -498,6 +539,7 @@ abstract class TitleLensContentWidget {
 
 			this.viewZoneId = accessor.addZone({
 				afterLineNumber: 0,
+				afterColumn: Constants.MAX_SAFE_SMALL_INTEGER,
 				domNode: document.createElement('div'),
 				heightInPx: 20,
 			});
@@ -566,9 +608,9 @@ abstract class RunTestDecoration {
 	public editorDecoration: IModelDeltaDecoration;
 
 	constructor(
-		protected readonly tests: {
-			test: IncrementalTestCollectionItem,
-			resultItem: TestResultItem | undefined,
+		protected tests: readonly {
+			test: IncrementalTestCollectionItem;
+			resultItem: TestResultItem | undefined;
 		}[],
 		private visible: boolean,
 		protected readonly model: ITextModel,
@@ -617,8 +659,8 @@ abstract class RunTestDecoration {
 	 * @returns true if options were changed, false otherwise
 	 */
 	public replaceOptions(newTests: readonly {
-		test: IncrementalTestCollectionItem,
-		resultItem: TestResultItem | undefined,
+		test: IncrementalTestCollectionItem;
+		resultItem: TestResultItem | undefined;
 	}[], visible: boolean): boolean {
 		if (visible === this.visible
 			&& equals(this.tests.map(t => t.test.item.extId), newTests.map(t => t.test.item.extId))
@@ -626,6 +668,7 @@ abstract class RunTestDecoration {
 			return false;
 		}
 
+		this.tests = newTests;
 		this.visible = visible;
 		this.editorDecoration.options = createRunTestDecoration(newTests.map(t => t.test), newTests.map(t => t.resultItem), visible).options;
 		return true;
@@ -641,7 +684,7 @@ abstract class RunTestDecoration {
 	/**
 	 * Called when the decoration is clicked on.
 	 */
-	protected abstract getContextMenuActions(e: IEditorMouseEvent): IReference<IAction[]>;
+	protected abstract getContextMenuActions(): IReference<IAction[]>;
 
 	protected defaultRun() {
 		return this.testService.runTests({
@@ -658,18 +701,19 @@ abstract class RunTestDecoration {
 	}
 
 	private showContextMenu(e: IEditorMouseEvent) {
-		let actions = this.getContextMenuActions(e);
+		let actions = this.getContextMenuActions();
 		const editor = this.codeEditorService.listCodeEditors().find(e => e.getModel() === this.model);
 		if (editor) {
-			actions = {
-				dispose: actions.dispose,
-				object: Separator.join(
-					actions.object,
-					editor
-						.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID)
-						.getContextMenuActionsAtPosition(this.line, this.model)
-				)
-			};
+			const contribution = editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID);
+			if (contribution) {
+				actions = {
+					dispose: actions.dispose,
+					object: Separator.join(
+						actions.object,
+						contribution.getContextMenuActionsAtPosition(this.line, this.model)
+					)
+				};
+			}
 		}
 
 		this.contextMenuService.showContextMenu({
@@ -804,10 +848,12 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 		super([{ test, resultItem }], visible, model, codeEditorService, testService, contextMenuService, commandService, configurationService, testProfiles, contextKeyService, menuService);
 	}
 
-	protected override getContextMenuActions(e: IEditorMouseEvent) {
+	protected override getContextMenuActions() {
 		return this.getTestContextMenuActions(this.tests[0].test, this.tests[0].resultItem);
 	}
 }
+
+const lineBreakRe = /\r?\n\s*/;
 
 class TestMessageDecoration implements ITestDecoration {
 	public static readonly inlineClassName = 'test-message-inline-content';
@@ -840,9 +886,15 @@ class TestMessageDecoration implements ITestDecoration {
 		options.isWholeLine = true;
 		options.stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 		options.collapseOnReplaceEdit = true;
+
+		let inlineText = renderStringAsPlaintext(message).replace(lineBreakRe, ' ');
+		if (inlineText.length > MAX_INLINE_MESSAGE_LENGTH) {
+			inlineText = inlineText.slice(0, MAX_INLINE_MESSAGE_LENGTH - 1) + '…';
+		}
+
 		options.after = {
-			content: ' '.repeat(4) + renderStringAsPlaintext(message),
-			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass}`
+			content: ' '.repeat(4) + inlineText,
+			inlineClassName: `test-message-inline-content test-message-inline-content-s${severity} ${this.contentIdClass} ${messageUri ? 'test-message-inline-content-clickable' : ''}`
 		};
 		options.showIfCollapsed = true;
 

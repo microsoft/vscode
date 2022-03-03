@@ -8,7 +8,7 @@ import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
-import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { StorageScope, IStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -20,24 +20,25 @@ import { Schemas } from 'vs/base/common/network';
 import { basename, extname } from 'vs/base/common/resources';
 import { match } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { Mimes, guessMimeTypes } from 'vs/base/common/mime';
+import { Mimes } from 'vs/base/common/mime';
+import { getMimeTypes } from 'vs/editor/common/services/languagesAssociations';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { distinct } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { disposableTimeout } from 'vs/base/common/async';
-import { isWeb } from 'vs/base/common/platform';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 type FileExtensionSuggestionClassification = {
-	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	fileExtension: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	userReaction: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	fileExtension: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
 };
 
 const promptedRecommendationsStorageKey = 'fileBasedRecommendations/promptedRecommendations';
@@ -96,15 +97,15 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
+		@ILanguageService private readonly languageService: ILanguageService,
 		@IProductService productService: IProductService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
-		@IFileService private readonly fileService: IFileService,
-		@ITASExperimentService private tasExperimentService: ITASExperimentService,
+		@IWorkbenchAssignmentService private tasExperimentService: IWorkbenchAssignmentService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -166,18 +167,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		/* In Web, recommend only when the file can be handled */
-		if (isWeb) {
-			if (!this.fileService.hasProvider(uri)) {
-				return;
-			}
-		}
-
-		/* In Desktop, recommend only for files with these schemes */
-		else {
-			if (![Schemas.untitled, Schemas.file, Schemas.vscodeRemote].includes(uri.scheme)) {
-				return;
-			}
+		const supportedSchemes = distinct([Schemas.untitled, Schemas.file, Schemas.vscodeRemote, ...this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri.scheme)]);
+		if (!uri || !supportedSchemes.includes(uri.scheme)) {
+			return;
 		}
 
 		this.promptRecommendationsForModel(model);
@@ -206,8 +198,16 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private async promptRecommendations(uri: URI, language: string, fileExtension: string): Promise<void> {
-		const importantRecommendations: string[] = (this.fileBasedRecommendationsByLanguage.get(language) || []).filter(extensionId => this.importantExtensionTips.has(extensionId));
-		let languageName: string | null = importantRecommendations.length ? this.modeService.getLanguageName(language) : null;
+		const installed = await this.extensionsWorkbenchService.queryLocal();
+		const importantRecommendations: string[] = (this.fileBasedRecommendationsByLanguage.get(language) || [])
+			.filter(extensionId => {
+				const importantTip = this.importantExtensionTips.get(extensionId);
+				if (importantTip) {
+					return !importantTip.whenNotInstalled || importantTip.whenNotInstalled.every(id => installed.every(local => !areSameExtensions(local.identifier, { id })));
+				}
+				return false;
+			});
+		let languageName: string | null = importantRecommendations.length ? this.languageService.getLanguageName(language) : null;
 
 		const fileBasedRecommendations: string[] = [...importantRecommendations];
 		for (let [pattern, extensionIds] of this.fileBasedRecommendationsByPattern) {
@@ -240,7 +240,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const installed = await this.extensionsWorkbenchService.queryLocal();
 		if (importantRecommendations.length &&
 			await this.promptRecommendedExtensionForFileType(languageName || basename(uri), language, importantRecommendations, installed)) {
 			return;
@@ -251,7 +250,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const mimeTypes = guessMimeTypes(uri);
+		const mimeTypes = getMimeTypes(uri);
 		if (mimeTypes.length !== 1 || mimeTypes[0] !== Mimes.unknown) {
 			return;
 		}
@@ -343,8 +342,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				label: searchMarketplace,
 				run: () => {
 					this.addToPromptedFileExtensions(fileExtension);
-					this.telemetryService.publicLog2<{ userReaction: string, fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension });
-					this.paneCompositeService.openPaneComposite('workbench.view.extensions', ViewContainerLocation.Sidebar, true)
+					this.telemetryService.publicLog2<{ userReaction: string; fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension });
+					this.paneCompositeService.openPaneComposite(EXTENSIONS_VIEWLET_ID, ViewContainerLocation.Sidebar, true)
 						.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 						.then(viewlet => {
 							viewlet.search(`ext:${fileExtension}`);
@@ -360,13 +359,13 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 						JSON.stringify(fileExtensionSuggestionIgnoreList),
 						StorageScope.GLOBAL,
 						StorageTarget.USER);
-					this.telemetryService.publicLog2<{ userReaction: string, fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension });
+					this.telemetryService.publicLog2<{ userReaction: string; fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension });
 				}
 			}],
 			{
 				sticky: true,
 				onCancel: () => {
-					this.telemetryService.publicLog2<{ userReaction: string, fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'cancelled', fileExtension });
+					this.telemetryService.publicLog2<{ userReaction: string; fileExtension: string }, FileExtensionSuggestionClassification>('fileExtensionSuggestion:popup', { userReaction: 'cancelled', fileExtension });
 				}
 			}
 		);
@@ -407,4 +406,3 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.storageService.store(recommendationsStorageKey, JSON.stringify(storedRecommendations), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 }
-

@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { CellEditState, IInsetRenderOutput, INotebookEditor, INotebookEditorContribution, INotebookEditorDelegate, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { BUILTIN_RENDERER_ID, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellRangesToIndexes } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -52,7 +51,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 			for (let i = 0; i < this._notebookEditor.getLength(); i++) {
 				const cell = this._notebookEditor.cellAt(i);
 
-				if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
+				if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.isInputCollapsed) {
 					// TODO@rebornix currently we disable markdown cell rendering in webview for accessibility
 					// this._notebookEditor.createMarkupPreview(cell);
 				} else if (cell?.cellKind === CellKind.Code) {
@@ -75,7 +74,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 		cellRangesToIndexes(visibleRanges).forEach(index => {
 			const cell = this._notebookEditor.cellAt(index);
 
-			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.metadata.inputCollapsed) {
+			if (cell?.cellKind === CellKind.Markup && cell?.getEditState() === CellEditState.Preview && !cell.isInputCollapsed) {
 				(this._notebookEditor as INotebookEditorDelegate).createMarkupPreview(cell);
 			} else if (cell?.cellKind === CellKind.Code) {
 				this._renderCell((cell as CodeCellViewModel));
@@ -84,12 +83,12 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 	}
 
 	private _renderCell(viewCell: CodeCellViewModel) {
-		if (viewCell.metadata.outputCollapsed) {
+		if (viewCell.isOutputCollapsed) {
 			return;
 		}
 
 		const outputs = viewCell.outputsViewModels;
-		for (let output of outputs) {
+		for (const output of outputs) {
 			const [mimeTypes, pick] = output.resolveMimeTypes(this._notebookEditor.textModel!, undefined);
 			if (!mimeTypes.find(mimeType => mimeType.isTrusted) || mimeTypes.length === 0) {
 				continue;
@@ -105,14 +104,6 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 				return;
 			}
 
-			if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
-				const renderer = this._notebookEditor.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
-				if (renderer?.getType() === RenderOutputType.Html) {
-					const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType)[0], DOM.$(''), this._notebookEditor.textModel.uri) as IInsetRenderOutput;
-					this._notebookEditor.createOutput(viewCell, renderResult, 0);
-				}
-				return;
-			}
 			const renderer = this._notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
 
 			if (!renderer) {

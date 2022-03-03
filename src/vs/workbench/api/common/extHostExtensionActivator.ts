@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
+import * as errors from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -28,10 +29,10 @@ export interface IExtensionAPI {
 }
 
 export type ExtensionActivationTimesFragment = {
-	startup?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	codeLoadingTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	activateCallTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-	activateResolvedTime?: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+	startup?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+	codeLoadingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+	activateCallTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
+	activateResolvedTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true };
 };
 
 export class ExtensionActivationTimes {
@@ -161,15 +162,11 @@ export interface IExtensionsActivatorHost {
 	actualActivateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<ActivatedExtension>;
 }
 
-export interface ExtensionActivationReason {
-	readonly startup: boolean;
-	readonly extensionId: ExtensionIdentifier;
-	readonly activationEvent: string;
-}
+type ActivationIdAndReason = { id: ExtensionIdentifier; reason: ExtensionActivationReason };
 
-type ActivationIdAndReason = { id: ExtensionIdentifier, reason: ExtensionActivationReason };
+export class ExtensionsActivator implements IDisposable {
 
-export class ExtensionsActivator {
+	private _isDisposed: boolean;
 
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _resolvedExtensionsSet: Set<string>;
@@ -180,7 +177,7 @@ export class ExtensionsActivator {
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
-	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
+	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean };
 
 	constructor(
 		registry: ExtensionDescriptionRegistry,
@@ -189,6 +186,7 @@ export class ExtensionsActivator {
 		host: IExtensionsActivatorHost,
 		@ILogService private readonly _logService: ILogService
 	) {
+		this._isDisposed = false;
 		this._registry = registry;
 		this._resolvedExtensionsSet = new Set<string>();
 		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
@@ -198,6 +196,10 @@ export class ExtensionsActivator {
 		this._activatingExtensions = new Map<string, Promise<void>>();
 		this._activatedExtensions = new Map<string, ActivatedExtension>();
 		this._alreadyActivatedEvents = Object.create(null);
+	}
+
+	public dispose(): void {
+		this._isDisposed = true;
 	}
 
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
@@ -245,7 +247,7 @@ export class ExtensionsActivator {
 	 * Handle semantics related to dependencies for `currentExtension`.
 	 * semantics: `redExtensions` must wait for `greenExtensions`.
 	 */
-	private _handleActivateRequest(currentActivation: ActivationIdAndReason, greenExtensions: { [id: string]: ActivationIdAndReason; }, redExtensions: ActivationIdAndReason[]): void {
+	private _handleActivateRequest(currentActivation: ActivationIdAndReason, greenExtensions: { [id: string]: ActivationIdAndReason }, redExtensions: ActivationIdAndReason[]): void {
 		if (this._hostExtensionsMap.has(ExtensionIdentifier.toKey(currentActivation.id))) {
 			greenExtensions[ExtensionIdentifier.toKey(currentActivation.id)] = currentActivation;
 			return;
@@ -352,7 +354,7 @@ export class ExtensionsActivator {
 			return Promise.resolve(undefined);
 		}
 
-		const greenMap: { [id: string]: ActivationIdAndReason; } = Object.create(null),
+		const greenMap: { [id: string]: ActivationIdAndReason } = Object.create(null),
 			red: ActivationIdAndReason[] = [];
 
 		for (let i = 0, len = extensions.length; i < len; i++) {
@@ -404,6 +406,12 @@ export class ExtensionsActivator {
 			}
 			if (err && err.stack) {
 				error.stack = err.stack;
+			}
+
+			if (this._isDisposed && errors.isCancellationError(err)) {
+				// It is expected for ongoing activations to fail if the extension host is going down
+				// So simply ignore and don't log canceled errors in this case
+				return new FailedExtension(err);
 			}
 
 			this._host.onExtensionActivationError(

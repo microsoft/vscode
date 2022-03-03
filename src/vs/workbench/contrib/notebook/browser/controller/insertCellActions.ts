@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { IAction2Options, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -14,9 +14,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookActionContext, NotebookAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, GlobalToolbarShowLabel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
 const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
@@ -43,14 +43,14 @@ abstract class InsertCellCommand extends NotebookAction {
 			context.notebookEditor.focus();
 		}
 
-		const modeService = accessor.get(IModeService);
+		const languageService = accessor.get(ILanguageService);
 		if (context.cell) {
 			const idx = context.notebookEditor.getCellIndex(context.cell);
-			newCell = insertCell(modeService, context.notebookEditor, idx, this.kind, this.direction, undefined, true);
+			newCell = insertCell(languageService, context.notebookEditor, idx, this.kind, this.direction, undefined, true);
 		} else {
 			const focusRange = context.notebookEditor.getFocus();
 			const next = Math.max(focusRange.end - 1, 0);
-			newCell = insertCell(modeService, context.notebookEditor, next, this.kind, this.direction, undefined, true);
+			newCell = insertCell(languageService, context.notebookEditor, next, this.kind, this.direction, undefined, true);
 		}
 
 		if (newCell) {
@@ -185,8 +185,8 @@ registerAction2(class InsertCodeCellAtTopAction extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const modeService = accessor.get(IModeService);
-		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
+		const languageService = accessor.get(ILanguageService);
+		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Code, 'above', undefined, true);
 
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -212,8 +212,8 @@ registerAction2(class InsertMarkdownCellAtTopAction extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
-		const modeService = accessor.get(IModeService);
-		const newCell = insertCell(modeService, context.notebookEditor, 0, CellKind.Markup, 'above', undefined, true);
+		const languageService = accessor.get(ILanguageService);
+		const newCell = insertCell(languageService, context.notebookEditor, 0, CellKind.Markup, 'above', undefined, true);
 
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -323,7 +323,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
-		ContextKeyExpr.notEquals(`config.${GlobalToolbarShowLabel}`, false)
+		ContextKeyExpr.notEquals(`config.${NotebookSetting.globalToolbarShowLabel}`, false),
+		ContextKeyExpr.notEquals(`config.${NotebookSetting.globalToolbarShowLabel}`, 'never')
 	)
 });
 

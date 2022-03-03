@@ -32,7 +32,7 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 		return editor.edit((edit) => this.applyEdit(type, editor.document, edit));
 	}
 
-	public applyEdit(type: interfaces.CommitType, document: vscode.TextDocument, edit: { replace(range: vscode.Range, newText: string): void; }): void {
+	public applyEdit(type: interfaces.CommitType, document: vscode.TextDocument, edit: { replace(range: vscode.Range, newText: string): void }): void {
 
 		// Each conflict is a set of ranges as follows, note placements or newlines
 		// which may not in spans
@@ -62,7 +62,7 @@ export class DocumentMergeConflict implements interfaces.IDocumentMergeConflict 
 		}
 	}
 
-	private replaceRangeWithContent(content: string, edit: { replace(range: vscode.Range, newText: string): void; }) {
+	private replaceRangeWithContent(content: string, edit: { replace(range: vscode.Range, newText: string): void }) {
 		if (this.isNewlineOnly(content)) {
 			edit.replace(this.range, '');
 			return;

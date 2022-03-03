@@ -23,7 +23,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarkerService, MarkerStatistics } from 'vs/platform/markers/common/markers';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
+import { getVisbileViewContextKey, FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -100,7 +101,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_SHOW_CURRENT_STATUS,
 			'type': 'boolean',
 			'default': false
-		}
+		},
+		'problems.sortOrder': {
+			'description': Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER,
+			'type': 'string',
+			'default': 'severity',
+			'enum': ['severity', 'position'],
+			'enumDescriptions': [
+				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_SEVERITY,
+				Messages.PROBLEMS_PANEL_CONFIGURATION_COMPARE_ORDER_POSITION,
+			],
+		},
 	}
 });
 
@@ -142,7 +153,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.problems.focus',
 			title: { value: Messages.MARKERS_PANEL_SHOW_LABEL, original: 'Focus Problems (Errors, Warnings, Infos)' },
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 		});
 	}

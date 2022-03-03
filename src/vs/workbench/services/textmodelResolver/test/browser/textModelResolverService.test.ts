@@ -44,7 +44,7 @@ suite('Workbench - TextModelResolverService', () => {
 			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
-					let languageSelection = accessor.modeService.create('json');
+					let languageSelection = accessor.languageService.createById('json');
 
 					return accessor.modelService.createModel(modelContent, languageSelection, resource);
 				}
@@ -179,7 +179,7 @@ suite('Workbench - TextModelResolverService', () => {
 				await waitForIt;
 
 				let modelContent = 'Hello Test';
-				let languageSelection = accessor.modeService.create('json');
+				let languageSelection = accessor.languageService.createById('json');
 				return accessor.modelService.createModel(modelContent, languageSelection, resource);
 			}
 		});

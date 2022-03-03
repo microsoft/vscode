@@ -29,7 +29,7 @@ async function getClient(aiKey: string): Promise<TelemetryClient> {
 	}
 
 	if (aiKey.indexOf('AIF-') === 0) {
-		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		client.config.endpointUrl = 'https://mobile.events.data.microsoft.com/collect/v1';
 	}
 	return client;
 }
@@ -89,24 +89,30 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		data = mixin(data, this._defaultData);
 		data = validateTelemetryData(data);
 
-		this._withAIClient((aiClient) => aiClient.trackEvent({
-			name: this._eventPrefix + '/' + eventName,
-			properties: data.properties,
-			measurements: data.measurements
-		}));
+		// Attemps to suppress https://github.com/microsoft/vscode/issues/140624
+		try {
+			this._withAIClient((aiClient) => aiClient.trackEvent({
+				name: this._eventPrefix + '/' + eventName,
+				properties: data.properties,
+				measurements: data.measurements
+			}));
+		} catch { }
 	}
 
 	flush(): Promise<any> {
 		if (this._aiClient) {
 			return new Promise(resolve => {
 				this._withAIClient((aiClient) => {
-					aiClient.flush({
-						callback: () => {
-							// all data flushed
-							this._aiClient = undefined;
-							resolve(undefined);
-						}
-					});
+					// Attempts to suppress https://github.com/microsoft/vscode/issues/140624
+					try {
+						aiClient.flush({
+							callback: () => {
+								// all data flushed
+								this._aiClient = undefined;
+								resolve(undefined);
+							}
+						});
+					} catch { }
 				});
 			});
 		}

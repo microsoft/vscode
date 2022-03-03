@@ -8,12 +8,12 @@ import * as json from 'vs/base/common/json';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ChordKeybinding, SimpleKeybinding } from 'vs/base/common/keybindings';
 import { OS } from 'vs/base/common/platform';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
+import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -38,7 +38,7 @@ import { TestWorkingCopyBackupService, TestEditorGroupsService, TestEditorServic
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
+import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWorkingCopyService, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -51,15 +51,15 @@ import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbe
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { joinPath } from 'vs/base/common/resources';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
-import { ILanguageConfigurationService } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 interface Modifiers {
@@ -105,7 +105,7 @@ suite('KeybindingsEditing', () => {
 		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(IWorkingCopyService, disposables.add(new WorkingCopyService()));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IModeService, ModeServiceImpl);
+		instantiationService.stub(ILanguageService, LanguageService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ILabelService, disposables.add(instantiationService.createInstance(LabelService)));
 		instantiationService.stub(IFilesConfigurationService, disposables.add(instantiationService.createInstance(FilesConfigurationService)));
@@ -113,7 +113,7 @@ suite('KeybindingsEditing', () => {
 		instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
-		instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelServiceImpl)));
+		instantiationService.stub(IModelService, disposables.add(instantiationService.createInstance(ModelService)));
 		fileService.registerProvider(Schemas.userData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, new NullLogService())));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
@@ -303,8 +303,8 @@ suite('KeybindingsEditing', () => {
 		return json.parse((await fileService.readFile(environmentService.keybindingsResource)).value.toString());
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstPart, chordPart }: { command?: string, when?: string, isDefault?: boolean, firstPart?: { keyCode: KeyCode, modifiers?: Modifiers }, chordPart?: { keyCode: KeyCode, modifiers?: Modifiers } }): ResolvedKeybindingItem {
-		const aSimpleKeybinding = function (part: { keyCode: KeyCode, modifiers?: Modifiers }): SimpleKeybinding {
+	function aResolvedKeybindingItem({ command, when, isDefault, firstPart, chordPart }: { command?: string; when?: string; isDefault?: boolean; firstPart?: { keyCode: KeyCode; modifiers?: Modifiers }; chordPart?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {
+		const aSimpleKeybinding = function (part: { keyCode: KeyCode; modifiers?: Modifiers }): SimpleKeybinding {
 			const { ctrlKey, shiftKey, altKey, metaKey } = part.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
 			return new SimpleKeybinding(ctrlKey!, shiftKey!, altKey!, metaKey!, part.keyCode);
 		};

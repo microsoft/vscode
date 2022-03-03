@@ -11,8 +11,7 @@ import { env } from 'vs/base/common/process';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionKind, IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export interface INativeEnvironmentPaths {
@@ -23,7 +22,7 @@ export interface INativeEnvironmentPaths {
 	 *
 	 * Only one instance of VSCode can use the same `userDataDir`.
 	 */
-	userDataDir: string
+	userDataDir: string;
 
 	/**
 	 * The user home directory mainly used for persisting extensions
@@ -35,7 +34,7 @@ export interface INativeEnvironmentPaths {
 	/**
 	 * OS tmp dir.
 	 */
-	tmpDir: string,
+	tmpDir: string;
 }
 
 export abstract class AbstractNativeEnvironmentService implements INativeEnvironmentService {
@@ -56,6 +55,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get tmpDir(): URI { return URI.file(this.paths.tmpDir); }
+
+	@memoize
+	get cacheHome(): URI { return URI.file(this.userDataPath); }
 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome; }

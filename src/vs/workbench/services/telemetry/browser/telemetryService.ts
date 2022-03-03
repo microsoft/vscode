@@ -14,15 +14,15 @@ import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/pla
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 import { ITelemetryServiceConfig, TelemetryService as BaseTelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ITelemetryAppender, NullTelemetryService, supportsTelemetry, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
 
 class WebAppInsightsAppender implements ITelemetryAppender {
 	private _aiClient: ApplicationInsights | undefined;
 	private _aiClientLoaded = false;
-	private _telemetryCache: { eventName: string, data: any }[] = [];
+	private _telemetryCache: { eventName: string; data: any }[] = [];
 
 	constructor(private _eventPrefix: string, aiKey: string) {
 		const endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
@@ -67,6 +67,12 @@ class WebAppInsightsAppender implements ITelemetryAppender {
 			return;
 		}
 
+		data = validateTelemetryData(data);
+
+		// Web does not expect properties and measurements so we must
+		// spread them out. This is different from desktop which expects them
+		data = { ...data.properties, ...data.measurements };
+
 		// undefined assertion is ok since above two if statements cover both cases
 		this._aiClient!.trackEvent({ name: this._eventPrefix + '/' + eventName }, data);
 	}
@@ -101,10 +107,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 
 	private impl: ITelemetryService;
-	public readonly sendErrorTelemetry = false;
+	public readonly sendErrorTelemetry = true;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@ILoggerService loggerService: ILoggerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
@@ -113,13 +119,13 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	) {
 		super();
 
-		if (!!productService.enableTelemetry && productService.aiConfig?.asimovKey && environmentService.isBuilt) {
+		if (supportsTelemetry(productService, environmentService) && productService.aiConfig?.asimovKey) {
 			// If remote server is present send telemetry through that, else use the client side appender
 			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new WebAppInsightsAppender('monacoworkbench', productService.aiConfig?.asimovKey);
 			const config: ITelemetryServiceConfig = {
 				appenders: [new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)],
 				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
-				sendErrorTelemetry: false,
+				sendErrorTelemetry: this.sendErrorTelemetry,
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService));

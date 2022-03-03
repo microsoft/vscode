@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IReference } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModelService } from 'vs/editor/common/services/model';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
+import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
@@ -54,17 +56,14 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	private _inputResolver: Promise<IResolvedNotebookEditorModel | null> | null;
 	private _editorModelReference: IResolvedNotebookEditorModel | null;
 
-	private _inputModel: ITextModel | null;
-
-	get inputModel() {
-		return this._inputModel;
-	}
+	private _inputModelRef: IReference<IResolvedTextEditorModel> | null;
 
 	get primary(): EditorInput {
 		return this._notebookEditorInput;
 	}
-	private _modelService: IModelService;
+	private _textModelService: ITextModelService;
 	private _interactiveDocumentService: IInteractiveDocumentService;
+	private _historyService: IInteractiveHistoryService;
 
 
 	constructor(
@@ -73,7 +72,10 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		title: string | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
-		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService
+		@ITextModelService textModelService: ITextModelService,
+
+		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService,
+		@IInteractiveHistoryService historyService: IInteractiveHistoryService
 	) {
 		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
 		super();
@@ -83,9 +85,10 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		this._inputResource = inputResource;
 		this._inputResolver = null;
 		this._editorModelReference = null;
-		this._inputModel = null;
-		this._modelService = modelService;
+		this._inputModelRef = null;
+		this._textModelService = textModelService;
 		this._interactiveDocumentService = interactiveDocumentService;
+		this._historyService = historyService;
 
 		this._registerListeners();
 	}
@@ -131,14 +134,15 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		return this._inputResolver;
 	}
 
-	resolveInput(language: string) {
-		if (this._inputModel) {
-			return this._inputModel;
+	async resolveInput(language: string) {
+		if (this._inputModelRef) {
+			return this._inputModelRef.object.textEditorModel;
 		}
 
 		this._interactiveDocumentService.willCreateInteractiveDocument(this.resource!, this.inputResource, language);
-		this._inputModel = this._modelService.createModel('', null, this.inputResource, false);
-		return this._inputModel;
+		this._inputModelRef = await this._textModelService.createModelReference(this.inputResource);
+
+		return this._inputModelRef.object.textEditorModel;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -170,8 +174,12 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		this._editorModelReference?.dispose();
 		this._editorModelReference = null;
 		this._interactiveDocumentService.willRemoveInteractiveDocument(this.resource!, this.inputResource);
-		this._inputModel?.dispose();
-		this._inputModel = null;
+		this._inputModelRef?.dispose();
+		this._inputModelRef = null;
 		super.dispose();
+	}
+
+	get historyService() {
+		return this._historyService;
 	}
 }

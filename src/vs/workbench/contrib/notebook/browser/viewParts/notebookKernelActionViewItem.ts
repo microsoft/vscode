@@ -7,19 +7,12 @@ import 'vs/css!./notebookKernelActionViewItem';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
-import { registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { Event } from 'vs/base/common/event';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-
-registerThemingParticipant((theme, collector) => {
-	const value = theme.getColor(toolbarHoverBackground);
-	collector.addRule(`:root {
-		--code-toolbarHoverBackground: ${value};
-	}`);
-});
 
 export class NotebooKernelActionViewItem extends ActionViewItem {
 
@@ -27,7 +20,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	constructor(
 		actualAction: IAction,
-		private readonly _editor: NotebookEditor | INotebookEditor,
+		private readonly _editor: { onDidChangeModel: Event<void>; textModel: NotebookTextModel | undefined } | INotebookEditor,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 	) {
 		super(
@@ -72,7 +65,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 	private _updateActionFromKernelInfo(info: INotebookKernelMatchResult): void {
 
 		this._action.enabled = true;
-		const selectedOrSuggested = info.selected ?? info.suggestions[0];
+		const selectedOrSuggested = info.selected ?? (info.all.length === 1 && info.suggestions.length === 1 ? info.suggestions[0] : undefined);
 		if (selectedOrSuggested) {
 			// selected or suggested kernel
 			this._action.label = selectedOrSuggested.label;

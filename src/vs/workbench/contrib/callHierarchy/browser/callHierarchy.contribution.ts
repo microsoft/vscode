@@ -17,7 +17,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
+import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
@@ -25,6 +25,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { isCancellationError } from 'vs/base/common/errors';
 
 const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false, localize('editorHasCallHierarchyProvider', 'Whether a call hierarchy provider is available'));
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false, localize('callHierarchyVisible', 'Whether call hierarchy peek is currently showing'));
@@ -40,7 +41,7 @@ class CallHierarchyController implements IEditorContribution {
 
 	static readonly Id = 'callHierarchy';
 
-	static get(editor: ICodeEditor): CallHierarchyController {
+	static get(editor: ICodeEditor): CallHierarchyController | null {
 		return editor.getContribution<CallHierarchyController>(CallHierarchyController.Id);
 	}
 
@@ -112,7 +113,7 @@ class CallHierarchyController implements IEditorContribution {
 		const newModel = model.fork(call.item);
 		this._sessionDisposables.clear();
 
-		CallHierarchyController.get(newEditor)._showCallHierarchyWidget(
+		CallHierarchyController.get(newEditor)?._showCallHierarchyWidget(
 			Range.lift(newModel.root.selectionRange).getStartPosition(),
 			this._widget.direction,
 			Promise.resolve(newModel),
@@ -145,9 +146,12 @@ class CallHierarchyController implements IEditorContribution {
 			else {
 				this._widget!.showMessage(localize('no.item', "No results"));
 			}
-		}).catch(e => {
+		}).catch(err => {
+			if (isCancellationError(err)) {
+				this.endCallHierarchy();
+				return;
+			}
 			this._widget!.showMessage(localize('error', "Failed to show call hierarchy"));
-			console.error(e);
 		});
 	}
 
@@ -198,7 +202,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		return CallHierarchyController.get(editor).startCallHierarchyFromEditor();
+		return CallHierarchyController.get(editor)?.startCallHierarchyFromEditor();
 	}
 });
 
@@ -223,7 +227,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return CallHierarchyController.get(editor).showIncomingCalls();
+		return CallHierarchyController.get(editor)?.showIncomingCalls();
 	}
 });
 
@@ -248,7 +252,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
-		return CallHierarchyController.get(editor).showOutgoingCalls();
+		return CallHierarchyController.get(editor)?.showOutgoingCalls();
 	}
 });
 
@@ -268,7 +272,7 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	async runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		return CallHierarchyController.get(editor).startCallHierarchyFromCallHierarchy();
+		return CallHierarchyController.get(editor)?.startCallHierarchyFromCallHierarchy();
 	}
 });
 
@@ -296,6 +300,6 @@ registerAction2(class extends EditorAction2 {
 	}
 
 	runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor): void {
-		return CallHierarchyController.get(editor).endCallHierarchy();
+		return CallHierarchyController.get(editor)?.endCallHierarchy();
 	}
 });

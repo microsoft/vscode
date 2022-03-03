@@ -8,11 +8,10 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import * as modes from 'vs/editor/common/modes';
-import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import * as languages from 'vs/editor/common/languages';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 // --------- utils
 
@@ -25,12 +24,12 @@ suite('Editor Model - Model Modes 1', () => {
 		calledFor = [];
 	}
 
-	const tokenizationSupport: modes.ITokenizationSupport = {
-		getInitialState: () => NULL_STATE,
+	const tokenizationSupport: languages.ITokenizationSupport = {
+		getInitialState: () => NullState,
 		tokenize: undefined!,
-		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
+		tokenizeEncoded: (line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult => {
 			calledFor.push(line.charAt(0));
-			return new TokenizationResult2(new Uint32Array(0), state);
+			return new languages.EncodedTokenizationResult(new Uint32Array(0), state);
 		}
 	};
 
@@ -46,8 +45,8 @@ suite('Editor Model - Model Modes 1', () => {
 			'5';
 		const LANGUAGE_ID = 'modelModeTest1';
 		calledFor = [];
-		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		thisModel = createTextModel(TEXT, undefined, LANGUAGE_ID);
+		languageRegistration = languages.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		thisModel = createTextModel(TEXT, LANGUAGE_ID);
 	});
 
 	teardown(() => {
@@ -155,18 +154,18 @@ suite('Editor Model - Model Modes 1', () => {
 
 suite('Editor Model - Model Modes 2', () => {
 
-	class ModelState2 implements modes.IState {
+	class ModelState2 implements languages.IState {
 		prevLineContent: string;
 
 		constructor(prevLineContent: string) {
 			this.prevLineContent = prevLineContent;
 		}
 
-		clone(): modes.IState {
+		clone(): languages.IState {
 			return new ModelState2(this.prevLineContent);
 		}
 
-		equals(other: modes.IState): boolean {
+		equals(other: languages.IState): boolean {
 			return (other instanceof ModelState2) && other.prevLineContent === this.prevLineContent;
 		}
 	}
@@ -178,13 +177,13 @@ suite('Editor Model - Model Modes 2', () => {
 		calledFor = [];
 	}
 
-	const tokenizationSupport: modes.ITokenizationSupport = {
+	const tokenizationSupport: languages.ITokenizationSupport = {
 		getInitialState: () => new ModelState2(''),
 		tokenize: undefined!,
-		tokenize2: (line: string, hasEOL: boolean, state: modes.IState): TokenizationResult2 => {
+		tokenizeEncoded: (line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult => {
 			calledFor.push(line);
 			(<ModelState2>state).prevLineContent = line;
-			return new TokenizationResult2(new Uint32Array(0), state);
+			return new languages.EncodedTokenizationResult(new Uint32Array(0), state);
 		}
 	};
 
@@ -199,8 +198,8 @@ suite('Editor Model - Model Modes 2', () => {
 			'Line4' + '\r\n' +
 			'Line5';
 		const LANGUAGE_ID = 'modelModeTest2';
-		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		thisModel = createTextModel(TEXT, undefined, LANGUAGE_ID);
+		languageRegistration = languages.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
+		thisModel = createTextModel(TEXT, LANGUAGE_ID);
 	});
 
 	teardown(() => {

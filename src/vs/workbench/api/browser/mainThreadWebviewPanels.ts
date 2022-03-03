@@ -5,20 +5,21 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorGroupColumn, columnToEditorGroup, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -86,7 +87,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	private readonly _revivers = new Map<string, IDisposable>();
 
 	constructor(
-		context: extHostProtocol.IExtHostContext,
+		context: IExtHostContext,
 		private readonly _mainThreadWebviews: MainThreadWebviews,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
@@ -151,19 +152,14 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		extensionData: extHostProtocol.WebviewExtensionDescription,
 		handle: extHostProtocol.WebviewHandle,
 		viewType: string,
-		initData: {
-			title: string;
-			webviewOptions: extHostProtocol.IWebviewOptions;
-			panelOptions: extHostProtocol.IWebviewPanelOptions;
-			serializeBuffersForPostMessage: boolean;
-		},
-		showOptions: { viewColumn?: EditorGroupColumn, preserveFocus?: boolean; },
+		initData: extHostProtocol.IWebviewInitData,
+		showOptions: extHostProtocol.WebviewPanelShowOptions,
 	): void {
-		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
-		if (showOptions) {
-			mainThreadShowOptions.preserveFocus = !!showOptions.preserveFocus;
-			mainThreadShowOptions.group = columnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
-		}
+		const targetGroup = this.getTargetGroupFromShowOptions(showOptions);
+		const mainThreadShowOptions: ICreateWebViewShowOptions = showOptions ? {
+			preserveFocus: !!showOptions.preserveFocus,
+			group: targetGroup
+		} : {};
 
 		const extension = reviveWebviewExtension(extensionData);
 
@@ -192,7 +188,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		webview.setName(value);
 	}
 
-	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
+	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: extHostProtocol.IWebviewIconPath | undefined): void {
 		const webview = this.getWebviewInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
 	}
@@ -203,10 +199,41 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			return;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(columnToEditorGroup(this._editorGroupService, showOptions.viewColumn)) || this._editorGroupService.getGroup(webview.group || 0);
-		if (targetGroup) {
-			this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
+		const targetGroup = this.getTargetGroupFromShowOptions(showOptions);
+		this._webviewWorkbenchService.revealWebview(webview, targetGroup, !!showOptions.preserveFocus);
+	}
+
+	private getTargetGroupFromShowOptions(showOptions: extHostProtocol.WebviewPanelShowOptions): PreferredGroup {
+		if (typeof showOptions.viewColumn === 'undefined'
+			|| showOptions.viewColumn === ACTIVE_GROUP
+			|| (this._editorGroupService.count === 1 && this._editorGroupService.activeGroup.isEmpty)
+		) {
+			return ACTIVE_GROUP;
 		}
+
+		if (showOptions.viewColumn === SIDE_GROUP) {
+			return SIDE_GROUP;
+		}
+
+		if (showOptions.viewColumn >= 0) {
+			// First check to see if an existing group exists
+			const groupInColumn = this._editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[showOptions.viewColumn];
+			if (groupInColumn) {
+				return groupInColumn.id;
+			}
+
+			// We are dealing with an unknown group and therefore need a new group.
+			// Note that the new group's id may not match the one requested. We only allow
+			// creating a single new group, so if someone passes in `showOptions.viewColumn = 99`
+			// and there are two editor groups open, we simply create a third editor group instead
+			// of creating all the groups up to 99.
+			const newGroup = this._editorGroupService.findGroup({ location: GroupLocation.LAST });
+			if (newGroup) {
+				return this._editorGroupService.addGroup(newGroup, GroupDirection.RIGHT);
+			}
+		}
+
+		return ACTIVE_GROUP;
 	}
 
 	public $registerSerializer(viewType: string, options: { serializeBuffersForPostMessage: boolean }): void {
@@ -316,12 +343,14 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	}
 }
 
-function reviveWebviewIcon(
-	value: { light: UriComponents, dark: UriComponents; } | undefined
-): WebviewIcons | undefined {
-	return value
-		? { light: URI.revive(value.light), dark: URI.revive(value.dark) }
-		: undefined;
+function reviveWebviewIcon(value: extHostProtocol.IWebviewIconPath | undefined): WebviewIcons | undefined {
+	if (!value) {
+		return undefined;
+	}
+	return {
+		light: URI.revive(value.light),
+		dark: URI.revive(value.dark),
+	};
 }
 
 function reviveWebviewOptions(panelOptions: extHostProtocol.IWebviewPanelOptions): WebviewOptions {

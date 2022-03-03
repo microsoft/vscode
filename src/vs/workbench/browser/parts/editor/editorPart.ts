@@ -5,13 +5,13 @@
 
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService, IEditorSideGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
@@ -30,7 +30,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
-import { Promises } from 'vs/base/common/async';
+import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
@@ -49,7 +49,7 @@ class GridWidgetView<T extends IView> implements IView {
 	get minimumHeight(): number { return this.gridWidget ? this.gridWidget.minimumHeight : 0; }
 	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
 
-	private _onDidChange = new Relay<{ width: number; height: number; } | undefined>();
+	private _onDidChange = new Relay<{ width: number; height: number } | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
 	private _gridWidget: Grid<T> | undefined;
@@ -115,9 +115,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidMoveGroup = this._onDidMoveGroup.event;
 
-	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; } | undefined>());
+	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number } | undefined>());
 
-	private readonly _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number; } | undefined>());
+	private readonly _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number } | undefined>());
 	readonly onDidChangeSizeConstraints = Event.any(this.onDidSetGridWidget.event, this._onDidChangeSizeConstraints.event);
 
 	private readonly _onDidChangeEditorPartOptions = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
@@ -222,11 +222,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	private _isReady = false;
 	get isReady(): boolean { return this._isReady; }
 
-	private whenReadyResolve: (() => void) | undefined;
-	readonly whenReady = new Promise<void>(resolve => (this.whenReadyResolve = resolve));
+	private readonly whenReadyPromise = new DeferredPromise<void>();
+	readonly whenReady = this.whenReadyPromise.p;
 
-	private whenRestoredResolve: (() => void) | undefined;
-	readonly whenRestored = new Promise<void>(resolve => (this.whenRestoredResolve = resolve));
+	private readonly whenRestoredPromise = new DeferredPromise<void>();
+	readonly whenRestored = this.whenRestoredPromise.p;
 
 	get hasRestorableState(): boolean {
 		return !!this.workspaceMemento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
@@ -237,20 +237,21 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			case GroupsOrder.CREATION_TIME:
 				return this.groups;
 
-			case GroupsOrder.MOST_RECENTLY_ACTIVE:
+			case GroupsOrder.MOST_RECENTLY_ACTIVE: {
 				const mostRecentActive = coalesce(this.mostRecentActiveGroups.map(groupId => this.getGroup(groupId)));
 
 				// there can be groups that got never active, even though they exist. in this case
 				// make sure to just append them at the end so that all groups are returned properly
 				return distinct([...mostRecentActive, ...this.groups]);
-
-			case GroupsOrder.GRID_APPEARANCE:
+			}
+			case GroupsOrder.GRID_APPEARANCE: {
 				const views: IEditorGroupView[] = [];
 				if (this.gridWidget) {
 					this.fillGridNodes(views, this.gridWidget.getViews());
 				}
 
 				return views;
+			}
 		}
 	}
 
@@ -301,20 +302,22 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				return groups[0];
 			case GroupLocation.LAST:
 				return groups[groups.length - 1];
-			case GroupLocation.NEXT:
+			case GroupLocation.NEXT: {
 				let nextGroup: IEditorGroupView | undefined = groups[index + 1];
 				if (!nextGroup && wrap) {
 					nextGroup = this.doFindGroupByLocation(GroupLocation.FIRST, source);
 				}
 
 				return nextGroup;
-			case GroupLocation.PREVIOUS:
+			}
+			case GroupLocation.PREVIOUS: {
 				let previousGroup: IEditorGroupView | undefined = groups[index - 1];
 				if (!previousGroup && wrap) {
 					previousGroup = this.doFindGroupByLocation(GroupLocation.LAST, source);
 				}
 
 				return previousGroup;
+			}
 		}
 	}
 
@@ -333,13 +336,13 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
-	getSize(group: IEditorGroupView | GroupIdentifier): { width: number, height: number } {
+	getSize(group: IEditorGroupView | GroupIdentifier): { width: number; height: number } {
 		const groupView = this.assertGroupView(group);
 
 		return this.gridWidget.getViewSize(groupView);
 	}
 
-	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number, height: number }): void {
+	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number; height: number }): void {
 		const groupView = this.assertGroupView(group);
 
 		this.gridWidget.resizeView(groupView, size);
@@ -550,19 +553,21 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this.doSetGroupActive(groupView);
 		}));
 
-		// Track editor change
-		groupDisposables.add(groupView.onDidGroupChange(e => {
+		// Track group changes
+		groupDisposables.add(groupView.onDidModelChange(e => {
 			switch (e.kind) {
-				case GroupChangeKind.EDITOR_ACTIVE:
-					this.updateContainer();
-					break;
-				case GroupChangeKind.GROUP_INDEX:
-					this._onDidChangeGroupIndex.fire(groupView);
-					break;
-				case GroupChangeKind.GROUP_LOCKED:
+				case GroupModelChangeKind.GROUP_LOCKED:
 					this._onDidChangeGroupLocked.fire(groupView);
 					break;
+				case GroupModelChangeKind.GROUP_INDEX:
+					this._onDidChangeGroupIndex.fire(groupView);
+					break;
 			}
+		}));
+
+		// Track active editor change after it occurred
+		groupDisposables.add(groupView.onDidActiveEditorChange(() => {
+			this.updateContainer();
 		}));
 
 		// Track dispose
@@ -828,7 +833,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	get minimumHeight(): number { return Math.min(this.centeredLayoutWidget.minimumHeight, this.layoutService.getMaximumEditorDimensions().height); }
 	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
-	readonly snap = true;
+	get snap(): boolean { return this.layoutService.getPanelAlignment() === 'center'; }
 
 	override get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
@@ -864,12 +869,12 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.setupDragAndDropSupport(parent, this.container);
 
 		// Signal ready
-		this.whenReadyResolve?.();
+		this.whenReadyPromise.complete();
 		this._isReady = true;
 
 		// Signal restored
 		Promises.settled(this.groups.map(group => group.whenRestored)).finally(() => {
-			this.whenRestoredResolve?.();
+			this.whenRestoredPromise.complete();
 		});
 
 		return this.container;
@@ -886,7 +891,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		parent.appendChild(overlay);
 
 		// Hide the block if a mouse down event occurs #99065
-		this._register(addDisposableGenericMouseDownListner(overlay, () => overlay.classList.remove('visible')));
+		this._register(addDisposableGenericMouseDownListener(overlay, () => overlay.classList.remove('visible')));
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragStart: e => overlay.classList.add('visible'),

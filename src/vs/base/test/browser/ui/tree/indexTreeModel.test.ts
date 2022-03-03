@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { IIndexTreeModelSpliceOptions, IIndexTreeNode, IList, IndexTreeModel } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ITreeElement, ITreeFilter, ITreeNode, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { timeout } from 'vs/base/common/async';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {
@@ -659,7 +660,7 @@ suite('IndexTreeModel', () => {
 		assert.deepStrictEqual(toArray(list), ['vscode', '.build', 'github', 'build.js', 'build']);
 	});
 
-	test('recursive filter updates when children change (#133272)', () => {
+	test('recursive filter updates when children change (#133272)', async () => {
 		const list: ITreeNode<string>[] = [];
 		let query = '';
 		const filter = new class implements ITreeFilter<string> {
@@ -689,6 +690,8 @@ suite('IndexTreeModel', () => {
 				element: 'visible', children: []
 			},
 		]);
+
+		await timeout(0); // wait for refilter microtask
 
 		assert.deepStrictEqual(toArray(list), ['a', 'b', 'visible']);
 	});

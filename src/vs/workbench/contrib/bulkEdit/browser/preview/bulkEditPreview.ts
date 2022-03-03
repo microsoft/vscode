@@ -5,18 +5,17 @@
 
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { URI } from 'vs/base/common/uri';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IModelService } from 'vs/editor/common/services/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
+import { WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { ConflictDetector } from 'vs/workbench/contrib/bulkEdit/browser/conflicts';
 import { ResourceMap } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
@@ -306,12 +305,12 @@ export class BulkFileOperations {
 		return result;
 	}
 
-	getFileEdits(uri: URI): IIdentifiedSingleEditOperation[] {
+	getFileEdits(uri: URI): ISingleEditOperation[] {
 
 		for (let file of this.fileOperations) {
 			if (file.uri.toString() === uri.toString()) {
 
-				const result: IIdentifiedSingleEditOperation[] = [];
+				const result: ISingleEditOperation[] = [];
 				let ignoreAll = false;
 
 				for (const edit of file.originalEdits.values()) {
@@ -361,12 +360,12 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	private readonly _disposables = new DisposableStore();
 	private readonly _ready: Promise<any>;
-	private readonly _modelPreviewEdits = new Map<string, IIdentifiedSingleEditOperation[]>();
+	private readonly _modelPreviewEdits = new Map<string, ISingleEditOperation[]>();
 	private readonly _instanceId = generateUuid();
 
 	constructor(
 		private readonly _operations: BulkFileOperations,
-		@IModeService private readonly _modeService: IModeService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService
 	) {
@@ -416,7 +415,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 				const sourceModel = ref.object.textEditorModel;
 				model = this._modelService.createModel(
 					createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()),
-					this._modeService.create(sourceModel.getLanguageId()),
+					this._languageService.createById(sourceModel.getLanguageId()),
 					previewUri
 				);
 				ref.dispose();
@@ -425,7 +424,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 				// create NEW model
 				model = this._modelService.createModel(
 					'',
-					this._modeService.createByFilepathOrFirstLine(previewUri),
+					this._languageService.createByFilepathOrFirstLine(previewUri),
 					previewUri
 				);
 			}

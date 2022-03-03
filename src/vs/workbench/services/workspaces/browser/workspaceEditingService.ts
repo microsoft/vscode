@@ -19,7 +19,7 @@ import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspace
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingService {
@@ -43,12 +43,12 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService);
 	}
 
-	async enterWorkspace(path: URI): Promise<void> {
-		const result = await this.doEnterWorkspace(path);
+	async enterWorkspace(workspaceUri: URI): Promise<void> {
+		const result = await this.doEnterWorkspace(workspaceUri);
 		if (result) {
 
 			// Open workspace in same window
-			await this.hostService.openWindow([{ workspaceUri: path }], { forceReuseWindow: true });
+			await this.hostService.openWindow([{ workspaceUri }], { forceReuseWindow: true });
 		}
 	}
 }

@@ -65,8 +65,6 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 
 	private _activePreview: ManagedMarkdownPreview | undefined = undefined;
 
-	private readonly customEditorViewType = 'vscode.markdown.preview.editor';
-
 	public constructor(
 		private readonly _contentProvider: MarkdownContentProvider,
 		private readonly _logger: Logger,
@@ -75,14 +73,15 @@ export class MarkdownPreviewManager extends Disposable implements vscode.Webview
 	) {
 		super();
 		this._register(vscode.window.registerWebviewPanelSerializer(DynamicMarkdownPreview.viewType, this));
-		this._register(vscode.window.registerCustomEditorProvider(this.customEditorViewType, this));
+		this._register(vscode.window.registerCustomEditorProvider(StaticMarkdownPreview.customEditorViewType, this, {
+			webviewOptions: { enableFindWidget: true }
+		}));
 
 		this._register(vscode.window.onDidChangeActiveTextEditor(textEditor => {
-
 			// When at a markdown file, apply existing scroll settings
-			if (textEditor && textEditor.document && isMarkdownFile(textEditor.document)) {
+			if (textEditor?.document && isMarkdownFile(textEditor.document)) {
 				const line = this._topmostLineMonitor.getPreviousStaticEditorLineByUri(textEditor.document.uri);
-				if (line) {
+				if (typeof line === 'number') {
 					scrollEditorToLine(line, textEditor);
 				}
 			}

@@ -9,7 +9,20 @@
     "*"
   ],
   "main": "./out/extension",
-  "enableProposedApi": true,
+  "enabledApiProposals": [
+    "notebookCellExecutionState",
+    "notebookConcatTextDocument",
+    "notebookContentProvider",
+    "notebookControllerKind",
+    "notebookDebugOptions",
+    "notebookDeprecated",
+    "notebookEditor",
+    "notebookEditorDecorationType",
+    "notebookEditorEdit",
+    "notebookLiveShare",
+    "notebookMessaging",
+    "notebookMime"
+  ],
   "engines": {
     "vscode": "^1.25.0"
   },

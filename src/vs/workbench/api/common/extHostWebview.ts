@@ -13,7 +13,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { serializeWebviewMessage, deserializeWebviewMessage } from 'vs/workbench/api/common/extHostWebviewMessaging';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { asWebviewUri, webviewGenericCspSource, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
+import { asWebviewUri, webviewGenericCspSource, WebviewInitData } from 'vs/workbench/common/webview';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 
@@ -160,11 +161,11 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 	public $onMessage(
 		handle: extHostProtocol.WebviewHandle,
 		jsonMessage: string,
-		...buffers: VSBuffer[]
+		buffers: SerializableObjectWithBuffers<VSBuffer[]>
 	): void {
 		const webview = this.getWebview(handle);
 		if (webview) {
-			const { message } = deserializeWebviewMessage(jsonMessage, buffers);
+			const { message } = deserializeWebviewMessage(jsonMessage, buffers.value);
 			webview._onMessageEmitter.fire(message);
 		}
 	}
@@ -176,7 +177,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		this._logService.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
 	}
 
-	public createNewWebview(handle: string, options: extHostProtocol.IWebviewOptions, extension: IExtensionDescription): ExtHostWebview {
+	public createNewWebview(handle: string, options: extHostProtocol.IWebviewContentOptions, extension: IExtensionDescription): ExtHostWebview {
 		const webview = new ExtHostWebview(handle, this._webviewProxy, reviveOptions(options), this.initData, this.workspace, extension, this._deprecationService);
 		this._webviews.set(handle, webview);
 
@@ -202,7 +203,7 @@ export function serializeWebviewOptions(
 	extension: IExtensionDescription,
 	workspace: IExtHostWorkspace | undefined,
 	options: vscode.WebviewOptions,
-): extHostProtocol.IWebviewOptions {
+): extHostProtocol.IWebviewContentOptions {
 	return {
 		enableCommandUris: options.enableCommandUris,
 		enableScripts: options.enableScripts,
@@ -212,7 +213,7 @@ export function serializeWebviewOptions(
 	};
 }
 
-export function reviveOptions(options: extHostProtocol.IWebviewOptions): vscode.WebviewOptions {
+export function reviveOptions(options: extHostProtocol.IWebviewContentOptions): vscode.WebviewOptions {
 	return {
 		enableCommandUris: options.enableCommandUris,
 		enableScripts: options.enableScripts,
