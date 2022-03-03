@@ -32,6 +32,7 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 	private configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	private autoLockConfigurationNode: IConfigurationNode | undefined;
 	private defaultBinaryEditorConfigurationNode: IConfigurationNode | undefined;
+	private editorAssociationsConfiguratioNnode: IConfigurationNode | undefined;
 
 	constructor(
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
@@ -77,6 +78,7 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 			defaultAutoLockGroupConfiguration[editor.id] = DynamicEditorResolverConfigurations.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id);
 		}
 
+		// Register settng for auto locking groups
 		const oldAutoLockConfigurationNode = this.autoLockConfigurationNode;
 		this.autoLockConfigurationNode = {
 			...workbenchConfigurationNodeBase,
@@ -91,6 +93,7 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 			}
 		};
 
+		// Registers setting for default binary editors
 		const oldDefaultBinaryEditorConfigurationNode = this.defaultBinaryEditorConfigurationNode;
 		this.defaultBinaryEditorConfigurationNode = {
 			...workbenchConfigurationNodeBase,
@@ -104,7 +107,26 @@ export class DynamicEditorResolverConfigurations extends Disposable implements I
 			}
 		};
 
+		// Registers setting for editorAssociations
+		const oldEditorAssociationsConfigurationNode = this.editorAssociationsConfiguratioNnode;
+		this.editorAssociationsConfiguratioNnode = {
+			...workbenchConfigurationNodeBase,
+			properties: {
+				'workbench.editorAssociations': {
+					type: 'object',
+					markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (e.g. `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
+					patternProperties: {
+						'.*': {
+							type: 'string',
+							enum: binaryEditorCandidates,
+						}
+					}
+				}
+			}
+		};
+
 		this.configurationRegistry.updateConfigurations({ add: [this.autoLockConfigurationNode], remove: oldAutoLockConfigurationNode ? [oldAutoLockConfigurationNode] : [] });
 		this.configurationRegistry.updateConfigurations({ add: [this.defaultBinaryEditorConfigurationNode], remove: oldDefaultBinaryEditorConfigurationNode ? [oldDefaultBinaryEditorConfigurationNode] : [] });
+		this.configurationRegistry.updateConfigurations({ add: [this.editorAssociationsConfiguratioNnode], remove: oldEditorAssociationsConfigurationNode ? [oldEditorAssociationsConfigurationNode] : [] });
 	}
 }
