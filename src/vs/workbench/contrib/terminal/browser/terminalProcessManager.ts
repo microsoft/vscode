@@ -21,7 +21,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, ITerminalDimensions, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, ITerminalProcessOptions, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -64,7 +64,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	isDisconnected: boolean = false;
 	environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 	backend: ITerminalBackend | undefined;
-	shellIntegrationAttempted: boolean = false;
 	readonly capabilities = new TerminalCapabilityStore();
 
 	private _isDisposed: boolean = false;
@@ -245,42 +244,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						remoteAuthority: this.remoteAuthority,
 						os: this.os
 					});
+					const options: ITerminalProcessOptions = {
+						shellIntegration: {
+							enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
+							showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+						},
+						windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
+					};
 					try {
-						const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration?.enabled || false, shellLaunchConfig, this.os);
-						this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
-						if (this.shellIntegrationAttempted && shellIntegration.args) {
-							const remoteEnv = await this._remoteAgentService.getEnvironment();
-							if (!remoteEnv) {
-								this._logService.warn('Could not fetch remote environment');
-							} else {
-								if (Array.isArray(shellIntegration.args)) {
-									// Resolve the arguments manually using the remote server install directory
-									const appRoot = remoteEnv.appRoot;
-									let appRootOsPath = remoteEnv.appRoot.fsPath;
-									if (OS === OperatingSystem.Windows && remoteEnv.os !== OperatingSystem.Windows) {
-										// Local Windows, remote POSIX
-										appRootOsPath = appRoot.path.replace(/\\/g, '/');
-									} else if (OS !== OperatingSystem.Windows && remoteEnv.os === OperatingSystem.Windows) {
-										// Local POSIX, remote Windows
-										appRootOsPath = appRoot.path.replace(/\//g, '\\');
-									}
-									for (let i = 0; i < shellIntegration.args.length; i++) {
-										shellIntegration.args[i] = shellIntegration.args[i].replace('${execInstallFolder}', appRootOsPath);
-									}
-								}
-								shellLaunchConfig.args = shellIntegration.args;
-							}
-						}
-						//TODO: fix
-						if (env?.['VSCODE_SHELL_LOGIN']) {
-							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
-							shellLaunchConfig.env['VSCODE_SHELL_LOGIN'] = '1';
-						}
-						if (env?.['_ZDOTDIR']) {
-							shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
-							shellLaunchConfig.env['_ZDOTDIR'] = '1';
-						}
-
 						newProcess = await backend.createProcess(
 							shellLaunchConfig,
 							'', // TODO: Fix cwd
@@ -288,7 +259,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							rows,
 							this._configHelper.config.unicodeVersion,
 							env, // TODO:
-							true, // TODO: Fix enable
+							options,
 							shouldPersist
 						);
 					} catch (e) {
@@ -455,23 +426,15 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		const env = await this._resolveEnvironment(backend, variableResolver, shellLaunchConfig);
 
-		const shellIntegration = terminalEnvironment.injectShellIntegrationArgs(this._logService, this._configurationService, env, this._configHelper.config.shellIntegration?.enabled || false, shellLaunchConfig, OS);
-		if (shellIntegration.enableShellIntegration) {
-			shellLaunchConfig.args = shellIntegration.args;
-			if (env?.['_ZDOTDIR']) {
-				shellLaunchConfig.env = shellLaunchConfig.env || {} as IProcessEnvironment;
-				shellLaunchConfig.env['_ZDOTDIR'] = '1';
-			}
-			// Always resolve the injected arguments on local processes
-			await this._terminalProfileResolverService.resolveShellLaunchConfig(shellLaunchConfig, {
-				remoteAuthority: undefined,
-				os: OS
-			});
-		}
-		this.shellIntegrationAttempted = shellIntegration.enableShellIntegration;
-		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
+		const options: ITerminalProcessOptions = {
+			shellIntegration: {
+				enabled: this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled),
+				showWelcome: this._configurationService.getValue(TerminalSettingId.ShellIntegrationShowWelcome),
+			},
+			windowsEnableConpty: this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled
+		};
 		const shouldPersist = this._configHelper.config.enablePersistentSessions && !shellLaunchConfig.isFeatureTerminal;
-		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, useConpty, shouldPersist);
+		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._configHelper.config.unicodeVersion, env, options, shouldPersist);
 	}
 
 	private _setupPtyHostListeners(backend: ITerminalBackend) {
