@@ -168,7 +168,8 @@ function pipeLoggingToParent() {
 		if (process.env['VSCODE_LOG_NATIVE'] === 'true') {
 			const original = console[method];
 			const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
-			Object.defineProperty(console, method, {
+
+			return Object.defineProperty(console, method, {
 				set: () => { },
 				get: () => function () {
 					safeSendConsoleMessage(severity, safeToArray(arguments));
@@ -179,12 +180,12 @@ function pipeLoggingToParent() {
 					isMakingConsoleCall = false;
 				},
 			});
-		} else {
-			Object.defineProperty(console, method, {
-				set: () => { },
-				get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
-			});
 		}
+
+		Object.defineProperty(console, method, {
+			set: () => { },
+			get: () => function () { safeSendConsoleMessage(severity, safeToArray(arguments)); },
+		});
 	}
 
 	/**

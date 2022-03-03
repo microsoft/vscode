@@ -45,10 +45,8 @@
 	 * @param {string=} appRoot
 	 */
 	function enableASARSupport(appRoot) {
-		if (!path || !Module || typeof process === 'undefined') {
-			console.warn('enableASARSupport() is only available in node.js environments');
-			return;
-		}
+		if (!path || !Module || typeof process === 'undefined')
+			return console.warn('enableASARSupport() is only available in node.js environments');
 
 		const NODE_MODULES_PATH = appRoot ? path.join(appRoot, 'node_modules') : path.join(__dirname, '../node_modules');
 
@@ -62,17 +60,15 @@
 			const driveLetter = appRoot.substr(0, 1);
 
 			let alternativeDriveLetter;
-			if (driveLetter.toLowerCase() !== driveLetter) {
-				alternativeDriveLetter = driveLetter.toLowerCase();
-			} else {
-				alternativeDriveLetter = driveLetter.toUpperCase();
-			}
 
-			NODE_MODULES_ALTERNATIVE_PATH = alternativeDriveLetter + NODE_MODULES_PATH.substr(1);
-		} else {
-			NODE_MODULES_ALTERNATIVE_PATH = undefined;
+			driveLetter.toLowerCase() !== driveLetter ?
+				alternativeDriveLetter = driveLetter.toLowerCase() :
+				alternativeDriveLetter = driveLetter.toUpperCase()
+
+			return NODE_MODULES_ALTERNATIVE_PATH = alternativeDriveLetter + NODE_MODULES_PATH.substr(1);
 		}
 
+		NODE_MODULES_ALTERNATIVE_PATH = undefined;
 		const NODE_MODULES_ASAR_PATH = `${NODE_MODULES_PATH}.asar`;
 		const NODE_MODULES_ASAR_ALTERNATIVE_PATH = NODE_MODULES_ALTERNATIVE_PATH ? `${NODE_MODULES_ALTERNATIVE_PATH}.asar` : undefined;
 
@@ -169,13 +165,13 @@
 
 			nlsConfig.loadBundle = function (bundle, language, cb) {
 				const result = bundles[bundle];
-				if (result) {
-					cb(undefined, result);
 
-					return;
-				}
+				if (result) return cb(undefined, result);
 
-				safeReadNlsFile(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`).then(function (content) {
+				safeReadNlsFile(
+					nlsConfig._resolvedLanguagePackCoreLocation,
+					`${bundle.replace(/\//g, '!')}.nls.json`
+				).then((content) => {
 					const json = JSON.parse(content);
 					bundles[bundle] = json;
 
@@ -183,7 +179,8 @@
 				}).catch((error) => {
 					try {
 						if (nlsConfig._corruptedFile) {
-							safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+							safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted')
+								.catch((error) => console.error(error));
 						}
 					} finally {
 						cb(error, undefined);
@@ -200,7 +197,6 @@
 	 */
 	function safeSandboxGlobals() {
 		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
-
 		return globals.vscode;
 	}
 
@@ -209,14 +205,9 @@
 	 */
 	function safeProcess() {
 		const sandboxGlobals = safeSandboxGlobals();
-		if (sandboxGlobals) {
-			return sandboxGlobals.process; // Native environment (sandboxed)
-		}
 
-		if (typeof process !== 'undefined') {
-			return process; // Native environment (non-sandboxed)
-		}
-
+		if (sandboxGlobals) return sandboxGlobals.process; // Native environment (sandboxed)
+		if (typeof process !== 'undefined') return process; // Native environment (non-sandboxed)
 		return undefined;
 	}
 
@@ -225,10 +216,8 @@
 	 */
 	function safeIpcRenderer() {
 		const sandboxGlobals = safeSandboxGlobals();
-		if (sandboxGlobals) {
-			return sandboxGlobals.ipcRenderer;
-		}
 
+		if (sandboxGlobals) return sandboxGlobals.ipcRenderer;
 		return undefined;
 	}
 
@@ -238,14 +227,9 @@
 	 */
 	async function safeReadNlsFile(...pathSegments) {
 		const ipcRenderer = safeIpcRenderer();
-		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
-		}
 
-		if (fs && path) {
-			return (await fs.promises.readFile(path.join(...pathSegments))).toString();
-		}
-
+		if (ipcRenderer) return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
+		if (fs && path) return (await fs.promises.readFile(path.join(...pathSegments))).toString();
 		throw new Error('Unsupported operation (read NLS files)');
 	}
 
@@ -256,14 +240,9 @@
 	 */
 	function safeWriteNlsFile(path, content) {
 		const ipcRenderer = safeIpcRenderer();
-		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
-		}
 
-		if (fs) {
-			return fs.promises.writeFile(path, content);
-		}
-
+		if (ipcRenderer) return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
+		if (fs) return fs.promises.writeFile(path, content);
 		throw new Error('Unsupported operation (write NLS files)');
 	}
 
@@ -275,10 +254,8 @@
 	// Prevents appinsights from monkey patching modules.
 	// This should be called before importing the applicationinsights module
 	function avoidMonkeyPatchFromAppInsights() {
-		if (typeof process === 'undefined') {
-			console.warn('avoidMonkeyPatchFromAppInsights() is only available in node.js environments');
-			return;
-		}
+		if (typeof process === 'undefined')
+			return console.warn('avoidMonkeyPatchFromAppInsights() is only available in node.js environments');
 
 		// @ts-ignore
 		process.env['APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL'] = true; // Skip monkey patching of 3rd party modules by appinsights

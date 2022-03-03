@@ -121,9 +121,7 @@
 		// use a trusted types policy when loading via script tags
 		loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
 			createScriptURL(value) {
-				if (value.startsWith(window.location.origin)) {
-					return value;
-				}
+				if (value.startsWith(window.location.origin)) return value;
 				throw new Error(`Invalid script url: ${value}`);
 			}
 		});

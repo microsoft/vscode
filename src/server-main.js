@@ -180,45 +180,41 @@ function sanitizeStringArg(val) {
  */
 async function parsePort(host, strPort, strPickPort) {
 	let specificPort;
+
 	if (strPort) {
 		let range;
+
 		if (strPort.match(/^\d+$/)) {
 			specificPort = parseInt(strPort, 10);
-			if (specificPort === 0 || !strPickPort) {
-				return specificPort;
-			}
+			if (specificPort === 0 || !strPickPort) return specificPort;
 		} else if (range = parseRange(strPort)) {
 			const port = await findFreePort(host, range.start, range.end);
-			if (port !== undefined) {
-				return port;
-			}
+			if (port !== undefined) return port;
 			console.warn(`--port: Could not find free port in range: ${range.start} - ${range.end} (inclusive).`);
-			process.exit(1);
-
-		} else {
-			console.warn(`--port "${strPort}" is not a valid number or range. Ranges must be in the form 'from-to' with 'from' an integer larger than 0 and not larger than 'end'.`);
-			process.exit(1);
+			return process.exit(1);
 		}
+
+		console.warn(`--port "${strPort}" is not a valid number or range. Ranges must be in the form 'from-to' with 'from' an integer larger than 0 and not larger than 'end'.`);
+		process.exit(1);
 	}
 	// pick-port is deprecated and will be removed soon
 	if (strPickPort) {
 		const range = parseRange(strPickPort);
+
 		if (range) {
-			if (range.start <= specificPort && specificPort <= range.end) {
-				return specificPort;
-			} else {
-				const port = await findFreePort(host, range.start, range.end);
-				if (port !== undefined) {
-					return port;
-				}
-				console.log(`--pick-port: Could not find free port in range: ${range.start} - ${range.end}.`);
-				process.exit(1);
-			}
-		} else {
-			console.log(`--pick-port "${strPickPort}" is not a valid range. Ranges must be in the form 'from-to' with 'from' an integer larger than 0 and not larger than 'end'.`);
-			process.exit(1);
+			if (range.start <= specificPort && specificPort <= range.end) return specificPort;
+			const port = await findFreePort(host, range.start, range.end);
+
+			if (port !== undefined) return port;
+
+			console.log(`--pick-port: Could not find free port in range: ${range.start} - ${range.end}.`);
+			return process.exit(1);
 		}
+
+		console.log(`--pick-port "${strPickPort}" is not a valid range. Ranges must be in the form 'from-to' with 'from' an integer larger than 0 and not larger than 'end'.`);
+		process.exit(1);
 	}
+
 	return 8000;
 }
 
@@ -230,9 +226,7 @@ function parseRange(strRange) {
 	const match = strRange.match(/^(\d+)-(\d+)$/);
 	if (match) {
 		const start = parseInt(match[1], 10), end = parseInt(match[2], 10);
-		if (start > 0 && start <= end && end <= 65535) {
-			return { start, end };
-		}
+		if (start > 0 && start <= end && end <= 65535) return { start, end };
 	}
 	return undefined;
 }
@@ -276,10 +270,10 @@ function loadCode() {
 			// When running out of sources, we need to load node modules from remote/node_modules,
 			// which are compiled against nodejs, not electron
 			process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] = process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'] || path.join(__dirname, '..', 'remote', 'node_modules');
-			require('./bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
-		} else {
-			delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
+			return require('./bootstrap-node').injectNodeModuleLookupPath(process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH']);
 		}
+
+		delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
 		require('./bootstrap-amd').load('vs/server/node/server.main', resolve, reject);
 	});
 }
@@ -306,17 +300,14 @@ function prompt(question) {
 		rl.question(question + ' ', async function (data) {
 			rl.close();
 			const str = data.toString().trim().toLowerCase();
-			if (str === '' || str === 'y' || str === 'yes') {
-				resolve(true);
-			} else if (str === 'n' || str === 'no') {
-				resolve(false);
-			} else {
-				process.stdout.write('\nInvalid Response. Answer either yes (y, yes) or no (n, no)\n');
-				resolve(await prompt(question));
-			}
+
+			if (str === '' || str === 'y' || str === 'yes') return resolve(true);
+			if (str === 'n' || str === 'no') return resolve(false);
+
+			process.stdout.write('\nInvalid Response. Answer either yes (y, yes) or no (n, no)\n');
+			resolve(await prompt(question));
 		});
 	});
 }
-
 
 start();

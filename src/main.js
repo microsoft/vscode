@@ -109,10 +109,10 @@ app.once('ready', function () {
 			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
 		};
 
-		contentTracing.startRecording(traceOptions).finally(() => onReady());
-	} else {
-		onReady();
+		return contentTracing.startRecording(traceOptions).finally(() => onReady());
 	}
+
+	onReady();
 });
 
 /**
@@ -195,40 +195,34 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 			// Others
 			else if (argvValue === true || argvValue === 'true') {
-				if (argvKey === 'disable-hardware-acceleration') {
-					app.disableHardwareAcceleration(); // needs to be called explicitly
-				} else {
+				argvKey === 'disable-hardware-acceleration' ?
+					app.disableHardwareAcceleration() : // needs to be called explicitly
 					app.commandLine.appendSwitch(argvKey);
-				}
 			}
 		}
 
 		// Append main process flags to process.argv
 		else if (SUPPORTED_MAIN_PROCESS_SWITCHES.indexOf(argvKey) !== -1) {
-			switch (argvKey) {
-				case 'enable-proposed-api':
+			const argvKeyStrategies = {
+				'enable-proposed-api': () => {
 					if (Array.isArray(argvValue)) {
-						argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
-					} else {
-						console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
+						return argvValue.forEach(id => id && typeof id === 'string' && process.argv.push('--enable-proposed-api', id));
 					}
-					break;
 
-				case 'log-level':
-					if (typeof argvValue === 'string') {
-						process.argv.push('--log', argvValue);
-					}
-					break;
+					console.error(`Unexpected value for \`enable-proposed-api\` in argv.json. Expected array of extension ids.`);
+				},
+
+				'log-level': () => typeof argvValue === 'string' && process.argv.push('--log', argvValue)
 			}
+
+			argvKeyStrategies[argvKey]()
 		}
 	});
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
-	if (jsFlags) {
-		app.commandLine.appendSwitch('js-flags', jsFlags);
-	}
 
+	if (jsFlags) return app.commandLine.appendSwitch('js-flags', jsFlags);
 	return argvConfig;
 }
 
@@ -240,11 +234,8 @@ function readArgvConfigSync() {
 	try {
 		argvConfig = JSON.parse(stripComments(fs.readFileSync(argvConfigPath).toString()));
 	} catch (error) {
-		if (error && error.code === 'ENOENT') {
-			createDefaultArgvConfigSync(argvConfigPath);
-		} else {
-			console.warn(`Unable to read argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
-		}
+		if (error && error.code === 'ENOENT') return createDefaultArgvConfigSync(argvConfigPath);
+		console.warn(`Unable to read argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
 	}
 
 	// Fallback to default
@@ -298,9 +289,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 
 function getArgvConfigPath() {
 	const vscodePortable = process.env['VSCODE_PORTABLE'];
-	if (vscodePortable) {
-		return path.join(vscodePortable, 'argv.json');
-	}
+	if (vscodePortable) return path.join(vscodePortable, 'argv.json');
 
 	let dataFolderName = product.dataFolderName;
 	if (process.env['VSCODE_DEV']) {
@@ -311,7 +300,6 @@ function getArgvConfigPath() {
 }
 
 function configureCrashReporter() {
-
 	let crashReporterDirectory = args['crash-reporter-directory'];
 	let submitURL = '';
 	if (crashReporterDirectory) {
@@ -334,60 +322,57 @@ function configureCrashReporter() {
 		// Crashes are stored in the crashDumps directory by default, so we
 		// need to change that directory to the provided one
 		console.log(`Found --crash-reporter-directory argument. Setting crashDumps directory to be '${crashReporterDirectory}'`);
-		app.setPath('crashDumps', crashReporterDirectory);
+		return app.setPath('crashDumps', crashReporterDirectory);
 	}
 
 	// Otherwise we configure the crash reporter from product.json
-	else {
-		const appCenter = product.appCenter;
-		if (appCenter) {
-			const isWindows = (process.platform === 'win32');
-			const isLinux = (process.platform === 'linux');
-			const isDarwin = (process.platform === 'darwin');
-			const crashReporterId = argvConfig['crash-reporter-id'];
-			const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-			if (uuidPattern.test(crashReporterId)) {
-				if (isWindows) {
-					switch (process.arch) {
-						case 'ia32':
-							submitURL = appCenter['win32-ia32'];
-							break;
-						case 'x64':
-							submitURL = appCenter['win32-x64'];
-							break;
-						case 'arm64':
-							submitURL = appCenter['win32-arm64'];
-							break;
-					}
-				} else if (isDarwin) {
-					if (product.darwinUniversalAssetId) {
-						submitURL = appCenter['darwin-universal'];
-					} else {
-						switch (process.arch) {
-							case 'x64':
-								submitURL = appCenter['darwin'];
-								break;
-							case 'arm64':
-								submitURL = appCenter['darwin-arm64'];
-								break;
-						}
-					}
-				} else if (isLinux) {
-					submitURL = appCenter['linux-x64'];
+	const appCenter = product.appCenter;
+
+	if (appCenter) {
+		const isWindows = (process.platform === 'win32');
+		const isLinux = (process.platform === 'linux');
+		const isDarwin = (process.platform === 'darwin');
+		const crashReporterId = argvConfig['crash-reporter-id'];
+		const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+		if (uuidPattern.test(crashReporterId)) {
+			if (isWindows) {
+				const windowsProcessArchStrategies = {
+					'ia32': () => submitURL = appCenter['win32-ia32'],
+					'x64': () => submitURL = appCenter['win32-x64'],
+					'arm64': () => submitURL = appCenter['win32-arm64']
 				}
-				submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
-				// Send the id for child node process that are explicitly starting crash reporter.
-				// For vscode this is ExtensionHost process currently.
-				const argv = process.argv;
-				const endOfArgsMarkerIndex = argv.indexOf('--');
-				if (endOfArgsMarkerIndex === -1) {
-					argv.push('--crash-reporter-id', crashReporterId);
-				} else {
-					// if the we have an argument "--" (end of argument marker)
-					// we cannot add arguments at the end. rather, we add
-					// arguments before the "--" marker.
-					argv.splice(endOfArgsMarkerIndex, 0, '--crash-reporter-id', crashReporterId);
+
+				windowsProcessArchStrategies[process.arch]()
+			}
+
+			if (isDarwin) {
+				const darwinProcessArchStrategies = {
+					'x64': () => submitURL = appCenter['darwin'],
+					"arm64": () => submitURL = appCenter['darwin-arm64']
 				}
+
+				product.darwinUniversalAssetId ?
+					submitURL = appCenter['darwin-universal'] :
+					darwinProcessArchStrategies[process.arch]()
+			}
+
+			if (isLinux) {
+				submitURL = appCenter['linux-x64'];
+			}
+
+			submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
+			// Send the id for child node process that are explicitly starting crash reporter.
+			// For vscode this is ExtensionHost process currently.
+			const argv = process.argv;
+			const endOfArgsMarkerIndex = argv.indexOf('--');
+			if (endOfArgsMarkerIndex === -1) {
+				argv.push('--crash-reporter-id', crashReporterId);
+			} else {
+				// if the we have an argument "--" (end of argument marker)
+				// we cannot add arguments at the end. rather, we add
+				// arguments before the "--" marker.
+				argv.splice(endOfArgsMarkerIndex, 0, '--crash-reporter-id', crashReporterId);
 			}
 		}
 	}
@@ -469,7 +454,6 @@ function registerListeners() {
 		 */
 		function (event, url) {
 			event.preventDefault();
-
 			openUrls.push(url);
 		};
 
@@ -479,7 +463,6 @@ function registerListeners() {
 
 	global['getOpenUrls'] = function () {
 		app.removeListener('open-url', onOpenUrl);
-
 		return openUrls;
 	};
 }
@@ -527,7 +510,6 @@ async function mkdirpIgnoreError(dir) {
 	if (typeof dir === 'string') {
 		try {
 			await mkdirp(dir);
-
 			return dir;
 		} catch (error) {
 			// ignore
