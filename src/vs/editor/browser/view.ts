@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
@@ -413,8 +412,8 @@ export class View extends ViewEventHandler {
 
 	// --- BEGIN CodeEditor helpers
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
-		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
+	public delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void {
+		this._scrollbar.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number }): void {

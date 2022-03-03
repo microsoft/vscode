@@ -6,7 +6,7 @@
 import 'vs/css!./minimap';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import { GlobalPointerMoveMonitor, standardPointerMoveMerger } from 'vs/base/browser/globalPointerMoveMonitor';
 import { CharCode } from 'vs/base/common/charCode';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -40,7 +40,7 @@ import { once } from 'vs/base/common/functional';
 /**
  * The orthogonal distance to the slider at which dragging "resets". This implements "snapping"
  */
-const MOUSE_DRAG_RESET_DISTANCE = 140;
+const POINTER_DRAG_RESET_DISTANCE = 140;
 
 const GUTTER_DECORATION_WIDTH = 2;
 
@@ -1072,9 +1072,9 @@ class InnerMinimap extends Disposable {
 	private readonly _decorationsCanvas: FastDomNode<HTMLCanvasElement>;
 	private readonly _slider: FastDomNode<HTMLElement>;
 	private readonly _sliderHorizontal: FastDomNode<HTMLElement>;
-	private readonly _mouseDownListener: IDisposable;
-	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
-	private readonly _sliderMouseDownListener: IDisposable;
+	private readonly _pointerDownListener: IDisposable;
+	private readonly _sliderPointerMoveMonitor: GlobalPointerMoveMonitor;
+	private readonly _sliderPointerDownListener: IDisposable;
 	private readonly _gestureDisposable: IDisposable;
 	private readonly _sliderTouchStartListener: IDisposable;
 	private readonly _sliderTouchMoveListener: IDisposable;
@@ -1135,7 +1135,7 @@ class InnerMinimap extends Disposable {
 
 		this._applyLayout();
 
-		this._mouseDownListener = dom.addStandardDisposableListener(this._domNode.domNode, 'mousedown', (e) => {
+		this._pointerDownListener = dom.addStandardDisposableListener(this._domNode.domNode, dom.EventType.POINTER_DOWN, (e) => {
 			e.preventDefault();
 
 			const renderMinimap = this._model.options.renderMinimap;
@@ -1146,16 +1146,16 @@ class InnerMinimap extends Disposable {
 				return;
 			}
 			if (this._model.options.size !== 'proportional') {
-				if (e.leftButton && this._lastRenderData) {
+				if (e.button === 0 && this._lastRenderData) {
 					// pretend the click occurred in the center of the slider
 					const position = dom.getDomNodePagePosition(this._slider.domNode);
 					const initialPosY = position.top + position.height / 2;
-					this._startSliderDragging(e.buttons, e.posx, initialPosY, e.posy, this._lastRenderData.renderedLayout);
+					this._startSliderDragging(e, initialPosY, this._lastRenderData.renderedLayout);
 				}
 				return;
 			}
 			const minimapLineHeight = this._model.options.minimapLineHeight;
-			const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * e.browserEvent.offsetY;
+			const internalOffsetY = (this._model.options.canvasInnerHeight / this._model.options.canvasOuterHeight) * e.offsetY;
 			const lineIndex = Math.floor(internalOffsetY / minimapLineHeight);
 
 			let lineNumber = lineIndex + this._lastRenderData.renderedLayout.startLineNumber;
@@ -1164,13 +1164,13 @@ class InnerMinimap extends Disposable {
 			this._model.revealLineNumber(lineNumber);
 		});
 
-		this._sliderMouseMoveMonitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
+		this._sliderPointerMoveMonitor = new GlobalPointerMoveMonitor();
 
-		this._sliderMouseDownListener = dom.addStandardDisposableListener(this._slider.domNode, 'mousedown', (e) => {
+		this._sliderPointerDownListener = dom.addStandardDisposableListener(this._slider.domNode, dom.EventType.POINTER_DOWN, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			if (e.leftButton && this._lastRenderData) {
-				this._startSliderDragging(e.buttons, e.posx, e.posy, e.posy, this._lastRenderData.renderedLayout);
+			if (e.button === 0 && this._lastRenderData) {
+				this._startSliderDragging(e, e.pageY, this._lastRenderData.renderedLayout);
 			}
 		});
 
@@ -1201,31 +1201,37 @@ class InnerMinimap extends Disposable {
 		});
 	}
 
-	private _startSliderDragging(initialButtons: number, initialPosX: number, initialPosY: number, posy: number, initialSliderState: MinimapLayout): void {
+	private _startSliderDragging(e: PointerEvent, initialPosY: number, initialSliderState: MinimapLayout): void {
+		if (!e.target || !(e.target instanceof Element)) {
+			return;
+		}
+		const initialPosX = e.pageX;
+
 		this._slider.toggleClassName('active', true);
 
-		const handleMouseMove = (posy: number, posx: number) => {
-			const mouseOrthogonalDelta = Math.abs(posx - initialPosX);
+		const handlePointerMove = (posy: number, posx: number) => {
+			const pointerOrthogonalDelta = Math.abs(posx - initialPosX);
 
-			if (platform.isWindows && mouseOrthogonalDelta > MOUSE_DRAG_RESET_DISTANCE) {
-				// The mouse has wondered away from the scrollbar => reset dragging
+			if (platform.isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
+				// The pointer has wondered away from the scrollbar => reset dragging
 				this._model.setScrollTop(initialSliderState.scrollTop);
 				return;
 			}
 
-			const mouseDelta = posy - initialPosY;
-			this._model.setScrollTop(initialSliderState.getDesiredScrollTopFromDelta(mouseDelta));
+			const pointerDelta = posy - initialPosY;
+			this._model.setScrollTop(initialSliderState.getDesiredScrollTopFromDelta(pointerDelta));
 		};
 
-		if (posy !== initialPosY) {
-			handleMouseMove(posy, initialPosX);
+		if (e.pageY !== initialPosY) {
+			handlePointerMove(e.pageY, initialPosX);
 		}
 
-		this._sliderMouseMoveMonitor.startMonitoring(
-			this._slider.domNode,
-			initialButtons,
-			standardMouseMoveMerger,
-			(mouseMoveData: IStandardMouseMoveEventData) => handleMouseMove(mouseMoveData.posy, mouseMoveData.posx),
+		this._sliderPointerMoveMonitor.startMonitoring(
+			e.target,
+			e.pointerId,
+			e.buttons,
+			standardPointerMoveMerger,
+			pointerMoveData => handlePointerMove(pointerMoveData.pageY, pointerMoveData.pageX),
 			() => {
 				this._slider.toggleClassName('active', false);
 			}
@@ -1239,9 +1245,9 @@ class InnerMinimap extends Disposable {
 	}
 
 	public override dispose(): void {
-		this._mouseDownListener.dispose();
-		this._sliderMouseMoveMonitor.dispose();
-		this._sliderMouseDownListener.dispose();
+		this._pointerDownListener.dispose();
+		this._sliderPointerMoveMonitor.dispose();
+		this._sliderPointerDownListener.dispose();
 		this._gestureDisposable.dispose();
 		this._sliderTouchStartListener.dispose();
 		this._sliderTouchMoveListener.dispose();
