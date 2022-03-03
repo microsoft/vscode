@@ -45,6 +45,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -391,6 +392,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this.updateLabel();
 			}
 		}));
+		this._register(this._terminalService.onDidChangeInstanceCapability(e => {
+			this._action.tooltip = getSingleTabTooltip(e, this._terminalService.configHelper.config.tabs.separator);
+			this.updateLabel(e);
+		}));
 
 		// Clean up on dispose
 		this._register(toDisposable(() => dispose(this._elementDisposables)));
@@ -504,7 +509,7 @@ function getSingleTabLabel(instance: ITerminalInstance | undefined, separator: s
 		return '';
 	}
 	let iconClass = ThemeIcon.isThemeIcon(instance.icon) ? instance.icon?.id : Codicon.terminal.id;
-	const label = `$(${icon?.id || iconClass}) ${getSingleTabTooltip(instance, separator)}`;
+	const label = `$(${icon?.id || iconClass}) ${getSingleTabTitle(instance, separator)}`;
 
 	const primaryStatus = instance.statusList.primary;
 	if (!primaryStatus?.icon) {
@@ -517,10 +522,16 @@ function getSingleTabTooltip(instance: ITerminalInstance | undefined, separator:
 	if (!instance) {
 		return '';
 	}
-	if (!instance.description) {
-		return instance.title;
+	const shellIntegrationString = getShellIntegrationTooltip(instance);
+	const title = getSingleTabTitle(instance, separator);
+	return shellIntegrationString ? title + shellIntegrationString : title;
+}
+
+function getSingleTabTitle(instance: ITerminalInstance | undefined, separator: string): string {
+	if (!instance) {
+		return '';
 	}
-	return `${instance.title} ${separator} ${instance.description}`;
+	return !instance.description ? instance.title : `${instance.title} ${separator} ${instance.description}`;
 }
 
 class TerminalThemeIconStyle extends Themable {

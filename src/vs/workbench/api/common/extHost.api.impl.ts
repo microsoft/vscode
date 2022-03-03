@@ -13,7 +13,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
 import { score } from 'vs/editor/common/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, CandidatePortSource, ExtHostLogLevelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, CandidatePortSource, ExtHostLogLevelServiceShape, TabKind } from 'vs/workbench/api/common/extHost.protocol';
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
@@ -223,6 +223,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if (typeof filter.exclusive === 'boolean') {
 						checkProposedApiEnabled(extension, 'documentFiltersExclusive');
 					}
+					if (typeof filter.notebookType === 'string') {
+						checkProposedApiEnabled(extension, 'notebookDocumentSelector');
+					}
 				}
 				return selector;
 			};
@@ -365,10 +368,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const tests: typeof vscode.tests = {
 			createTestController(provider, label, refreshHandler?: (token: vscode.CancellationToken) => Thenable<void> | void) {
-				if (refreshHandler) {
-					checkProposedApiEnabled(extension, 'testRefresh');
-				}
-
 				return extHostTesting.createTestController(provider, label, refreshHandler);
 			},
 			createTestObserver() {
@@ -424,7 +423,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguages.changeLanguage(document.uri, languageId);
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true);
+				return score(typeConverters.LanguageSelector.from(selector), document.uri, document.languageId, true, document.notebook?.notebookType);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 				return extHostLanguageFeatures.registerCodeActionProvider(extension, checkSelector(selector), provider, metadata);
@@ -525,11 +524,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguages.tokenAtPosition(doc, pos);
 			},
 			registerInlayHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
-				checkProposedApiEnabled(extension, 'inlayHints');
 				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
 			},
 			createLanguageStatusItem(id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
-				checkProposedApiEnabled(extension, 'languageStatus');
 				return extHostLanguages.createLanguageStatusItem(extension, id, selector);
 			}
 		};
@@ -654,8 +651,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			withProgress<R>(options: vscode.ProgressOptions, task: (progress: vscode.Progress<{ message?: string; worked?: number }>, token: vscode.CancellationToken) => Thenable<R>) {
 				return extHostProgress.withProgress(extension, options, task);
 			},
-			createOutputChannel(name: string): vscode.OutputChannel {
-				return extHostOutputService.createOutputChannel(name, extension);
+			createOutputChannel(name: string, languageId?: string): vscode.OutputChannel {
+				if (languageId) {
+					checkProposedApiEnabled(extension, 'outputChannelLanguage');
+				}
+				return extHostOutputService.createOutputChannel(name, languageId, extension);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn; preserveFocus?: boolean }, options?: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviewPanels.createWebviewPanel(extension, viewType, title, showOptions, options);
@@ -748,21 +748,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'externalUriOpener');
 				return extHostUriOpeners.registerExternalUriOpener(extension.identifier, id, opener, metadata);
 			},
-			get tabs() {
+			get tabGroups(): vscode.TabGroups {
 				checkProposedApiEnabled(extension, 'tabs');
-				return extHostEditorTabs.tabs;
-			},
-			get activeTab() {
-				checkProposedApiEnabled(extension, 'tabs');
-				return extHostEditorTabs.activeTab;
-			},
-			get onDidChangeTabs() {
-				checkProposedApiEnabled(extension, 'tabs');
-				return extHostEditorTabs.onDidChangeTabs;
-			},
-			get onDidChangeActiveTab() {
-				checkProposedApiEnabled(extension, 'tabs');
-				return extHostEditorTabs.onDidChangeActiveTab;
+				return extHostEditorTabs.tabGroups;
 			},
 			getInlineCompletionItemController<T extends vscode.InlineCompletionItem>(provider: vscode.InlineCompletionItemProvider<T>): vscode.InlineCompletionController<T> {
 				checkProposedApiEnabled(extension, 'inlineCompletions');
@@ -1184,6 +1172,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ColorThemeKind: extHostTypes.ColorThemeKind,
 			CommentMode: extHostTypes.CommentMode,
 			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState,
+			CommentThreadState: extHostTypes.CommentThreadState,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionItemTag: extHostTypes.CompletionItemTag,
@@ -1260,6 +1249,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,
 			SymbolTag: extHostTypes.SymbolTag,
+			TabKind: TabKind,
 			Task: extHostTypes.Task,
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
@@ -1313,8 +1303,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
-			TreeDataTransfer: extHostTypes.TreeDataTransfer,
-			TreeDataTransferItem: extHostTypes.TreeDataTransferItem,
+			DataTransfer: extHostTypes.DataTransfer,
+			DataTransferItem: extHostTypes.DataTransferItem,
 			CoveredCount: extHostTypes.CoveredCount,
 			FileCoverage: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,

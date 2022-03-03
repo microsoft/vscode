@@ -11,7 +11,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -36,10 +36,6 @@ export const manageTrustedDomainSettingsCommand = {
 };
 
 type ConfigureTrustedDomainsQuickPickItem = IQuickPickItem & ({ id: 'manage' } | { id: 'trust'; toTrust: string });
-
-type ConfigureTrustedDomainsChoiceClassification = {
-	choice: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-};
 
 export async function configureOpenerTrustedDomainsHandler(
 	trustedDomains: string[],
@@ -105,11 +101,6 @@ export async function configureOpenerTrustedDomainsHandler(
 	);
 
 	if (pickedResult && pickedResult.id) {
-		telemetryService.publicLog2<{ choice: string }, ConfigureTrustedDomainsChoiceClassification>(
-			'trustedDomains.configureTrustedDomainsQuickPickChoice',
-			{ choice: pickedResult.id }
-		);
-
 		switch (pickedResult.id) {
 			case 'manage':
 				await editorService.openEditor({

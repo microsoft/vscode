@@ -4,12 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { MarshalledId } from 'vs/base/common/marshalling';
-import { URI } from 'vs/base/common/uri';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-// eslint-disable-next-line code-import-patterns
-import { ILocationDto } from 'vs/workbench/api/common/extHost.protocol';
 
 export const enum TestResultState {
 	Unset = 0,
@@ -100,6 +98,23 @@ export interface IRichLocation {
 	uri: URI;
 }
 
+export namespace IRichLocation {
+	export interface Serialize {
+		range: IRange;
+		uri: UriComponents;
+	}
+
+	export const serialize = (location: IRichLocation): Serialize => ({
+		range: location.range.toJSON(),
+		uri: location.uri.toJSON(),
+	});
+
+	export const deserialize = (location: Serialize): IRichLocation => ({
+		range: Range.lift(location.range),
+		uri: URI.revive(location.uri),
+	});
+}
+
 export const enum TestMessageType {
 	Error,
 	Info
@@ -113,7 +128,31 @@ export interface ITestErrorMessage {
 	location: IRichLocation | undefined;
 }
 
-export type SerializedTestErrorMessage = Omit<ITestErrorMessage, 'location'> & { location?: ILocationDto };
+export namespace ITestErrorMessage {
+	export interface Serialized {
+		message: string | IMarkdownString;
+		type: TestMessageType.Error;
+		expected: string | undefined;
+		actual: string | undefined;
+		location: IRichLocation.Serialize | undefined;
+	}
+
+	export const serialize = (message: ITestErrorMessage): Serialized => ({
+		message: message.message,
+		type: TestMessageType.Error,
+		expected: message.expected,
+		actual: message.actual,
+		location: message.location && IRichLocation.serialize(message.location),
+	});
+
+	export const deserialize = (message: Serialized): ITestErrorMessage => ({
+		message: message.message,
+		type: TestMessageType.Error,
+		expected: message.expected,
+		actual: message.actual,
+		location: message.location && IRichLocation.deserialize(message.location),
+	});
+}
 
 export interface ITestOutputMessage {
 	message: string;
@@ -122,16 +161,65 @@ export interface ITestOutputMessage {
 	location: IRichLocation | undefined;
 }
 
-export type SerializedTestOutputMessage = Omit<ITestOutputMessage, 'location'> & { location?: ILocationDto };
+export namespace ITestOutputMessage {
+	export interface Serialized {
+		message: string;
+		offset: number;
+		type: TestMessageType.Info;
+		location: IRichLocation.Serialize | undefined;
+	}
 
-export type SerializedTestMessage = SerializedTestErrorMessage | SerializedTestOutputMessage;
+	export const serialize = (message: ITestOutputMessage): Serialized => ({
+		message: message.message,
+		type: TestMessageType.Info,
+		offset: message.offset,
+		location: message.location && IRichLocation.serialize(message.location),
+	});
+
+	export const deserialize = (message: Serialized): ITestOutputMessage => ({
+		message: message.message,
+		type: TestMessageType.Info,
+		offset: message.offset,
+		location: message.location && IRichLocation.deserialize(message.location),
+	});
+}
 
 export type ITestMessage = ITestErrorMessage | ITestOutputMessage;
+
+export namespace ITestMessage {
+	export type Serialized = ITestErrorMessage.Serialized | ITestOutputMessage.Serialized;
+
+	export const serialize = (message: ITestMessage): Serialized =>
+		message.type === TestMessageType.Error ? ITestErrorMessage.serialize(message) : ITestOutputMessage.serialize(message);
+
+	export const deserialize = (message: Serialized): ITestMessage =>
+		message.type === TestMessageType.Error ? ITestErrorMessage.deserialize(message) : ITestOutputMessage.deserialize(message);
+}
 
 export interface ITestTaskState {
 	state: TestResultState;
 	duration: number | undefined;
 	messages: ITestMessage[];
+}
+
+export namespace ITestTaskState {
+	export interface Serialized {
+		state: TestResultState;
+		duration: number | undefined;
+		messages: ITestMessage.Serialized[];
+	}
+
+	export const serialize = (state: ITestTaskState): Serialized => ({
+		state: state.state,
+		duration: state.duration,
+		messages: state.messages.map(ITestMessage.serialize),
+	});
+
+	export const deserialize = (state: Serialized): ITestTaskState => ({
+		state: state.state,
+		duration: state.duration,
+		messages: state.messages.map(ITestMessage.deserialize),
+	});
 }
 
 export interface ITestRunTask {
@@ -143,6 +231,16 @@ export interface ITestRunTask {
 export interface ITestTag {
 	id: string;
 }
+
+const testTagDelimiter = '\0';
+
+export const namespaceTestTag =
+	(ctrlId: string, tagId: string) => ctrlId + testTagDelimiter + tagId;
+
+export const denamespaceTestTag = (namespaced: string) => {
+	const index = namespaced.indexOf(testTagDelimiter);
+	return { ctrlId: namespaced.slice(0, index), tagId: namespaced.slice(index + 1) };
+};
 
 export interface ITestTagDisplayInfo {
 	id: string;
@@ -157,13 +255,54 @@ export interface ITestItem {
 	extId: string;
 	label: string;
 	tags: string[];
-	busy?: boolean;
+	busy: boolean;
 	children?: never;
-	uri?: URI;
-	range: IRange | null;
+	uri: URI | undefined;
+	range: Range | null;
 	description: string | null;
 	error: string | IMarkdownString | null;
 	sortText: string | null;
+}
+
+export namespace ITestItem {
+	export interface Serialized {
+		extId: string;
+		label: string;
+		tags: string[];
+		busy: boolean;
+		children?: never;
+		uri: UriComponents | undefined;
+		range: IRange | null;
+		description: string | null;
+		error: string | IMarkdownString | null;
+		sortText: string | null;
+	}
+
+	export const serialize = (item: ITestItem): Serialized => ({
+		extId: item.extId,
+		label: item.label,
+		tags: item.tags,
+		busy: item.busy,
+		children: undefined,
+		uri: item.uri?.toJSON(),
+		range: item.range?.toJSON() || null,
+		description: item.description,
+		error: item.error,
+		sortText: item.sortText
+	});
+
+	export const deserialize = (serialized: Serialized): ITestItem => ({
+		extId: serialized.extId,
+		label: serialized.label,
+		tags: serialized.tags,
+		busy: serialized.busy,
+		children: undefined,
+		uri: serialized.uri ? URI.revive(serialized.uri) : undefined,
+		range: serialized.range ? Range.lift(serialized.range) : null,
+		description: serialized.description,
+		error: serialized.error,
+		sortText: serialized.sortText
+	});
 }
 
 export const enum TestItemExpandState {
@@ -187,6 +326,29 @@ export interface InternalTestItem {
 	item: ITestItem;
 }
 
+export namespace InternalTestItem {
+	export interface Serialized {
+		controllerId: string;
+		expand: TestItemExpandState;
+		parent: string | null;
+		item: ITestItem.Serialized;
+	}
+
+	export const serialize = (item: InternalTestItem): Serialized => ({
+		controllerId: item.controllerId,
+		expand: item.expand,
+		parent: item.parent,
+		item: ITestItem.serialize(item.item)
+	});
+
+	export const deserialize = (serialized: Serialized): InternalTestItem => ({
+		controllerId: serialized.controllerId,
+		expand: serialized.expand,
+		parent: serialized.parent,
+		item: ITestItem.deserialize(serialized.item)
+	});
+}
+
 /**
  * A partial update made to an existing InternalTestItem.
  */
@@ -194,6 +356,48 @@ export interface ITestItemUpdate {
 	extId: string;
 	expand?: TestItemExpandState;
 	item?: Partial<ITestItem>;
+}
+
+export namespace ITestItemUpdate {
+	export interface Serialized {
+		extId: string;
+		expand?: TestItemExpandState;
+		item?: Partial<ITestItem.Serialized>;
+	}
+
+	export const serialize = (u: ITestItemUpdate): Serialized => {
+		let item: Partial<ITestItem.Serialized> | undefined;
+		if (u.item) {
+			item = {};
+			if (u.item.label !== undefined) { item.label = u.item.label; }
+			if (u.item.tags !== undefined) { item.tags = u.item.tags; }
+			if (u.item.busy !== undefined) { item.busy = u.item.busy; }
+			if (u.item.uri !== undefined) { item.uri = u.item.uri?.toJSON(); }
+			if (u.item.range !== undefined) { item.range = u.item.range?.toJSON(); }
+			if (u.item.description !== undefined) { item.description = u.item.description; }
+			if (u.item.error !== undefined) { item.error = u.item.error; }
+			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
+		}
+
+		return { extId: u.extId, expand: u.expand, item };
+	};
+
+	export const deserialize = (u: Serialized): ITestItemUpdate => {
+		let item: Partial<ITestItem> | undefined;
+		if (u.item) {
+			item = {};
+			if (u.item.label !== undefined) { item.label = u.item.label; }
+			if (u.item.tags !== undefined) { item.tags = u.item.tags; }
+			if (u.item.busy !== undefined) { item.busy = u.item.busy; }
+			if (u.item.range !== undefined) { item.range = u.item.range ? Range.lift(u.item.range) : null; }
+			if (u.item.description !== undefined) { item.description = u.item.description; }
+			if (u.item.error !== undefined) { item.error = u.item.error; }
+			if (u.item.sortText !== undefined) { item.sortText = u.item.sortText; }
+		}
+
+		return { extId: u.extId, expand: u.expand, item };
+	};
+
 }
 
 export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate, patch: ITestItemUpdate) => {
@@ -221,21 +425,33 @@ export interface TestResultItem extends InternalTestItem {
 	ownDuration?: number;
 }
 
-export type SerializedTestResultItem = Omit<TestResultItem, 'children' | 'expandable' | 'retired'>
-	& { children: string[]; retired: undefined };
+export namespace TestResultItem {
+	/** Serialized version of the TestResultItem */
+	export interface Serialized extends InternalTestItem.Serialized {
+		children: string[];
+		tasks: ITestTaskState.Serialized[];
+		ownComputedState: TestResultState;
+		computedState: TestResultState;
+	}
 
-/**
- * Test results serialized for transport and storage.
- */
+	export const serialize = (original: TestResultItem, children: string[]): Serialized => ({
+		...InternalTestItem.serialize(original),
+		children,
+		ownComputedState: original.ownComputedState,
+		computedState: original.computedState,
+		tasks: original.tasks.map(ITestTaskState.serialize),
+	});
+}
+
 export interface ISerializedTestResults {
 	/** ID of these test results */
 	id: string;
 	/** Time the results were compelted */
 	completedAt: number;
 	/** Subset of test result items */
-	items: SerializedTestResultItem[];
+	items: TestResultItem.Serialized[];
 	/** Tasks involved in the run. */
-	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage[] }[];
+	tasks: { id: string; name: string | undefined; messages: ITestOutputMessage.Serialized[] }[];
 	/** Human-readable name of the test run. */
 	name: string;
 	/** Test trigger informaton */
@@ -302,13 +518,44 @@ export const enum TestDiffOpType {
 }
 
 export type TestsDiffOp =
-	| [op: TestDiffOpType.Add, item: InternalTestItem]
-	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
-	| [op: TestDiffOpType.Remove, itemId: string]
-	| [op: TestDiffOpType.Retire, itemId: string]
-	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number]
-	| [op: TestDiffOpType.AddTag, tag: ITestTagDisplayInfo]
-	| [op: TestDiffOpType.RemoveTag, id: string];
+	| { op: TestDiffOpType.Add; item: InternalTestItem }
+	| { op: TestDiffOpType.Update; item: ITestItemUpdate }
+	| { op: TestDiffOpType.Remove; itemId: string }
+	| { op: TestDiffOpType.Retire; itemId: string }
+	| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
+	| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
+	| { op: TestDiffOpType.RemoveTag; id: string };
+
+export namespace TestsDiffOp {
+	export type Serialized =
+		| { op: TestDiffOpType.Add; item: InternalTestItem.Serialized }
+		| { op: TestDiffOpType.Update; item: ITestItemUpdate.Serialized }
+		| { op: TestDiffOpType.Remove; itemId: string }
+		| { op: TestDiffOpType.Retire; itemId: string }
+		| { op: TestDiffOpType.IncrementPendingExtHosts; amount: number }
+		| { op: TestDiffOpType.AddTag; tag: ITestTagDisplayInfo }
+		| { op: TestDiffOpType.RemoveTag; id: string };
+
+	export const deserialize = (u: Serialized): TestsDiffOp => {
+		if (u.op === TestDiffOpType.Add) {
+			return { op: u.op, item: InternalTestItem.deserialize(u.item) };
+		} else if (u.op === TestDiffOpType.Update) {
+			return { op: u.op, item: ITestItemUpdate.deserialize(u.item) };
+		} else {
+			return u;
+		}
+	};
+
+	export const serialize = (u: TestsDiffOp): Serialized => {
+		if (u.op === TestDiffOpType.Add) {
+			return { op: u.op, item: InternalTestItem.serialize(u.item) };
+		} else if (u.op === TestDiffOpType.Update) {
+			return { op: u.op, item: ITestItemUpdate.serialize(u.item) };
+		} else {
+			return u;
+		}
+	};
+}
 
 /**
  * Context for actions taken in the test explorer view.
@@ -400,9 +647,9 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 		const changes = this.createChangeCollector();
 
 		for (const op of diff) {
-			switch (op[0]) {
+			switch (op.op) {
 				case TestDiffOpType.Add: {
-					const internalTest = op[1];
+					const internalTest = InternalTestItem.deserialize(op.item);
 					if (!internalTest.parent) {
 						const created = this.createItem(internalTest);
 						this.roots.add(created);
@@ -423,7 +670,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 				}
 
 				case TestDiffOpType.Update: {
-					const patch = op[1];
+					const patch = ITestItemUpdate.deserialize(op.item);
 					const existing = this.items.get(patch.extId);
 					if (!existing) {
 						break;
@@ -444,7 +691,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 				}
 
 				case TestDiffOpType.Remove: {
-					const toRemove = this.items.get(op[1]);
+					const toRemove = this.items.get(op.itemId);
 					if (!toRemove) {
 						break;
 					}
@@ -456,7 +703,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						this.roots.delete(toRemove);
 					}
 
-					const queue: Iterable<string>[] = [[op[1]]];
+					const queue: Iterable<string>[] = [[op.itemId]];
 					while (queue.length) {
 						for (const itemId of queue.pop()!) {
 							const existing = this.items.get(itemId);
@@ -475,19 +722,19 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 				}
 
 				case TestDiffOpType.Retire:
-					this.retireTest(op[1]);
+					this.retireTest(op.itemId);
 					break;
 
 				case TestDiffOpType.IncrementPendingExtHosts:
-					this.updatePendingRoots(op[1]);
+					this.updatePendingRoots(op.amount);
 					break;
 
 				case TestDiffOpType.AddTag:
-					this._tags.set(op[1].id, op[1]);
+					this._tags.set(op.tag.id, op.tag);
 					break;
 
 				case TestDiffOpType.RemoveTag:
-					this._tags.delete(op[1]);
+					this._tags.delete(op.id);
 					break;
 			}
 		}

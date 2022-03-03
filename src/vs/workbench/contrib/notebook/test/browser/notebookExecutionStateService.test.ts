@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -17,7 +18,7 @@ import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/bro
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, CellUri, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -113,6 +114,38 @@ suite('NotebookExecutionStateService', () => {
 			}], true, undefined, () => undefined, undefined, false);
 			exe.complete({});
 			assert.strictEqual(didFire, true);
+		});
+	});
+
+	// #142466
+	test('getCellExecution and onDidChangeCellExecution', async function () {
+		return withTestNotebook([], async viewModel => {
+			testNotebookModel = viewModel.notebookDocument;
+
+			const kernel = new TestNotebookKernel();
+			kernelService.registerKernel(kernel);
+			kernelService.selectKernelForNotebook(kernel, viewModel.notebookDocument);
+
+			const executionStateService: INotebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
+			const cell = insertCellAtIndex(viewModel, 0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true);
+
+			const deferred = new DeferredPromise<void>();
+			disposables.add(executionStateService.onDidChangeCellExecution(e => {
+				const cellUri = CellUri.generate(e.notebook, e.cellHandle);
+				const exe = executionStateService.getCellExecution(cellUri);
+				assert.ok(exe);
+				assert.strictEqual(e.notebook.toString(), exe.notebook.toString());
+				assert.strictEqual(e.cellHandle, exe.cellHandle);
+
+				assert.strictEqual(exe.notebook.toString(), e.changed?.notebook.toString());
+				assert.strictEqual(exe.cellHandle, e.changed?.cellHandle);
+
+				deferred.complete();
+			}));
+
+			executionStateService.createCellExecution(kernel.id, viewModel.uri, cell.handle);
+
+			return deferred.p;
 		});
 	});
 

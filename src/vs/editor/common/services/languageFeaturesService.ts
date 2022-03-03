@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { URI } from 'vs/base/common/uri';
+import { LanguageFeatureRegistry, NotebooTypeResolver } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -12,59 +13,45 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 
 	declare _serviceBrand: undefined;
 
-	readonly referenceProvider = new LanguageFeatureRegistry<ReferenceProvider>();
+	readonly referenceProvider = new LanguageFeatureRegistry<ReferenceProvider>(this._score.bind(this));
+	readonly renameProvider = new LanguageFeatureRegistry<RenameProvider>(this._score.bind(this));
+	readonly codeActionProvider = new LanguageFeatureRegistry<CodeActionProvider>(this._score.bind(this));
+	readonly definitionProvider = new LanguageFeatureRegistry<DefinitionProvider>(this._score.bind(this));
+	readonly typeDefinitionProvider = new LanguageFeatureRegistry<TypeDefinitionProvider>(this._score.bind(this));
+	readonly declarationProvider = new LanguageFeatureRegistry<DeclarationProvider>(this._score.bind(this));
+	readonly implementationProvider = new LanguageFeatureRegistry<ImplementationProvider>(this._score.bind(this));
+	readonly documentSymbolProvider = new LanguageFeatureRegistry<DocumentSymbolProvider>(this._score.bind(this));
+	readonly inlayHintsProvider = new LanguageFeatureRegistry<InlayHintsProvider>(this._score.bind(this));
+	readonly colorProvider = new LanguageFeatureRegistry<DocumentColorProvider>(this._score.bind(this));
+	readonly codeLensProvider = new LanguageFeatureRegistry<CodeLensProvider>(this._score.bind(this));
+	readonly documentFormattingEditProvider = new LanguageFeatureRegistry<DocumentFormattingEditProvider>(this._score.bind(this));
+	readonly documentRangeFormattingEditProvider = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>(this._score.bind(this));
+	readonly onTypeFormattingEditProvider = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>(this._score.bind(this));
+	readonly signatureHelpProvider = new LanguageFeatureRegistry<SignatureHelpProvider>(this._score.bind(this));
+	readonly hoverProvider = new LanguageFeatureRegistry<HoverProvider>(this._score.bind(this));
+	readonly documentHighlightProvider = new LanguageFeatureRegistry<DocumentHighlightProvider>(this._score.bind(this));
+	readonly selectionRangeProvider = new LanguageFeatureRegistry<SelectionRangeProvider>(this._score.bind(this));
+	readonly foldingRangeProvider = new LanguageFeatureRegistry<FoldingRangeProvider>(this._score.bind(this));
+	readonly linkProvider = new LanguageFeatureRegistry<LinkProvider>(this._score.bind(this));
+	readonly inlineCompletionsProvider = new LanguageFeatureRegistry<InlineCompletionsProvider>(this._score.bind(this));
+	readonly completionProvider = new LanguageFeatureRegistry<CompletionItemProvider>(this._score.bind(this));
+	readonly linkedEditingRangeProvider = new LanguageFeatureRegistry<LinkedEditingRangeProvider>(this._score.bind(this));
+	readonly inlineValuesProvider = new LanguageFeatureRegistry<InlineValuesProvider>(this._score.bind(this));
+	readonly evaluatableExpressionProvider = new LanguageFeatureRegistry<EvaluatableExpressionProvider>(this._score.bind(this));
+	readonly documentRangeSemanticTokensProvider = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>(this._score.bind(this));
+	readonly documentSemanticTokensProvider = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>(this._score.bind(this));
 
-	readonly renameProvider = new LanguageFeatureRegistry<RenameProvider>();
 
-	readonly codeActionProvider = new LanguageFeatureRegistry<CodeActionProvider>();
+	private _notebookTypeResolver?: NotebooTypeResolver;
 
-	readonly definitionProvider = new LanguageFeatureRegistry<DefinitionProvider>();
+	setNotebookTypeResolver(resolver: NotebooTypeResolver | undefined) {
+		this._notebookTypeResolver = resolver;
+	}
 
-	readonly typeDefinitionProvider = new LanguageFeatureRegistry<TypeDefinitionProvider>();
+	private _score(uri: URI): string | undefined {
+		return this._notebookTypeResolver?.(uri);
+	}
 
-	readonly declarationProvider = new LanguageFeatureRegistry<DeclarationProvider>();
-
-	readonly implementationProvider = new LanguageFeatureRegistry<ImplementationProvider>();
-
-	readonly documentSymbolProvider = new LanguageFeatureRegistry<DocumentSymbolProvider>();
-
-	readonly inlayHintsProvider = new LanguageFeatureRegistry<InlayHintsProvider>();
-
-	readonly colorProvider = new LanguageFeatureRegistry<DocumentColorProvider>();
-
-	readonly codeLensProvider = new LanguageFeatureRegistry<CodeLensProvider>();
-
-	readonly documentFormattingEditProvider = new LanguageFeatureRegistry<DocumentFormattingEditProvider>();
-
-	readonly documentRangeFormattingEditProvider = new LanguageFeatureRegistry<DocumentRangeFormattingEditProvider>();
-
-	readonly onTypeFormattingEditProvider = new LanguageFeatureRegistry<OnTypeFormattingEditProvider>();
-
-	readonly signatureHelpProvider = new LanguageFeatureRegistry<SignatureHelpProvider>();
-
-	readonly hoverProvider = new LanguageFeatureRegistry<HoverProvider>();
-
-	readonly documentHighlightProvider = new LanguageFeatureRegistry<DocumentHighlightProvider>();
-
-	readonly selectionRangeProvider = new LanguageFeatureRegistry<SelectionRangeProvider>();
-
-	readonly foldingRangeProvider = new LanguageFeatureRegistry<FoldingRangeProvider>();
-
-	readonly linkProvider = new LanguageFeatureRegistry<LinkProvider>();
-
-	readonly inlineCompletionsProvider = new LanguageFeatureRegistry<InlineCompletionsProvider>();
-
-	readonly completionProvider = new LanguageFeatureRegistry<CompletionItemProvider>();
-
-	readonly linkedEditingRangeProvider = new LanguageFeatureRegistry<LinkedEditingRangeProvider>();
-
-	readonly inlineValuesProvider = new LanguageFeatureRegistry<InlineValuesProvider>();
-
-	readonly evaluatableExpressionProvider = new LanguageFeatureRegistry<EvaluatableExpressionProvider>();
-
-	readonly documentRangeSemanticTokensProvider = new LanguageFeatureRegistry<DocumentRangeSemanticTokensProvider>();
-
-	readonly documentSemanticTokensProvider = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>();
 }
 
 registerSingleton(ILanguageFeaturesService, LanguageFeaturesService, true);

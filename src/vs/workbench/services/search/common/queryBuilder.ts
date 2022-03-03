@@ -17,6 +17,7 @@ import { URI, URI as uri } from 'vs/base/common/uri';
 import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -87,6 +88,7 @@ export class QueryBuilder {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@ILogService private readonly logService: ILogService,
 		@IPathService private readonly pathService: IPathService
 	) {
 	}
@@ -190,8 +192,10 @@ export class QueryBuilder {
 
 		if (options.onlyOpenEditors) {
 			const openEditors = arrays.coalesce(arrays.flatten(this.editorGroupsService.groups.map(group => group.editors.map(editor => editor.resource))));
+			this.logService.trace('QueryBuilder#commonQuery - openEditor URIs', JSON.stringify(openEditors));
 			const openEditorsInQuery = openEditors.filter(editor => pathIncludedInQuery(queryProps, editor.fsPath));
 			const openEditorsQueryProps = this.commonQueryFromFileList(openEditorsInQuery);
+			this.logService.trace('QueryBuilder#commonQuery - openEditor Query', JSON.stringify(openEditorsQueryProps));
 			return { ...queryProps, ...openEditorsQueryProps };
 		}
 

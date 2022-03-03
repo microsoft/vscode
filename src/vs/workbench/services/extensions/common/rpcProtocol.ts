@@ -10,7 +10,8 @@ import { CharCode } from 'vs/base/common/charCode';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledId, MarshalledObject } from 'vs/base/common/marshalling';
+import { MarshalledObject } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/common/lazyPromise';
@@ -913,14 +914,11 @@ class MessageIO {
 	}
 
 	public static serializeReplyErr(req: number, err: any): VSBuffer {
-		if (err) {
-			return this._serializeReplyErrEror(req, err);
+		const errStr: string | undefined = (err ? safeStringify(errors.transformErrorForSerialization(err), null) : undefined);
+		if (typeof errStr !== 'string') {
+			return this._serializeReplyErrEmpty(req);
 		}
-		return this._serializeReplyErrEmpty(req);
-	}
-
-	private static _serializeReplyErrEror(req: number, _err: Error): VSBuffer {
-		const errBuff = VSBuffer.fromString(safeStringify(errors.transformErrorForSerialization(_err), null));
+		const errBuff = VSBuffer.fromString(errStr);
 
 		let len = 0;
 		len += MessageBuffer.sizeLongString(errBuff);

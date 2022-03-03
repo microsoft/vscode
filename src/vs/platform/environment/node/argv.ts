@@ -149,6 +149,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'log-net-log': { type: 'string' },
 	'vmodule': { type: 'string' },
 	'_urls': { type: 'string[]' },
+	'disable-dev-shm-usage': { type: 'boolean' },
 
 	_: { type: 'string[]' } // main arguments
 };

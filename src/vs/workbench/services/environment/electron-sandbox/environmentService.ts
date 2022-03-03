@@ -5,7 +5,7 @@
 
 import { PerformanceMark } from 'vs/base/common/performance';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
+import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from 'vs/platform/window/common/window';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractNativeEnvironmentService } from 'vs/platform/environment/common/environmentService';

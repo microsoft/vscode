@@ -16,16 +16,34 @@
 	padding: 10px 20px
 }
 
-.monaco-workbench .bulk-edit-panel [data-state="message"] .message,
-.monaco-workbench .bulk-edit-panel [data-state="data"] .tree
+.monaco-workbench .bulk-edit-panel[data-state="message"] .message,
+.monaco-workbench .bulk-edit-panel[data-state="data"] .content
 {
-	display: inherit;
+	display: flex;
 }
 
-.monaco-workbench .bulk-edit-panel [data-state="data"] .message,
-.monaco-workbench .bulk-edit-panel [data-state="message"] .tree
+.monaco-workbench .bulk-edit-panel[data-state="data"] .message,
+.monaco-workbench .bulk-edit-panel[data-state="message"] .content
 {
 	display: none;
+}
+
+.monaco-workbench .bulk-edit-panel .content {
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+}
+
+.monaco-workbench .bulk-edit-panel .content .buttons {
+	padding-left: 20px;
+	padding-top: 10px;
+}
+
+.monaco-workbench .bulk-edit-panel .content .buttons .monaco-button {
+	display: inline-flex;
+	width: inherit;
+	margin: 0 4px;
+	padding: 4px 8px;
 }
 
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents {

@@ -18,7 +18,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewContainerExtensions, IViewContainersRegistry, IViewsRegistry, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingDecorations, TestingDecorationService } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
@@ -80,7 +80,7 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 });
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Text Extensions...") + `](command:${SearchForTestExtension.ID})`,
+	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Test Extensions...") + `](command:${SearchForTestExtension.ID})`,
 	order: 10
 });
 
@@ -169,7 +169,7 @@ CommandsRegistry.registerCommand({
 
 		let isFile = true;
 		try {
-			if (!(await fileService.resolve(uri)).isFile) {
+			if (!(await fileService.stat(uri)).isFile) {
 				isFile = false;
 			}
 		} catch {

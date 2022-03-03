@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
 import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
-import { ITerminalCommand, IXtermMarker } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -79,6 +78,7 @@ export interface ITerminalCapabilityImplMap {
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
+	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	setCwd(value: string): void;
 	setIsWindowsPty(value: boolean): void;
@@ -88,9 +88,11 @@ export interface ICommandDetectionCapability {
 	 */
 	getCwdForLine(line: number): string | undefined;
 	handlePromptStart(): void;
+	handleContinuationStart(): void;
+	handleContinuationEnd(): void;
 	handleCommandStart(): void;
 	handleCommandExecuted(): void;
-	handleCommandFinished(exitCode: number): void;
+	handleCommandFinished(exitCode: number | undefined): void;
 	/**
 	 * Set the command line explicitly.
 	 */
@@ -101,4 +103,28 @@ export interface IPartialCommandDetectionCapability {
 	readonly type: TerminalCapability.PartialCommandDetection;
 	readonly commands: readonly IXtermMarker[];
 	readonly onCommandFinished: Event<IXtermMarker>;
+}
+
+export interface ITerminalCommand {
+	command: string;
+	timestamp: number;
+	cwd?: string;
+	exitCode?: number;
+	marker?: IXtermMarker;
+	endMarker?: IXtermMarker;
+	getOutput(): string | undefined;
+	hasOutput: boolean;
+}
+
+/**
+ * A clone of the IMarker from xterm which cannot be imported from common
+ */
+export interface IXtermMarker {
+	readonly id: number;
+	readonly isDisposed: boolean;
+	readonly line: number;
+	dispose(): void;
+	onDispose: {
+		(listener: () => any): { dispose(): void };
+	};
 }

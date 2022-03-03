@@ -8,6 +8,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { isErrorWithActions } from 'vs/base/common/errorMessage';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -27,6 +28,7 @@ import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/file
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -53,7 +55,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -193,6 +194,15 @@ export class DebugService implements IDebugService {
 					this.disassemblyViewFocus.reset();
 				}
 			});
+		}));
+
+		this.disposables.add(this.lifecycleService.onBeforeShutdown(() => {
+			for (const editor of editorService.editors) {
+				// Editors will not be valid on window reload, so close them.
+				if (editor.resource?.scheme === DEBUG_MEMORY_SCHEME) {
+					editor.dispose();
+				}
+			}
 		}));
 	}
 
@@ -595,7 +605,7 @@ export class DebugService implements IDebugService {
 			const errorMessage = error instanceof Error ? error.message : error;
 			if (error.showUser !== false) {
 				// Only show the error when showUser is either not defined, or is true #128484
-				await this.showError(errorMessage, errors.isErrorWithActions(error) ? error.actions : []);
+				await this.showError(errorMessage, isErrorWithActions(error) ? error.actions : []);
 			}
 			return false;
 		}

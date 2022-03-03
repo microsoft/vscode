@@ -139,11 +139,13 @@ export interface IReplElementSource {
 
 export interface IExpressionContainer extends ITreeElement {
 	readonly hasChildren: boolean;
+	evaluateLazy(): Promise<void>;
 	getChildren(): Promise<IExpression[]>;
 	readonly reference?: number;
 	readonly value: string;
 	readonly type?: string;
 	valueChanged?: boolean;
+	readonly presentationHint?: DebugProtocol.VariablePresentationHint | undefined;
 }
 
 export interface IExpression extends IExpressionContainer {
@@ -312,8 +314,7 @@ export interface IDebugSession extends ITreeElement {
 	hasSeparateRepl(): boolean;
 	removeReplExpressions(): void;
 	addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void>;
-	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void;
-	logToRepl(sev: severity, args: any[], frame?: { uri: uri; line: number; column: number }): void;
+	appendToRepl(data: string | IExpression, severity: severity, isImportant?: boolean, source?: IReplElementSource): void;
 
 	// session events
 	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
@@ -568,7 +569,10 @@ export interface IViewModel extends ITreeElement {
 	onDidFocusSession: Event<IDebugSession | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean }>;
 	onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
+	onDidEvaluateLazyExpression: Event<IExpressionContainer>;
 	onWillUpdateViews: Event<void>;
+
+	evaluateLazyExpression(expression: IExpressionContainer): void;
 }
 
 export interface IEvaluate {

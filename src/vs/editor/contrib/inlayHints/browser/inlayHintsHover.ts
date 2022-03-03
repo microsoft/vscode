@@ -19,6 +19,11 @@ import { RenderedInlayHintLabelPart, InlayHintsController } from 'vs/editor/cont
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { localize } from 'vs/nls';
+import * as platform from 'vs/base/common/platform';
+import { asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 
 class InlayHintsHoverAnchor extends HoverForeignElementAnchor {
 	constructor(readonly part: RenderedInlayHintLabelPart, owner: InlayHintsHover) {
@@ -84,6 +89,10 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			if (itemTooltip) {
 				executor.emitOne(new MarkdownHover(this, anchor.range, [itemTooltip], 0));
 			}
+			// (1.2) Inlay dbl-click gesture
+			if (isNonEmptyArray(part.item.hint.textEdits)) {
+				executor.emitOne(new MarkdownHover(this, anchor.range, [new MarkdownString().appendText(localize('hint.dbl', "Double click to insert"))], 10001));
+			}
 
 			// (2) Inlay Label Part Tooltip
 			let partTooltip: IMarkdownString | undefined;
@@ -95,6 +104,31 @@ export class InlayHintsHover extends MarkdownHoverParticipant implements IEditor
 			if (partTooltip) {
 				executor.emitOne(new MarkdownHover(this, anchor.range, [partTooltip], 1));
 			}
+
+			// (2.2) Inlay Label Part Help Hover
+			if (part.part.location || part.part.command) {
+				let linkHint: MarkdownString | undefined;
+				const useMetaKey = this._editor.getOption(EditorOption.multiCursorModifier) === 'altKey';
+				const kb = useMetaKey
+					? platform.isMacintosh
+						? localize('links.navigate.kb.meta.mac', "cmd + click")
+						: localize('links.navigate.kb.meta', "ctrl + click")
+					: platform.isMacintosh
+						? localize('links.navigate.kb.alt.mac', "option + click")
+						: localize('links.navigate.kb.alt', "alt + click");
+
+				if (part.part.location && part.part.command) {
+					linkHint = new MarkdownString().appendText(localize('hint.defAndCommand', 'Go to Definition ({0}), right click for more', kb));
+				} else if (part.part.location) {
+					linkHint = new MarkdownString().appendText(localize('hint.def', 'Go to Definition ({0})', kb));
+				} else if (part.part.command) {
+					linkHint = new MarkdownString(`[${localize('hint.cmd', "Execute Command")}](${asCommandLink(part.part.command)} "${part.part.command.title}") (${kb})`, { isTrusted: true });
+				}
+				if (linkHint) {
+					executor.emitOne(new MarkdownHover(this, anchor.range, [linkHint], 10000));
+				}
+			}
+
 
 			// (3) Inlay Label Part Location tooltip
 			const iterable = await this._resolveInlayHintLabelPartHover(part, token);

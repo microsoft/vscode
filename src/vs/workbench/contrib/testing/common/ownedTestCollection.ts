@@ -12,8 +12,9 @@ import { assertNever } from 'vs/base/common/types';
 import { diffTestItems, ExtHostTestItemEvent, ExtHostTestItemEventOp, getPrivateApiFor, TestItemImpl, TestItemRootImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 // eslint-disable-next-line code-import-patterns
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { applyTestItemUpdate, ITestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
+import { applyTestItemUpdate, ITestTag, namespaceTestTag, TestDiffOpType, TestItemExpandState, TestsDiff, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import * as editorRange from 'vs/editor/common/core/range';
 
 type TestItemRaw = Convert.TestItem.Raw;
 
@@ -88,14 +89,14 @@ export class SingleUseTestCollection extends Disposable {
 	public pushDiff(diff: TestsDiffOp) {
 		// Try to merge updates, since they're invoked per-property
 		const last = this.diff[this.diff.length - 1];
-		if (last && diff[0] === TestDiffOpType.Update) {
-			if (last[0] === TestDiffOpType.Update && last[1].extId === diff[1].extId) {
-				applyTestItemUpdate(last[1], diff[1]);
+		if (last && diff.op === TestDiffOpType.Update) {
+			if (last.op === TestDiffOpType.Update && last.item.extId === diff.item.extId) {
+				applyTestItemUpdate(last.item, diff.item);
 				return;
 			}
 
-			if (last[0] === TestDiffOpType.Add && last[1].item.extId === diff[1].extId) {
-				applyTestItemUpdate(last[1], diff[1]);
+			if (last.op === TestDiffOpType.Add && last.item.item.extId === diff.item.extId) {
+				applyTestItemUpdate(last.item, diff.item);
 				return;
 			}
 		}
@@ -149,7 +150,7 @@ export class SingleUseTestCollection extends Disposable {
 	private onTestItemEvent(internal: OwnedCollectionTestItem, evt: ExtHostTestItemEvent) {
 		switch (evt.op) {
 			case ExtHostTestItemEventOp.Invalidated:
-				this.pushDiff([TestDiffOpType.Retire, internal.fullId.toString()]);
+				this.pushDiff({ op: TestDiffOpType.Retire, itemId: internal.fullId.toString() });
 				break;
 
 			case ExtHostTestItemEventOp.RemoveChild:
@@ -177,13 +178,16 @@ export class SingleUseTestCollection extends Disposable {
 						this.diffTagRefs(value, previous, extId);
 						break;
 					case 'range':
-						this.pushDiff([TestDiffOpType.Update, { extId, item: { range: Convert.Range.from(value) }, }]);
+						this.pushDiff({
+							op: TestDiffOpType.Update,
+							item: { extId, item: { range: editorRange.Range.lift(Convert.Range.from(value)) } },
+						});
 						break;
 					case 'error':
-						this.pushDiff([TestDiffOpType.Update, { extId, item: { error: Convert.MarkdownString.fromStrict(value) || null }, }]);
+						this.pushDiff({ op: TestDiffOpType.Update, item: { extId, item: { error: Convert.MarkdownString.fromStrict(value) || null }, } });
 						break;
 					default:
-						this.pushDiff([TestDiffOpType.Update, { extId, item: { [key]: value ?? null } }]);
+						this.pushDiff({ op: TestDiffOpType.Update, item: { extId, item: { [key]: value ?? null } } });
 						break;
 				}
 				break;
@@ -221,15 +225,15 @@ export class SingleUseTestCollection extends Disposable {
 			actual.tags.forEach(this.incrementTagRefs, this);
 			this.tree.set(internal.fullId.toString(), internal);
 			this.setItemParent(actual, parent);
-			this.pushDiff([
-				TestDiffOpType.Add,
-				{
+			this.pushDiff({
+				op: TestDiffOpType.Add,
+				item: {
 					parent: internal.parent && internal.parent.toString(),
 					controllerId: this.controllerId,
 					expand: internal.expand,
 					item: Convert.TestItem.from(actual),
 				},
-			]);
+			});
 
 			this.connectItemAndChildren(actual, internal, parent);
 			return;
@@ -271,10 +275,10 @@ export class SingleUseTestCollection extends Disposable {
 			}
 		}
 
-		this.pushDiff([
-			TestDiffOpType.Update,
-			{ extId, item: { tags: newTags.map(v => Convert.TestTag.namespace(this.controllerId, v.id)) } }]
-		);
+		this.pushDiff({
+			op: TestDiffOpType.Update,
+			item: { extId, item: { tags: newTags.map(v => Convert.TestTag.namespace(this.controllerId, v.id)) } }
+		});
 
 		toDelete.forEach(this.decrementTagRefs, this);
 	}
@@ -285,10 +289,12 @@ export class SingleUseTestCollection extends Disposable {
 			existing.refCount++;
 		} else {
 			this.tags.set(tag.id, { refCount: 1 });
-			this.pushDiff([TestDiffOpType.AddTag, {
-				id: Convert.TestTag.namespace(this.controllerId, tag.id),
-				ctrlLabel: this.root.label,
-			}]);
+			this.pushDiff({
+				op: TestDiffOpType.AddTag, tag: {
+					id: Convert.TestTag.namespace(this.controllerId, tag.id),
+					ctrlLabel: this.root.label,
+				}
+			});
 		}
 	}
 
@@ -296,7 +302,7 @@ export class SingleUseTestCollection extends Disposable {
 		const existing = this.tags.get(tagId);
 		if (existing && !--existing.refCount) {
 			this.tags.delete(tagId);
-			this.pushDiff([TestDiffOpType.RemoveTag, Convert.TestTag.namespace(this.controllerId, tagId)]);
+			this.pushDiff({ op: TestDiffOpType.RemoveTag, id: namespaceTestTag(this.controllerId, tagId) });
 		}
 	}
 
@@ -345,7 +351,7 @@ export class SingleUseTestCollection extends Disposable {
 		}
 
 		internal.expand = newState;
-		this.pushDiff([TestDiffOpType.Update, { extId: internal.fullId.toString(), expand: newState }]);
+		this.pushDiff({ op: TestDiffOpType.Update, item: { extId: internal.fullId.toString(), expand: newState } });
 
 		if (newState === TestItemExpandState.Expandable && internal.expandLevels !== undefined) {
 			this.resolveChildren(internal);
@@ -421,7 +427,7 @@ export class SingleUseTestCollection extends Disposable {
 	}
 
 	private pushExpandStateUpdate(internal: OwnedCollectionTestItem) {
-		this.pushDiff([TestDiffOpType.Update, { extId: internal.fullId.toString(), expand: internal.expand }]);
+		this.pushDiff({ op: TestDiffOpType.Update, item: { extId: internal.fullId.toString(), expand: internal.expand } });
 	}
 
 	private removeItem(childId: string) {
@@ -430,7 +436,7 @@ export class SingleUseTestCollection extends Disposable {
 			throw new Error('attempting to remove non-existent child');
 		}
 
-		this.pushDiff([TestDiffOpType.Remove, childId]);
+		this.pushDiff({ op: TestDiffOpType.Remove, itemId: childId });
 
 		const queue: (OwnedCollectionTestItem | undefined)[] = [childItem];
 		while (queue.length) {

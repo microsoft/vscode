@@ -18,7 +18,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';

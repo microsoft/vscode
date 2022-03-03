@@ -19,7 +19,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ITerminalEditorService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { getTerminalActionBarArgs } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
@@ -35,8 +35,6 @@ import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService'
 const findWidgetSelector = '.simple-find-part-wrapper';
 
 export class TerminalEditor extends EditorPane {
-
-	public static readonly ID = 'terminalEditor';
 
 	private _editorInstanceElement: HTMLElement | undefined;
 	private _overflowGuardElement: HTMLElement | undefined;
@@ -72,7 +70,7 @@ export class TerminalEditor extends EditorPane {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService
 	) {
-		super(TerminalEditor.ID, telemetryService, themeService, storageService);
+		super(terminalEditorId, telemetryService, themeService, storageService);
 		this._findState = new FindReplaceState();
 		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, _contextKeyService));

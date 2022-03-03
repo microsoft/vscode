@@ -18,7 +18,7 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateMainService } from 'vs/platform/state/electron-main/state';
-import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_FILTER } from 'vs/platform/workspace/common/workspace';
 
 export const IDialogMainService = createDecorator<IDialogMainService>('dialogMainService');
 

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -14,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
@@ -74,6 +76,10 @@ export class RenderedInlayHintLabelPart {
 	}
 }
 
+class ActiveInlayHintInfo {
+	constructor(readonly part: RenderedInlayHintLabelPart, readonly hasTriggerModifier: boolean) { }
+}
+
 // --- controller
 
 export class InlayHintsController implements IEditorContribution {
@@ -82,8 +88,8 @@ export class InlayHintsController implements IEditorContribution {
 
 	private static readonly _MAX_DECORATORS = 1500;
 
-	static get(editor: ICodeEditor) {
-		return editor.getContribution(InlayHintsController.ID) ?? undefined;
+	static get(editor: ICodeEditor): InlayHintsController | undefined {
+		return editor.getContribution<InlayHintsController>(InlayHintsController.ID) ?? undefined;
 	}
 
 	private readonly _disposables = new DisposableStore();
@@ -92,7 +98,7 @@ export class InlayHintsController implements IEditorContribution {
 	private readonly _decorationsMetadata = new Map<string, { item: InlayHintItem; classNameRef: IDisposable }>();
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
-	private _activeInlayHintPart?: RenderedInlayHintLabelPart;
+	private _activeInlayHintPart?: ActiveInlayHintInfo;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -211,51 +217,56 @@ export class InlayHintsController implements IEditorContribution {
 
 		// mouse gestures
 		this._sessionDisposables.add(this._installLinkGesture());
+		this._sessionDisposables.add(this._installDblClickGesture());
 		this._sessionDisposables.add(this._installContextMenu());
 	}
 
 	private _installLinkGesture(): IDisposable {
 
-		let removeHighlight = () => { };
-		const gesture = new ClickLinkGesture(this._editor);
+		const store = new DisposableStore();
+		const gesture = store.add(new ClickLinkGesture(this._editor));
 
-		gesture.onMouseMoveOrRelevantKeyDown(e => {
+		// let removeHighlight = () => { };
+
+		const sessionStore = new DisposableStore();
+		store.add(sessionStore);
+
+		store.add(gesture.onMouseMoveOrRelevantKeyDown(e => {
 			const [mouseEvent] = e;
 			const labelPart = this._getInlayHintLabelPart(mouseEvent);
 			const model = this._editor.getModel();
 
-			if (!labelPart || !mouseEvent.hasTriggerModifier || !model) {
-				removeHighlight();
+			if (!labelPart || !model) {
+				sessionStore.clear();
 				return;
 			}
 
+			// resolve the item
+			const cts = new CancellationTokenSource();
+			sessionStore.add(toDisposable(() => cts.dispose(true)));
+			labelPart.item.resolve(cts.token);
+
 			// render link => when the modifier is pressed and when there is a command or location
-			if (mouseEvent.hasTriggerModifier && (labelPart.part.command || labelPart.part.location)) {
+			this._activeInlayHintPart = labelPart.part.command || labelPart.part.location
+				? new ActiveInlayHintInfo(labelPart, mouseEvent.hasTriggerModifier)
+				: undefined;
 
-				// resolve the item
-				const cts = new CancellationTokenSource();
-				labelPart.item.resolve(cts.token);
-
-				this._activeInlayHintPart = labelPart;
-
-				const lineNumber = this._activeInlayHintPart.item.hint.position.lineNumber;
-				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-				const lineHints = new Set<InlayHintItem>();
-				for (const data of this._decorationsMetadata.values()) {
-					if (range.containsRange(data.item.anchor.range)) {
-						lineHints.add(data.item);
-					}
+			const lineNumber = labelPart.item.hint.position.lineNumber;
+			const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
+			const lineHints = new Set<InlayHintItem>();
+			for (const data of this._decorationsMetadata.values()) {
+				if (range.containsRange(data.item.anchor.range)) {
+					lineHints.add(data.item);
 				}
-				this._updateHintsDecorators([range], Array.from(lineHints));
-				removeHighlight = () => {
-					cts.dispose(true);
-					this._activeInlayHintPart = undefined;
-					this._updateHintsDecorators([range], Array.from(lineHints));
-				};
 			}
-		});
-		gesture.onCancel(removeHighlight);
-		gesture.onExecute(async e => {
+			this._updateHintsDecorators([range], Array.from(lineHints));
+			sessionStore.add(toDisposable(() => {
+				this._activeInlayHintPart = undefined;
+				this._updateHintsDecorators([range], Array.from(lineHints));
+			}));
+		}));
+		store.add(gesture.onCancel(() => sessionStore.clear()));
+		store.add(gesture.onExecute(async e => {
 			const label = this._getInlayHintLabelPart(e);
 			if (label) {
 				const part = label.part;
@@ -264,19 +275,29 @@ export class InlayHintsController implements IEditorContribution {
 					this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, part.location);
 				} else if (languages.Command.is(part.command)) {
 					// command -> execute it
-					try {
-						await this._commandService.executeCommand(part.command.id, ...(part.command.arguments ?? []));
-					} catch (err) {
-						this._notificationService.notify({
-							severity: Severity.Error,
-							source: label.item.provider.displayName,
-							message: err
-						});
-					}
+					await this._invokeCommand(part.command, label.item);
 				}
 			}
+		}));
+		return store;
+	}
+
+	private _installDblClickGesture(): IDisposable {
+		return this._editor.onMouseUp(async e => {
+			if (e.event.detail !== 2) {
+				return;
+			}
+			const part = this._getInlayHintLabelPart(e);
+			if (!part) {
+				return;
+			}
+			e.event.preventDefault();
+			await part.item.resolve(CancellationToken.None);
+			if (isNonEmptyArray(part.item.hint.textEdits)) {
+				const edits = part.item.hint.textEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+				this._editor.executeEdits('inlayHint.default', edits);
+			}
 		});
-		return gesture;
 	}
 
 	private _installContextMenu(): IDisposable {
@@ -300,6 +321,18 @@ export class InlayHintsController implements IEditorContribution {
 			return options.attachedData;
 		}
 		return undefined;
+	}
+
+	private async _invokeCommand(command: languages.Command, item: InlayHintItem) {
+		try {
+			await this._commandService.executeCommand(command.id, ...(command.arguments ?? []));
+		} catch (err) {
+			this._notificationService.notify({
+				severity: Severity.Error,
+				source: item.provider.displayName,
+				message: err
+			});
+		}
 	}
 
 	private _cacheHintsForFastRestore(model: ITextModel): void {
@@ -404,13 +437,19 @@ export class InlayHintsController implements IEditorContribution {
 					verticalAlign: 'middle',
 				};
 
+				if (isNonEmptyArray(item.hint.textEdits)) {
+					cssProperties.cursor = 'default';
+				}
+
 				this._fillInColors(cssProperties, item.hint);
 
-				if ((part.command || part.location) && this._activeInlayHintPart?.item === item && this._activeInlayHintPart.index === i) {
+				if ((part.command || part.location) && this._activeInlayHintPart?.part.item === item && this._activeInlayHintPart.part.index === i) {
 					// active link!
 					cssProperties.textDecoration = 'underline';
-					cssProperties.cursor = 'pointer';
-					cssProperties.color = themeColorFromId(colors.editorActiveLinkForeground);
+					if (this._activeInlayHintPart.hasTriggerModifier) {
+						cssProperties.color = themeColorFromId(colors.editorActiveLinkForeground);
+						cssProperties.cursor = 'pointer';
+					}
 				}
 
 				if (isFirst && isLast) {
@@ -500,8 +539,26 @@ export class InlayHintsController implements IEditorContribution {
 		}
 		this._decorationsMetadata.clear();
 	}
-}
 
+
+	// --- accessibility
+
+	getInlayHintsForLine(line: number): InlayHintItem[] {
+		if (!this._editor.hasModel()) {
+			return [];
+		}
+		const set = new Set<languages.InlayHint>();
+		const result: InlayHintItem[] = [];
+		for (let deco of this._editor.getLineDecorations(line)) {
+			const data = this._decorationsMetadata.get(deco.id);
+			if (data && !set.has(data.item.hint)) {
+				set.add(data.item.hint);
+				result.push(data.item);
+			}
+		}
+		return result;
+	}
+}
 
 
 // Prevents the view from potentially visible whitespace
@@ -509,6 +566,8 @@ function fixSpace(str: string): string {
 	const noBreakWhitespace = '\xa0';
 	return str.replace(/[ \t]/g, noBreakWhitespace);
 }
+
+
 
 CommandsRegistry.registerCommand('_executeInlayHintProvider', async (accessor, ...args: [URI, IRange]): Promise<languages.InlayHint[]> => {
 

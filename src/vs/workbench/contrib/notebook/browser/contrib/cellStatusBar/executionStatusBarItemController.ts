@@ -162,7 +162,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
 			};
-		} else if (state === NotebookCellExecutionState.Pending) {
+		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
 			return <INotebookCellStatusBarItem>{
 				text: `$(${pendingStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.pending', "Pending"),

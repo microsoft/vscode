@@ -6,8 +6,7 @@
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalService, terminalEditorId } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 
@@ -28,7 +27,7 @@ export class TerminalMainContribution implements IWorkbenchContribution {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
-				id: TerminalEditor.ID,
+				id: terminalEditorId,
 				label: terminalStrings.terminal,
 				priority: RegisteredEditorPriority.exclusive
 			},
@@ -53,7 +52,7 @@ export class TerminalMainContribution implements IWorkbenchContribution {
 						...options,
 						pinned: true,
 						forceReload: true,
-						override: TerminalEditor.ID
+						override: terminalEditorId
 					}
 				};
 			}

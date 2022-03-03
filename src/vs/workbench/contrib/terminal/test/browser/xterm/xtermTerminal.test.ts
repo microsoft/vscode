@@ -25,6 +25,8 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 import { isSafari } from 'vs/base/browser/browser';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 
 class TestWebglAddon {
 	static shouldThrow = false;
@@ -108,6 +110,7 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IStorageService, new TestStorageService());
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
 
 		configHelper = instantiationService.createInstance(TerminalConfigHelper);
 		xterm = instantiationService.createInstance(TestXtermTerminal, Terminal, configHelper, 80, 30, TerminalLocation.Panel, new TerminalCapabilityStore());

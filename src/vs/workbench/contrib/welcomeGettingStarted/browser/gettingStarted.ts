@@ -15,7 +15,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, checkboxBackground, checkboxBorder, checkboxForeground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -31,7 +31,7 @@ import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRec
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, locale } from 'vs/base/common/platform';
@@ -69,11 +69,11 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { getTelemetryLevel } from 'vs/platform/telemetry/common/telemetryUtils';
 import { WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
-import { IsIOSContext } from 'vs/platform/contextkey/common/contextkeys';
-import { AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { OpenFolderViaWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
-import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomePage/browser/welcomePage';
+import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -103,8 +103,8 @@ const parsedStartEntries: IWelcomePageStartEntry[] = startEntries.map((e, i) => 
 }));
 
 type GettingStartedActionClassification = {
-	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
-	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight' };
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'Help understand what actions are most commonly taken on the getting started page' };
+	argument: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; owner: 'JacksonKearl'; comment: 'As above' };
 };
 
 type GettingStartedActionEvent = {
@@ -347,7 +347,7 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'showMoreRecents': {
-				this.commandService.executeCommand('workbench.action.openRecent');
+				this.commandService.executeCommand(OpenRecentAction.ID);
 				break;
 			}
 			case 'seeAllWalkthroughs': {
@@ -355,8 +355,8 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'openFolder': {
-				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace'), IsIOSContext.toNegated()))) {
-					this.commandService.executeCommand(AddRootFolderAction.ID);
+				if (this.contextService.contextMatchesRules(ContextKeyExpr.and(WorkbenchStateContext.isEqualTo('workspace')))) {
+					this.commandService.executeCommand(OpenFolderViaWorkspaceAction.ID);
 				} else {
 					this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
 				}
@@ -474,7 +474,22 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private mdCache = new ResourceMap<Promise<string>>();
-	private async readAndCacheStepMarkdown(path: URI): Promise<string> {
+	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
+
+		const transformUri = (src: string) => {
+			const path = joinPath(base, src);
+			return asWebviewUri(path).toString();
+		};
+		const transformUris = (content: string): string => content
+			.replace(/src="([^"]*)"/g, (_, src: string) => {
+				if (src.startsWith('https://')) { return `src="${src}"`; }
+				return `src="${transformUri(src)}"`;
+			})
+			.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, title: string, src: string) => {
+				if (src.startsWith('https://')) { return `![${title}](${src})`; }
+				return `![${title}](${transformUri(src)})`;
+			});
+
 		if (!this.mdCache.has(path)) {
 			this.mdCache.set(path, (async () => {
 				try {
@@ -483,7 +498,7 @@ export class GettingStartedPage extends EditorPane {
 						return new Promise<string>(resolve => {
 							require([moduleId], content => {
 								const markdown = content.default();
-								resolve(renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true));
+								resolve(renderMarkdownDocument(transformUris(markdown), this.extensionService, this.languageService, true, true));
 							});
 						});
 					}
@@ -495,7 +510,7 @@ export class GettingStartedPage extends EditorPane {
 					const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
 
 					const fileExists = (file: URI) => this.fileService
-						.resolve(file, { resolveMetadata: true })
+						.stat(file)
 						.then((stat) => !!stat.size) // Double check the file actually has content for fileSystemProviders that fake `stat`. #131809
 						.catch(() => false);
 
@@ -512,7 +527,7 @@ export class GettingStartedPage extends EditorPane {
 								: path);
 
 					const markdown = bytes.value.toString();
-					return renderMarkdownDocument(markdown, this.extensionService, this.languageService, true, true);
+					return renderMarkdownDocument(transformUris(markdown), this.extensionService, this.languageService, true, true);
 				} catch (e) {
 					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
 					return '';
@@ -772,17 +787,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {
-		const content = await this.readAndCacheStepMarkdown(path);
+		const content = await this.readAndCacheStepMarkdown(path, base);
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
-
-		const uriTranformedContent = content.replace(/src="([^"]*)"/g, (_, src: string) => {
-			if (src.startsWith('https://')) { return `src="${src}"`; }
-
-			const path = joinPath(base, src);
-			const transformed = asWebviewUri(path).toString();
-			return `src="${transformed}"`;
-		});
 
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 
@@ -854,7 +861,7 @@ export class GettingStartedPage extends EditorPane {
 			</head>
 			<body>
 				<vertically-centered>
-					${uriTranformedContent}
+					${content}
 				</vertically-centered>
 			</body>
 			<script nonce="${nonce}">
@@ -929,7 +936,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private async buildCategoriesSlide() {
 		this.categoriesSlideDisposables.clear();
-		const showOnStartupCheckbox = new Checkbox({
+		const showOnStartupCheckbox = new Toggle({
 			icon: Codicon.check,
 			actionClassName: 'getting-started-checkbox',
 			isChecked: this.configurationService.getValue(configurationKey) === 'welcomePage',
@@ -1095,12 +1102,16 @@ export class GettingStartedPage extends EditorPane {
 				title: localize('recent', "Recent"),
 				klass: 'recently-opened',
 				limit: 5,
-				empty: $('.empty-recent', {}, 'You have no recent folders,', $('button.button-link', { 'x-dispatch': 'openFolder' }, 'open a folder'), 'to start.'),
+				empty: $('.empty-recent', {},
+					localize('noRecents', "You have no recent folders,"),
+					$('button.button-link', { 'x-dispatch': 'openFolder' }, localize('openFolder', "open a folder")),
+					localize('toStart', "to start.")),
+
 				more: $('.more', {},
 					$('button.button-link',
 						{
 							'x-dispatch': 'showMoreRecents',
-							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel('workbench.action.openRecent'))
+							title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel(OpenRecentAction.ID))
 						}, 'More...')),
 				renderElement: renderRecent,
 				contextService: this.contextService
@@ -1755,18 +1766,18 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured { border-top-color: ${newBadgeBackground}; }`);
 	}
 
-	const checkboxBackground = theme.getColor(simpleCheckboxBackground);
-	if (checkboxBackground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { background-color: ${checkboxBackground} !important; }`);
+	const checkboxBackgroundColor = theme.getColor(checkboxBackground);
+	if (checkboxBackgroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
 	}
 
-	const checkboxForeground = theme.getColor(simpleCheckboxForeground);
-	if (checkboxForeground) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { color: ${checkboxForeground} !important; }`);
+	const checkboxForegroundColor = theme.getColor(checkboxForeground);
+	if (checkboxForegroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { color: ${checkboxForegroundColor} !important; }`);
 	}
 
-	const checkboxBorder = theme.getColor(simpleCheckboxBorder);
-	if (checkboxBorder) {
-		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { border-color: ${checkboxBorder} !important; }`);
+	const checkboxBorderColor = theme.getColor(checkboxBorder);
+	if (checkboxBorderColor) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox { border-color: ${checkboxBorderColor} !important; }`);
 	}
 });

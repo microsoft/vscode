@@ -12,10 +12,10 @@ export class CwdDetectionCapability {
 	private _cwds = new Map</*cwd*/string, /*frequency*/number>();
 
 	/**
-	 * Gets the list of cwds seen in this session in order of descending frequency.
+	 * Gets the list of cwds seen in this session in order of last accessed.
 	 */
 	get cwds(): string[] {
-		return Array.from(Array.from(this._cwds.entries()).sort((a, b) => b[1] - a[1])).map(s => s[0]);
+		return Array.from(this._cwds.keys());
 	}
 
 	private readonly _onDidChangeCwd = new Emitter<string>();
@@ -28,7 +28,9 @@ export class CwdDetectionCapability {
 	updateCwd(cwd: string): void {
 		const didChange = this._cwd !== cwd;
 		this._cwd = cwd;
-		this._cwds.set(this._cwd, (this._cwds.get(this._cwd) || 0) + 1);
+		const count = this._cwds.get(this._cwd) || 0;
+		this._cwds.delete(this._cwd); // Delete to put it at the bottom of the iterable
+		this._cwds.set(this._cwd, count + 1);
 		if (didChange) {
 			this._onDidChangeCwd.fire(cwd);
 		}

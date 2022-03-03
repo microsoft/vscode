@@ -8,7 +8,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { ITestInstantiationService, TestProductService, TestTerminalProfileResolverService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ITestInstantiationService, TestTerminalProfileResolverService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
@@ -19,6 +19,7 @@ import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/c
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 
 class TestTerminalChildProcess implements ITerminalChildProcess {
 	id: number = 0;
@@ -90,7 +91,10 @@ suite('Workbench - TerminalProcessManager', () => {
 		await configurationService.setUserConfiguration('terminal', {
 			integrated: {
 				fontFamily: 'bar',
-				enablePersistentSessions: true
+				enablePersistentSessions: true,
+				shellIntegration: {
+					enabled: false
+				}
 			}
 		});
 		instantiationService.stub(IConfigurationService, configurationService);
@@ -100,7 +104,7 @@ suite('Workbench - TerminalProcessManager', () => {
 		instantiationService.stub(ITerminalInstanceService, new TestTerminalInstanceService());
 
 		const configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		manager = instantiationService.createInstance(TerminalProcessManager, 1, configHelper);
+		manager = instantiationService.createInstance(TerminalProcessManager, 1, configHelper, undefined);
 	});
 
 	teardown(() => {

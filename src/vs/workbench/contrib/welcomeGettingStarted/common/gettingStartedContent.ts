@@ -116,7 +116,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 		when: '!openFolderWorkspaceSupport && workbenchState == \'workspace\'',
 		content: {
 			type: 'startEntry',
-			command: 'command:workbench.action.addRootFolder',
+			command: 'command:workbench.action.setRootFolder',
 		}
 	},
 	{

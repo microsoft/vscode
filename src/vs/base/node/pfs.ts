@@ -479,7 +479,6 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 
 /**
  * A drop-in replacement for `fs.rename` that:
- * - updates the `mtime` of the `source` after the operation
  * - allows to move across multiple disks
  */
 async function move(source: string, target: string): Promise<void> {
@@ -487,30 +486,8 @@ async function move(source: string, target: string): Promise<void> {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
 
-	// We have been updating `mtime` for move operations for files since the
-	// beginning for reasons that are no longer quite clear, but changing
-	// this could be risky as well. As such, trying to reason about it:
-	// It is very common as developer to have file watchers enabled that watch
-	// the current workspace for changes. Updating the `mtime` might make it
-	// easier for these watchers to recognize an actual change. Since changing
-	// a source code file also updates the `mtime`, moving a file should do so
-	// as well because conceptually it is a change of a similar category.
-	async function updateMtime(path: string): Promise<void> {
-		try {
-			const stat = await Promises.lstat(path);
-			if (stat.isDirectory() || stat.isSymbolicLink()) {
-				return; // only for files
-			}
-
-			await Promises.utimes(path, stat.atime, new Date());
-		} catch (error) {
-			// Ignore any error
-		}
-	}
-
 	try {
 		await Promises.rename(source, target);
-		await updateMtime(target);
 	} catch (error) {
 
 		// In two cases we fallback to classic copy and delete:
@@ -524,7 +501,6 @@ async function move(source: string, target: string): Promise<void> {
 		if (source.toLowerCase() !== target.toLowerCase() && error.code === 'EXDEV' || source.endsWith('.')) {
 			await copy(source, target, { preserveSymlinks: false /* copying to another device */ });
 			await rimraf(source, RimRafMode.MOVE);
-			await updateMtime(target);
 		} else {
 			throw error;
 		}

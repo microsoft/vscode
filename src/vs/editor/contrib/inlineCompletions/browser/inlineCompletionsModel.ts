@@ -26,56 +26,83 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { assertNever } from 'vs/base/common/types';
 
-export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
+export class InlineCompletionsModel
+	extends Disposable
+	implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
-	public readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
+	public readonly completionSession = this._register(
+		new MutableDisposable<InlineCompletionsSession>()
+	);
 
 	private active: boolean = false;
 	private disposed = false;
+	private readonly debounceValue = this.debounceService.for(
+		this.languageFeaturesService.inlineCompletionsProvider,
+		'InlineCompletionsDebounce',
+		{ min: 50, max: 200 }
+	);
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
 		private readonly cache: SharedInlineCompletionCache,
 		@ICommandService private readonly commandService: ICommandService,
-		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageConfigurationService
+		private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService
+		private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService
+		private readonly debounceService: ILanguageFeatureDebounceService
 	) {
 		super();
 
-		this._register(commandService.onDidExecuteCommand(e => {
-			// These commands don't trigger onDidType.
-			const commands = new Set([
-				CoreEditingCommands.Tab.id,
-				CoreEditingCommands.DeleteLeft.id,
-				CoreEditingCommands.DeleteRight.id,
-				inlineSuggestCommitId,
-				'acceptSelectedSuggestion'
-			]);
-			if (commands.has(e.commandId) && editor.hasTextFocus()) {
+		this._register(
+			commandService.onDidExecuteCommand((e) => {
+				// These commands don't trigger onDidType.
+				const commands = new Set([
+					CoreEditingCommands.Tab.id,
+					CoreEditingCommands.DeleteLeft.id,
+					CoreEditingCommands.DeleteRight.id,
+					inlineSuggestCommitId,
+					'acceptSelectedSuggestion',
+				]);
+				if (commands.has(e.commandId) && editor.hasTextFocus()) {
+					this.handleUserInput();
+				}
+			})
+		);
+
+		this._register(
+			this.editor.onDidType((e) => {
 				this.handleUserInput();
-			}
-		}));
+			})
+		);
 
-		this._register(this.editor.onDidType((e) => {
-			this.handleUserInput();
-		}));
+		this._register(
+			this.editor.onDidChangeCursorPosition((e) => {
+				if (this.session && !this.session.isValid) {
+					this.hide();
+				}
+			})
+		);
 
-		this._register(this.editor.onDidChangeCursorPosition((e) => {
-			if (this.session && !this.session.isValid) {
+		this._register(
+			toDisposable(() => {
+				this.disposed = true;
+			})
+		);
+
+		this._register(
+			this.editor.onDidBlurEditorWidget(() => {
 				this.hide();
-			}
-		}));
-
-		this._register(toDisposable(() => {
-			this.disposed = true;
-		}));
-
-		this._register(this.editor.onDidBlurEditorWidget(() => {
-			this.hide();
-		}));
+			})
+		);
 	}
 
 	private handleUserInput() {
@@ -146,7 +173,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			this.cache,
 			triggerKind,
 			this.languageConfigurationService,
-			this.languageFeaturesService.inlineCompletionsProvider
+			this.languageFeaturesService.inlineCompletionsProvider,
+			this.debounceValue
 		);
 		this.completionSession.value.takeOwnership(
 			this.completionSession.value.onDidChange(() => {
@@ -199,7 +227,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		private readonly cache: SharedInlineCompletionCache,
 		private initialTriggerKind: InlineCompletionTriggerKind,
 		private readonly languageConfigurationService: ILanguageConfigurationService,
-		private readonly registry: LanguageFeatureRegistry<InlineCompletionsProvider>
+		private readonly registry: LanguageFeatureRegistry<InlineCompletionsProvider>,
+		private readonly debounce: IFeatureDebounceInformation,
 	) {
 		super(editor);
 
@@ -231,7 +260,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}));
 
 		this._register(this.registry.onDidChange(() => {
-			this.updateSoon.schedule();
+			this.updateSoon.schedule(this.debounce.get(this.editor.getModel()));
 		}));
 
 		this.scheduleAutomaticUpdate();
@@ -336,7 +365,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		// Since updateSoon debounces, starvation can happen.
 		// To prevent stale cache, we clear the current update operation.
 		this.updateOperation.clear();
-		this.updateSoon.schedule();
+		this.updateSoon.schedule(this.debounce.get(this.editor.getModel()));
 	}
 
 	private async update(triggerKind: InlineCompletionTriggerKind): Promise<void> {
@@ -345,6 +374,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 
 		const position = this.editor.getPosition();
+
+		const startTime = new Date();
 
 		const promise = createCancelablePromise(async token => {
 			let result;
@@ -355,6 +386,10 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 					token,
 					this.languageConfigurationService
 				);
+
+				const endTime = new Date();
+				this.debounce.update(this.editor.getModel(), endTime.getTime() - startTime.getTime());
+
 			} catch (e) {
 				onUnexpectedError(e);
 				return;
@@ -384,7 +419,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commitCurrentCompletion(): void {
-		if (!this.ghostText) {
+		const ghostText = this.ghostText;
+		if (!ghostText || ghostText.isEmpty()) {
 			// No ghost text was shown for this completion.
 			// Thus, we don't want to commit anything.
 			return;
@@ -400,12 +436,23 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		// otherwise command args might get disposed.
 		const cache = this.cache.clearAndLeak();
 
-		this.editor.executeEdits(
-			'inlineSuggestion.accept',
-			[
-				EditOperation.replaceMove(completion.range, completion.text)
-			]
-		);
+		if (completion.snippetInfo) {
+			this.editor.executeEdits(
+				'inlineSuggestion.accept',
+				[
+					EditOperation.replaceMove(completion.range, '')
+				]
+			);
+			this.editor.setPosition(completion.snippetInfo.range.getStartPosition());
+			SnippetController2.get(this.editor)?.insert(completion.snippetInfo.snippet);
+		} else {
+			this.editor.executeEdits(
+				'inlineSuggestion.accept',
+				[
+					EditOperation.replaceMove(completion.range, completion.text)
+				]
+			);
+		}
 		if (completion.command) {
 			this.commandService
 				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
@@ -511,6 +558,8 @@ class CachedInlineCompletion {
 			sourceProvider: this.inlineCompletion.sourceProvider,
 			sourceInlineCompletions: this.inlineCompletion.sourceInlineCompletions,
 			sourceInlineCompletion: this.inlineCompletion.sourceInlineCompletion,
+			completeBracketPairs: this.inlineCompletion.completeBracketPairs,
+			snippetInfo: this.inlineCompletion.snippetInfo,
 		};
 	}
 }
@@ -591,8 +640,8 @@ export async function provideInlineCompletions(
 					continue;
 				}
 
-				const text =
-					languageConfigurationService && item.completeBracketPairs
+				const textOrSnippet =
+					languageConfigurationService && item.completeBracketPairs && typeof item.text === 'string'
 						? closeBrackets(
 							item.text,
 							range.getStartPosition(),
@@ -601,8 +650,31 @@ export async function provideInlineCompletions(
 						)
 						: item.text;
 
+				let text: string;
+				let snippetInfo: {
+					snippet: string;
+					/* Could be different than the main range */
+					range: Range;
+				}
+					| undefined;
+
+				if (typeof textOrSnippet === 'string') {
+					text = textOrSnippet;
+					snippetInfo = undefined;
+				} else if ('snippet' in textOrSnippet) {
+					const snippet = new SnippetParser().parse(textOrSnippet.snippet);
+					text = snippet.toString();
+					snippetInfo = {
+						snippet: textOrSnippet.snippet,
+						range: range
+					};
+				} else {
+					assertNever(textOrSnippet);
+				}
+
 				const trackedItem: TrackedInlineCompletion = ({
 					text,
+					snippetInfo,
 					range,
 					command: item.command,
 					sourceProvider: result.provider,
@@ -664,5 +736,6 @@ export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: No
 	return {
 		range: Range.fromPositions(start, end),
 		text: inlineCompletion.text.substr(commonPrefixLen, inlineCompletion.text.length - commonPrefixLen - commonSuffixLen),
+		snippetInfo: inlineCompletion.snippetInfo
 	};
 }

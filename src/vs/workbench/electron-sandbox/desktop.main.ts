@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import product from 'vs/platform/product/common/product';
-import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
@@ -14,10 +14,9 @@ import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILoggerService, ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/electron-sandbox/storageService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -226,6 +225,9 @@ export class DesktopMain extends Disposable {
 		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(mainProcessService, sharedProcessWorkerWorkbenchService, logService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
+		// Remote Files
+		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
+
 		// User Data Provider
 		fileService.registerProvider(Schemas.userData, this._register(new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService)));
 
@@ -246,9 +248,6 @@ export class DesktopMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-		// Remote file system
-		this._register(RemoteFileSystemProviderClient.register(remoteAgentService, fileService, logService));
 
 		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
@@ -285,7 +284,7 @@ export class DesktopMain extends Disposable {
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, logService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly
@@ -309,8 +308,8 @@ export class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService };
 	}
 
-	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IWorkspaceInitializationPayload {
-		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined = this.configuration.workspace;
+	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IAnyWorkspaceIdentifier {
+		let workspaceInitializationPayload: IAnyWorkspaceIdentifier | undefined = this.configuration.workspace;
 
 		// Fallback to empty workspace if we have no payload yet.
 		if (!workspaceInitializationPayload) {
@@ -331,7 +330,7 @@ export class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+	private async createWorkspaceService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
 		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.userData] /* Cache all non native resources */, environmentService, fileService);
 		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
@@ -346,7 +345,7 @@ export class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: INativeWorkbenchEnvironmentService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
+	private async createStorageService(payload: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
 		const storageService = new NativeStorageService(payload, mainProcessService, environmentService);
 
 		try {

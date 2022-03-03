@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sha1Hex } from 'vs/base/browser/hash';
-import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatResult, IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ITextFileService, ITextFileContent } from 'vs/workbench/services/textfile/common/textfiles';
@@ -585,7 +585,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			return Promise.resolve(tags);
 		}
 
-		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
+		return this.fileService.resolveAll(folders.map(resource => ({ resource }))).then((files: IFileStatResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat!.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 

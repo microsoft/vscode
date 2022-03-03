@@ -1507,7 +1507,7 @@ abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
 	constructor(private sortKey: ViewModelSortKey, title: string) {
 		super({
 			id: `workbench.scm.action.setSortKey.${sortKey}`,
-			title: title,
+			title,
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			toggled: ContextKeys.ViewModelSortKey.isEqualTo(sortKey),
@@ -2503,7 +2503,7 @@ export class SCMActionButton implements IDisposable {
 
 		if (button.description) {
 			// ButtonWithDescription
-			this.button = new ButtonWithDescription(this.container, { supportIcons: true });
+			this.button = new ButtonWithDescription(this.container, { supportIcons: true, title: button.command.tooltip });
 			(this.button as ButtonWithDescription).description = button.description;
 		} else {
 			// Button

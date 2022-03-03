@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, SourceControlActionButton } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabKind } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -14,12 +14,13 @@ import { debounce, memoize, throttle } from './decorators';
 import { Commit, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, logTimestamp, onceEvent, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, logTimestamp, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { Log, LogLevel } from './log';
 import { IPushErrorHandlerRegistry } from './pushError';
 import { ApiRepository } from './api/api1';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
+import { ActionButtonCommand } from './actionButton';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -966,6 +967,11 @@ export class Repository implements Disposable {
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
 
+		const actionButton = new ActionButtonCommand(this);
+		this.disposables.push(actionButton);
+		actionButton.onDidChange(() => this._sourceControl.actionButton = actionButton.button);
+		this._sourceControl.actionButton = actionButton.button;
+
 		const progressManager = new ProgressManager(this);
 		this.disposables.push(progressManager);
 
@@ -1153,7 +1159,10 @@ export class Repository implements Disposable {
 	}
 
 	async add(resources: Uri[], opts?: { update?: boolean }): Promise<void> {
-		await this.run(Operation.Add, () => this.repository.add(resources.map(r => r.fsPath), opts));
+		await this.run(Operation.Add, async () => {
+			await this.repository.add(resources.map(r => r.fsPath), opts);
+			this.closeDiffEditors([], [...resources.map(r => r.fsPath)]);
+		});
 	}
 
 	async rm(resources: Uri[]): Promise<void> {
@@ -1162,15 +1171,27 @@ export class Repository implements Disposable {
 
 	async stage(resource: Uri, contents: string): Promise<void> {
 		const path = relativePath(this.repository.root, resource.fsPath).replace(/\\/g, '/');
-		await this.run(Operation.Stage, () => this.repository.stage(path, contents));
+		await this.run(Operation.Stage, async () => {
+			await this.repository.stage(path, contents);
+			this.closeDiffEditors([], [...resource.fsPath]);
+		});
 		this._onDidChangeOriginalResource.fire(resource);
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
-		await this.run(Operation.RevertFiles, () => this.repository.revert('HEAD', resources.map(r => r.fsPath)));
+		await this.run(Operation.RevertFiles, async () => {
+			await this.repository.revert('HEAD', resources.map(r => r.fsPath));
+			this.closeDiffEditors([...resources.length !== 0 ?
+				resources.map(r => r.fsPath) :
+				this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
+		});
 	}
 
 	async commit(message: string | undefined, opts: CommitOptions = Object.create(null)): Promise<void> {
+		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const workingGroupResources = opts.all && opts.all !== 'tracked' ?
+			[...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)] : [];
+
 		if (this.rebaseCommit) {
 			await this.run(Operation.RebaseContinue, async () => {
 				if (opts.all) {
@@ -1179,6 +1200,7 @@ export class Repository implements Disposable {
 				}
 
 				await this.repository.rebaseContinue();
+				this.closeDiffEditors(indexResources, workingGroupResources);
 			});
 		} else {
 			await this.run(Operation.Commit, async () => {
@@ -1195,6 +1217,7 @@ export class Repository implements Disposable {
 				}
 
 				await this.repository.commit(message, opts);
+				this.closeDiffEditors(indexResources, workingGroupResources);
 			});
 		}
 	}
@@ -1238,7 +1261,33 @@ export class Repository implements Disposable {
 			await this.repository.clean(toClean);
 			await this.repository.checkout('', toCheckout);
 			await this.repository.updateSubmodules(submodulesToUpdate);
+
+			this.closeDiffEditors([], [...toClean, ...toCheckout]);
 		});
+	}
+
+	closeDiffEditors(indexResources: string[], workingTreeResources: string[], ignoreSetting: boolean = false): void {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		if (!config.get<boolean>('closeDiffOnOperation', false) && !ignoreSetting) { return; }
+
+		const diffEditorTabsToClose: Tab[] = [];
+
+		// Index
+		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
+		diffEditorTabsToClose.push(...tabs
+			.filter(t =>
+				t.resource && t.resource.scheme === 'git' && t.kind === TabKind.Diff &&
+				indexResources.some(r => pathEquals(r, t.resource!.fsPath))));
+
+		// Working Tree
+		diffEditorTabsToClose.push(...tabs
+			.filter(t =>
+				t.resource && t.resource.scheme === 'file' && t.kind === TabKind.Diff &&
+				workingTreeResources.some(r => pathEquals(r, t.resource!.fsPath)) &&
+				t.additionalResourcesAndViewIds.find(r => r.resource!.scheme === 'git')));
+
+		// Close editors
+		diffEditorTabsToClose.forEach(t => t.close());
 	}
 
 	async branch(name: string, _checkout: boolean, _ref?: string): Promise<void> {
@@ -1587,7 +1636,15 @@ export class Repository implements Disposable {
 	}
 
 	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.createStash(message, includeUntracked));
+		const indexResources = [...this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)];
+		const workingGroupResources = [
+			...this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...includeUntracked ? this.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath) : []];
+
+		return await this.run(Operation.Stash, async () => {
+			this.repository.createStash(message, includeUntracked);
+			this.closeDiffEditors(indexResources, workingGroupResources);
+		});
 	}
 
 	async popStash(index?: number): Promise<void> {
@@ -1934,43 +1991,6 @@ export class Repository implements Disposable {
 
 			return undefined;
 		});
-
-		let actionButton: SourceControlActionButton | undefined;
-		if (HEAD !== undefined) {
-			const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-			const showActionButton = config.get<string>('showUnpublishedCommitsButton', 'whenEmpty');
-			const postCommitCommand = config.get<string>('postCommitCommand');
-
-			if (showActionButton === 'always' || (showActionButton === 'whenEmpty' && workingTree.length === 0 && index.length === 0 && untracked.length === 0 && merge.length === 0 && postCommitCommand !== 'sync' && postCommitCommand !== 'push')) {
-				if (HEAD.name && HEAD.commit) {
-					if (HEAD.upstream) {
-						if (HEAD.ahead) {
-							const rebaseWhenSync = config.get<string>('rebaseWhenSync');
-
-							actionButton = {
-								command: {
-									command: rebaseWhenSync ? 'git.syncRebase' : 'git.sync',
-									title: localize('scm button sync title', "$(sync) {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`),
-									tooltip: this.syncTooltip,
-									arguments: [this._sourceControl],
-								},
-								description: localize('scm button sync description', "$(sync) Sync Changes {0}{1}", HEAD.behind ? `${HEAD.behind}$(arrow-down) ` : '', `${HEAD.ahead}$(arrow-up)`)
-							};
-						}
-					} else {
-						actionButton = {
-							command: {
-								command: 'git.publish',
-								title: localize('scm button publish title', "$(cloud-upload) Publish Branch"),
-								tooltip: localize('scm button publish tooltip', "Publish Branch"),
-								arguments: [this._sourceControl],
-							}
-						};
-					}
-				}
-			}
-		}
-		this._sourceControl.actionButton = actionButton;
 
 		// set resource groups
 		this.mergeGroup.resourceStates = merge;

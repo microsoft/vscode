@@ -23,9 +23,6 @@
       "supported": true
     }
   },
-  "enabledApiProposals": [
-    "languageStatus"
-  ],
   "scripts": {
     "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
     "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",

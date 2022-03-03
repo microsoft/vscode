@@ -18,20 +18,28 @@ import { IExtensionResourceLoaderService } from 'vs/workbench/services/extension
 import { relativePath } from 'vs/base/common/resources';
 import { isObject } from 'vs/base/common/types';
 import { Iterable } from 'vs/base/common/iterator';
+import { tail } from 'vs/base/common/arrays';
 
 class SnippetBodyInsights {
 
 	readonly codeSnippet: string;
+
+	/** The snippet uses bad placeholders which collide with variable names */
 	readonly isBogous: boolean;
-	readonly needsClipboard: boolean;
-	readonly usesSelection: boolean;
+
+	/** The snippet has no placeholder of the final placeholder is at the end */
+	readonly isTrivial: boolean;
+
+	readonly usesClipboardVariable: boolean;
+	readonly usesSelectionVariable: boolean;
 
 	constructor(body: string) {
 
 		// init with defaults
 		this.isBogous = false;
-		this.needsClipboard = false;
-		this.usesSelection = false;
+		this.isTrivial = false;
+		this.usesClipboardVariable = false;
+		this.usesSelectionVariable = false;
 		this.codeSnippet = body;
 
 		// check snippet...
@@ -41,6 +49,15 @@ class SnippetBodyInsights {
 		let placeholderMax = 0;
 		for (const placeholder of textmateSnippet.placeholders) {
 			placeholderMax = Math.max(placeholderMax, placeholder.index);
+		}
+
+		// mark snippet as trivial when there is no placeholders or when the only
+		// placeholder is the final tabstop and it is at the very end.
+		if (textmateSnippet.placeholders.length === 0) {
+			this.isTrivial = true;
+		} else if (placeholderMax === 0) {
+			const last = tail(textmateSnippet.children);
+			this.isTrivial = last instanceof Placeholder && last.isFinalTabstop;
 		}
 
 		let stack = [...textmateSnippet.children];
@@ -62,11 +79,11 @@ class SnippetBodyInsights {
 
 				switch (marker.name) {
 					case 'CLIPBOARD':
-						this.needsClipboard = true;
+						this.usesClipboardVariable = true;
 						break;
 					case 'SELECTION':
 					case 'TM_SELECTED_TEXT':
-						this.usesSelection = true;
+						this.usesSelectionVariable = true;
 						break;
 				}
 
@@ -111,12 +128,16 @@ export class Snippet {
 		return this._bodyInsights.value.isBogous;
 	}
 
+	get isTrivial(): boolean {
+		return this._bodyInsights.value.isTrivial;
+	}
+
 	get needsClipboard(): boolean {
-		return this._bodyInsights.value.needsClipboard;
+		return this._bodyInsights.value.usesClipboardVariable;
 	}
 
 	get usesSelection(): boolean {
-		return this._bodyInsights.value.usesSelection;
+		return this._bodyInsights.value.usesSelectionVariable;
 	}
 
 	static compare(a: Snippet, b: Snippet): number {

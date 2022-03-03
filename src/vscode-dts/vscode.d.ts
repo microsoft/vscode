@@ -2661,6 +2661,27 @@ declare module 'vscode' {
 		supportHtml?: boolean;
 
 		/**
+		 * Uri that relative paths are resolved relative to.
+		 *
+		 * If the `baseUri` ends with `/`, it is considered a directory and relative paths in the markdown are resolved relative to that directory:
+		 *
+		 * ```ts
+		 * const md = new vscode.MarkdownString(`[link](./file.js)`);
+		 * md.baseUri = vscode.Uri.file('/path/to/dir/');
+		 * // Here 'link' in the rendered markdown resolves to '/path/to/dir/file.js'
+		 * ```
+		 *
+		 * If the `baseUri` is a file, relative paths in the markdown are resolved relative to the parent dir of that file:
+		 *
+		 * ```ts
+		 * const md = new vscode.MarkdownString(`[link](./file.js)`);
+		 * md.baseUri = vscode.Uri.file('/path/to/otherFile.js');
+		 * // Here 'link' in the rendered markdown resolves to '/path/to/file.js'
+		 * ```
+		 */
+		baseUri?: Uri;
+
+		/**
 		 * Creates a new markdown string with the given value.
 		 *
 		 * @param value Optional, initial value.
@@ -3445,8 +3466,8 @@ declare module 'vscode' {
 	 * A snippet can define tab stops and placeholders with `$1`, `$2`
 	 * and `${3:foo}`. `$0` defines the final tab stop, it defaults to
 	 * the end of the snippet. Variables are defined with `$name` and
-	 * `${name:default value}`. The full snippet syntax is documented
-	 * [here](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
+	 * `${name:default value}`. Also see
+	 * [the full snippet syntax](https://code.visualstudio.com/docs/editor/userdefinedsnippets#_creating-your-own-snippets).
 	 */
 	export class SnippetString {
 
@@ -4568,6 +4589,170 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Inlay hint kinds.
+	 *
+	 * The kind of an inline hint defines its appearance, e.g the corresponding foreground and background colors are being
+	 * used.
+	 */
+	export enum InlayHintKind {
+		/**
+		 * An inlay hint that for a type annotation.
+		 */
+		Type = 1,
+		/**
+		 * An inlay hint that is for a parameter.
+		 */
+		Parameter = 2,
+	}
+
+	/**
+	 * An inlay hint label part allows for interactive and composite labels of inlay hints.
+	 */
+	export class InlayHintLabelPart {
+
+		/**
+		 * The value of this label part.
+		 */
+		value: string;
+
+		/**
+		 * The tooltip text when you hover over this label part.
+		 *
+		 * *Note* that this property can be set late during
+		 * {@link InlayHintsProvider.resolveInlayHint resolving} of inlay hints.
+		 */
+		tooltip?: string | MarkdownString | undefined;
+
+		/**
+		 * An optional {@link Location source code location} that represents this label
+		 * part.
+		 *
+		 * The editor will use this location for the hover and for code navigation features: This
+		 * part will become a clickable link that resolves to the definition of the symbol at the
+		 * given location (not necessarily the location itself), it shows the hover that shows at
+		 * the given location, and it shows a context menu with further code navigation commands.
+		 *
+		 * *Note* that this property can be set late during
+		 * {@link InlayHintsProvider.resolveInlayHint resolving} of inlay hints.
+		 */
+		location?: Location | undefined;
+
+		/**
+		 * An optional command for this label part.
+		 *
+		 * The editor renders parts with commands as clickable links. The command is added to the context menu
+		 * when a label part defines {@link InlayHintLabelPart.location location} and {@link InlayHintLabelPart.command command} .
+		 *
+		 * *Note* that this property can be set late during
+		 * {@link InlayHintsProvider.resolveInlayHint resolving} of inlay hints.
+		 */
+		command?: Command | undefined;
+
+		/**
+		 * Creates a new inlay hint label part.
+		 *
+		 * @param value The value of the part.
+		 */
+		constructor(value: string);
+	}
+
+	/**
+	 * Inlay hint information.
+	 */
+	export class InlayHint {
+
+		/**
+		 * The position of this hint.
+		 */
+		position: Position;
+
+		/**
+		 * The label of this hint. A human readable string or an array of {@link InlayHintLabelPart label parts}.
+		 *
+		 * *Note* that neither the string nor the label part can be empty.
+		 */
+		label: string | InlayHintLabelPart[];
+
+		/**
+		 * The tooltip text when you hover over this item.
+		 */
+		tooltip?: string | MarkdownString | undefined;
+
+		/**
+		 * The kind of this hint. The inlay hint kind defines the appearance of this inlay hint.
+		 */
+		kind?: InlayHintKind;
+
+		/**
+		 * Optional {@link TextEdit text edits} that are performed when accepting this inlay hint. The default
+		 * gesture for accepting an inlay hint is the double click.
+		 *
+		 * *Note* that edits are expected to change the document so that the inlay hint (or its nearest variant) is
+		 * now part of the document and the inlay hint itself is now obsolete.
+		 */
+		textEdits?: TextEdit[];
+
+		/**
+		 * Render padding before the hint. Padding will use the editor's background color,
+		 * not the background color of the hint itself. That means padding can be used to visually
+		 * align/separate an inlay hint.
+		 */
+		paddingLeft?: boolean;
+
+		/**
+		 * Render padding after the hint. Padding will use the editor's background color,
+		 * not the background color of the hint itself. That means padding can be used to visually
+		 * align/separate an inlay hint.
+		 */
+		paddingRight?: boolean;
+
+		/**
+		 * Creates a new inlay hint.
+		 *
+		 * @param position The position of the hint.
+		 * @param label The label of the hint.
+		 * @param kind The {@link InlayHintKind kind} of the hint.
+		 */
+		constructor(position: Position, label: string | InlayHintLabelPart[], kind?: InlayHintKind);
+	}
+
+	/**
+	 * The inlay hints provider interface defines the contract between extensions and
+	 * the inlay hints feature.
+	 */
+	export interface InlayHintsProvider<T extends InlayHint = InlayHint> {
+
+		/**
+		 * An optional event to signal that inlay hints from this provider have changed.
+		 */
+		onDidChangeInlayHints?: Event<void>;
+
+		/**
+		 * Provide inlay hints for the given range and document.
+		 *
+		 * *Note* that inlay hints that are not {@link Range.contains contained} by the given range are ignored.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param range The range for which inlay hints should be computed.
+		 * @param token A cancellation token.
+		 * @return An array of inlay hints or a thenable that resolves to such.
+		 */
+		provideInlayHints(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * Given an inlay hint fill in {@link InlayHint.tooltip tooltip}, {@link InlayHint.command command}, or complete
+		 * label {@link InlayHintLabelPart parts}.
+		 *
+		 * *Note* that the editor will resolve an inlay hint at most once.
+		 *
+		 * @param hint An inlay hint.
+		 * @param token A cancellation token.
+		 * @return The resolved inlay hint or a thenable that resolves to such. It is OK to return the given `item`. When no result is returned, the given `item` will be used.
+		 */
+		resolveInlayHint?(hint: T, token: CancellationToken): ProviderResult<T>;
+	}
+
+	/**
 	 * A line based folding range. To be valid, start and end line must be bigger than zero and smaller than the number of lines in the document.
 	 * Invalid ranges will be ignored.
 	 */
@@ -5629,6 +5814,82 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the severity of a language status item.
+	 */
+	export enum LanguageStatusSeverity {
+		Information = 0,
+		Warning = 1,
+		Error = 2
+	}
+
+	/**
+	 * A language status item is the preferred way to present language status reports for the active text editors,
+	 * such as selected linter or notifying about a configuration problem.
+	 */
+	export interface LanguageStatusItem {
+
+		/**
+		 * The identifier of this item.
+		 */
+		readonly id: string;
+
+		/**
+		 * The short name of this item, like 'Java Language Status', etc.
+		 */
+		name: string | undefined;
+
+		/**
+		 * A {@link DocumentSelector selector} that defines for what editors
+		 * this item shows.
+		 */
+		selector: DocumentSelector;
+
+		/**
+		 * The severity of this item.
+		 *
+		 * Defaults to {@link LanguageStatusSeverity.Information information}. You can use this property to
+		 * signal to users that there is a problem that needs attention, like a missing executable or an
+		 * invalid configuration.
+		 */
+		severity: LanguageStatusSeverity;
+
+		/**
+		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
+		 *
+		 * `My text $(icon-name) contains icons like $(icon-name) this one.`
+		 *
+		 * Where the icon-name is taken from the ThemeIcon [icon set](https://code.visualstudio.com/api/references/icons-in-labels#icon-listing), e.g.
+		 * `light-bulb`, `thumbsup`, `zap` etc.
+		 */
+		text: string;
+
+		/**
+		 * Optional, human-readable details for this item.
+		 */
+		detail?: string;
+
+		/**
+		 * Controls whether the item is shown as "busy". Defaults to `false`.
+		 */
+		busy: boolean;
+
+		/**
+		 * A {@linkcode Command command} for this item.
+		 */
+		command: Command | undefined;
+
+		/**
+		 * Accessibility information used when a screen reader interacts with this item
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+
+		/**
+		 * Dispose and free associated resources.
+		 */
+		dispose(): void;
+	}
+
+	/**
 	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
 	 * and each column represents one editor location in that grid by counting the editors
 	 * in order of their appearance.
@@ -5759,7 +6020,7 @@ declare module 'vscode' {
 		/**
 		 * Label to be read out by a screen reader once the item has focus.
 		 */
-		label: string;
+		readonly label: string;
 
 		/**
 		 * Role of the widget which defines how a screen reader interacts with it.
@@ -5767,7 +6028,7 @@ declare module 'vscode' {
 		 * If role is not specified the editor will pick the appropriate role automatically.
 		 * More about aria roles can be found here https://w3c.github.io/aria/#widget_roles
 		 */
-		role?: string;
+		readonly role?: string;
 	}
 
 	/**
@@ -7688,7 +7949,7 @@ declare module 'vscode' {
 		/**
 		 * Controls whether forms are enabled in the webview content or not.
 		 *
-		 * Defaults to true if {@link WebViewOptions.enableScripts scripts are enabled}. Otherwise defaults to false.
+		 * Defaults to true if {@link WebviewOptions.enableScripts scripts are enabled}. Otherwise defaults to false.
 		 * Explicitly setting this property to either true or false overrides the default.
 		 */
 		readonly enableForms?: boolean;
@@ -9438,6 +9699,11 @@ declare module 'vscode' {
 		 * array containing all selected tree items.
 		 */
 		canSelectMany?: boolean;
+
+		/**
+		* An optional interface to implement drag and drop in the tree view.
+		*/
+		dragAndDropController?: TreeDragAndDropController<T>;
 	}
 
 	/**
@@ -9474,6 +9740,99 @@ declare module 'vscode' {
 		 */
 		readonly visible: boolean;
 
+	}
+
+	/**
+	 * A class for encapsulating data transferred during a drag and drop event.
+	 *
+	 * You can use the `value` of the `DataTransferItem` to get back the object you put into it
+	 * so long as the extension that created the `DataTransferItem` runs in the same extension host.
+	 */
+	export class DataTransferItem {
+		asString(): Thenable<string>;
+		readonly value: any;
+		constructor(value: any);
+	}
+
+	/**
+	 * A map containing a mapping of the mime type of the corresponding transferred data.
+	 * Drag and drop controllers that implement `handleDrag` can additional mime types to the data transfer
+	 * These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
+	 * an element in the same drag and drop controller.
+	 */
+	export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
+		/**
+		 * Retrieves the data transfer item for a given mime type.
+		 * @param mimeType The mime type to get the data transfer item for.
+		 */
+		get(mimeType: string): T | undefined;
+
+		/**
+		 * Sets a mime type to data transfer item mapping.
+		 * @param mimeType The mime type to set the data for.
+		 * @param value The data transfer item for the given mime type.
+		 */
+		set(mimeType: string, value: T): void;
+
+		/**
+		 * Allows iteration through the data transfer items.
+		 * @param callbackfn Callback for iteration through the data transfer items.
+		 */
+		forEach(callbackfn: (value: T, key: string) => void): void;
+	}
+
+	/**
+	 * Provides support for drag and drop in `TreeView`.
+	 */
+	export interface TreeDragAndDropController<T> {
+
+		/**
+		 * The mime types that the `handleDrop` method of this `DragAndDropController` supports.
+		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
+		 *
+		 * Each tree will automatically support drops from it's own `DragAndDropController`. To support drops from other trees,
+		 * you will need to add the mime type of that tree. The mime type of a tree is of the format `application/vnd.code.tree.treeidlowercase`.
+		 *
+		 * To learn the mime type of a dragged item:
+		 * 1. Set up your `DragAndDropController`
+		 * 2. Use the Developer: Set Log Level... command to set the level to "Debug"
+		 * 3. Open the developer tools and drag the item with unknown mime type over your tree. The mime types will be logged to the developer console
+		 */
+		readonly dropMimeTypes: string[];
+
+		/**
+		 * The mime types that the `handleDrag` method of this `TreeDragAndDropController` may add to the tree data transfer.
+		 * This could be well-defined, existing, mime types, and also mime types defined by the extension.
+		 */
+		readonly dragMimeTypes: string[];
+
+		/**
+		 * When the user starts dragging items from this `DragAndDropController`, `handleDrag` will be called.
+		 * Extensions can use `handleDrag` to add their `DataTransferItem`s to the drag and drop.
+		 *
+		 * When the items are dropped on **another tree item** in **the same tree**, your `DataTransferItem` objects
+		 * will be preserved. See the documentation for `DataTransferItem` for how best to take advantage of this.
+		 *
+		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "text/uri-list".
+		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
+		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
+		 *
+		 * @param source The source items for the drag and drop operation.
+		 * @param treeDataTransfer The data transfer associated with this drag.
+		 * @param token A cancellation token indicating that drag has been cancelled.
+		 */
+		handleDrag?(source: T[], treeDataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
+
+		/**
+		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.
+		 *
+		 * Extensions should fire `TreeDataProvider.onDidChangeTreeData` for any elements that need to be refreshed.
+		 *
+		 * @param source The data transfer items of the source of the drag.
+		 * @param target The target tree element that the drop is occurring on.
+		 * @param token A cancellation token indicating that the drop has been cancelled.
+		 */
+		handleDrop?(target: T, source: DataTransfer, token: CancellationToken): Thenable<void> | void;
 	}
 
 	/**
@@ -9553,7 +9912,7 @@ declare module 'vscode' {
 		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
 		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
 		 */
-		onDidChangeTreeData?: Event<T | undefined | null | void>;
+		onDidChangeTreeData?: Event<T | T[] | undefined | null | void>;
 
 		/**
 		 * Get {@link TreeItem} representation of the `element`
@@ -11595,6 +11954,14 @@ declare module 'vscode' {
 		export function createDiagnosticCollection(name?: string): DiagnosticCollection;
 
 		/**
+		 * Creates a new {@link LanguageStatusItem language status item}.
+		 *
+		 * @param id The identifier of the item.
+		 * @param selector The document selector that defines for what editors the item shows.
+		 */
+		export function createLanguageStatusItem(id: string, selector: DocumentSelector): LanguageStatusItem;
+
+		/**
 		 * Register a completion provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
@@ -11917,6 +12284,19 @@ declare module 'vscode' {
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+
+		/**
+		 * Register a inlay hints provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An inlay hints provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 */
+		export function registerInlayHintsProvider(selector: DocumentSelector, provider: InlayHintsProvider): Disposable;
 
 		/**
 		 * Register a folding range provider.
@@ -13098,21 +13478,21 @@ declare module 'vscode' {
 	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
 	 */
 	export interface DebugProtocolMessage {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
+		// Properties: see [ProtocolMessage details](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
 	}
 
 	/**
 	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
 	 */
 	export interface DebugProtocolSource {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+		// Properties: see [Source details](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
 	}
 
 	/**
 	 * A DebugProtocolBreakpoint is an opaque stand-in type for the [Breakpoint](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint) type defined in the Debug Adapter Protocol.
 	 */
 	export interface DebugProtocolBreakpoint {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
+		// Properties: see [Breakpoint details](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
 	}
 
 	/**
@@ -13982,6 +14362,12 @@ declare module 'vscode' {
 		 * Label will be rendered next to authorName if exists.
 		 */
 		label?: string;
+
+		/**
+		 * Optional timestamp that will be displayed in comments.
+		 * The date will be formatted according to the user's locale and settings.
+		 */
+		timestamp?: Date;
 	}
 
 	/**
@@ -14532,6 +14918,19 @@ declare module 'vscode' {
 		resolveHandler?: (item: TestItem | undefined) => Thenable<void> | void;
 
 		/**
+		 * If this method is present, a refresh button will be present in the
+		 * UI, and this method will be invoked when it's clicked. When called,
+		 * the extension should scan the workspace for any new, changed, or
+		 * removed tests.
+		 *
+		 * It's recommended that extensions try to update tests in realtime, using
+		 * a {@link FileSystemWatcher} for example, and use this method as a fallback.
+		 *
+		 * @returns A thenable that resolves when tests have been refreshed.
+		 */
+		refreshHandler: ((token: CancellationToken) => Thenable<void> | void) | undefined;
+
+		/**
 		 * Creates a {@link TestRun}. This should be called by the
 		 * {@link TestRunProfile} when a request is made to execute tests, and may
 		 * also be called if a test run is detected externally. Once created, tests
@@ -14817,6 +15216,13 @@ declare module 'vscode' {
 		 * Optional description that appears next to the label.
 		 */
 		description?: string;
+
+		/**
+		 * A string that should be used when comparing this item
+		 * with other items. When `falsy` the {@link TestItem.label label}
+		 * is used.
+		 */
+		sortText?: string | undefined;
 
 		/**
 		 * Location of the test item in its {@link TestItem.uri uri}.

@@ -97,26 +97,26 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export let addStandardDisposableGenericMouseDownListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = _wrapAsStandardMouseEvent(handler);
 
-	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+	return addDisposableGenericMouseDownListener(node, wrapHandler, useCapture);
 };
 
-export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export let addStandardDisposableGenericMouseUpListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	let wrapHandler = _wrapAsStandardMouseEvent(handler);
 
-	return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
+	return addDisposableGenericMouseUpListener(node, wrapHandler, useCapture);
 };
-export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableGenericMouseDownListener(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
 }
 
-export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableGenericMouseMoveListener(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_MOVE : EventType.MOUSE_MOVE, handler, useCapture);
 }
 
-export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+export function addDisposableGenericMouseUpListener(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
@@ -1477,22 +1477,6 @@ export function multibyteAwareBtoa(str: string): string {
 	return btoa(toBinary(str));
 }
 
-/**
- * Typings for the https://wicg.github.io/file-system-access
- *
- * Use `supported(window)` to find out if the browser supports this kind of API.
- */
-export namespace WebFileSystemAccess {
-
-	export function supported(obj: any & Window): boolean {
-		if (typeof obj?.showDirectoryPicker === 'function') {
-			return true;
-		}
-
-		return false;
-	}
-}
-
 type ModifierKey = 'alt' | 'ctrl' | 'shift' | 'meta';
 
 export interface IModifierKeyStatus {
@@ -1652,11 +1636,6 @@ export function getCookieValue(name: string): string | undefined {
 	const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
 
 	return match ? match.pop() : undefined;
-}
-
-export function addMatchMediaChangeListener(query: string, callback: () => void): void {
-	const mediaQueryList = window.matchMedia(query);
-	mediaQueryList.addEventListener('change', callback);
 }
 
 export const enum ZIndex {

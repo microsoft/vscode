@@ -16,7 +16,6 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType, IWorkspaceEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -30,6 +29,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { IEditorPane } from 'vs/workbench/common/editor';
 
 export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
@@ -49,20 +49,24 @@ export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): Re
 	return result;
 }
 
+export interface IMainThreadEditorLocator {
+	getEditor(id: string): MainThreadTextEditor | undefined;
+	findTextEditorIdFor(editorPane: IEditorPane): string | undefined;
+}
+
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private static INSTANCE_COUNT: number = 0;
 
 	private readonly _instanceId: string;
 	private readonly _proxy: ExtHostEditorsShape;
-	private readonly _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private readonly _toDispose = new DisposableStore();
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[] };
 	private _editorPositionData: ITextEditorPositionData | null;
 	private _registeredDecorationTypes: { [decorationType: string]: boolean };
 
 	constructor(
-		documentsAndEditors: MainThreadDocumentsAndEditors,
+		private readonly _editorLocator: IMainThreadEditorLocator,
 		extHostContext: IExtHostContext,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
@@ -71,13 +75,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
-		this._documentsAndEditors = documentsAndEditors;
 
 		this._textEditorsListenersMap = Object.create(null);
 		this._editorPositionData = null;
-
-		this._toDispose.add(documentsAndEditors.onTextEditorAdd(editors => editors.forEach(this._onTextEditorAdd, this)));
-		this._toDispose.add(documentsAndEditors.onTextEditorRemove(editors => editors.forEach(this._onTextEditorRemove, this)));
 
 		this._toDispose.add(this._editorService.onDidVisibleEditorsChange(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.add(this._editorGroupService.onDidRemoveGroup(() => this._updateActiveAndVisibleTextEditors()));
@@ -98,7 +98,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._registeredDecorationTypes = Object.create(null);
 	}
 
-	private _onTextEditorAdd(textEditor: MainThreadTextEditor): void {
+	handleTextEditorAdded(textEditor: MainThreadTextEditor): void {
 		const id = textEditor.getId();
 		const toDispose: IDisposable[] = [];
 		toDispose.push(textEditor.onPropertiesChanged((data) => {
@@ -108,7 +108,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._textEditorsListenersMap[id] = toDispose;
 	}
 
-	private _onTextEditorRemove(id: string): void {
+	handleTextEditorRemoved(id: string): void {
 		dispose(this._textEditorsListenersMap[id]);
 		delete this._textEditorsListenersMap[id];
 	}
@@ -126,7 +126,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	private _getTextEditorPositionData(): ITextEditorPositionData {
 		const result: ITextEditorPositionData = Object.create(null);
 		for (let editorPane of this._editorService.visibleEditorPanes) {
-			const id = this._documentsAndEditors.findTextEditorIdFor(editorPane);
+			const id = this._editorLocator.findTextEditorIdFor(editorPane);
 			if (id) {
 				result[id] = editorGroupToColumn(this._editorGroupService, editorPane.group);
 			}
@@ -158,11 +158,11 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		if (!editor) {
 			return undefined;
 		}
-		return this._documentsAndEditors.findTextEditorIdFor(editor);
+		return this._editorLocator.findTextEditorIdFor(editor);
 	}
 
 	async $tryShowEditor(id: string, position?: EditorGroupColumn): Promise<void> {
-		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
+		const mainThreadEditor = this._editorLocator.getEditor(id);
 		if (mainThreadEditor) {
 			const model = mainThreadEditor.getModel();
 			await this._editorService.openEditor({
@@ -174,7 +174,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	async $tryHideEditor(id: string): Promise<void> {
-		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
+		const mainThreadEditor = this._editorLocator.getEditor(id);
 		if (mainThreadEditor) {
 			const editorPanes = this._editorService.visibleEditorPanes;
 			for (let editorPane of editorPanes) {
@@ -187,7 +187,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void> {
-		const editor = this._documentsAndEditors.getEditor(id);
+		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
@@ -197,7 +197,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): Promise<void> {
 		key = `${this._instanceId}-${key}`;
-		const editor = this._documentsAndEditors.getEditor(id);
+		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
@@ -207,7 +207,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	$trySetDecorationsFast(id: string, key: string, ranges: number[]): Promise<void> {
 		key = `${this._instanceId}-${key}`;
-		const editor = this._documentsAndEditors.getEditor(id);
+		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
@@ -216,7 +216,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void> {
-		const editor = this._documentsAndEditors.getEditor(id);
+		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
@@ -225,7 +225,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): Promise<void> {
-		const editor = this._documentsAndEditors.getEditor(id);
+		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
@@ -234,7 +234,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean> {
-		const editor = this._documentsAndEditors.getEditor(id);
+		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
@@ -247,7 +247,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
-		const editor = this._documentsAndEditors.getEditor(id);
+		const editor = this._editorLocator.getEditor(id);
 		if (!editor) {
 			return Promise.reject(disposed(`TextEditor(${id})`));
 		}
@@ -267,7 +267,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$getDiffInformation(id: string): Promise<ILineChange[]> {
-		const editor = this._documentsAndEditors.getEditor(id);
+		const editor = this._editorLocator.getEditor(id);
 
 		if (!editor) {
 			return Promise.reject(new Error('No such TextEditor'));

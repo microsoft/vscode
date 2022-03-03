@@ -203,6 +203,9 @@ const schema: IJSONSchema = {
 		folderNames: {
 			$ref: '#/definitions/folderNames'
 		},
+		folderNamesExpanded: {
+			$ref: '#/definitions/folderNamesExpanded'
+		},
 		fileExtensions: {
 			$ref: '#/definitions/fileExtensions'
 		},

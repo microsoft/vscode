@@ -786,8 +786,11 @@ export interface InlineCompletion {
 	 * The text to insert.
 	 * If the text contains a line break, the range must end at the end of a line.
 	 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+	 *
+	 * The text can also be a snippet. In that case, a preview with default parameters is shown.
+	 * When accepting the suggestion, the full snippet is inserted.
 	*/
-	readonly text: string;
+	readonly text: string | { snippet: string };
 
 	/**
 	 * The range to replace.
@@ -1586,37 +1589,6 @@ export interface RenameProvider {
 	resolveRenameLocation?(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<RenameLocation & Rejection>;
 }
 
-/**
- * @internal
- */
-export interface AuthenticationSession {
-	id: string;
-	accessToken: string;
-	account: {
-		label: string;
-		id: string;
-	};
-	scopes: ReadonlyArray<string>;
-	idToken?: string;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationSessionsChangeEvent {
-	added: ReadonlyArray<AuthenticationSession>;
-	removed: ReadonlyArray<AuthenticationSession>;
-	changed: ReadonlyArray<AuthenticationSession>;
-}
-
-/**
- * @internal
- */
-export interface AuthenticationProviderInformation {
-	id: string;
-	label: string;
-}
-
 export interface Command {
 	id: string;
 	title: string;
@@ -1775,7 +1747,7 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
-	readonly timestamp?: Date;
+	readonly timestamp?: string;
 }
 
 /**
@@ -1817,7 +1789,6 @@ export interface CodeLensProvider {
 
 
 export enum InlayHintKind {
-	Other = 0,
 	Type = 1,
 	Parameter = 2,
 }
@@ -1833,8 +1804,9 @@ export interface InlayHintLabelPart {
 export interface InlayHint {
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | IMarkdownString;
+	textEdits?: TextEdit[];
 	position: IPosition;
-	kind: InlayHintKind;
+	kind?: InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;
 }

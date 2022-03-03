@@ -7,6 +7,7 @@ import 'vs/editor/common/languages/languageConfigurationRegistry';
 import 'vs/editor/standalone/browser/standaloneCodeEditorService';
 import 'vs/editor/standalone/browser/standaloneLayoutService';
 import 'vs/platform/undoRedo/common/undoRedoService';
+import 'vs/editor/common/services/languageFeatureDebounce';
 
 import * as strings from 'vs/base/common/strings';
 import * as dom from 'vs/base/browser/dom';
@@ -42,8 +43,7 @@ import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent } from 'vs
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { StandaloneServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
@@ -1001,6 +1001,13 @@ export module StandaloneServices {
 			return instantiationService;
 		}
 		initialized = true;
+
+		// Add singletons that were registered after this module loaded
+		for (const [id, descriptor] of getSingletonServiceDescriptors()) {
+			if (!serviceCollection.get(id)) {
+				serviceCollection.set(id, descriptor);
+			}
+		}
 
 		// Initialize the service collection with the overrides, but only if the
 		// service was not instantiated in the meantime.

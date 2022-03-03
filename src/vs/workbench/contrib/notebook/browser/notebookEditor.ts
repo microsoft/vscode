@@ -4,42 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IErrorWithActions } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { extname, isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/notebook';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
-import { extname } from 'vs/base/common/resources';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInputCapabilities, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
-import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
-import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookKernelActionViewItem';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
+import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
+import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
-export class NotebookEditor extends EditorPane {
+export class NotebookEditor extends EditorPane implements IEditorPaneWithSelection {
 	static readonly ID: string = NOTEBOOK_EDITOR_ID;
 
 	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -60,6 +61,9 @@ export class NotebookEditor extends EditorPane {
 	private readonly _onDidChangeModel = this._register(new Emitter<void>());
 	readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
 
+	private readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
+	readonly onDidChangeSelection = this._onDidChangeSelection.event;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
@@ -68,7 +72,6 @@ export class NotebookEditor extends EditorPane {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@INotebookEditorService private readonly _notebookWidgetService: INotebookEditorService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly fileService: IFileService,
@@ -169,120 +172,145 @@ export class NotebookEditor extends EditorPane {
 	}
 
 	override async setInput(input: NotebookEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		clearMarks(input.resource);
-		mark(input.resource, 'startTime');
-		const group = this.group!;
+		try {
+			clearMarks(input.resource);
+			mark(input.resource, 'startTime');
+			const group = this.group!;
 
-		this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
+			this.inputListener.value = input.onDidChangeCapabilities(() => this.onDidChangeInputCapabilities(input));
 
-		this._widgetDisposableStore.clear();
+			this._widgetDisposableStore.clear();
 
-		// there currently is a widget which we still own so
-		// we need to hide it before getting a new widget
-		if (this._widget.value) {
-			this._widget.value.onWillHide();
-		}
-
-		this._widget = this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
-		this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
-
-		if (this._dimension) {
-			this._widget.value!.layout(this._dimension, this._rootElement);
-		}
-
-		// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
-		// so that others synchronously receive a notebook editor with the correct widget being set
-		await super.setInput(input, options, context, token);
-		const model = await input.resolve();
-		mark(input.resource, 'inputLoaded');
-
-		// Check for cancellation
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-
-		if (model === null) {
-			this._notificationService.prompt(
-				Severity.Error,
-				localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed or enabled.", input.viewType),
-				[{
-					label: localize('fail.reOpen', "Reopen file with VS Code standard text editor"),
-					run: async () => {
-						await this._editorService.openEditor({ resource: input.resource, options: { ...options, override: EditorResolution.DISABLED } });
-					}
-				}]
-			);
-			return;
-		}
-
-
-
-		const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
-
-		this._widget.value?.setParentContextKeyService(this._contextKeyService);
-		await this._widget.value!.setModel(model.notebook, viewState);
-		const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
-		await this._widget.value!.setOptions({ ...options, isReadOnly });
-		this._widgetDisposableStore.add(this._widget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
-		this._widgetDisposableStore.add(this._widget.value!.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
-
-		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
-			containsGroup: (group) => this.group?.id === group.id
-		}));
-
-		mark(input.resource, 'editorLoaded');
-
-		type WorkbenchNotebookOpenClassification = {
-			scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			extensionActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			inputLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-		};
-
-		type WorkbenchNotebookOpenEvent = {
-			scheme: string;
-			ext: string;
-			viewType: string;
-			extensionActivated: number;
-			inputLoaded: number;
-			webviewCommLoaded: number;
-			customMarkdownLoaded: number;
-			editorLoaded: number;
-		};
-
-		const perfMarks = getAndClearMarks(input.resource);
-
-		if (perfMarks) {
-			const startTime = perfMarks['startTime'];
-			const extensionActivated = perfMarks['extensionActivated'];
-			const inputLoaded = perfMarks['inputLoaded'];
-			const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
-			const editorLoaded = perfMarks['editorLoaded'];
-
-			if (
-				startTime !== undefined
-				&& extensionActivated !== undefined
-				&& inputLoaded !== undefined
-				&& customMarkdownLoaded !== undefined
-				&& editorLoaded !== undefined
-			) {
-				this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
-					scheme: model.notebook.uri.scheme,
-					ext: extname(model.notebook.uri),
-					viewType: model.notebook.viewType,
-					extensionActivated: extensionActivated - startTime,
-					inputLoaded: inputLoaded - startTime,
-					webviewCommLoaded: inputLoaded - startTime,
-					customMarkdownLoaded: customMarkdownLoaded - startTime,
-					editorLoaded: editorLoaded - startTime
-				});
-			} else {
-				console.warn(`notebook file open perf marks are broken: startTime ${startTime}, extensionActiviated ${extensionActivated}, inputLoaded ${inputLoaded}, customMarkdownLoaded ${customMarkdownLoaded}, editorLoaded ${editorLoaded}`);
+			// there currently is a widget which we still own so
+			// we need to hide it before getting a new widget
+			if (this._widget.value) {
+				this._widget.value.onWillHide();
 			}
+
+			this._widget = <IBorrowValue<NotebookEditorWidget>>this.instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, group, input);
+			this._widgetDisposableStore.add(this._widget.value!.onDidChangeModel(() => this._onDidChangeModel.fire()));
+			this._widgetDisposableStore.add(this._widget.value!.onDidChangeActiveCell(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.USER })));
+
+			if (this._dimension) {
+				this._widget.value!.layout(this._dimension, this._rootElement);
+			}
+
+			// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
+			// so that others synchronously receive a notebook editor with the correct widget being set
+			await super.setInput(input, options, context, token);
+			const model = await input.resolve();
+			mark(input.resource, 'inputLoaded');
+
+			// Check for cancellation
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			if (model === null) {
+				throw new Error(localize('fail.noEditor', "Cannot open resource with notebook editor type '{0}', please check if you have the right extension installed and enabled.", input.viewType));
+			}
+
+			this._widgetDisposableStore.add(model.notebook.onDidChangeContent(() => this._onDidChangeSelection.fire({ reason: EditorPaneSelectionChangeReason.EDIT })));
+
+			const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
+
+			this._widget.value?.setParentContextKeyService(this._contextKeyService);
+			await this._widget.value!.setModel(model.notebook, viewState);
+			const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
+			await this._widget.value!.setOptions({ ...options, isReadOnly });
+			this._widgetDisposableStore.add(this._widget.value!.onDidFocusWidget(() => this._onDidFocusWidget.fire()));
+			this._widgetDisposableStore.add(this._widget.value!.onDidBlurWidget(() => this._onDidBlurWidget.fire()));
+
+			this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
+				containsGroup: (group) => this.group?.id === group.id
+			}));
+
+			mark(input.resource, 'editorLoaded');
+
+			type WorkbenchNotebookOpenClassification = {
+				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				viewType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				extensionActivated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				inputLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				webviewCommLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				customMarkdownLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				editorLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			};
+
+			type WorkbenchNotebookOpenEvent = {
+				scheme: string;
+				ext: string;
+				viewType: string;
+				extensionActivated: number;
+				inputLoaded: number;
+				webviewCommLoaded: number;
+				customMarkdownLoaded: number;
+				editorLoaded: number;
+			};
+
+			const perfMarks = getAndClearMarks(input.resource);
+
+			if (perfMarks) {
+				const startTime = perfMarks['startTime'];
+				const extensionActivated = perfMarks['extensionActivated'];
+				const inputLoaded = perfMarks['inputLoaded'];
+				const customMarkdownLoaded = perfMarks['customMarkdownLoaded'];
+				const editorLoaded = perfMarks['editorLoaded'];
+
+				if (
+					startTime !== undefined
+					&& extensionActivated !== undefined
+					&& inputLoaded !== undefined
+					&& customMarkdownLoaded !== undefined
+					&& editorLoaded !== undefined
+				) {
+					this.telemetryService.publicLog2<WorkbenchNotebookOpenEvent, WorkbenchNotebookOpenClassification>('notebook/editorOpenPerf', {
+						scheme: model.notebook.uri.scheme,
+						ext: extname(model.notebook.uri),
+						viewType: model.notebook.viewType,
+						extensionActivated: extensionActivated - startTime,
+						inputLoaded: inputLoaded - startTime,
+						webviewCommLoaded: inputLoaded - startTime,
+						customMarkdownLoaded: customMarkdownLoaded - startTime,
+						editorLoaded: editorLoaded - startTime
+					});
+				} else {
+					console.warn(`notebook file open perf marks are broken: startTime ${startTime}, extensionActiviated ${extensionActivated}, inputLoaded ${inputLoaded}, customMarkdownLoaded ${customMarkdownLoaded}, editorLoaded ${editorLoaded}`);
+				}
+			}
+		} catch (e) {
+			const error: Error & IErrorWithActions = e instanceof Error ? e : new Error(e.message);
+			error.actions = [
+				toAction({
+					id: 'workbench.notebook.action.openInTextEditor', label: localize('notebookOpenInTextEditor', "Open in Text Editor"), run: async () => {
+						const activeEditorPane = this._editorService.activeEditorPane;
+						if (!activeEditorPane) {
+							return;
+						}
+
+						const activeEditorResource = EditorResourceAccessor.getCanonicalUri(activeEditorPane.input);
+						if (!activeEditorResource) {
+							return;
+						}
+
+						if (activeEditorResource.toString() === input.resource?.toString()) {
+							// Replace the current editor with the text editor
+							return this._editorService.openEditor({
+								resource: activeEditorResource,
+								options: {
+									override: DEFAULT_EDITOR_ASSOCIATION.id,
+									pinned: true // new file gets pinned by default
+								}
+							});
+						}
+
+						return;
+					}
+				})
+			];
+
+			throw error;
 		}
 	}
 
@@ -314,6 +342,17 @@ export class NotebookEditor extends EditorPane {
 
 		this._saveEditorViewState(input);
 		return this._loadNotebookEditorViewState(input);
+	}
+
+	getSelection(): IEditorPaneSelection | undefined {
+		if (this._widget.value) {
+			const cellUri = this._widget.value.getActiveCell()?.uri;
+			if (cellUri) {
+				return new NotebookEditorSelection(cellUri);
+			}
+		}
+
+		return undefined;
 	}
 
 
@@ -355,7 +394,7 @@ export class NotebookEditor extends EditorPane {
 			return;
 		}
 
-		if (this._input.resource.toString() !== this._widget.value.textModel?.uri.toString() && this._widget.value?.hasModel()) {
+		if (this._input.resource.toString() !== this.textModel?.uri.toString() && this._widget.value?.hasModel()) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document
@@ -383,4 +422,39 @@ export class NotebookEditor extends EditorPane {
 	// 		notebookHandle: this.viewModel?.handle
 	// 	};
 	// }
+}
+
+class NotebookEditorSelection implements IEditorPaneSelection {
+
+	constructor(
+		private readonly cellUri: URI
+	) { }
+
+	compare(other: IEditorPaneSelection): EditorPaneSelectionCompareResult {
+		if (!(other instanceof NotebookEditorSelection)) {
+			return EditorPaneSelectionCompareResult.DIFFERENT;
+		}
+
+		if (isEqual(this.cellUri, other.cellUri)) {
+			return EditorPaneSelectionCompareResult.IDENTICAL;
+		}
+
+		return EditorPaneSelectionCompareResult.DIFFERENT;
+	}
+
+	restore(options: IEditorOptions): INotebookEditorOptions {
+		const notebookOptions: INotebookEditorOptions = {
+			cellOptions: {
+				resource: this.cellUri
+			}
+		};
+
+		Object.assign(notebookOptions, options);
+
+		return notebookOptions;
+	}
+
+	log(): string {
+		return this.cellUri.fragment;
+	}
 }

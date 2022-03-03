@@ -15,7 +15,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
-import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges, CommentChanges } from '../common/extHost.protocol';
+import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
 import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -23,7 +23,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { localize } from 'vs/nls';
-import { MarshalledId, revive } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 
 
 export class MainThreadCommentThread implements languages.CommentThread {
@@ -139,25 +139,9 @@ export class MainThreadCommentThread implements languages.CommentThread {
 		if (modified('range')) { this._range = changes.range!; }
 		if (modified('label')) { this._label = changes.label; }
 		if (modified('contextValue')) { this._contextValue = changes.contextValue === null ? undefined : changes.contextValue; }
-		if (modified('comments')) { this._comments = this.commentsFromCommentChanges(changes.comments); }
+		if (modified('comments')) { this._comments = changes.comments; }
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
-	}
-
-	private commentsFromCommentChanges(comments?: CommentChanges[]): languages.Comment[] | undefined {
-		return comments?.map(comment => {
-			return {
-				body: comment.body,
-				uniqueIdInThread: comment.uniqueIdInThread,
-				userName: comment.userName,
-				commentReactions: comment.commentReactions,
-				contextValue: comment.contextValue,
-				timestamp: comment.timestamp ? <Date>revive<Date>(comment.timestamp) : undefined,
-				label: comment.label,
-				mode: comment.mode,
-				userIconPath: comment.userIconPath
-			};
-		});
 	}
 
 	dispose() {
@@ -425,8 +409,8 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptorById(COMMENTS_VIEW_ID);
 		if (!commentsPanelAlreadyConstructed) {
 			this.registerView(commentsPanelAlreadyConstructed);
-			this.registerViewOpenedListener(commentsPanelAlreadyConstructed);
 		}
+		this.registerViewListeners(commentsPanelAlreadyConstructed);
 		this._commentService.setWorkspaceComments(String(handle), []);
 	}
 
@@ -529,24 +513,22 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 	}
 
-	/**
-	 * If the comments view has never been opened, the constructor for it has not yet run so it has
-	 * no listeners for comment threads being set or updated. Listen for the view opening for the
-	 * first time and send it comments then.
-	 */
-	private registerViewOpenedListener(commentsPanelAlreadyConstructed: boolean) {
-		if (!commentsPanelAlreadyConstructed && !this._openViewListener) {
+	private setComments() {
+		[...this._commentControllers.keys()].forEach(handle => {
+			let threads = this._commentControllers.get(handle)!.getAllComments();
+
+			if (threads.length) {
+				const providerId = this.getHandler(handle);
+				this._commentService.setWorkspaceComments(providerId, threads);
+			}
+		});
+	}
+
+	private registerViewOpenedListener() {
+		if (!this._openViewListener) {
 			this._openViewListener = this._viewsService.onDidChangeViewVisibility(e => {
 				if (e.id === COMMENTS_VIEW_ID && e.visible) {
-					[...this._commentControllers.keys()].forEach(handle => {
-						let threads = this._commentControllers.get(handle)!.getAllComments();
-
-						if (threads.length) {
-							const providerId = this.getHandler(handle);
-							this._commentService.setWorkspaceComments(providerId, threads);
-						}
-					});
-
+					this.setComments();
 					if (this._openViewListener) {
 						this._openViewListener.dispose();
 						this._openViewListener = null;
@@ -554,6 +536,31 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 				}
 			});
 		}
+	}
+
+	/**
+	 * If the comments view has never been opened, the constructor for it has not yet run so it has
+	 * no listeners for comment threads being set or updated. Listen for the view opening for the
+	 * first time and send it comments then.
+	 */
+	private registerViewListeners(commentsPanelAlreadyConstructed: boolean) {
+		if (!commentsPanelAlreadyConstructed) {
+			this.registerViewOpenedListener();
+		}
+
+		this._register(this._viewDescriptorService.onDidChangeContainer(e => {
+			if (e.views.find(view => view.id === COMMENTS_VIEW_ID)) {
+				this.setComments();
+				this.registerViewOpenedListener();
+			}
+		}));
+		this._register(this._viewDescriptorService.onDidChangeContainerLocation(e => {
+			const commentsContainer = this._viewDescriptorService.getViewContainerByViewId(COMMENTS_VIEW_ID);
+			if (e.viewContainer.id === commentsContainer?.id) {
+				this.setComments();
+				this.registerViewOpenedListener();
+			}
+		}));
 	}
 
 	private getHandler(handle: number) {

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import * as languages from 'vs/editor/common/languages';
 import * as nls from 'vs/nls';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IAuthenticationService, AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent, addAccountUsage, readAccountUsages, removeAccountUsage, IAuthenticationProvider } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AllowedExtension, readAllowedExtensions, getAuthenticationProviderActivationEvent, addAccountUsage, readAccountUsages, removeAccountUsage } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -96,7 +96,7 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		quickPick.show();
 	}
 
-	async removeAccountSessions(accountName: string, sessions: languages.AuthenticationSession[]): Promise<void> {
+	async removeAccountSessions(accountName: string, sessions: AuthenticationSession[]): Promise<void> {
 		const accountUsages = readAccountUsages(this.storageService, this.id, accountName);
 
 		const result = await this.dialogService.show(
@@ -124,7 +124,7 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		return this._proxy.$getSessions(this.id, scopes);
 	}
 
-	createSession(scopes: string[]): Promise<languages.AuthenticationSession> {
+	createSession(scopes: string[]): Promise<AuthenticationSession> {
 		return this._proxy.$createSession(this.id, scopes);
 	}
 
@@ -175,7 +175,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id), ActivationKind.Immediate);
 	}
 
-	$sendDidChangeSessions(id: string, event: languages.AuthenticationSessionsChangeEvent): void {
+	$sendDidChangeSessions(id: string, event: AuthenticationSessionsChangeEvent): void {
 		this.authenticationService.sessionsUpdate(id, event);
 	}
 
@@ -205,7 +205,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	}
 
-	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<languages.AuthenticationSession | undefined> {
+	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const sessions = await this.authenticationService.getSessions(providerId, scopes, true);
 		const supportsMultipleAccounts = this.authenticationService.supportsMultipleAccounts(providerId);
 
@@ -268,7 +268,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return validSession;
 	}
 
-	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<languages.AuthenticationSession | undefined> {
+	async $getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const session = await this.doGetSession(providerId, scopes, extensionId, extensionName, options);
 
 		if (session) {

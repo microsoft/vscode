@@ -12,10 +12,9 @@ import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { DeserializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { getInstanceFromResource, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -267,7 +266,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return instance;
 	}
 
-	reviveInput(deserializedInput: DeserializedTerminalEditorInput): TerminalEditorInput {
+	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput {
 		const resource: URI = URI.isUri(deserializedInput) ? deserializedInput : deserializedInput.resource;
 		const inputKey = resource.path;
 
