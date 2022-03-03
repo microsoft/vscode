@@ -15,12 +15,12 @@ export interface IEditorTab {
 	label: string;
 	viewColumn: ViewColumn;
 	resource: vscode.Uri | undefined;
-	viewId: string | undefined;
+	viewType: string | undefined;
 	isActive: boolean;
 	isPinned: boolean;
 	kind: TabKind;
 	isDirty: boolean;
-	additionalResourcesAndViewIds: { resource: vscode.Uri | undefined; viewId: string | undefined }[];
+	additionalResourcesAndViewIds: { resource: vscode.Uri | undefined; viewType: string | undefined }[];
 	move(index: number, viewColumn: ViewColumn): Promise<void>;
 	close(): Promise<void>;
 }
@@ -98,8 +98,8 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			label: tabDto.label,
 			viewColumn: typeConverters.ViewColumn.to(tabDto.viewColumn),
 			resource: URI.revive(tabDto.resource),
-			additionalResourcesAndViewIds: tabDto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewId })),
-			viewId: tabDto.editorId,
+			additionalResourcesAndViewIds: tabDto.additionalResourcesAndViewIds.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewType: viewId })),
+			viewType: tabDto.editorId,
 			isActive: tabDto.isActive,
 			kind: tabDto.kind,
 			isDirty: tabDto.isDirty,
