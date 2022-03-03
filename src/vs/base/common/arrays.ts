@@ -390,6 +390,9 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	return result;
 }
 
+/**
+ * @deprecated Use `[].flat()`
+ */
 export function flatten<T>(arr: T[][]): T[] {
 	return (<T[]>[]).concat(...arr);
 }
