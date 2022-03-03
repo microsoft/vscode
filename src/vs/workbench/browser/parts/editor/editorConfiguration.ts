@@ -92,3 +92,53 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 		this.configurationRegistry.updateConfigurations({ add: [this.configurationNode], remove: oldConfigurationNode ? [oldConfigurationNode] : [] });
 	}
 }
+
+export class DefaultBinaryEditorConfiguration extends Disposable implements IWorkbenchContribution {
+
+	private configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	private configurationNode: IConfigurationNode | undefined;
+
+	constructor(
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@IExtensionService extensionService: IExtensionService,
+	) {
+		super();
+
+		// Editor configurations are getting updated very aggressively
+		// (atleast 20 times) while the extensions are getting registered.
+		// As such push out the default binary editor configuration
+		// until after extensions registered.
+		(async () => {
+			await extensionService.whenInstalledExtensionsRegistered();
+
+			this.updateConfiguration();
+			this.registerListeners();
+		})();
+	}
+
+	private registerListeners(): void {
+
+		// Registered editors
+		this._register(this.editorResolverService.onDidChangeEditorRegistrations(() => this.updateConfiguration()));
+	}
+
+	private updateConfiguration(): void {
+		// Get registered editors
+		const editorIds = this.editorResolverService.getEditors().filter(e => e.priority !== RegisteredEditorPriority.exclusive).map(editor => editor.id);
+
+		const oldConfigurationNode = this.configurationNode;
+		this.configurationNode = {
+			...workbenchConfigurationNodeBase,
+			properties: {
+				'workbench.editor.defaultBinaryEditor': {
+					type: 'string',
+					// This allows for intellisense autocompletion
+					enum: editorIds,
+					description: localize('workbench.editor.defaultBinaryEditor', "The default editor for files detected as binary. If undefined the user will be presented with a picker."),
+				}
+			}
+		};
+
+		this.configurationRegistry.updateConfigurations({ add: [this.configurationNode], remove: oldConfigurationNode ? [oldConfigurationNode] : [] });
+	}
+}
