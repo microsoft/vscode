@@ -13,7 +13,7 @@ import { IEditorResolverService, RegisteredEditorInfo, RegisteredEditorPriority 
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-export class DynamicEditorGroupAutoLockConfiguration extends Disposable implements IWorkbenchContribution {
+export class DynamicEditorResolverConfigurations extends Disposable implements IWorkbenchContribution {
 
 	private static readonly AUTO_LOCK_DEFAULT_ENABLED = new Set<string>(['terminalEditor']);
 
@@ -30,7 +30,8 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 	];
 
 	private configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	private configurationNode: IConfigurationNode | undefined;
+	private autoLockConfigurationNode: IConfigurationNode | undefined;
+	private defaultBinaryEditorConfigurationNode: IConfigurationNode | undefined;
 
 	constructor(
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
@@ -57,26 +58,27 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 	}
 
 	private updateConfiguration(): void {
-		const editors = [...this.editorResolverService.getEditors(), ...DynamicEditorGroupAutoLockConfiguration.AUTO_LOCK_EXTRA_EDITORS];
+		const lockableEditors = [...this.editorResolverService.getEditors(), ...DynamicEditorResolverConfigurations.AUTO_LOCK_EXTRA_EDITORS];
+		const binaryEditorCandidates = this.editorResolverService.getEditors().filter(e => e.priority !== RegisteredEditorPriority.exclusive).map(e => e.id);
 
 		// Build config from registered editors
 		const autoLockGroupConfiguration: IJSONSchemaMap = Object.create(null);
-		for (const editor of editors) {
+		for (const editor of lockableEditors) {
 			autoLockGroupConfiguration[editor.id] = {
 				type: 'boolean',
-				default: DynamicEditorGroupAutoLockConfiguration.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id),
+				default: DynamicEditorResolverConfigurations.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id),
 				description: editor.label
 			};
 		}
 
 		// Build default config too
 		const defaultAutoLockGroupConfiguration = Object.create(null);
-		for (const editor of editors) {
-			defaultAutoLockGroupConfiguration[editor.id] = DynamicEditorGroupAutoLockConfiguration.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id);
+		for (const editor of lockableEditors) {
+			defaultAutoLockGroupConfiguration[editor.id] = DynamicEditorResolverConfigurations.AUTO_LOCK_DEFAULT_ENABLED.has(editor.id);
 		}
 
-		const oldConfigurationNode = this.configurationNode;
-		this.configurationNode = {
+		const oldAutoLockConfigurationNode = this.autoLockConfigurationNode;
+		this.autoLockConfigurationNode = {
 			...workbenchConfigurationNodeBase,
 			properties: {
 				'workbench.editor.autoLockGroups': {
@@ -89,56 +91,20 @@ export class DynamicEditorGroupAutoLockConfiguration extends Disposable implemen
 			}
 		};
 
-		this.configurationRegistry.updateConfigurations({ add: [this.configurationNode], remove: oldConfigurationNode ? [oldConfigurationNode] : [] });
-	}
-}
-
-export class DefaultBinaryEditorConfiguration extends Disposable implements IWorkbenchContribution {
-
-	private configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-	private configurationNode: IConfigurationNode | undefined;
-
-	constructor(
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IExtensionService extensionService: IExtensionService,
-	) {
-		super();
-
-		// Editor configurations are getting updated very aggressively
-		// (atleast 20 times) while the extensions are getting registered.
-		// As such push out the default binary editor configuration
-		// until after extensions registered.
-		(async () => {
-			await extensionService.whenInstalledExtensionsRegistered();
-
-			this.updateConfiguration();
-			this.registerListeners();
-		})();
-	}
-
-	private registerListeners(): void {
-
-		// Registered editors
-		this._register(this.editorResolverService.onDidChangeEditorRegistrations(() => this.updateConfiguration()));
-	}
-
-	private updateConfiguration(): void {
-		// Get registered editors
-		const editorIds = this.editorResolverService.getEditors().filter(e => e.priority !== RegisteredEditorPriority.exclusive).map(editor => editor.id);
-
-		const oldConfigurationNode = this.configurationNode;
-		this.configurationNode = {
+		const oldDefaultBinaryEditorConfigurationNode = this.defaultBinaryEditorConfigurationNode;
+		this.defaultBinaryEditorConfigurationNode = {
 			...workbenchConfigurationNodeBase,
 			properties: {
 				'workbench.editor.defaultBinaryEditor': {
 					type: 'string',
 					// This allows for intellisense autocompletion
-					enum: editorIds,
+					enum: binaryEditorCandidates,
 					description: localize('workbench.editor.defaultBinaryEditor', "The default editor for files detected as binary. If undefined the user will be presented with a picker."),
 				}
 			}
 		};
 
-		this.configurationRegistry.updateConfigurations({ add: [this.configurationNode], remove: oldConfigurationNode ? [oldConfigurationNode] : [] });
+		this.configurationRegistry.updateConfigurations({ add: [this.autoLockConfigurationNode], remove: oldAutoLockConfigurationNode ? [oldAutoLockConfigurationNode] : [] });
+		this.configurationRegistry.updateConfigurations({ add: [this.defaultBinaryEditorConfigurationNode], remove: oldDefaultBinaryEditorConfigurationNode ? [oldDefaultBinaryEditorConfigurationNode] : [] });
 	}
 }
