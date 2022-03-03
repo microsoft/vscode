@@ -211,6 +211,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		for (const classes of element.classList) {
 			element.classList.remove(classes);
 		}
+		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 		if (exitCode === undefined) {
 			element.classList.add(DecorationSelector.DefaultColor);
 			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
