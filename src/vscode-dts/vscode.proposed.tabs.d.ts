@@ -46,7 +46,7 @@ declare module 'vscode' {
 		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
 		 * always be at index 0.
 		 */
-		readonly additionalResourcesAndViewIds: readonly {
+		readonly additionalResourcesAndViewTypes: readonly {
 			readonly resource: Uri | undefined;
 			readonly viewType: string | undefined;
 		}[];

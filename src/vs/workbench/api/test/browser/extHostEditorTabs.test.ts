@@ -39,7 +39,7 @@ suite('ExtHostEditorTabs', function () {
 			isPinned: true,
 			label: 'label1',
 			viewColumn: 0,
-			additionalResourcesAndViewIds: [],
+			additionalResourcesAndViewTypes: [],
 			kind: TabKind.Other
 		};
 
@@ -132,7 +132,7 @@ suite('ExtHostEditorTabs', function () {
 			resource: URI.parse('file://abc/def.txt'),
 			editorId: 'default',
 			viewColumn: 0,
-			additionalResourcesAndViewIds: [],
+			additionalResourcesAndViewTypes: [],
 			kind: TabKind.Singular
 		};
 
