@@ -79,7 +79,7 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 			.pipe(filter([
 				'**/*.node',
 				// Exclude these paths.
-				// This one doesn't include symbols so BinSkim can't run
+				// We don't build the prebuilt node files so we don't scan them
 				'!**/prebuilds/**/*.node',
 				// These are 3rd party modules that we should ignore
 				'!**/@parcel/watcher/**/*',
