@@ -55,6 +55,9 @@ export class WebviewThemeDataProvider extends Disposable {
 			const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
 			const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
 
+			const workbenchFontSize = this._configurationService.getValue<number>('workbench.fontSize');
+			const workbenchFontFamily = this._configurationService.getValue<string>('workbench.fontFamily');
+
 			const theme = this._themeService.getColorTheme();
 			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
 				const color = theme.getColor(entry.id);
@@ -65,9 +68,9 @@ export class WebviewThemeDataProvider extends Disposable {
 			}, {} as { [key: string]: string });
 
 			const styles = {
-				'vscode-font-family': DEFAULT_FONT_FAMILY,
+				'vscode-font-family': workbenchFontFamily,
 				'vscode-font-weight': 'normal',
-				'vscode-font-size': '13px',
+				'vscode-font-size': workbenchFontSize + 'px',
 				'vscode-editor-font-family': editorFontFamily,
 				'vscode-editor-font-weight': editorFontWeight,
 				'vscode-editor-font-size': editorFontSize + 'px',

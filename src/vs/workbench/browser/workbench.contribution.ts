@@ -12,6 +12,10 @@ import { isStandalone } from 'vs/base/browser/browser';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
+const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
+const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
+const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace';
+
 // Configuration
 (function registerConfiguration(): void {
 
@@ -353,6 +357,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.fontAliasing.auto', "Applies `default` or `antialiased` automatically based on the DPI of displays.")
 				],
 				'included': isMacintosh
+			},
+			'workbench.fontFamily': {
+				'type': 'string',
+				'default': isMacintosh ? DEFAULT_MAC_FONT_FAMILY : (isLinux ? DEFAULT_LINUX_FONT_FAMILY : DEFAULT_WINDOWS_FONT_FAMILY),
+				'description': localize('fontFamily', "Controls the font family.")
+			},
+			'workbench.fontSize': {
+				'type': 'number',
+				'minimum': 6,
+				'maximum': 100,
+				'default': isMacintosh ? 12 : 14,
+				'description': localize('fontSize', "Controls the font size.")
 			},
 			'workbench.settings.editor': {
 				'type': 'string',
