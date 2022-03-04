@@ -111,7 +111,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return undefined;
 			}
-		}, labelService, pathService.userHome().then(home => home.path), envVariablesPromise);
+		}, labelService, envVariablesPromise);
 	}
 
 	public override async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
