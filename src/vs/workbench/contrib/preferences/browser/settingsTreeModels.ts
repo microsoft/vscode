@@ -166,7 +166,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	private initLabels(): void {
-		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id);
+		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id, this.setting.isLanguageTagSetting);
 		this._displayLabel = displayKeyFormat.label;
 		this._displayCategory = displayKeyFormat.category;
 	}
@@ -258,6 +258,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			} else {
 				this.valueType = SettingValueType.Object;
 			}
+		} else if (this.setting.isLanguageTagSetting) {
+			this.valueType = SettingValueType.LanguageTag;
 		} else {
 			this.valueType = SettingValueType.Complex;
 		}
@@ -503,7 +505,7 @@ function sanitizeId(id: string): string {
 	return id.replace(/[\.\/]/, '_');
 }
 
-export function settingKeyToDisplayFormat(key: string, groupId = ''): { category: string; label: string } {
+export function settingKeyToDisplayFormat(key: string, groupId: string = '', isLanguageTagSetting: boolean = false): { category: string; label: string } {
 	const lastDotIdx = key.lastIndexOf('.');
 	let category = '';
 	if (lastDotIdx >= 0) {
@@ -514,6 +516,11 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 	groupId = groupId.replace(/\//g, '.');
 	category = trimCategoryForGroup(category, groupId);
 	category = wordifyKey(category);
+
+	if (isLanguageTagSetting) {
+		key = key.replace(/[\[\]]/g, '');
+		key = '$(bracket) ' + key;
+	}
 
 	const label = wordifyKey(key);
 	return { category, label };
