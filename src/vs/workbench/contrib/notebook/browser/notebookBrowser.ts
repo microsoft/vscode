@@ -255,7 +255,11 @@ export interface INotebookCellDecorationOptions {
 	gutterClassName?: string;
 	outputClassName?: string;
 	topClassName?: string;
-	overviewRuler?: string;
+	overviewRuler?: {
+		color: string;
+		includeModel: boolean;
+		includeOutput: boolean;
+	};
 }
 
 export interface INotebookDeltaDecoration {

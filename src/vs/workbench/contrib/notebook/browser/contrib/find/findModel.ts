@@ -442,7 +442,11 @@ export class FindModel extends Disposable {
 				ownerId: cellFindMatch.cell.handle,
 				handle: cellFindMatch.cell.handle,
 				options: {
-					overviewRuler: '#ffdf5d'
+					overviewRuler: {
+						color: '#ffdf5d',
+						includeModel: cellFindMatch.modelMatchCount > 0,
+						includeOutput: cellFindMatch.modelMatchCount < cellFindMatch.matches.length
+					}
 				}
 			};
 		}));

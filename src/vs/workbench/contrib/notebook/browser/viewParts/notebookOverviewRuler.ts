@@ -10,6 +10,7 @@ import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/n
 
 export class NotebookOverviewRuler extends Disposable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
+	private _lanes = 3;
 
 	constructor(readonly notebookEditor: INotebookEditorDelegate, container: HTMLElement) {
 		super();
@@ -22,7 +23,6 @@ export class NotebookOverviewRuler extends Disposable {
 		this._domNode.setPosition('relative');
 		this._domNode.setLayerHinting(true);
 		this._domNode.setContain('strict');
-		// this._domNode.setLeft(0);
 
 		container.appendChild(this._domNode.domNode);
 
@@ -52,7 +52,11 @@ export class NotebookOverviewRuler extends Disposable {
 
 	private _render(ctx: CanvasRenderingContext2D, width: number, height: number, scrollHeight: number, ratio: number) {
 		const viewModel = this.notebookEditor._getViewModel();
+		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
+		const laneWidth = width / this._lanes;
+
 		let currentFrom = 0;
+
 		if (viewModel) {
 			for (let i = 0; i < viewModel.viewCells.length; i++) {
 				const viewCell = viewModel.viewCells[i];
@@ -61,19 +65,24 @@ export class NotebookOverviewRuler extends Disposable {
 
 				const decoration = decorations.find(decoration => decoration.overviewRuler);
 				if (decoration && decoration.overviewRuler) {
-					const color = decoration.overviewRuler;
-					ctx.fillStyle = color;
-					ctx.fillRect(0, currentFrom, width, cellHeight);
+					const overviewRuler = decoration.overviewRuler;
+
+					if (overviewRuler.includeModel) {
+						ctx.fillStyle = overviewRuler.color;
+						const decorationHeight = (fontInfo.lineHeight / scrollHeight) * ratio * height;
+						ctx.fillRect(laneWidth, currentFrom, laneWidth, decorationHeight);
+					}
+
+					if (overviewRuler.includeOutput) {
+						ctx.fillStyle = overviewRuler.color;
+						const outputOffset = (viewCell.layoutInfo.editorHeight / scrollHeight) * ratio * height;
+						const decorationHeight = (fontInfo.lineHeight / scrollHeight) * ratio * height;
+						ctx.fillRect(laneWidth, currentFrom + outputOffset, laneWidth, decorationHeight);
+					}
 				}
 
 				currentFrom += cellHeight;
 			}
 		}
-
-		// ctx.fillStyle = '#f00';
-		// ctx.fillRect(0, 0, width * ratio, 100 * ratio);
-
-		// ctx.fillStyle = '#0f0';
-		// ctx.fillRect(0, 100 * ratio, width * ratio, 100 * ratio);
 	}
 }
