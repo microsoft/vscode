@@ -191,6 +191,10 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		// VSCode. As such we trust this languageId and use it if specific
 		if (e.languageId) {
 			candidateLanguageId = e.languageId;
+			if (this.input instanceof UntitledTextEditorInput) {
+				// High confidence guess, set the `hasLanguageSetExplicitly` flag to block future guessing
+				return this.input.model.setLanguageId(candidateLanguageId);
+			}
 		}
 
 		// A languageId was not provided, so the data comes from outside VSCode
