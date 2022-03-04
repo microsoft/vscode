@@ -111,6 +111,11 @@ declare module 'vscode' {
 		 */
 		onDidChangeTabGroup: Event<void>;
 
+		/**
+		 * An {@link Event} which fires when the active group changes.
+		 * Whether it be which group is active or its properties.
+		 */
+		onDidChangeActiveTabGroup: Event<TabGroup>;
 	}
 
 	interface TabGroup {

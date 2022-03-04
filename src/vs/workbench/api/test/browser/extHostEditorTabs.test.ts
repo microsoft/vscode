@@ -98,7 +98,7 @@ suite('ExtHostEditorTabs', function () {
 		);
 
 		let count = 0;
-		extHostEditorTabs.onDidChangeTabGroup(() => count++);
+		extHostEditorTabs.tabGroups.onDidChangeTabGroup(() => count++);
 
 
 		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 0);

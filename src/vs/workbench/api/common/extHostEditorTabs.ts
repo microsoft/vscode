@@ -35,7 +35,8 @@ export interface IEditorTabGroup {
 export interface IEditorTabGroups {
 	all: IEditorTabGroup[];
 	activeTabGroup: IEditorTabGroup | undefined;
-	onDidChangeTabGroup: Event<void>;
+	readonly onDidChangeTabGroup: Event<void>;
+	readonly onDidChangeActiveTabGroup: Event<IEditorTabGroup>;
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -50,12 +51,14 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	private readonly _proxy: MainThreadEditorTabsShape;
 
 	private readonly _onDidChangeTabGroup = new Emitter<void>();
-	readonly onDidChangeTabGroup: Event<void> = this._onDidChangeTabGroup.event;
+
+	private readonly _onDidChangeActiveTabGroup = new Emitter<IEditorTabGroup>();
 
 	private _tabGroups: IEditorTabGroups = {
 		all: [],
 		activeTabGroup: undefined,
-		onDidChangeTabGroup: this._onDidChangeTabGroup.event
+		onDidChangeTabGroup: this._onDidChangeTabGroup.event,
+		onDidChangeActiveTabGroup: this._onDidChangeActiveTabGroup.event
 	};
 
 	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
@@ -87,7 +90,12 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			// If the currrent group is active, set the active group to be that group.
 			// We must use the same object so we pull from the array to allow for reference equality
 			if (group.isActive) {
+				const oldActiveTabGroup = this._tabGroups.activeTabGroup;
 				this._tabGroups.activeTabGroup = this._tabGroups.all[this._tabGroups.all.length - 1];
+				// Diff the old and current active group to decide if we should fire a change event
+				if (this.groupDiff(oldActiveTabGroup, this._tabGroups.activeTabGroup)) {
+					this._onDidChangeActiveTabGroup.fire(this._tabGroups.activeTabGroup);
+				}
 			}
 		}
 		this._onDidChangeTabGroup.fire();
@@ -117,5 +125,70 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				return;
 			}
 		});
+	}
+
+	/**
+	 * Compares two groups determining if they're the same or different
+	 * @param group1 The first group to compare
+	 * @param group2 The second group to compare
+	 * @returns True if different, false otherwise
+	 */
+	private groupDiff(group1: IEditorTabGroup | undefined, group2: IEditorTabGroup | undefined): boolean {
+		if (group1 === group2) {
+			return false;
+		}
+		// They would be reference equal if both undefined so one is undefined and one isn't hence different
+		if (!group1 || !group2) {
+			return true;
+		}
+		if (group1.isActive !== group2.isActive
+			|| group1.viewColumn !== group2.viewColumn
+			|| group1.tabs.length !== group2.tabs.length
+		) {
+			return true;
+		}
+		for (let i = 0; i < group1.tabs.length; i++) {
+			if (this.tabDiff(group1.tabs[i], group2.tabs[i])) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Compares two tabs determining if they're the same or different
+	 * @param tab1 The first tab to compare
+	 * @param tab2 The second tab to compare
+	 * @returns True if different, false otherwise
+	 */
+	private tabDiff(tab1: IEditorTab | undefined, tab2: IEditorTab | undefined): boolean {
+		if (tab1 === tab2) {
+			return false;
+		}
+		// They would be reference equal if both undefined so one is undefined and one isn't therefore they're different
+		if (!tab1 || !tab2) {
+			return true;
+		}
+		if (tab1.label !== tab2.label
+			|| tab1.viewColumn !== tab2.viewColumn
+			|| tab1.resource?.toString() !== tab2.resource?.toString()
+			|| tab1.viewType !== tab2.viewType
+			|| tab1.isActive !== tab2.isActive
+			|| tab1.isPinned !== tab2.isPinned
+			|| tab1.isDirty !== tab2.isDirty
+			|| tab1.additionalResourcesAndViewTypes.length !== tab2.additionalResourcesAndViewTypes.length
+		) {
+			return true;
+		}
+		for (let i = 0; i < tab1.additionalResourcesAndViewTypes.length; i++) {
+			const tab1Resource = tab1.additionalResourcesAndViewTypes[i].resource;
+			const tab2Resource = tab2.additionalResourcesAndViewTypes[i].resource;
+			const tab1viewType = tab1.additionalResourcesAndViewTypes[i].viewType;
+			const tab2viewType = tab2.additionalResourcesAndViewTypes[i].viewType;
+			if (tab1Resource?.toString() !== tab2Resource?.toString() || tab1viewType !== tab2viewType) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
