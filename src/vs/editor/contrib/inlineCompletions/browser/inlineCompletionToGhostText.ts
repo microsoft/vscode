@@ -15,7 +15,16 @@ import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/br
  * A normalized inline completion is an inline completion with a defined range.
 */
 export interface NormalizedInlineCompletion extends InlineCompletion {
-	range: Range;
+	readonly range: Range;
+	readonly text: string;
+
+	readonly snippetInfo:
+	| {
+		snippet: string;
+		/* Could be different than the main range */
+		range: Range;
+	}
+	| undefined;
 }
 
 export function normalizedInlineCompletionsEquals(a: NormalizedInlineCompletion | undefined, b: NormalizedInlineCompletion | undefined): boolean {
@@ -76,7 +85,8 @@ export function inlineCompletionToGhostText(
 		inlineCompletion = {
 			range: rangeThatDoesNotReplaceIndentation,
 			text: suggestionWithoutIndentationChange,
-			command: inlineCompletion.command
+			command: inlineCompletion.command,
+			snippetInfo: undefined,
 		};
 	}
 

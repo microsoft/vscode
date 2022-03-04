@@ -35,7 +35,7 @@ suite('Inline Completions', () => {
 			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
-				result[option] = inlineCompletionToGhostText({ text: suggestion, range }, tempModel, option)?.render(cleanedText, true);
+				result[option] = inlineCompletionToGhostText({ text: suggestion, snippetInfo: undefined, range }, tempModel, option)?.render(cleanedText, true);
 			}
 
 			tempModel.dispose();

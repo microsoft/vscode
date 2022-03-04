@@ -127,116 +127,127 @@ function parseRegExp(pattern: string): string {
 		let previousSegmentWasGlobStar = false;
 		segments.forEach((segment, index) => {
 
-			// Globstar is special
+			// Treat globstar specially
 			if (segment === GLOBSTAR) {
 
 				// if we have more than one globstar after another, just ignore it
-				if (!previousSegmentWasGlobStar) {
-					regEx += starsToRegExp(2);
-					previousSegmentWasGlobStar = true;
+				if (previousSegmentWasGlobStar) {
+					return;
 				}
 
-				return;
+				regEx += starsToRegExp(2);
 			}
 
-			// States
-			let inBraces = false;
-			let braceVal = '';
+			// Anything else, not globstar
+			else {
 
-			let inBrackets = false;
-			let bracketVal = '';
+				// States
+				let inBraces = false;
+				let braceVal = '';
 
-			for (const char of segment) {
-				// Support brace expansion
-				if (char !== '}' && inBraces) {
-					braceVal += char;
-					continue;
+				let inBrackets = false;
+				let bracketVal = '';
+
+				for (const char of segment) {
+
+					// Support brace expansion
+					if (char !== '}' && inBraces) {
+						braceVal += char;
+						continue;
+					}
+
+					// Support brackets
+					if (inBrackets && (char !== ']' || !bracketVal) /* ] is literally only allowed as first character in brackets to match it */) {
+						let res: string;
+
+						// range operator
+						if (char === '-') {
+							res = char;
+						}
+
+						// negation operator (only valid on first index in bracket)
+						else if ((char === '^' || char === '!') && !bracketVal) {
+							res = '^';
+						}
+
+						// glob split matching is not allowed within character ranges
+						// see http://man7.org/linux/man-pages/man7/glob.7.html
+						else if (char === GLOB_SPLIT) {
+							res = '';
+						}
+
+						// anything else gets escaped
+						else {
+							res = escapeRegExpCharacters(char);
+						}
+
+						bracketVal += res;
+						continue;
+					}
+
+					switch (char) {
+						case '{':
+							inBraces = true;
+							continue;
+
+						case '[':
+							inBrackets = true;
+							continue;
+
+						case '}': {
+							const choices = splitGlobAware(braceVal, ',');
+
+							// Converts {foo,bar} => [foo|bar]
+							const braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
+
+							regEx += braceRegExp;
+
+							inBraces = false;
+							braceVal = '';
+
+							break;
+						}
+
+						case ']': {
+							regEx += ('[' + bracketVal + ']');
+
+							inBrackets = false;
+							bracketVal = '';
+
+							break;
+						}
+
+						case '?':
+							regEx += NO_PATH_REGEX; // 1 ? matches any single character except path separator (/ and \)
+							continue;
+
+						case '*':
+							regEx += starsToRegExp(1);
+							continue;
+
+						default:
+							regEx += escapeRegExpCharacters(char);
+					}
 				}
 
-				// Support brackets
-				if (inBrackets && (char !== ']' || !bracketVal) /* ] is literally only allowed as first character in brackets to match it */) {
-					let res: string;
-
-					// range operator
-					if (char === '-') {
-						res = char;
-					}
-
-					// negation operator (only valid on first index in bracket)
-					else if ((char === '^' || char === '!') && !bracketVal) {
-						res = '^';
-					}
-
-					// glob split matching is not allowed within character ranges
-					// see http://man7.org/linux/man-pages/man7/glob.7.html
-					else if (char === GLOB_SPLIT) {
-						res = '';
-					}
-
-					// anything else gets escaped
-					else {
-						res = escapeRegExpCharacters(char);
-					}
-
-					bracketVal += res;
-					continue;
-				}
-
-				switch (char) {
-					case '{':
-						inBraces = true;
-						continue;
-
-					case '[':
-						inBrackets = true;
-						continue;
-
-					case '}': {
-						const choices = splitGlobAware(braceVal, ',');
-
-						// Converts {foo,bar} => [foo|bar]
-						const braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
-
-						regEx += braceRegExp;
-
-						inBraces = false;
-						braceVal = '';
-
-						break;
-					}
-					case ']':
-						regEx += ('[' + bracketVal + ']');
-
-						inBrackets = false;
-						bracketVal = '';
-
-						break;
-
-
-					case '?':
-						regEx += NO_PATH_REGEX; // 1 ? matches any single character except path separator (/ and \)
-						continue;
-
-					case '*':
-						regEx += starsToRegExp(1);
-						continue;
-
-					default:
-						regEx += escapeRegExpCharacters(char);
+				// Tail: Add the slash we had split on if there is more to
+				// come and the remaining pattern is not a globstar
+				// For example if pattern: some/**/*.js we want the "/" after
+				// some to be included in the RegEx to prevent a folder called
+				// "something" to match as well.
+				if (
+					index < segments.length - 1 &&			// more segments to come after this
+					(
+						segments[index + 1] !== GLOBSTAR ||	// next segment is not **, or...
+						index + 2 < segments.length			// ...next segment is ** but there is more segments after that
+					)
+				) {
+					regEx += PATH_REGEX;
 				}
 			}
 
-			// Tail: Add the slash we had split on if there is more to come and the remaining pattern is not a globstar
-			// For example if pattern: some/**/*.js we want the "/" after some to be included in the RegEx to prevent
-			// a folder called "something" to match as well.
-			// However, if pattern: some/**, we tolerate that we also match on "something" because our globstar behaviour
-			// is to match 0-N segments.
-			if (index < segments.length - 1 && (segments[index + 1] !== GLOBSTAR || index + 2 < segments.length)) {
-				regEx += PATH_REGEX;
-			}
-
-			// reset state
-			previousSegmentWasGlobStar = false;
+			// update globstar state
+			previousSegmentWasGlobStar = (segment === GLOBSTAR);
 		});
 	}
 

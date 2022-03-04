@@ -93,7 +93,8 @@
 	display: block;
 }
 
-.monaco-split-view2.vertical .split-view-view .xterm.shell-integration {
+.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm,
+.integrated-terminal.shell-integration .xterm {
 	padding-left: 20px !important;
 }
 
@@ -160,15 +161,6 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.vertical .split-view-view:not(:first-child) {
 	border-top-width: 1px;
 	border-top-style: solid;
-}
-
-.monaco-workbench .pane-body.integrated-terminal.enable-ligatures {
-	font-variant-ligatures: normal;
-}
-
-
-.monaco-workbench .pane-body.integrated-terminal.disable-bold .xterm-bold {
-	font-weight: normal !important;
 }
 
 /* Use the default cursor when alt is active to help with clicking to move cursor */

@@ -27,6 +27,9 @@ import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelP
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { assertNever } from 'vs/base/common/types';
 
 export class InlineCompletionsModel
 	extends Disposable
@@ -416,7 +419,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commitCurrentCompletion(): void {
-		if (!this.ghostText) {
+		const ghostText = this.ghostText;
+		if (!ghostText || ghostText.isEmpty()) {
 			// No ghost text was shown for this completion.
 			// Thus, we don't want to commit anything.
 			return;
@@ -432,12 +436,23 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		// otherwise command args might get disposed.
 		const cache = this.cache.clearAndLeak();
 
-		this.editor.executeEdits(
-			'inlineSuggestion.accept',
-			[
-				EditOperation.replaceMove(completion.range, completion.text)
-			]
-		);
+		if (completion.snippetInfo) {
+			this.editor.executeEdits(
+				'inlineSuggestion.accept',
+				[
+					EditOperation.replaceMove(completion.range, '')
+				]
+			);
+			this.editor.setPosition(completion.snippetInfo.range.getStartPosition());
+			SnippetController2.get(this.editor)?.insert(completion.snippetInfo.snippet);
+		} else {
+			this.editor.executeEdits(
+				'inlineSuggestion.accept',
+				[
+					EditOperation.replaceMove(completion.range, completion.text)
+				]
+			);
+		}
 		if (completion.command) {
 			this.commandService
 				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
@@ -543,6 +558,8 @@ class CachedInlineCompletion {
 			sourceProvider: this.inlineCompletion.sourceProvider,
 			sourceInlineCompletions: this.inlineCompletion.sourceInlineCompletions,
 			sourceInlineCompletion: this.inlineCompletion.sourceInlineCompletion,
+			completeBracketPairs: this.inlineCompletion.completeBracketPairs,
+			snippetInfo: this.inlineCompletion.snippetInfo,
 		};
 	}
 }
@@ -623,8 +640,8 @@ export async function provideInlineCompletions(
 					continue;
 				}
 
-				const text =
-					languageConfigurationService && item.completeBracketPairs
+				const textOrSnippet =
+					languageConfigurationService && item.completeBracketPairs && typeof item.text === 'string'
 						? closeBrackets(
 							item.text,
 							range.getStartPosition(),
@@ -633,8 +650,31 @@ export async function provideInlineCompletions(
 						)
 						: item.text;
 
+				let text: string;
+				let snippetInfo: {
+					snippet: string;
+					/* Could be different than the main range */
+					range: Range;
+				}
+					| undefined;
+
+				if (typeof textOrSnippet === 'string') {
+					text = textOrSnippet;
+					snippetInfo = undefined;
+				} else if ('snippet' in textOrSnippet) {
+					const snippet = new SnippetParser().parse(textOrSnippet.snippet);
+					text = snippet.toString();
+					snippetInfo = {
+						snippet: textOrSnippet.snippet,
+						range: range
+					};
+				} else {
+					assertNever(textOrSnippet);
+				}
+
 				const trackedItem: TrackedInlineCompletion = ({
 					text,
+					snippetInfo,
 					range,
 					command: item.command,
 					sourceProvider: result.provider,
@@ -696,5 +736,6 @@ export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: No
 	return {
 		range: Range.fromPositions(start, end),
 		text: inlineCompletion.text.substr(commonPrefixLen, inlineCompletion.text.length - commonPrefixLen - commonSuffixLen),
+		snippetInfo: inlineCompletion.snippetInfo
 	};
 }

@@ -37,7 +37,7 @@ export class PluginManager extends Disposable {
 				return;
 			}
 			const newPlugins = this.readPlugins();
-			if (!arrays.equals(arrays.flatten(Array.from(this._plugins.values())), arrays.flatten(Array.from(newPlugins.values())), TypeScriptServerPlugin.equals)) {
+			if (!arrays.equals(Array.from(this._plugins.values()).flat(), Array.from(newPlugins.values()).flat(), TypeScriptServerPlugin.equals)) {
 				this._plugins = newPlugins;
 				this._onDidUpdatePlugins.fire(this);
 			}
@@ -48,7 +48,7 @@ export class PluginManager extends Disposable {
 		if (!this._plugins) {
 			this._plugins = this.readPlugins();
 		}
-		return arrays.flatten(Array.from(this._plugins.values()));
+		return Array.from(this._plugins.values()).flat();
 	}
 
 	private readonly _onDidUpdatePlugins = this._register(new vscode.EventEmitter<this>());

@@ -56,14 +56,14 @@ export class MainThreadEditorTabs {
 			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 			editorId,
 			kind: tabKind,
-			additionalResourcesAndViewIds: [],
+			additionalResourcesAndViewTypes: [],
 			isPinned: group.isSticky(editorIndex),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
-		tab.additionalResourcesAndViewIds.push({ resource: tab.resource, viewId: tab.editorId });
+		tab.additionalResourcesAndViewTypes.push({ resource: tab.resource, viewId: tab.editorId });
 		if (editor instanceof SideBySideEditorInput) {
-			tab.additionalResourcesAndViewIds.push({ resource: EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY }), viewId: editor.primary.editorId ?? editor.editorId });
+			tab.additionalResourcesAndViewTypes.push({ resource: EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY }), viewId: editor.primary.editorId ?? editor.editorId });
 		}
 		return tab;
 	}
@@ -76,14 +76,14 @@ export class MainThreadEditorTabs {
 			return {
 				options: { override: tab.editorId },
 				primary: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
-				secondary: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1].viewId } }
+				secondary: { resource: URI.revive(tab.additionalResourcesAndViewTypes[1].resource), options: { override: tab.additionalResourcesAndViewTypes[1].viewId } }
 			};
 		} else {
 			// Diff case
 			return {
 				options: { override: tab.editorId },
 				modified: { resource: URI.revive(tab.resource), options: { override: tab.editorId } },
-				original: { resource: URI.revive(tab.additionalResourcesAndViewIds[1].resource), options: { override: tab.additionalResourcesAndViewIds[1]?.viewId } }
+				original: { resource: URI.revive(tab.additionalResourcesAndViewTypes[1].resource), options: { override: tab.additionalResourcesAndViewTypes[1]?.viewId } }
 			};
 		}
 	}
