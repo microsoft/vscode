@@ -25,7 +25,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -43,7 +43,7 @@ import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/brow
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -109,6 +109,7 @@ export class SettingsEditor2 extends EditorPane {
 		'@tag:telemetry',
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,
+		`@${LANGUAGE_SETTING_TAG}`,
 		`@${FEATURE_SETTING_TAG}scm`,
 		`@${FEATURE_SETTING_TAG}explorer`,
 		`@${FEATURE_SETTING_TAG}search`,
@@ -173,7 +174,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
-	private pendingSettingUpdate: { key: string; value: any } | null = null;
+	private pendingSettingUpdate: { key: string; value: any; languageFilters: string[] | null } | null = null;
 
 	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel | null = null;
@@ -817,6 +818,9 @@ export class SettingsEditor2 extends EditorPane {
 				// the element was not found
 			}
 		}));
+		this._register(this.settingRenderers.onApplyLanguageFilter((lang: string) => {
+			this.focusSearch(`@${LANGUAGE_SETTING_TAG}${lang}`);
+		}));
 
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
 			container,
@@ -870,15 +874,18 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[], manualReset: boolean): void {
+		const parsedQuery = parseQuery(this.searchWidget.getValue());
+		const languageFilters = (parsedQuery && parsedQuery.languageFilters.length) ?
+			parsedQuery.languageFilters : null;
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
-			this.updateChangedSetting(key, value, manualReset);
+			this.updateChangedSetting(key, value, manualReset, languageFilters);
 		}
 
-		this.pendingSettingUpdate = { key, value };
+		this.pendingSettingUpdate = { key, value, languageFilters };
 		if (SettingsEditor2.shouldSettingUpdateFast(type)) {
-			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset));
+			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset, languageFilters));
 		} else {
-			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset));
+			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset, languageFilters));
 		}
 	}
 
@@ -948,21 +955,22 @@ export class SettingsEditor2 extends EditorPane {
 		return ancestors.reverse();
 	}
 
-	private updateChangedSetting(key: string, value: any, manualReset: boolean): Promise<void> {
+	private updateChangedSetting(key: string, value: any, manualReset: boolean, languageFilters: string[] | null): Promise<void> {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
 		const resource = URI.isUri(settingsTarget) ? settingsTarget : undefined;
 		const configurationTarget = <ConfigurationTarget>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget);
-		const overrides: IConfigurationOverrides = { resource };
+		const overrides: IConfigurationUpdateOverrides = { resource, overrideIdentifiers: languageFilters };
 
 		const configurationTargetIsWorkspace = configurationTarget === ConfigurationTarget.WORKSPACE || configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER;
 
-		const isManualReset = configurationTargetIsWorkspace ? manualReset : value === undefined;
+		const userPassedInManualReset = configurationTargetIsWorkspace || !!languageFilters?.length;
+		const isManualReset = userPassedInManualReset ? manualReset : value === undefined;
 
 		// If the user is changing the value back to the default, and we're not targeting a workspace scope, do a 'reset' instead
 		const inspected = this.configurationService.inspect(key, overrides);
-		if (!configurationTargetIsWorkspace && inspected.defaultValue === value) {
+		if (!userPassedInManualReset && inspected.defaultValue === value) {
 			value = undefined;
 		}
 
@@ -1098,7 +1106,7 @@ export class SettingsEditor2 extends EditorPane {
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, dividedGroups.extension || []));
 
 		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
-			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.configurationService);
+			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.viewState.languageFilters, this.configurationService);
 			if (configuredUntrustedWorkspaceSettings.length) {
 				resolvedSettingsRoot.children!.unshift({
 					id: 'workspaceTrust',
@@ -1266,6 +1274,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
 		this.viewState.idFilters = new Set<string>();
+		this.viewState.languageFilters = new Set<string>();
 		if (query) {
 			const parsedQuery = parseQuery(query);
 			query = parsedQuery.query;
@@ -1273,13 +1282,14 @@ export class SettingsEditor2 extends EditorPane {
 			parsedQuery.extensionFilters.forEach(extensionId => this.viewState.extensionFilters!.add(extensionId));
 			parsedQuery.featureFilters!.forEach(feature => this.viewState.featureFilters!.add(feature));
 			parsedQuery.idFilters!.forEach(id => this.viewState.idFilters!.add(id));
+			parsedQuery.languageFilters!.forEach(id => this.viewState.languageFilters!.add(id));
 		}
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
 		} else {
-			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size) {
+			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size || this.viewState.languageFilters.size) {
 				this.searchResultModel = this.createFilterModel();
 			} else {
 				this.searchResultModel = null;
