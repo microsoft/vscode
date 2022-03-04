@@ -168,7 +168,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		}
 
 		if (e.range.startLineNumber !== 1 || e.range.startColumn !== 1) {
-			return; // only when pasting into first line, first column (= empty document)
+			return; // document had existing content before the pasted text, don't override.
 		}
 
 		if (codeEditor.getOption(EditorOption.readOnly)) {
@@ -178,6 +178,11 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		const textModel = codeEditor.getModel();
 		if (!textModel) {
 			return; // require a live model
+		}
+
+		const pasteIsWholeContents = textModel.getLineCount() === e.range.endLineNumber && textModel.getLineMaxColumn(e.range.endLineNumber) === e.range.endColumn;
+		if (!pasteIsWholeContents) {
+			return; // document had existing content after the pasted text, don't override.
 		}
 
 		const currentLanguageId = textModel.getLanguageId();
