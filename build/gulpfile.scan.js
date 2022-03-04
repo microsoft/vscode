@@ -76,7 +76,14 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 
 	const exe = () => {
 		return gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**/*.node', '!**/prebuilds/**/*.node']))
+			.pipe(filter([
+				'**/*.node',
+				// Exclude these paths.
+				// This one doesn't include symbols so BinSkim can't run
+				'!**/prebuilds/**/*.node',
+				// These are 3rd party modules that we should ignore
+				'!**/@parcel/watcher/**/*',
+				'!**/native-is-elevated/**/*']))
 			.pipe(gulp.dest(destinationExe));
 	};
 
