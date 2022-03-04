@@ -5,15 +5,15 @@
 
 import * as browser from 'vs/base/browser/browser';
 import { createFastDomNode, FastDomNode } from 'vs/base/browser/fastDomNode';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-export class NotebookOverviewRuler extends Disposable {
+export class NotebookOverviewRuler extends Themable {
 	private readonly _domNode: FastDomNode<HTMLCanvasElement>;
 	private _lanes = 3;
 
-	constructor(readonly notebookEditor: INotebookEditorDelegate, container: HTMLElement) {
-		super();
+	constructor(readonly notebookEditor: INotebookEditorDelegate, container: HTMLElement, @IThemeService themeService: IThemeService) {
+		super(themeService);
 
 		container.style.position = 'absolute';
 		container.style.zIndex = '10';
@@ -68,13 +68,13 @@ export class NotebookOverviewRuler extends Disposable {
 					const overviewRuler = decoration.overviewRuler;
 
 					if (overviewRuler.includeModel) {
-						ctx.fillStyle = overviewRuler.color;
+						ctx.fillStyle = this.getColor(overviewRuler.color)?.toString() || '#000000';
 						const decorationHeight = (fontInfo.lineHeight / scrollHeight) * ratio * height;
 						ctx.fillRect(laneWidth, currentFrom, laneWidth, decorationHeight);
 					}
 
 					if (overviewRuler.includeOutput) {
-						ctx.fillStyle = overviewRuler.color;
+						ctx.fillStyle = this.getColor(overviewRuler.color)?.toString() || '#000000';
 						const outputOffset = (viewCell.layoutInfo.editorHeight / scrollHeight) * ratio * height;
 						const decorationHeight = (fontInfo.lineHeight / scrollHeight) * ratio * height;
 						ctx.fillRect(laneWidth, currentFrom + outputOffset, laneWidth, decorationHeight);

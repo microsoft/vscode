@@ -18,6 +18,7 @@ import { findFirstInSorted } from 'vs/base/common/arrays';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
+import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 
 
 export class FindModel extends Disposable {
@@ -443,7 +444,7 @@ export class FindModel extends Disposable {
 				handle: cellFindMatch.cell.handle,
 				options: {
 					overviewRuler: {
-						color: '#ffdf5d',
+						color: overviewRulerFindMatchForeground,
 						includeModel: cellFindMatch.modelMatchCount > 0,
 						includeOutput: cellFindMatch.modelMatchCount < cellFindMatch.matches.length
 					}
