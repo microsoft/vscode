@@ -123,11 +123,14 @@ suite('Glob', () => {
 
 		p = '**/.*';
 		assertGlobMatch(p, '.git');
+		assertGlobMatch(p, '/.git');
 		assertGlobMatch(p, '.hidden.txt');
 		assertNoGlobMatch(p, 'git');
 		assertNoGlobMatch(p, 'hidden.txt');
 		assertGlobMatch(p, 'path/.git');
 		assertGlobMatch(p, 'path/.hidden.txt');
+		assertGlobMatch(p, '/path/.git');
+		assertGlobMatch(p, '/path/.hidden.txt');
 		assertNoGlobMatch(p, 'path/git');
 		assertNoGlobMatch(p, 'pat.h/hidden.txt');
 
@@ -147,6 +150,8 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, 'hidden._txt');
 		assertGlobMatch(p, 'path/._git');
 		assertGlobMatch(p, 'path/._hidden.txt');
+		assertGlobMatch(p, '/path/._git');
+		assertGlobMatch(p, '/path/._hidden.txt');
 		assertNoGlobMatch(p, 'path/git');
 		assertNoGlobMatch(p, 'pat.h/hidden._txt');
 	});
@@ -206,6 +211,13 @@ suite('Glob', () => {
 		assertGlobMatch(p, 'a/node_modules/');
 		assertGlobMatch(p, 'node_modules/foo');
 		assertGlobMatch(p, 'foo/node_modules/foo/bar');
+
+		assertGlobMatch(p, '/node_modules');
+		assertGlobMatch(p, '/node_modules/');
+		assertGlobMatch(p, '/a/node_modules');
+		assertGlobMatch(p, '/a/node_modules/');
+		assertGlobMatch(p, '/node_modules/foo');
+		assertGlobMatch(p, '/foo/node_modules/foo/bar');
 	});
 
 	test('questionmark', () => {
@@ -229,6 +241,7 @@ suite('Glob', () => {
 		let p = '**/*.js';
 
 		assertGlobMatch(p, 'foo.js');
+		assertGlobMatch(p, '/foo.js');
 		assertGlobMatch(p, 'folder/foo.js');
 		assertGlobMatch(p, '/node_modules/foo.js');
 		assertNoGlobMatch(p, 'foo.jss');
@@ -241,6 +254,7 @@ suite('Glob', () => {
 		assertGlobMatch(p, 'project.json');
 		assertGlobMatch(p, '/project.json');
 		assertGlobMatch(p, 'some/folder/project.json');
+		assertGlobMatch(p, '/some/folder/project.json');
 		assertNoGlobMatch(p, 'some/folder/file_project.json');
 		assertNoGlobMatch(p, 'some/folder/fileproject.json');
 		assertNoGlobMatch(p, 'some/rrproject.json');
@@ -248,13 +262,17 @@ suite('Glob', () => {
 
 		p = 'test/**';
 		assertGlobMatch(p, 'test');
+		assertGlobMatch(p, 'test/foo');
+		assertGlobMatch(p, 'test/foo/');
 		assertGlobMatch(p, 'test/foo.js');
 		assertGlobMatch(p, 'test/other/foo.js');
 		assertNoGlobMatch(p, 'est/other/foo.js');
 
 		p = '**';
+		assertGlobMatch(p, '/');
 		assertGlobMatch(p, 'foo.js');
 		assertGlobMatch(p, 'folder/foo.js');
+		assertGlobMatch(p, 'folder/foo/');
 		assertGlobMatch(p, '/node_modules/foo.js');
 		assertGlobMatch(p, 'foo.jss');
 		assertGlobMatch(p, 'some.js/test');
@@ -270,6 +288,7 @@ suite('Glob', () => {
 		p = '**/**/*.js';
 
 		assertGlobMatch(p, 'foo.js');
+		assertGlobMatch(p, '/foo.js');
 		assertGlobMatch(p, 'folder/foo.js');
 		assertGlobMatch(p, '/node_modules/foo.js');
 		assertNoGlobMatch(p, 'foo.jss');
@@ -280,7 +299,9 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, 'foo.js');
 		assertNoGlobMatch(p, 'folder/foo.js');
 		assertGlobMatch(p, 'node_modules/foo.js');
+		assertGlobMatch(p, '/node_modules/foo.js');
 		assertGlobMatch(p, 'node_modules/some/folder/foo.js');
+		assertGlobMatch(p, '/node_modules/some/folder/foo.js');
 		assertNoGlobMatch(p, 'node_modules/some/folder/foo.ts');
 		assertNoGlobMatch(p, 'foo.jss');
 		assertNoGlobMatch(p, 'some.js/test');
@@ -292,6 +313,8 @@ suite('Glob', () => {
 		assertGlobMatch(p, '/node_modules/more');
 		assertGlobMatch(p, 'some/test/node_modules');
 		assertGlobMatch(p, 'some\\test\\node_modules');
+		assertGlobMatch(p, '/some/test/node_modules');
+		assertGlobMatch(p, '\\some\\test\\node_modules');
 		assertGlobMatch(p, 'C:\\\\some\\test\\node_modules');
 		assertGlobMatch(p, 'C:\\\\some\\test\\node_modules\\more');
 
@@ -300,6 +323,8 @@ suite('Glob', () => {
 		assertGlobMatch(p, '/bower_components');
 		assertGlobMatch(p, 'some/test/bower_components');
 		assertGlobMatch(p, 'some\\test\\bower_components');
+		assertGlobMatch(p, '/some/test/bower_components');
+		assertGlobMatch(p, '\\some\\test\\bower_components');
 		assertGlobMatch(p, 'C:\\\\some\\test\\bower_components');
 		assertGlobMatch(p, 'C:\\\\some\\test\\bower_components\\more');
 
@@ -307,12 +332,16 @@ suite('Glob', () => {
 		assertGlobMatch(p, '/.git');
 		assertGlobMatch(p, 'some/test/.git');
 		assertGlobMatch(p, 'some\\test\\.git');
+		assertGlobMatch(p, '/some/test/.git');
+		assertGlobMatch(p, '\\some\\test\\.git');
 		assertGlobMatch(p, 'C:\\\\some\\test\\.git');
 
 		assertNoGlobMatch(p, 'tempting');
 		assertNoGlobMatch(p, '/tempting');
 		assertNoGlobMatch(p, 'some/test/tempting');
 		assertNoGlobMatch(p, 'some\\test\\tempting');
+		assertNoGlobMatch(p, '/some/test/tempting');
+		assertNoGlobMatch(p, '\\some\\test\\tempting');
 		assertNoGlobMatch(p, 'C:\\\\some\\test\\tempting');
 
 		p = '{**/package.json,**/project.json}';
@@ -370,14 +399,23 @@ suite('Glob', () => {
 		assertGlobMatch(p, 'test/bar');
 		assertGlobMatch(p, 'other/more/foo');
 		assertGlobMatch(p, 'other/more/bar');
+		assertGlobMatch(p, '/foo');
+		assertGlobMatch(p, '/bar');
+		assertGlobMatch(p, '/test/foo');
+		assertGlobMatch(p, '/test/bar');
+		assertGlobMatch(p, '/other/more/foo');
+		assertGlobMatch(p, '/other/more/bar');
 
 		p = '{foo,bar}/**';
 		assertGlobMatch(p, 'foo');
 		assertGlobMatch(p, 'bar');
+		assertGlobMatch(p, 'bar/');
 		assertGlobMatch(p, 'foo/test');
 		assertGlobMatch(p, 'bar/test');
+		assertGlobMatch(p, 'bar/test/');
 		assertGlobMatch(p, 'foo/other/more');
 		assertGlobMatch(p, 'bar/other/more');
+		assertGlobMatch(p, 'bar/other/more/');
 
 		p = '{**/*.d.ts,**/*.js}';
 
@@ -543,12 +581,10 @@ suite('Glob', () => {
 
 	test('full path', function () {
 		assertGlobMatch('testing/this/foo.txt', 'testing/this/foo.txt');
-		// assertGlobMatch('testing/this/foo.txt', 'testing\\this\\foo.txt');
 	});
 
 	test('ending path', function () {
 		assertGlobMatch('**/testing/this/foo.txt', 'some/path/testing/this/foo.txt');
-		// assertGlobMatch('**/testing/this/foo.txt', 'some\\path\\testing\\this\\foo.txt');
 	});
 
 	test('prefix agnostic', function () {

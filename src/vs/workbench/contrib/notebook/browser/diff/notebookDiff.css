@@ -282,6 +282,10 @@
 	color: inherit;
 }
 
+.monaco-workbench .notebook-text-diff-editor .output-view-container .output-view-container-metadata {
+	position: relative;
+}
+
 /* Diff decorations */
 
 .notebook-text-diff-editor .cell-body .codicon-diff-remove,
