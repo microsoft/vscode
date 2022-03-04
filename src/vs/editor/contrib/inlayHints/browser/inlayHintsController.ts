@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -14,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ClassNameReference, CssProperties, DynamicCssRules } from 'vs/editor/browser/editorDom';
 import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import * as languages from 'vs/editor/common/languages';
@@ -245,24 +247,23 @@ export class InlayHintsController implements IEditorContribution {
 			labelPart.item.resolve(cts.token);
 
 			// render link => when the modifier is pressed and when there is a command or location
-			if ((labelPart.part.command || labelPart.part.location)) {
+			this._activeInlayHintPart = labelPart.part.command || labelPart.part.location
+				? new ActiveInlayHintInfo(labelPart, mouseEvent.hasTriggerModifier)
+				: undefined;
 
-				this._activeInlayHintPart = new ActiveInlayHintInfo(labelPart, mouseEvent.hasTriggerModifier);
-
-				const lineNumber = labelPart.item.hint.position.lineNumber;
-				const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
-				const lineHints = new Set<InlayHintItem>();
-				for (const data of this._decorationsMetadata.values()) {
-					if (range.containsRange(data.item.anchor.range)) {
-						lineHints.add(data.item);
-					}
+			const lineNumber = labelPart.item.hint.position.lineNumber;
+			const range = new Range(lineNumber, 1, lineNumber, model.getLineMaxColumn(lineNumber));
+			const lineHints = new Set<InlayHintItem>();
+			for (const data of this._decorationsMetadata.values()) {
+				if (range.containsRange(data.item.anchor.range)) {
+					lineHints.add(data.item);
 				}
-				this._updateHintsDecorators([range], Array.from(lineHints));
-				sessionStore.add(toDisposable(() => {
-					this._activeInlayHintPart = undefined;
-					this._updateHintsDecorators([range], Array.from(lineHints));
-				}));
 			}
+			this._updateHintsDecorators([range], Array.from(lineHints));
+			sessionStore.add(toDisposable(() => {
+				this._activeInlayHintPart = undefined;
+				this._updateHintsDecorators([range], Array.from(lineHints));
+			}));
 		}));
 		store.add(gesture.onCancel(() => sessionStore.clear()));
 		store.add(gesture.onExecute(async e => {
@@ -292,8 +293,9 @@ export class InlayHintsController implements IEditorContribution {
 			}
 			e.event.preventDefault();
 			await part.item.resolve(CancellationToken.None);
-			if (part.item.hint.command) {
-				await this._invokeCommand(part.item.hint.command, part.item);
+			if (isNonEmptyArray(part.item.hint.textEdits)) {
+				const edits = part.item.hint.textEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text));
+				this._editor.executeEdits('inlayHint.default', edits);
 			}
 		});
 	}
@@ -434,6 +436,10 @@ export class InlayHintsController implements IEditorContribution {
 					fontFamily: `var(${fontFamilyVar}), ${EDITOR_FONT_DEFAULTS.fontFamily}`,
 					verticalAlign: 'middle',
 				};
+
+				if (isNonEmptyArray(item.hint.textEdits)) {
+					cssProperties.cursor = 'default';
+				}
 
 				this._fillInColors(cssProperties, item.hint);
 

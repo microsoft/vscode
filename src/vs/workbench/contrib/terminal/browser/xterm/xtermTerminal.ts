@@ -58,6 +58,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	// Always on addons
 	private _commandTrackerAddon: CommandTrackerAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
+	private _decorationAddon: DecorationAddon | undefined;
 
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
@@ -146,6 +147,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.add(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
 				this._updateTheme();
+				this._decorationAddon?.refreshLayouts();
 			}
 		}));
 
@@ -155,9 +157,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._commandTrackerAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		const decorationAddon = this._instantiationService.createInstance(DecorationAddon, capabilities);
-		decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
-		this.raw.loadAddon(decorationAddon);
+		if (this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) && this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
+			this._createDecorationAddon(capabilities);
+		}
+	}
+	private _createDecorationAddon(capabilities: ITerminalCapabilityStore): void {
+		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, capabilities);
+		this._decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
+		this.raw.loadAddon(this._decorationAddon);
 	}
 
 	attachToElement(container: HTMLElement) {
@@ -205,6 +212,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	forceRedraw() {
 		this._webglAddon?.clearTextureAtlas();
 		this.raw.clearTextureAtlas();
+	}
+
+	clearDecorations(): void {
+		this._decorationAddon?.clearDecorations(true);
 	}
 
 
@@ -305,6 +316,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	clearBuffer(): void {
 		this.raw.clear();
+		// hack so that the next placeholder shows
+		this._decorationAddon?.registerCommandDecoration({ marker: this.raw.registerMarker(0), hasOutput: false, timestamp: Date.now(), getOutput: () => { return undefined; }, command: '' }, true);
 	}
 
 	private _setCursorBlink(blink: boolean): void {

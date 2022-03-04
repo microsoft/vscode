@@ -32,7 +32,7 @@ const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryOptOutStorageKey = 'workbench.telemetryOptOutShown';
 
-export class WelcomePageContribution implements IWorkbenchContribution {
+export class StartupPageContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -62,7 +62,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			&& !this.storageService.get(telemetryOptOutStorageKey, StorageScope.GLOBAL)
 		) {
 			this.storageService.store(telemetryOptOutStorageKey, true, StorageScope.GLOBAL, StorageTarget.USER);
-			await this.openWelcome(true);
+			await this.openGettingStarted(true);
 			return;
 		}
 
@@ -70,7 +70,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			return;
 		}
 
-		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService, this.environmentService);
+		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
@@ -87,7 +87,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 				if (openWithReadme) {
 					await this.openReadme();
 				} else {
-					await this.openWelcome();
+					await this.openGettingStarted();
 				}
 			}
 		}
@@ -134,12 +134,12 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
 				]);
 			} else {
-				await this.openWelcome();
+				await this.openGettingStarted();
 			}
 		}
 	}
 
-	private async openWelcome(showTelemetryNotice?: boolean) {
+	private async openGettingStarted(showTelemetryNotice?: boolean) {
 		const startupEditorTypeID = gettingStartedInputTypeId;
 		const editor = this.editorService.activeEditor;
 
@@ -155,7 +155,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 }
 
-function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
+function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
 	if (environmentService.skipWelcome) {
 		return false;
 	}

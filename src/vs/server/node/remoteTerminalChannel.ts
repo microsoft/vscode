@@ -236,7 +236,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		};
 		const cliServer = new CLIServerBase(commandsExecuter, this._logService, ipcHandlePath);
 
-		const id = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, false, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
+		const id = await this._ptyService.createProcess(shellLaunchConfig, initialCwd, args.cols, args.rows, args.unicodeVersion, env, baseEnv, args.options, args.shouldPersistTerminal, args.workspaceId, args.workspaceName);
 		this._ptyService.onProcessExit(e => e.id === id && cliServer.dispose());
 
 		return {

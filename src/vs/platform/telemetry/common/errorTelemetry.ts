@@ -84,6 +84,11 @@ export default abstract class BaseErrorTelemetry {
 			err = err.detail;
 		}
 
+		// If it's the no telemetry error it doesn't get logged
+		if (err instanceof Errors.ErrorNoTelemetry) {
+			return;
+		}
+
 		// work around behavior in workerServer.ts that breaks up Error.stack
 		let callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
 		let msg = err.message ? err.message : safeStringify(err);

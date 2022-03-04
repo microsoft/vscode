@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+//@ts-check
+
 const path = require('path');
 const fse = require('fs-extra');
 const esbuild = require('esbuild');
@@ -32,9 +34,17 @@ esbuild.build({
 }).catch(() => process.exit(1));
 
 fse.copySync(
-	path.join(__dirname, 'node_modules/katex/dist/katex.min.css'),
+	path.join(__dirname, 'node_modules', 'katex', 'dist', 'katex.min.css'),
 	path.join(outDir, 'katex.min.css'));
 
-fse.copySync(
-	path.join(__dirname, 'node_modules/katex/dist/fonts'),
-	path.join(outDir, 'fonts/'));
+
+const fontsDir = path.join(__dirname, 'node_modules', 'katex', 'dist', 'fonts');
+const fontsOutDir = path.join(outDir, 'fonts/');
+
+fse.mkdirSync(fontsOutDir, { recursive: true });
+
+for (const file of fse.readdirSync(fontsDir)) {
+	if (file.endsWith('.woff2')) {
+		fse.copyFileSync(path.join(fontsDir, file), path.join(fontsOutDir, file));
+	}
+}

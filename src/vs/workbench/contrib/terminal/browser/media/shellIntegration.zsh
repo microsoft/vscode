@@ -2,8 +2,18 @@
 #   Copyright (c) Microsoft Corporation. All rights reserved.
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
-
 autoload -Uz add-zsh-hook
+
+if [ -f ~/.zshenv ]; then
+	. ~/.zshenv
+fi
+if [[ -o "login" &&  -f ~/.zprofile ]]; then
+	. ~/.zprofile
+fi
+if [ -f ~/.zshrc ]; then
+	. ~/.zshrc
+fi
+unset ZDOTDIR # ensure ~/.zlogout runs as expected
 
 IN_COMMAND_EXECUTION="1"
 LAST_HISTORY_ID=0
@@ -76,7 +86,7 @@ add-zsh-hook preexec preexec
 
 # Show the welcome message
 if [ -z "${VSCODE_SHELL_HIDE_WELCOME-}" ]; then
-	echo "\033[1;32mShell integration activated!\033[0m"
+	echo "\033[1;32mShell integration activated\033[0m"
 else
 	VSCODE_SHELL_HIDE_WELCOME=""
 fi

@@ -5,7 +5,7 @@
 
 import { PixelRatio } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
-import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveMerger } from 'vs/base/browser/globalMouseMoveMonitor';
+import { GlobalPointerMoveMonitor, standardPointerMoveMerger } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color, HSVA, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -134,7 +134,7 @@ class SaturationBox extends Disposable {
 	private width!: number;
 	private height!: number;
 
-	private monitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData> | null;
+	private monitor: GlobalPointerMoveMonitor | null;
 	private readonly _onDidChange = new Emitter<{ s: number; v: number }>();
 	readonly onDidChange: Event<{ s: number; v: number }> = this._onDidChange.event;
 
@@ -158,24 +158,27 @@ class SaturationBox extends Disposable {
 
 		this.layout();
 
-		this._register(dom.addDisposableGenericMouseDownListener(this.domNode, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
 		this._register(this.model.onDidChangeColor(this.onDidChangeColor, this));
 		this.monitor = null;
 	}
 
-	private onMouseDown(e: MouseEvent): void {
-		this.monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+	private onPointerDown(e: PointerEvent): void {
+		if (!e.target || !(e.target instanceof Element)) {
+			return;
+		}
+		this.monitor = this._register(new GlobalPointerMoveMonitor());
 		const origin = dom.getDomNodePagePosition(this.domNode);
 
 		if (e.target !== this.selection) {
 			this.onDidChangePosition(e.offsetX, e.offsetY);
 		}
 
-		this.monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
+		this.monitor.startMonitoring(e.target, e.pointerId, e.buttons, standardPointerMoveMerger, event => this.onDidChangePosition(event.pageX - origin.left, event.pageY - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableGenericMouseUpListener(document, () => {
+		const pointerUpListener = dom.addDisposableListener(document, dom.EventType.POINTER_UP, () => {
 			this._onColorFlushed.fire();
-			mouseUpListener.dispose();
+			pointerUpListener.dispose();
 			if (this.monitor) {
 				this.monitor.stopMonitoring(true);
 				this.monitor = null;
@@ -258,7 +261,7 @@ abstract class Strip extends Disposable {
 		this.slider = dom.append(this.domNode, $('.slider'));
 		this.slider.style.top = `0px`;
 
-		this._register(dom.addDisposableGenericMouseDownListener(this.domNode, e => this.onMouseDown(e)));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
 		this.layout();
 	}
 
@@ -269,8 +272,11 @@ abstract class Strip extends Disposable {
 		this.updateSliderPosition(value);
 	}
 
-	private onMouseDown(e: MouseEvent): void {
-		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
+	private onPointerDown(e: PointerEvent): void {
+		if (!e.target || !(e.target instanceof Element)) {
+			return;
+		}
+		const monitor = this._register(new GlobalPointerMoveMonitor());
 		const origin = dom.getDomNodePagePosition(this.domNode);
 		this.domNode.classList.add('grabbing');
 
@@ -278,11 +284,11 @@ abstract class Strip extends Disposable {
 			this.onDidChangeTop(e.offsetY);
 		}
 
-		monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
+		monitor.startMonitoring(e.target, e.pointerId, e.buttons, standardPointerMoveMerger, event => this.onDidChangeTop(event.pageY - origin.top), () => null);
 
-		const mouseUpListener = dom.addDisposableGenericMouseUpListener(document, () => {
+		const pointerUpListener = dom.addDisposableListener(document, dom.EventType.POINTER_UP, () => {
 			this._onColorFlushed.fire();
-			mouseUpListener.dispose();
+			pointerUpListener.dispose();
 			monitor.stopMonitoring(true);
 			this.domNode.classList.remove('grabbing');
 		}, true);

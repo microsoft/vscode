@@ -671,7 +671,7 @@ export class RawDebugSession implements IDisposable {
 				let value = match[2];
 
 				if ((key === 'file-uri' || key === 'folder-uri') && !isUri(arg.path)) {
-					value = URI.file(value).toString();
+					value = isUri(value) ? value : URI.file(value).toString();
 				}
 				args.push(`--${key}=${value}`);
 			} else {

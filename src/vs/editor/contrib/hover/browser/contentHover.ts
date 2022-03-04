@@ -171,6 +171,10 @@ export class ContentHoverController extends Disposable {
 		return this._widget.isColorPickerVisible;
 	}
 
+	public containsNode(node: Node): boolean {
+		return this._widget.getDomNode().contains(node);
+	}
+
 	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
 		if (this._computer.anchor) {
 			for (const participant of this._participants) {

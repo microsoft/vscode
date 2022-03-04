@@ -540,7 +540,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.EditorContrib - 1000,
 	handler(accessor: ServicesAccessor) {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
-		layoutService.toggleZenMode();
+		const contextKeyService = accessor.get(IContextKeyService);
+		if (InEditorZenModeContext.getValue(contextKeyService)) {
+			layoutService.toggleZenMode();
+		}
 	},
 	when: InEditorZenModeContext,
 	primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
@@ -1260,7 +1263,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 					quickPick.activeItems = quickPick.items.filter(item => (item as CustomizeLayoutItem).id === selectedItem?.id) as IQuickPickItem[];
 				}
 
-				quickInputService.focus();
+				setTimeout(() => quickInputService.focus(), 0);
 			}
 		}));
 

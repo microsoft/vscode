@@ -329,7 +329,7 @@ export class TerminalLinkManager extends DisposableStore {
 			uri = nls.localize('followLinkUrl', 'Link');
 		}
 
-		return markdown.appendMarkdown(`[${label}](${uri}) (${clickLabel})`);
+		return markdown.appendLink(uri, label).appendMarkdown(` (${clickLabel})`);
 	}
 
 	private get _osPath(): IPath {

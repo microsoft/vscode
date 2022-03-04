@@ -109,7 +109,7 @@ export function createModelServices(disposables: DisposableStore, services: Serv
 	define(ILanguageFeaturesService, LanguageFeaturesService);
 	define(IModelService, ModelService);
 
-	const instantiationService = new TestInstantiationService(services);
+	const instantiationService = new TestInstantiationService(services, true);
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = services.get(id);
