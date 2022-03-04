@@ -150,4 +150,65 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(first.activeTab, first.tabs[0]);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, first);
 	});
+
+	test('onDidChangeActiveTabGroup fires properly', function () {
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		let count = 0;
+		let activeTabGroupFromEvent: IEditorTabGroup | undefined = undefined;
+		extHostEditorTabs.tabGroups.onDidChangeActiveTabGroup((tabGroup) => {
+			count++;
+			activeTabGroupFromEvent = tabGroup;
+		});
+
+
+		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 0);
+		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, undefined);
+		assert.strictEqual(count, 0);
+		const tabModel = [{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [],
+			activeTab: undefined
+		}];
+		extHostEditorTabs.$acceptEditorTabModel(tabModel);
+		assert.ok(extHostEditorTabs.tabGroups.activeTabGroup);
+		let activeTabGroup: IEditorTabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
+		assert.strictEqual(count, 1);
+		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
+		// Firing again with same model shouldn't cause a change
+		extHostEditorTabs.$acceptEditorTabModel(tabModel);
+		assert.strictEqual(count, 1);
+		// Changing a property should fire a change
+		tabModel[0].viewColumn = 1;
+		extHostEditorTabs.$acceptEditorTabModel(tabModel);
+		assert.strictEqual(count, 2);
+		activeTabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
+		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
+		// Changing the active tab group should fire a change
+		tabModel[0].isActive = false;
+		tabModel.push({
+			isActive: true,
+			viewColumn: 0,
+			groupId: 13,
+			tabs: [],
+			activeTab: undefined
+		});
+		extHostEditorTabs.$acceptEditorTabModel(tabModel);
+		assert.strictEqual(count, 3);
+		activeTabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
+		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
+
+		// Empty tab model should fire a change and return undefined
+		extHostEditorTabs.$acceptEditorTabModel([]);
+		assert.strictEqual(count, 4);
+		activeTabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
+		assert.strictEqual(activeTabGroup, undefined);
+		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
+	});
 });

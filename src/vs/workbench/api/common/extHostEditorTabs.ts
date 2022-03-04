@@ -36,7 +36,7 @@ export interface IEditorTabGroups {
 	all: IEditorTabGroup[];
 	activeTabGroup: IEditorTabGroup | undefined;
 	readonly onDidChangeTabGroup: Event<void>;
-	readonly onDidChangeActiveTabGroup: Event<IEditorTabGroup>;
+	readonly onDidChangeActiveTabGroup: Event<IEditorTabGroup | undefined>;
 }
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -52,7 +52,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	private readonly _onDidChangeTabGroup = new Emitter<void>();
 
-	private readonly _onDidChangeActiveTabGroup = new Emitter<IEditorTabGroup>();
+	private readonly _onDidChangeActiveTabGroup = new Emitter<IEditorTabGroup | undefined>();
 
 	private _tabGroups: IEditorTabGroups = {
 		all: [],
@@ -72,6 +72,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void {
 		// Clears the tab groups array
 		this._tabGroups.all.length = 0;
+		let activeGroupFound = false;
 		for (const group of tabGroups) {
 			let activeTab: IEditorTab | undefined;
 			const tabs = group.tabs.map(tab => {
@@ -90,6 +91,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			// If the currrent group is active, set the active group to be that group.
 			// We must use the same object so we pull from the array to allow for reference equality
 			if (group.isActive) {
+				activeGroupFound = true;
 				const oldActiveTabGroup = this._tabGroups.activeTabGroup;
 				this._tabGroups.activeTabGroup = this._tabGroups.all[this._tabGroups.all.length - 1];
 				// Diff the old and current active group to decide if we should fire a change event
@@ -97,6 +99,11 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 					this._onDidChangeActiveTabGroup.fire(this._tabGroups.activeTabGroup);
 				}
 			}
+		}
+		// No active group was found in the model (most common case is model was empty) fire undefined event
+		if (!activeGroupFound) {
+			this._tabGroups.activeTabGroup = undefined;
+			this._onDidChangeActiveTabGroup.fire(undefined);
 		}
 		this._onDidChangeTabGroup.fire();
 	}
