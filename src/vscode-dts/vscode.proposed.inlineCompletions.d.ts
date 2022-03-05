@@ -129,6 +129,7 @@ declare module 'vscode' {
 	}
 
 
+	// TODO@API move "never" API into new proposal
 
 	export interface InlineCompletionItem {
 		/**
