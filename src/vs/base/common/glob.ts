@@ -47,17 +47,18 @@ const PATH_REGEX = '[/\\\\]';		// any slash or backslash
 const NO_PATH_REGEX = '[^/\\\\]';	// any non-slash and non-backslash
 const ALL_FORWARD_SLASHES = /\//g;
 
-function starsToRegExp(starCount: number): string {
+function starsToRegExp(starCount: number, isLastPattern?: boolean): string {
 	switch (starCount) {
 		case 0:
 			return '';
 		case 1:
 			return `${NO_PATH_REGEX}*?`; // 1 star matches any number of characters except path separator (/ and \) - non greedy (?)
 		default:
-			// Matches:  (Path Sep OR Path Val followed by Path Sep OR Path Sep followed by Path Val) 0-many times
+			// Matches:  (Path Sep OR Path Val followed by Path Sep) 0-many times except when it's the last pattern
+			//           in which case also matches (Path Sep followed by Path Val)
 			// Group is non capturing because we don't need to capture at all (?:...)
 			// Overall we use non-greedy matching because it could be that we match too much
-			return `(?:${PATH_REGEX}|${NO_PATH_REGEX}+${PATH_REGEX}|${PATH_REGEX}${NO_PATH_REGEX}+)*?`;
+			return `(?:${PATH_REGEX}|${NO_PATH_REGEX}+${PATH_REGEX}${isLastPattern ? `|${PATH_REGEX}${NO_PATH_REGEX}+` : ''})*?`;
 	}
 }
 
@@ -135,7 +136,7 @@ function parseRegExp(pattern: string): string {
 					return;
 				}
 
-				regEx += starsToRegExp(2);
+				regEx += starsToRegExp(2, index === segments.length - 1);
 			}
 
 			// Anything else, not globstar
