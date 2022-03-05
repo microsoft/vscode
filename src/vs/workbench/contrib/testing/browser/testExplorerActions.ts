@@ -1111,7 +1111,7 @@ export class OpenOutputPeek extends Action2 {
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyM),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyM),
 			},
 			menu: {
 				id: MenuId.CommandPalette,
@@ -1185,7 +1185,7 @@ export class RefreshTestsAction extends Action2 {
 			icon: icons.testingRefreshTests,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyCode.KeyR),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyR),
 				when: TestingContextKeys.canRefreshTests.isEqualTo(true),
 			},
 			menu: refreshMenus(false),
