@@ -14,11 +14,6 @@ export class NotebookOverviewRuler extends Themable {
 
 	constructor(readonly notebookEditor: INotebookEditorDelegate, container: HTMLElement, @IThemeService themeService: IThemeService) {
 		super(themeService);
-
-		container.style.position = 'absolute';
-		container.style.zIndex = '10';
-		container.style.right = '0px';
-
 		this._domNode = createFastDomNode(document.createElement('canvas'));
 		this._domNode.setPosition('relative');
 		this._domNode.setLayerHinting(true);

@@ -624,7 +624,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._notebookOverviewRulerContainer = document.createElement('div');
 		this._notebookOverviewRulerContainer.classList.add('notebook-overview-ruler-container');
-		this._body.appendChild(this._notebookOverviewRulerContainer);
+		this._list.scrollableElement.appendChild(this._notebookOverviewRulerContainer);
 		this._registerNotebookOverviewRuler();
 
 		this._overflowContainer = document.createElement('div');

@@ -961,6 +961,12 @@
 	color: inherit;
 }
 
+.monaco-workbench .notebookOverlay > .cell-list-container .notebook-overview-ruler-container {
+	position: absolute;
+	top: 0;
+	right: 0;
+}
+
 /* high contrast border for multi-select */
 .hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-top:before { border-top-style: dotted; }
 .hc-black .notebookOverlay .monaco-list.selection-multiple:focus-within .monaco-list-row.selected:not(.focused) .cell-focus-indicator-bottom:before { border-bottom-style: dotted; }
