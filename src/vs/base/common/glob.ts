@@ -118,7 +118,7 @@ function parseRegExp(pattern: string): string {
 	const segments = splitGlobAware(pattern, GLOB_SPLIT);
 
 	// Special case where we only have globstars
-	if (segments.every(s => s === GLOBSTAR)) {
+	if (segments.every(segment => segment === GLOBSTAR)) {
 		regEx = '.*';
 	}
 
@@ -198,7 +198,7 @@ function parseRegExp(pattern: string): string {
 							const choices = splitGlobAware(braceVal, ',');
 
 							// Converts {foo,bar} => [foo|bar]
-							const braceRegExp = `(?:${choices.map(c => parseRegExp(c)).join('|')})`;
+							const braceRegExp = `(?:${choices.map(choice => parseRegExp(choice)).join('|')})`;
 
 							regEx += braceRegExp;
 
@@ -675,7 +675,7 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 				const clausePattern = when.replace('$(basename)', name!);
 				const matched = hasSibling(clausePattern);
 				return isThenable(matched) ?
-					matched.then(m => m ? pattern : null) :
+					matched.then(match => match ? pattern : null) :
 					matched ? pattern : null;
 			};
 			result.requiresSiblings = true;
