@@ -213,8 +213,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 			if (this.input instanceof UntitledTextEditorInput && candidateLanguage.source === 'event') {
 				// High confidence, set language id at TextEditorModel level to block future auto-detection
 				this.input.model.setLanguageId(candidateLanguage.id);
-			}
-			else {
+			} else {
 				this.modelService.setMode(textModel, this.languageService.createById(candidateLanguage.id));
 			}
 		}
