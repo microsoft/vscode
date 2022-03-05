@@ -315,7 +315,7 @@ export class SuggestController implements IEditorContribution {
 			const scrollState = StableEditorScrollState.capture(this.editor);
 			this.editor.executeEdits(
 				'suggestController.additionalTextEdits.sync',
-				item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+				item.completion.additionalTextEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text))
 			);
 			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 
@@ -362,7 +362,7 @@ export class SuggestController implements IEditorContribution {
 				const scrollState = StableEditorScrollState.capture(this.editor);
 				this.editor.executeEdits(
 					'suggestController.additionalTextEdits.async',
-					item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+					item.completion.additionalTextEdits.map(edit => EditOperation.replaceMove(Range.lift(edit.range), edit.text))
 				);
 				scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 				if (didType || !(oldFlags & InsertFlags.NoAfterUndoStop)) {
