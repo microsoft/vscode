@@ -257,7 +257,7 @@ export interface INotebookCellDecorationOptions {
 	topClassName?: string;
 	overviewRuler?: {
 		color: string;
-		includeModel: boolean;
+		modelRanges: Range[];
 		includeOutput: boolean;
 	};
 }

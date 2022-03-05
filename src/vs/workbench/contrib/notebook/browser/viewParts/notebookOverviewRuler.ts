@@ -55,17 +55,33 @@ export class NotebookOverviewRuler extends Themable {
 		if (viewModel) {
 			for (let i = 0; i < viewModel.viewCells.length; i++) {
 				const viewCell = viewModel.viewCells[i];
+				const textBuffer = viewCell.textBuffer;
 				const decorations = viewCell.getCellDecorations();
 				const cellHeight = (viewCell.layoutInfo.totalHeight / scrollHeight) * ratio * height;
 
 				const decoration = decorations.find(decoration => decoration.overviewRuler);
 				if (decoration && decoration.overviewRuler) {
 					const overviewRuler = decoration.overviewRuler;
+					const lineHeight = Math.min(fontInfo.lineHeight, (viewCell.layoutInfo.editorHeight / scrollHeight / textBuffer.getLineCount()) * ratio * height);
+					const lineNumbers = overviewRuler.modelRanges.map(range => range.startLineNumber).reduce((previous: number[], current: number) => {
+						if (previous.length === 0) {
+							previous.push(current);
+						} else {
+							const last = previous[previous.length - 1];
+							if (last !== current) {
+								previous.push(current);
+							}
+						}
 
-					if (overviewRuler.includeModel) {
+						return previous;
+					}, [] as number[]);
+
+					for (let i = 0; i < lineNumbers.length; i++) {
 						ctx.fillStyle = this.getColor(overviewRuler.color)?.toString() || '#000000';
-						const decorationHeight = (fontInfo.lineHeight / scrollHeight) * ratio * height;
-						ctx.fillRect(laneWidth, currentFrom, laneWidth, decorationHeight);
+						const lineNumber = lineNumbers[i];
+						const offset = (lineNumber - 1) * lineHeight;
+						ctx.fillRect(laneWidth, currentFrom + offset, laneWidth, lineHeight);
+						console.log(currentFrom + offset, currentFrom + offset + lineHeight);
 					}
 
 					if (overviewRuler.includeOutput) {

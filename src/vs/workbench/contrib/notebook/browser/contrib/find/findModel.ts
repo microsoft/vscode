@@ -445,7 +445,7 @@ export class FindModel extends Disposable {
 				options: {
 					overviewRuler: {
 						color: overviewRulerFindMatchForeground,
-						includeModel: cellFindMatch.modelMatchCount > 0,
+						modelRanges: cellFindMatch.matches.slice(0, cellFindMatch.modelMatchCount).map(match => (match as FindMatch).range),
 						includeOutput: cellFindMatch.modelMatchCount < cellFindMatch.matches.length
 					}
 				}
