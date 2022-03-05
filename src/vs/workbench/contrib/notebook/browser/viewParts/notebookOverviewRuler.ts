@@ -59,9 +59,8 @@ export class NotebookOverviewRuler extends Themable {
 				const decorations = viewCell.getCellDecorations();
 				const cellHeight = (viewCell.layoutInfo.totalHeight / scrollHeight) * ratio * height;
 
-				const decoration = decorations.find(decoration => decoration.overviewRuler);
-				if (decoration && decoration.overviewRuler) {
-					const overviewRuler = decoration.overviewRuler;
+				decorations.filter(decoration => decoration.overviewRuler).forEach(decoration => {
+					const overviewRuler = decoration.overviewRuler!;
 					const lineHeight = Math.min(fontInfo.lineHeight, (viewCell.layoutInfo.editorHeight / scrollHeight / textBuffer.getLineCount()) * ratio * height);
 					const lineNumbers = overviewRuler.modelRanges.map(range => range.startLineNumber).reduce((previous: number[], current: number) => {
 						if (previous.length === 0) {
@@ -81,7 +80,6 @@ export class NotebookOverviewRuler extends Themable {
 						const lineNumber = lineNumbers[i];
 						const offset = (lineNumber - 1) * lineHeight;
 						ctx.fillRect(laneWidth, currentFrom + offset, laneWidth, lineHeight);
-						console.log(currentFrom + offset, currentFrom + offset + lineHeight);
 					}
 
 					if (overviewRuler.includeOutput) {
@@ -90,7 +88,7 @@ export class NotebookOverviewRuler extends Themable {
 						const decorationHeight = (fontInfo.lineHeight / scrollHeight) * ratio * height;
 						ctx.fillRect(laneWidth, currentFrom + outputOffset, laneWidth, decorationHeight);
 					}
-				}
+				});
 
 				currentFrom += cellHeight;
 			}
