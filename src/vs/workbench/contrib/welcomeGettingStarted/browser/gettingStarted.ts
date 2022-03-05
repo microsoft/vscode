@@ -34,7 +34,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWindowOpenable } from 'vs/platform/window/common/window';
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isMacintosh, locale } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { Delayer, Throttler } from 'vs/base/common/async';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedInput';
 import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -45,18 +45,12 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { generateUuid } from 'vs/base/common/uuid';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
-import { generateTokensCSSForColorMap } from 'vs/editor/common/languages/supports/tokenization';
-import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { parse } from 'vs/base/common/marshalling';
-import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { asWebviewUri } from 'vs/workbench/common/webview';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { coalesce, equals, flatten } from 'vs/base/common/arrays';
@@ -74,6 +68,7 @@ import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
+import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -153,6 +148,8 @@ export class GettingStartedPage extends EditorPane {
 
 	private layoutMarkdown: (() => void) | undefined;
 
+	private detailsRenderer: GettingStartedDetailsRenderer;
+
 	private webviewID = generateUuid();
 	private categoriesSlideDisposables: DisposableStore;
 
@@ -193,6 +190,8 @@ export class GettingStartedPage extends EditorPane {
 		this.stepMediaComponent.id = generateUuid();
 
 		this.categoriesSlideDisposables = this._register(new DisposableStore());
+
+		this.detailsRenderer = new GettingStartedDetailsRenderer(this.fileService, this.notificationService, this.extensionService, this.languageService);
 
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inWelcomeContext.bindTo(this.contextService).set(true);
@@ -457,86 +456,6 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private svgCache = new ResourceMap<Promise<string>>();
-	private readAndCacheSVGFile(path: URI): Promise<string> {
-		if (!this.svgCache.has(path)) {
-			this.svgCache.set(path, (async () => {
-				try {
-					const bytes = await this.fileService.readFile(path);
-					return bytes.value.toString();
-				} catch (e) {
-					this.notificationService.error('Error reading svg document at `' + path + '`: ' + e);
-					return '';
-				}
-			})());
-		}
-		return assertIsDefined(this.svgCache.get(path));
-	}
-
-	private mdCache = new ResourceMap<Promise<string>>();
-	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
-
-		const transformUri = (src: string) => {
-			const path = joinPath(base, src);
-			return asWebviewUri(path).toString();
-		};
-		const transformUris = (content: string): string => content
-			.replace(/src="([^"]*)"/g, (_, src: string) => {
-				if (src.startsWith('https://')) { return `src="${src}"`; }
-				return `src="${transformUri(src)}"`;
-			})
-			.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (_, title: string, src: string) => {
-				if (src.startsWith('https://')) { return `![${title}](${src})`; }
-				return `![${title}](${transformUri(src)})`;
-			});
-
-		if (!this.mdCache.has(path)) {
-			this.mdCache.set(path, (async () => {
-				try {
-					const moduleId = JSON.parse(path.query).moduleId;
-					if (moduleId) {
-						return new Promise<string>(resolve => {
-							require([moduleId], content => {
-								const markdown = content.default();
-								resolve(renderMarkdownDocument(transformUris(markdown), this.extensionService, this.languageService, true, true));
-							});
-						});
-					}
-				} catch { }
-				try {
-					const localizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${locale}.md`) });
-
-					const generalizedLocale = locale?.replace(/-.*$/, '');
-					const generalizedLocalizedPath = path.with({ path: path.path.replace(/\.md$/, `.nls.${generalizedLocale}.md`) });
-
-					const fileExists = (file: URI) => this.fileService
-						.stat(file)
-						.then((stat) => !!stat.size) // Double check the file actually has content for fileSystemProviders that fake `stat`. #131809
-						.catch(() => false);
-
-					const [localizedFileExists, generalizedLocalizedFileExists] = await Promise.all([
-						fileExists(localizedPath),
-						fileExists(generalizedLocalizedPath),
-					]);
-
-					const bytes = await this.fileService.readFile(
-						localizedFileExists
-							? localizedPath
-							: generalizedLocalizedFileExists
-								? generalizedLocalizedPath
-								: path);
-
-					const markdown = bytes.value.toString();
-					return renderMarkdownDocument(transformUris(markdown), this.extensionService, this.languageService, true, true);
-				} catch (e) {
-					this.notificationService.error('Error reading markdown document at `' + path + '`: ' + e);
-					return '';
-				}
-			})());
-		}
-		return assertIsDefined(this.mdCache.get(path));
-	}
-
 	private getHiddenCategories(): Set<string> {
 		return new Set(JSON.parse(this.storageService.get(hiddenEntriesConfigurationKey, StorageScope.GLOBAL, '[]')));
 	}
@@ -601,14 +520,14 @@ export class GettingStartedPage extends EditorPane {
 			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
 			webview.mountTo(this.stepMediaComponent);
 
-			webview.html = await this.renderSVG(media.path);
+			webview.html = await this.detailsRenderer.renderSVG(media.path);
 
 			let isDisposed = false;
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
 
 			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since color vars change
-				const body = await this.renderSVG(media.path);
+				const body = await this.detailsRenderer.renderSVG(media.path);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
 					webview.html = body;
 				}
@@ -642,7 +561,7 @@ export class GettingStartedPage extends EditorPane {
 			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, { localResourceRoots: [media.root], allowScripts: true }, undefined));
 			webview.mountTo(this.stepMediaComponent);
 
-			const rawHTML = await this.renderMarkdown(media.path, media.base);
+			const rawHTML = await this.detailsRenderer.renderMarkdown(media.path, media.base);
 			webview.html = rawHTML;
 
 			const serializedContextKeyExprs = rawHTML.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attr => attr.slice('checked-on="'.length, -1)
@@ -678,7 +597,7 @@ export class GettingStartedPage extends EditorPane {
 
 			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.renderMarkdown(media.path, media.base);
+				const body = await this.detailsRenderer.renderMarkdown(media.path, media.base);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
 					webview.html = body;
 					postTrueKeysMessage();
@@ -752,160 +671,6 @@ export class GettingStartedPage extends EditorPane {
 		const themeType = this.themeService.getColorTheme().type;
 		const src = sources[themeType].toString(true).replace(/ /g, '%20');
 		element.srcset = src.toLowerCase().endsWith('.svg') ? src : (src + ' 1.5x');
-	}
-
-	private async renderSVG(path: URI): Promise<string> {
-		const content = await this.readAndCacheSVGFile(path);
-		const nonce = generateUuid();
-		const colorMap = TokenizationRegistry.getColorMap();
-
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-		return `<!DOCTYPE html>
-		<html>
-			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'nonce-${nonce}';">
-				<style nonce="${nonce}">
-					${DEFAULT_MARKDOWN_STYLES}
-					${css}
-					svg {
-						position: fixed;
-						height: 100%;
-						width: 80%;
-						left: 50%;
-						top: 50%;
-						max-width: 530px;
-						min-width: 350px;
-						transform: translate(-50%,-50%);
-					}
-				</style>
-			</head>
-			<body>
-				${content}
-			</body>
-		</html>`;
-	}
-
-	private async renderMarkdown(path: URI, base: URI): Promise<string> {
-		const content = await this.readAndCacheStepMarkdown(path, base);
-		const nonce = generateUuid();
-		const colorMap = TokenizationRegistry.getColorMap();
-
-		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
-
-		const inDev = document.location.protocol === 'http:';
-		const imgSrcCsp = inDev ? 'img-src https: data: http:' : 'img-src https: data:';
-
-		return `<!DOCTYPE html>
-		<html>
-			<head>
-				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${imgSrcCsp}; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
-				<style nonce="${nonce}">
-					${DEFAULT_MARKDOWN_STYLES}
-					${css}
-					body > img {
-						align-self: flex-start;
-					}
-					body > img[centered] {
-						align-self: center;
-					}
-					body {
-						display: flex;
-						flex-direction: column;
-						padding: 0;
-						height: inherit;
-					}
-					checklist {
-						display: flex;
-						flex-wrap: wrap;
-						justify-content: space-around;
-					}
-					checkbox {
-						display: flex;
-						flex-direction: column;
-						align-items: center;
-						margin: 5px;
-						cursor: pointer;
-					}
-					checkbox.checked > img {
-						box-sizing: border-box;
-						margin-bottom: 4px;
-					}
-					checkbox.checked > img {
-						outline: 2px solid var(--vscode-focusBorder);
-						outline-offset: 2px;
-					}
-					blockquote > p:first-child {
-						margin-top: 0;
-					}
-					body > * {
-						margin-block-end: 0.25em;
-						margin-block-start: 0.25em;
-					}
-					vertically-centered {
-						padding-top: 5px;
-						padding-bottom: 5px;
-					}
-					html {
-						height: 100%;
-						padding-right: 32px;
-					}
-					h1 {
-						font-size: 19.5px;
-					}
-					h2 {
-						font-size: 18.5px;
-					}
-				</style>
-			</head>
-			<body>
-				<vertically-centered>
-					${content}
-				</vertically-centered>
-			</body>
-			<script nonce="${nonce}">
-				const vscode = acquireVsCodeApi();
-				document.querySelectorAll('[when-checked]').forEach(el => {
-					el.addEventListener('click', () => {
-						vscode.postMessage(el.getAttribute('when-checked'));
-					});
-				});
-
-				let ongoingLayout = undefined;
-				const doLayout = () => {
-					document.querySelectorAll('vertically-centered').forEach(element => {
-						element.style.marginTop = Math.max((document.body.clientHeight - element.scrollHeight) * 3/10, 0) + 'px';
-					});
-					ongoingLayout = undefined;
-				};
-
-				const layout = () => {
-					if (ongoingLayout) {
-						clearTimeout(ongoingLayout);
-					}
-					ongoingLayout = setTimeout(doLayout, 0);
-				};
-
-				layout();
-
-				document.querySelectorAll('img').forEach(element => {
-					element.onload = layout;
-				})
-
-				window.addEventListener('message', event => {
-					if (event.data.layoutMeNow) {
-						layout();
-					}
-					if (event.data.enabledContextKeys) {
-						document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
-						for (const key of event.data.enabledContextKeys) {
-							document.querySelectorAll('[checked-on="' + key + '"]').forEach(element => element.classList.add('checked'))
-						}
-					}
-				});
-		</script>
-		</html>`;
 	}
 
 	createEditor(parent: HTMLElement) {
