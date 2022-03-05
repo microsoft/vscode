@@ -23,7 +23,8 @@ suite('Getting Started Markdown Renderer', () => {
 		const rendered = await renderer.renderMarkdown(mdPath, mdBase);
 		const imageSrcs = [...rendered.matchAll(/img src="[^"]*"/g)].map(match => match[0]);
 		for (const src of imageSrcs) {
-			assert.match(src, /^img src="https:\/\/file%2B.vscode-resource.vscode-webview.net\/.*\/out\/vs\/workbench\/contrib\/welcomeGettingStarted\/common\/media\/.*.png"$/);
+			const targetSrcFormat = /^img src="https:\/\/file%2B.vscode-resource.vscode-webview.net\/.*\/out\/vs\/workbench\/contrib\/welcomeGettingStarted\/common\/media\/.*.png"$/;
+			assert(targetSrcFormat.test(src), `${src} didnt match regex`);
 		}
 		languageService.dispose();
 	});
