@@ -748,12 +748,6 @@ suite('Glob', () => {
 		assert.strictEqual(glob.match(pattern, '/foo/pbar'), true);
 		assert.strictEqual(glob.match(pattern, 'foo/bar/pa'), true);
 		assert.strictEqual(glob.match(pattern, '/p'), true);
-
-		pattern = 'some/**';
-
-		assert.strictEqual(glob.match(pattern, 'something/more'), false);
-		assert.strictEqual(glob.match(pattern, 'some'), false);
-		assert.strictEqual(glob.match(pattern, 'othersome/foo'), false);
 	});
 
 	test('expression with empty glob', function () {
