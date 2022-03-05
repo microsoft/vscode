@@ -19,7 +19,7 @@ import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage'
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { attachSuggestEnabledInputBoxStyler, ContextScopedSuggestEnabledInputWithHistory, SuggestEnabledInputWithHistory, SuggestResultsProvider } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { denamespaceTestTag } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
