@@ -65,17 +65,15 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		// This needs to be done on the main thread due to a potential `resourceUriProvider` (workbench api)
 		// which is only available in the main thread
 		const browserUri = URI.revive(await this._mainThreadExtensionsProxy.$asBrowserUri(module));
-		const response = await fetch(browserUri.toString(true));
+		// Fetch entry point URI in the main thread as the request could be intercepted by a service worker
+		// or require some authentication cookies
+		const buffer = await this._mainThreadFileSystemProxy.$readFile(browserUri);
 		if (extensionId) {
 			performance.mark(`code/extHost/didFetchExtensionCode/${extensionId.value}`);
 		}
 
-		if (response.status !== 200) {
-			throw new Error(response.statusText);
-		}
-
 		// fetch JS sources as text and create a new function around it
-		const source = await response.text();
+		const source = buffer.toString();
 		// Here we append #vscode-extension to serve as a marker, such that source maps
 		// can be adjusted for the extra wrapping function.
 		const sourceURL = `${module.toString(true)}#vscode-extension`;
