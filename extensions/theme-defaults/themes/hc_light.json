@@ -10,7 +10,7 @@
 		"foreground": "#292929",
 		"selection.background": "#0F4A8580",
 		"descriptionForeground": "#292929",
-		"errorForeground": "#292929",
+		"errorForeground": "#B5200D",
 		"icon.foreground": "#292929",
 		"sash.hoverBorder": "#007ACC",
 
@@ -248,6 +248,9 @@
 		"notifications.foreground": "#292929",
 		"notifications.background": "#ffffff",
 		"notifications.border": "#0F4A85",
+		"notificationsErrorIcon.foreground": "#B5200D",
+		"notificationsInfoIcon.foreground": "#007ACC",
+		"notificationsWarningIcon.foreground": "#895503",
 
 		"banner.background": "#0F4A85",
 		"banner.foreground": "#ffffff",
