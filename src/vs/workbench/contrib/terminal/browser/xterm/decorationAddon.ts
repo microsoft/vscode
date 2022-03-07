@@ -148,8 +148,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this.clearDecorations();
 				return;
 			}
-			this._placeholderDecoration?.dispose();
 			this.registerCommandDecoration(command);
+			this._placeholderDecoration?.dispose();
 		});
 	}
 
@@ -168,7 +168,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 		decoration.onRender(element => {
 			decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
-			if (beforeCommandExecution && !this._placeholderDecoration) {
+			if (beforeCommandExecution) {
 				this._placeholderDecoration = decoration;
 			} else {
 				this._decorations.set(decoration.marker.id,
