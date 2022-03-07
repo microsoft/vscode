@@ -271,6 +271,7 @@
 		"breadcrumb.foreground": "#292929",
 
 		"terminal.foreground": "#292929",
+		"terminal.selectionBackground": "#f2f2f2",
 		"terminal.ansiBlack": "#292929",
 		"terminal.ansiBlue": "#0451a5",
 		"terminal.ansiBrightBlack": "#666666",
