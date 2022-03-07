@@ -131,7 +131,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
-		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command, true));
+		this._commandStartedListener = capability.onCommandStarted(command => {
+			this._placeholderDecoration?.dispose();
+			this.registerCommandDecoration(command, true);
+		});
 	}
 
 
