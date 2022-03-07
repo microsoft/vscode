@@ -16,6 +16,10 @@
 	visibility: hidden;
 }
 
+.monaco-workbench .notebookOverlay .simple-fr-find-part-wrapper.visible {
+	z-index: 100;
+}
+
 .monaco-workbench .simple-fr-find-part {
 	/* visibility: hidden;		Use visibility to maintain flex layout while hidden otherwise interferes with transition */
 	z-index: 10;
