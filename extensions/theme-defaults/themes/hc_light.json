@@ -203,6 +203,7 @@
 		"editorBracketMatch.border": "#0F4A85",
 		"editor.foldBackground": "#0000",
 		"editorWhitespace.foreground": "#CCCCCC",
+		"editorUnnecessaryCode.border": "#0F4A85",
 
 		"editorWidget.foreground": "#292929",
 		"editorWidget.background": "#ffffff",
