@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
-import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, FileAtomicReadOptions } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, FileAtomicReadOptions, FileCopyOptions } from 'vs/platform/files/common/files';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -114,7 +114,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.rename(from, to, opts);
 	}
 
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	copy(from: URI, to: URI, opts: FileCopyOptions): Promise<void> {
 		return this.provider.copy(from, to, opts);
 	}
 

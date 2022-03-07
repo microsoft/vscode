@@ -19,7 +19,7 @@ import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream'
 import { URI } from 'vs/base/common/uri';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, FileAtomicReadOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, FileAtomicReadOptions, FileCopyOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -563,7 +563,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	async copy(from: URI, to: URI, opts: FileCopyOptions): Promise<void> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
@@ -573,11 +573,21 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 		try {
 
-			// Ensure target does not exist
-			await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
+			// Hint provided: only files are supported, thus
+			// optimize via `copyFile`
+			if (opts.hint === FileType.File) {
+				await Promises.copyFile(fromFilePath, toFilePath);
+			}
 
-			// Copy
-			await Promises.copy(fromFilePath, toFilePath, { preserveSymlinks: true });
+			// No hint: support files, folders and symbolic links
+			else {
+
+				// Ensure target does not exist
+				await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
+
+				// Copy
+				await Promises.copy(fromFilePath, toFilePath, { preserveSymlinks: true });
+			}
 		} catch (error) {
 
 			// Rewrite some typical errors that can happen especially around symlinks

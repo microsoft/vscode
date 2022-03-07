@@ -12,7 +12,7 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ReadableStreamEventPayload, listenStream } from 'vs/base/common/stream';
-import { IStat, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileDeleteOptions, FileOverwriteOptions, IFileChange, IWatchOptions, FileType, FileAtomicReadOptions } from 'vs/platform/files/common/files';
+import { IStat, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileDeleteOptions, FileOverwriteOptions, IFileChange, IWatchOptions, FileType, FileAtomicReadOptions, FileCopyOptions } from 'vs/platform/files/common/files';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IRecursiveWatcherOptions } from 'vs/platform/files/common/watcher';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -178,7 +178,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.rename(source, target, opts);
 	}
 
-	private copy(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+	private copy(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: FileCopyOptions): Promise<void> {
 		const source = this.transformIncoming(uriTransformer, _source);
 		const target = this.transformIncoming(uriTransformer, _target);
 

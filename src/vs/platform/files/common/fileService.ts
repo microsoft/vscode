@@ -866,6 +866,21 @@ export class FileService extends Disposable implements IFileService {
 		return { exists, isSameResourceWithDifferentPathCase };
 	}
 
+	async copyFile(source: URI, target: URI): Promise<void> {
+		const sourceProvider = await this.withReadProvider(source);
+		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
+
+		// same provider with fast copy: leverage copy() functionality
+		if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
+			await sourceProvider.copy(source, target, { overwrite: true, hint: FileType.File /* only supports files */ });
+		}
+
+		// otherwise copy via buffer/unbuffered
+		else {
+			await this.doCopyFile(sourceProvider, source, targetProvider, target);
+		}
+	}
+
 	private getExtUri(provider: IFileSystemProvider): { providerExtUri: IExtUri; isPathCaseSensitive: boolean } {
 		const isPathCaseSensitive = this.isPathCaseSensitive(provider);
 

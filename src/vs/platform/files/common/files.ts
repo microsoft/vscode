@@ -176,10 +176,9 @@ export interface IFileService {
 	canCopy(source: URI, target: URI, overwrite?: boolean): Promise<Error | true>;
 
 	/**
-	 * Find out if a file create operation is possible given the arguments. No changes on disk will
-	 * be performed. Returns an Error if the operation cannot be done.
+	 * Copies a file to a path identified by the resource. Folders are not supported.
 	 */
-	canCreateFile(resource: URI, options?: ICreateFileOptions): Promise<Error | true>;
+	copyFile(source: URI, target: URI): Promise<void>;
 
 	/**
 	 * Creates a new file with the given path and optional contents. The returned promise
@@ -188,6 +187,12 @@ export interface IFileService {
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
 	createFile(resource: URI, bufferOrReadableOrStream?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * Find out if a file create operation is possible given the arguments. No changes on disk will
+	 * be performed. Returns an Error if the operation cannot be done.
+	 */
+	canCreateFile(resource: URI, options?: ICreateFileOptions): Promise<Error | true>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
@@ -318,6 +323,15 @@ export interface FileOpenForWriteOptions extends FileUnlockOptions {
 	 * A hint that the file should be opened for reading and writing.
 	 */
 	readonly create: true;
+}
+
+export interface FileCopyOptions extends FileOverwriteOptions {
+
+	/**
+	 * Gives a hint what type of file is being copied. This can
+	 * speed up the operation by avoiding extra resolve calls.
+	 */
+	readonly hint?: FileType;
 }
 
 export interface FileDeleteOptions {
@@ -478,7 +492,7 @@ export interface IFileSystemProvider {
 	delete(resource: URI, opts: FileDeleteOptions): Promise<void>;
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
+	copy?(from: URI, to: URI, opts: FileCopyOptions): Promise<void>;
 
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
@@ -501,7 +515,7 @@ export function hasReadWriteCapability(provider: IFileSystemProvider): provider 
 }
 
 export interface IFileSystemProviderWithFileFolderCopyCapability extends IFileSystemProvider {
-	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
+	copy(from: URI, to: URI, opts: FileCopyOptions): Promise<void>;
 }
 
 export function hasFileFolderCopyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileFolderCopyCapability {
