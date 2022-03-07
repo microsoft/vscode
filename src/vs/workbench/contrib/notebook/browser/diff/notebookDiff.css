@@ -173,11 +173,6 @@
 	position: relative;
 }
 
-.monaco-workbench .notebook-text-diff-editor .cell-body .output-view-container .output-plaintext {
-	white-space: pre;
-	overflow-x: hidden;
-}
-
 .monaco-workbench .notebook-text-diff-editor .cell-body.left .output-view-container .output-inner-container,
 .monaco-workbench .notebook-text-diff-editor .cell-body.right .output-view-container .output-inner-container {
 	width: 100%;
