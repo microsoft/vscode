@@ -131,10 +131,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
-		this._commandStartedListener = capability.onCommandStarted(command => {
-			this._placeholderDecoration?.dispose();
-			this.registerCommandDecoration(command, true);
-		});
+		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command, true));
 	}
 
 
@@ -151,7 +148,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this.clearDecorations();
 				return;
 			}
-			this._placeholderDecoration?.dispose();
 			this.registerCommandDecoration(command);
 		});
 	}
@@ -165,6 +161,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!command.marker) {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
+		this._placeholderDecoration?.dispose();
 		const decoration = this._terminal.registerDecoration({ marker: command.marker });
 		if (!decoration) {
 			return undefined;
