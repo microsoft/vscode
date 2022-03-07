@@ -213,6 +213,7 @@
 		"peekViewResult.background": "#ffffff",
 		"peekViewResult.selectionBackground": "#ffffff",
 		"peekViewResult.selectionForeground": "#292929",
+		"peekViewTitleLabel.foreground": "#292929",
 		"peekViewTitleDescription.foreground": "#292929",
 
 		"panelTitle.inactiveForeground": "#292929",
@@ -283,6 +284,9 @@
 		"terminal.ansiRed": "#cd3131",
 		"terminal.ansiWhite": "#555555",
 		"terminal.ansiYellow": "#949800",
+
+		"testing.iconFailed":"#B5200D",
+		"testing.iconPassed": "#007100",
 
 		"gitDecoration.addedResourceForeground": "#374e06",
 		"gitDecoration.conflictingResourceForeground": "#ad0707",
