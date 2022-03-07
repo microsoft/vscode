@@ -277,6 +277,12 @@ interface IGlobOptions {
 	 * outside of a tree traversal.
 	 */
 	trimForExclusions?: boolean;
+
+	/**
+	 * Disables support for leading `!` in a pattern to negate
+	 * the entire pattern.
+	 */
+	disableNegate?: boolean;
 }
 
 interface ParsedStringPattern {
@@ -327,7 +333,15 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		return wrapRelativePattern(parsedPattern, arg1);
 	}
 
-	// Check for Trivials
+	// Check for leading `!` unless disabled
+	const originalPattern = pattern;
+	let negate = false;
+	if (!options.disableNegate && pattern[0] === '!' && pattern.length > 1) {
+		pattern = pattern.substring(1);
+		negate = true;
+	}
+
+	// Check for trivial patterns
 	let match: RegExpExecArray | null;
 	if (T1.test(pattern)) {
 		parsedPattern = trivia1(pattern.substr(4), pattern); 			// common pattern: **/*.txt just need endsWith check
@@ -341,15 +355,33 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		parsedPattern = trivia4and5(match[1], pattern, false);
 	}
 
-	// Otherwise convert to pattern
+	// Otherwise convert to RegEx pattern
 	else {
 		parsedPattern = toRegExp(pattern);
+	}
+
+	// Negate if we had a leading `!`
+	if (negate) {
+		parsedPattern = wrapNegatedPattern(parsedPattern, originalPattern);
 	}
 
 	// Cache
 	CACHE.set(patternKey, parsedPattern);
 
 	return wrapRelativePattern(parsedPattern, arg1);
+}
+
+function wrapNegatedPattern(parsedPattern: ParsedStringPattern, pattern: string): ParsedStringPattern {
+	return function (path: string, basename?: string) {
+		const result = parsedPattern(path, basename);
+		if (result instanceof Promise) {
+			return result.then(value => {
+				return typeof value === 'string' ? null : pattern;
+			});
+		}
+
+		return typeof result === 'string' ? null : pattern;
+	};
 }
 
 function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | IRelativePattern): ParsedStringPattern {
@@ -410,7 +442,7 @@ function trivia2(base: string, pattern: string): ParsedStringPattern {
 function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 	const parsedPatterns = aggregateBasenameMatches(pattern.slice(1, -1)
 		.split(',')
-		.map(pattern => parsePattern(pattern, options))
+		.map(pattern => parsePattern(pattern, { ...options, disableNegate: true /* prevent nested negates */ }))
 		.filter(pattern => pattern !== NULL), pattern);
 
 	const patternsLength = parsedPatterns.length;
@@ -486,6 +518,7 @@ function toRegExp(pattern: string): ParsedStringPattern {
  * * `*` to match one or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
+ * * `!` only valid in the beginning of a pattern to negate the entire pattern
  * * `{}` to group conditions (e.g. *.{ts,js} matches all TypeScript and JavaScript files)
  * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
  * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
@@ -505,6 +538,7 @@ export function match(arg1: string | IExpression | IRelativePattern, path: strin
  * * `*` to match one or more characters in a path segment
  * * `?` to match on one character in a path segment
  * * `**` to match any number of path segments, including none
+ * * `!` only valid in the beginning of a pattern to negate the entire pattern
  * * `{}` to group conditions (e.g. *.{ts,js} matches all TypeScript and JavaScript files)
  * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
  * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)

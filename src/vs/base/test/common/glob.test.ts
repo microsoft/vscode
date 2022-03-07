@@ -97,18 +97,39 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, 'qunit.css');
 		assertNoGlobMatch(p, 'test/qunit');
 
+		p = '!qunit';
+
+		assertNoGlobMatch(p, 'qunit');
+		assertGlobMatch(p, 'qunit.css');
+		assertGlobMatch(p, 'test/qunit');
+
 		// Absolute
 
 		p = '/DNXConsoleApp/**/*.cs';
 		assertGlobMatch(p, '/DNXConsoleApp/Program.cs');
 		assertGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
 
+		p = '!/DNXConsoleApp/**/*.cs';
+		assertNoGlobMatch(p, '/DNXConsoleApp/Program.cs');
+		assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
+
 		p = 'C:/DNXConsoleApp/**/*.cs';
 		assertGlobMatch(p, 'C:\\DNXConsoleApp\\Program.cs');
 		assertGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
 
+		p = '!C:/DNXConsoleApp/**/*.cs';
+		assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\Program.cs');
+		assertNoGlobMatch(p, 'C:\\DNXConsoleApp\\foo\\Program.cs');
+
 		p = '*';
 		assertGlobMatch(p, '');
+
+		p = '!*';
+		assertNoGlobMatch(p, '');
+
+		p = '!';
+		assertNoGlobMatch(p, '');
+		assertGlobMatch(p, '!');
 	});
 
 	test('dot hidden', function () {
@@ -183,6 +204,35 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, '/node_module/test/foo.js');
 		assertNoGlobMatch(p, 'foo.jss');
 		assertNoGlobMatch(p, 'some.js/test');
+	});
+
+	test('file pattern (negated)', function () {
+		let p = '!*.js';
+
+		assertNoGlobMatch(p, 'foo.js');
+		assertGlobMatch(p, 'folder/foo.js');
+		assertGlobMatch(p, '/node_modules/foo.js');
+		assertGlobMatch(p, 'foo.jss');
+		assertGlobMatch(p, 'some.js/test');
+
+		p = '!html.*';
+		assertNoGlobMatch(p, 'html.js');
+		assertNoGlobMatch(p, 'html.txt');
+		assertGlobMatch(p, 'htm.txt');
+
+		p = '!*.*';
+		assertNoGlobMatch(p, 'html.js');
+		assertNoGlobMatch(p, 'html.txt');
+		assertNoGlobMatch(p, 'htm.txt');
+		assertGlobMatch(p, 'folder/foo.js');
+		assertGlobMatch(p, '/node_modules/foo.js');
+
+		p = '!node_modules/test/*.js';
+		assertNoGlobMatch(p, 'node_modules/test/foo.js');
+		assertGlobMatch(p, 'folder/foo.js');
+		assertGlobMatch(p, '/node_module/test/foo.js');
+		assertGlobMatch(p, 'foo.jss');
+		assertGlobMatch(p, 'some.js/test');
 	});
 
 	test('star', () => {
@@ -268,6 +318,14 @@ suite('Glob', () => {
 		assertGlobMatch(p, 'test/other/foo.js');
 		assertNoGlobMatch(p, 'est/other/foo.js');
 
+		p = '!test/**';
+		assertNoGlobMatch(p, 'test');
+		assertNoGlobMatch(p, 'test/foo');
+		assertNoGlobMatch(p, 'test/foo/');
+		assertNoGlobMatch(p, 'test/foo.js');
+		assertNoGlobMatch(p, 'test/other/foo.js');
+		assertGlobMatch(p, 'est/other/foo.js');
+
 		p = '**';
 		assertGlobMatch(p, '/');
 		assertGlobMatch(p, 'foo.js');
@@ -276,6 +334,15 @@ suite('Glob', () => {
 		assertGlobMatch(p, '/node_modules/foo.js');
 		assertGlobMatch(p, 'foo.jss');
 		assertGlobMatch(p, 'some.js/test');
+
+		p = '!**';
+		assertNoGlobMatch(p, '/');
+		assertNoGlobMatch(p, 'foo.js');
+		assertNoGlobMatch(p, 'folder/foo.js');
+		assertNoGlobMatch(p, 'folder/foo/');
+		assertNoGlobMatch(p, '/node_modules/foo.js');
+		assertNoGlobMatch(p, 'foo.jss');
+		assertNoGlobMatch(p, 'some.js/test');
 
 		p = 'test/**/*.js';
 		assertGlobMatch(p, 'test/foo.js');
@@ -723,6 +790,16 @@ suite('Glob', () => {
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.j?');
 		assert.strictEqual(glob.match(expr, 'foo.as'), null);
+	});
+
+	test('expression with negated globs', function () {
+		let expr = {
+			'!*.js': true,
+			'!*.ts': true
+		};
+
+		assert.strictEqual(glob.match(expr, 'foo.js'), '!*.ts');
+		assert.strictEqual(glob.match(expr, 'foo.ts'), '!*.js');
 	});
 
 	test('expression with non-trivia glob (issue 144458)', function () {
