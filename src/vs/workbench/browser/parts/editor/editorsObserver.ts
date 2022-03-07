@@ -312,6 +312,7 @@ export class EditorsObserver extends Disposable {
 		}
 
 		const limit = this.editorGroupsService.partOptions.limit.value;
+		const ignoreDirtyTab: boolean = this.editorGroupsService.partOptions.limit.ignoreDirtyTab!;
 
 		// In editor group
 		if (this.editorGroupsService.partOptions.limit?.perEditorGroup) {
@@ -320,7 +321,7 @@ export class EditorsObserver extends Disposable {
 			if (typeof groupId === 'number') {
 				const group = this.editorGroupsService.getGroup(groupId);
 				if (group) {
-					await this.doEnsureOpenedEditorsLimit(limit, group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
+					await this.doEnsureOpenedEditorsLimit(limit, ignoreDirtyTab, group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
 				}
 			}
 
@@ -334,11 +335,11 @@ export class EditorsObserver extends Disposable {
 
 		// Across all editor groups
 		else {
-			await this.doEnsureOpenedEditorsLimit(limit, [...this.mostRecentEditorsMap.values()], exclude);
+			await this.doEnsureOpenedEditorsLimit(limit, ignoreDirtyTab, [...this.mostRecentEditorsMap.values()], exclude);
 		}
 	}
 
-	private async doEnsureOpenedEditorsLimit(limit: number, mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
+	private async doEnsureOpenedEditorsLimit(limit: number, ignoreDirtyTab: boolean, mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
 		if (limit >= mostRecentEditors.length) {
 			return; // only if opened editors exceed setting and is valid and enabled
 		}
@@ -359,9 +360,17 @@ export class EditorsObserver extends Disposable {
 
 			return true;
 		});
-
+		let editorsToCloseCount: number;
 		// Close editors until we reached the limit again
-		let editorsToCloseCount = mostRecentEditors.length - limit;
+		if (ignoreDirtyTab === true) {
+			editorsToCloseCount = leastRecentlyClosableEditors.length - limit + 1;
+		} else {
+			editorsToCloseCount = mostRecentEditors.length - limit;
+		}
+		if (editorsToCloseCount <= 0) {
+			return;
+		}
+
 		const mapGroupToEditorsToClose = new Map<GroupIdentifier, EditorInput[]>();
 		for (const { groupId, editor } of leastRecentlyClosableEditors) {
 			let editorsInGroupToClose = mapGroupToEditorsToClose.get(groupId);

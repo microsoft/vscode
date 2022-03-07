@@ -968,6 +968,7 @@ interface IEditorPartConfiguration {
 	splitOnDragAndDrop?: boolean;
 	limit?: {
 		enabled?: boolean;
+		ignoreDirtyTab?: boolean;
 		value?: number;
 		perEditorGroup?: boolean;
 	};
