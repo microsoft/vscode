@@ -122,13 +122,6 @@
 	opacity: 0.33;
 }
 
-.monaco-workbench .notebookOverlay .notebook-content-widgets {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-}
-
 .monaco-workbench .notebookOverlay .output {
 	position: absolute;
 	height: 0px;
@@ -167,22 +160,6 @@
 .monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container .rendered-output {
 	display: inline;
 	transform: translate3d(0px, 0px, 0px);
-}
-
-.monaco-workbench .notebookOverlay .output > div.foreground .output-stream,
-.monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext {
-	font-family: var(--notebook-cell-output-font-family);
-	white-space: pre-wrap;
-	word-wrap: break-word;
-}
-
-.monaco-workbench .notebookOverlay .output > div.foreground .output-stream pre,
-.monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext pre {
-	font-family: var(--notebook-cell-output-font-family);
-}
-
-.monaco-workbench .notebookOverlay .output > div.foreground.error .output-stream {
-	color: red; /*TODO@rebornix theme color*/
 }
 
 .monaco-workbench .notebookOverlay .cell-drag-image .output .cell-output-toolbar {
@@ -375,22 +352,6 @@
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .notebook-folding-indicator.mouseover .codicon.codicon-notebook-expanded {
 	opacity: 1;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before {
-	top: 0;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before {
-	left: 0;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before {
-	bottom: 0px;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
-	right: 0;
 }
 
 .monaco-workbench.hc-black .notebookOverlay .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before {
@@ -589,81 +550,9 @@
 	outline: none !important;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator {
-	position: absolute;
-	top: 0px;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side {
-	/** Overidden for code cells */
-	top: 0px;
-	bottom: 0px;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side {
-	/* Disable pointer events for the folding container */
-	pointer-events: none;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .webview-backed-markdown-cell .cell-focus-indicator-side .notebook-folding-indicator {
-	/* But allow clicking on the folding indicator itself */
-	pointer-events: all;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom {
-	width: 100%;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right {
-	right: 0px;
-}
-
-/** cell border colors */
-
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:before {
-	border-color: var(notebook-selected-cell-border-color) !important;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before {
-	border-color: var(--notebook-inactive-focused-cell-border-color) !important;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before,
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before {
-	border-color: var(--notebook-focused-cell-border-color) !important;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator-container {
-	display: none;
-	position: relative;
-	cursor: pointer;
-	pointer-events: all; /* Take pointer-events in markdown cell */
-	width: 11px;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left .codeOutput-focus-indicator {
-	width: 0px;
-	height: 100%;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-inner-container {
-	cursor: grab;
-}
-
 .monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar.visible {
 	z-index: var(--z-index-notebook-scrollbar);
 	cursor: default;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator .codicon:hover {
-	cursor: pointer;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {
