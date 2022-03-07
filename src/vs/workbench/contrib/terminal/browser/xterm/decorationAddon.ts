@@ -148,8 +148,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this.clearDecorations();
 				return;
 			}
-			this.registerCommandDecoration(command);
 			this._placeholderDecoration?.dispose();
+			this.registerCommandDecoration(command);
 		});
 	}
 
