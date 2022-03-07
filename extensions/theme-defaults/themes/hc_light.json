@@ -215,6 +215,8 @@
 		"peekViewResult.selectionForeground": "#292929",
 		"peekViewTitleLabel.foreground": "#292929",
 		"peekViewTitleDescription.foreground": "#292929",
+		"peekViewResult.fileForeground": "#292929",
+		"peekViewResult.lineForeground": "#292929",
 
 		"panelTitle.inactiveForeground": "#292929",
 		"panel.border": "#0F4A85",
