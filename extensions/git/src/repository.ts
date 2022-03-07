@@ -1284,7 +1284,7 @@ export class Repository implements Disposable {
 			.filter(t =>
 				t.resource && t.resource.scheme === 'file' && t.kind === TabKind.Diff &&
 				workingTreeResources.some(r => pathEquals(r, t.resource!.fsPath)) &&
-				t.additionalResourcesAndViewIds.find(r => r.resource!.scheme === 'git')));
+				t.additionalResourcesAndViewTypes.find(r => r.resource!.scheme === 'git')));
 
 		// Close editors
 		diffEditorTabsToClose.forEach(t => t.close());

@@ -233,7 +233,7 @@ class FileServiceBasedConfiguration extends Disposable {
 					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
 					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
 						&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
-						errors.onUnexpectedError(error);
+						this.logService.error(error);
 					}
 				}
 				return '{}';
@@ -600,6 +600,7 @@ export class WorkspaceConfiguration extends Disposable {
 		private readonly configurationCache: IConfigurationCache,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 	) {
 		super();
 		this.fileService = fileService;
@@ -614,7 +615,7 @@ export class WorkspaceConfiguration extends Disposable {
 				this._workspaceConfiguration = this._cachedConfiguration;
 				this.waitAndInitialize(this._workspaceIdentifier);
 			} else {
-				this.doInitialize(new FileServiceBasedWorkspaceConfiguration(this.fileService, this.uriIdentityService));
+				this.doInitialize(new FileServiceBasedWorkspaceConfiguration(this.fileService, this.uriIdentityService, this.logService));
 			}
 		}
 		await this.reload();
@@ -663,7 +664,7 @@ export class WorkspaceConfiguration extends Disposable {
 	private async waitAndInitialize(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		await whenProviderRegistered(workspaceIdentifier.configPath, this.fileService);
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
-			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this.fileService, this.uriIdentityService));
+			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this.fileService, this.uriIdentityService, this.logService));
 			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier, { scopes: WORKSPACE_SCOPES, skipRestricted: this.isUntrusted() });
 			this.doInitialize(fileServiceBasedWorkspaceConfiguration);
 			this.onDidWorkspaceConfigurationChange(false, true);
@@ -710,7 +711,8 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 
 	constructor(
 		private readonly fileService: IFileService,
-		uriIdentityService: IUriIdentityService
+		uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 	) {
 		super();
 
@@ -747,7 +749,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		} catch (error) {
 			const exists = await this.fileService.exists(this._workspaceIdentifier.configPath);
 			if (exists) {
-				errors.onUnexpectedError(error);
+				this.logService.error(error);
 			}
 		}
 		this.workspaceConfigurationModelParser.parse(contents, configurationParseOptions);
