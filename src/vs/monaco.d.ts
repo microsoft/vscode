@@ -5400,7 +5400,6 @@ declare namespace monaco.editor {
 
 declare namespace monaco.languages {
 
-
 	export interface IRelativePattern {
 		/**
 		 * A base file path to which this pattern will be matched against relatively.
