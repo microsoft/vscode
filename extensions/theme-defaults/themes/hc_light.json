@@ -31,7 +31,7 @@
 
 		"button.background": "#0F4A85",
 		"button.foreground": "#ffffff",
-		"button.border": "#0000",
+		"button.border": "#0F4A85",
 		"button.hoverBackground": "#0F4A85",
 		"button.secondaryBackground": "#0000",
 		"button.secondaryForeground": "#292929",
