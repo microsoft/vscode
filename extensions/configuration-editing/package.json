@@ -48,10 +48,10 @@
           "extensions.json",
           "argv.json",
           "profiles.json",
+          "devcontainer.json",
           ".devcontainer.json"
         ],
         "filenamePatterns": [
-          "**/.devcontainer/devcontainer.json",
           "**/User/snippets/*.json"
         ]
       }
@@ -122,11 +122,11 @@
         "url": "vscode://schemas/extensions"
       },
       {
-        "fileMatch": "/.devcontainer/devcontainer.json",
+        "fileMatch": "devcontainer.json",
         "url": "./schemas/devContainer.schema.generated.json"
       },
       {
-        "fileMatch": "/.devcontainer.json",
+        "fileMatch": ".devcontainer.json",
         "url": "./schemas/devContainer.schema.generated.json"
       },
       {
