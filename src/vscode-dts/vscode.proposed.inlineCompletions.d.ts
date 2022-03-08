@@ -48,10 +48,13 @@ declare module 'vscode' {
 		readonly selectedCompletionInfo: SelectedCompletionInfo | undefined;
 	}
 
-	// TODO@API strongly consider to use vscode.TextEdit instead
+	// TODO@API remove kind, snippet properties
+	// TODO@API find a better name, xyzFilter, xyzConstraint
 	export interface SelectedCompletionInfo {
 		range: Range;
 		text: string;
+
+
 		completionKind: CompletionItemKind;
 		isSnippetText: boolean;
 	}
@@ -84,6 +87,10 @@ declare module 'vscode' {
 	// TODO@API maybe use MarkdownString
 	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
 		items: T[];
+
+		// command: Command; "Show More..."
+
+		// description: MarkdownString
 
 		/**
 		 * @deprecated Return an array of Inline Completion items directly. Will be removed eventually.
@@ -143,6 +150,7 @@ declare module 'vscode' {
 	 * Be aware that this API will not ever be finalized.
 	 */
 	export namespace window {
+		// TODO@API move into provider (just like internal API). Only read property if proposal is enabled!
 		export function getInlineCompletionItemController<T extends InlineCompletionItem>(provider: InlineCompletionItemProvider<T>): InlineCompletionController<T>;
 	}
 
