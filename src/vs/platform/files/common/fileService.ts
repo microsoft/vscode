@@ -466,7 +466,7 @@ export class FileService extends Disposable implements IFileService {
 
 	private async doReadFileAtomic(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
 		return new Promise<IFileContent>((resolve, reject) => {
-			this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
+			return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
 				try {
 					const content = await this.doReadFile(provider, resource, options, token);
 					resolve(content);
@@ -1008,7 +1008,7 @@ export class FileService extends Disposable implements IFileService {
 		const sourceProvider = await this.withReadProvider(source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
-		// same provider, check for `cloneFile` support or `copy`
+		// same provider, check for `cloneFile` support or fallback to `copy`
 		if (sourceProvider === targetProvider) {
 			if (hasFileCloneCapability(sourceProvider)) {
 				return sourceProvider.cloneFile(source, target);
@@ -1019,8 +1019,9 @@ export class FileService extends Disposable implements IFileService {
 			}
 		}
 
-		// otherwise copy via buffer/unbuffered
-		return this.doCopyFile(sourceProvider, source, targetProvider, target);
+		// otherwise copy via buffer/unbuffered and use a write queue
+		// on the source to ensure atomic operation as much as possible
+		return this.writeQueue.queueFor(source, this.getExtUri(sourceProvider).providerExtUri).queue(() => this.doCopyFile(sourceProvider, source, targetProvider, target));
 	}
 
 	//#endregion

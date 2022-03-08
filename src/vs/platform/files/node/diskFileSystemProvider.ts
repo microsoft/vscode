@@ -625,10 +625,28 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
+		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+		if (isEqual(fromFilePath, toFilePath, !isPathCaseSensitive)) {
+			return; // cloning is only supported `from` and `to` are different files
+		}
+
+		let fromLock: IDisposable | undefined = undefined;
+		let toLock: IDisposable | undefined = undefined;
+
+		// Implement clone by using `fs.copyFile`, however setup locks
+		// for both `from` and `to` because node.js does not ensure
+		// this to be an atomic operation
+
 		try {
+			fromLock = await this.createResourceLock(from);
+			toLock = await this.createResourceLock(to);
+
 			await Promises.copyFile(fromFilePath, toFilePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
+		} finally {
+			fromLock?.dispose();
+			toLock?.dispose();
 		}
 	}
 
