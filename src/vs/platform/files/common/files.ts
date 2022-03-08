@@ -147,6 +147,8 @@ export interface IFileService {
 
 	/**
 	 * Updates the content replacing its previous value.
+	 *
+	 * Emits a `FileOperation.WRITE` file operation event when successful.
 	 */
 	writeFile(resource: URI, bufferOrReadableOrStream: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: IWriteFileOptions): Promise<IFileStatWithMetadata>;
 
@@ -154,6 +156,8 @@ export interface IFileService {
 	 * Moves the file/folder to a new path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
+	 *
+	 * Emits a `FileOperation.MOVE` file operation event when successful.
 	 */
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
@@ -166,6 +170,8 @@ export interface IFileService {
 	/**
 	 * Copies the file/folder to a path identified by the resource. A folder is copied
 	 * recursively.
+	 *
+	 * Emits a `FileOperation.COPY` file operation event when successful.
 	 */
 	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
@@ -185,6 +191,8 @@ export interface IFileService {
 	 * will have the stat model object as a result.
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
+	 *
+	 * Emits a `FileOperation.CREATE` file operation event when successful.
 	 */
 	createFile(resource: URI, bufferOrReadableOrStream?: VSBuffer | VSBufferReadable | VSBufferReadableStream, options?: ICreateFileOptions): Promise<IFileStatWithMetadata>;
 
@@ -197,6 +205,8 @@ export interface IFileService {
 	/**
 	 * Creates a new folder with the given path. The returned promise
 	 * will have the stat model object as a result.
+	 *
+	 * Emits a `FileOperation.CREATE` file operation event when successful.
 	 */
 	createFolder(resource: URI): Promise<IFileStatWithMetadata>;
 
@@ -204,6 +214,8 @@ export interface IFileService {
 	 * Deletes the provided file. The optional useTrash parameter allows to
 	 * move the file to trash. The optional recursive parameter allows to delete
 	 * non-empty folders recursively.
+	 *
+	 * Emits a `FileOperation.DELETE` file operation event when successful.
 	 */
 	del(resource: URI, options?: Partial<FileDeleteOptions>): Promise<void>;
 
