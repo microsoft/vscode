@@ -20,7 +20,7 @@ import * as pfs from 'vs/base/node/pfs';
 import { extract, ExtractError } from 'vs/base/node/zip';
 import { localize } from 'vs/nls';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionManagementError, ExtensionManagementErrorCode, Metadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementError, ExtensionManagementErrorCode, Metadata, ILocalExtension, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ExtensionType, IExtensionIdentifier, IExtensionManifest, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
@@ -336,6 +336,7 @@ export class ExtensionsScanner extends Disposable {
 		local.preRelease = !!metadata?.preRelease;
 		local.isBuiltin = local.type === ExtensionType.System || !!metadata?.isBuiltin;
 		local.installedTimestamp = metadata?.installedTimestamp;
+		local.targetPlatform = metadata?.targetPlatform ?? TargetPlatform.UNDEFINED;
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {

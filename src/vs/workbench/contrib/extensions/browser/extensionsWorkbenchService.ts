@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult,
-	IExtensionsControlManifest, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions
+	IExtensionsControlManifest, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, TargetPlatform
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -202,7 +202,26 @@ class Extension implements IExtension {
 	}
 
 	get outdated(): boolean {
-		return !!this.gallery && this.type === ExtensionType.User && semver.gt(this.latestVersion, this.version) && (this.local?.preRelease || !this.gallery?.properties.isPreReleaseVersion);
+		if (!this.gallery || !this.local) {
+			return false;
+		}
+		if (this.type !== ExtensionType.User) {
+			return false;
+		}
+		if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
+			return false;
+		}
+		if (semver.gt(this.latestVersion, this.version)) {
+			return true;
+		}
+		if (this.outdatedTargetPlatform) {
+			return true;
+		}
+		return false;
+	}
+
+	get outdatedTargetPlatform(): boolean {
+		return !!this.local && !!this.gallery && this.local.targetPlatform !== TargetPlatform.UNDEFINED && this.local.targetPlatform !== this.gallery.properties.targetPlatform && semver.eq(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
@@ -436,7 +455,7 @@ class Extensions extends Disposable {
 			if (extension.local && !extension.local.identifier.uuid) {
 				extension.local = await this.updateMetadata(extension.local, gallery);
 			}
-			if (!extension.gallery || extension.gallery.version !== gallery.version) {
+			if (!extension.gallery || extension.gallery.version !== gallery.version || extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform) {
 				extension.gallery = gallery;
 				this._onChange.fire({ extension });
 				hasChanged = true;

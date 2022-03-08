@@ -324,6 +324,7 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 			id: extension.identifier.uuid,
 			publisherId: extension.publisherId,
 			publisherDisplayName: extension.publisherDisplayName,
+			targetPlatform: extension.properties.targetPlatform
 		};
 
 		let zipPath: string | undefined;
