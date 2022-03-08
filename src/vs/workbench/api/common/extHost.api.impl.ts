@@ -223,9 +223,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if (typeof filter.exclusive === 'boolean') {
 						checkProposedApiEnabled(extension, 'documentFiltersExclusive');
 					}
-					if (typeof filter.notebookType === 'string') {
-						checkProposedApiEnabled(extension, 'notebookDocumentSelector');
-					}
 				}
 				return selector;
 			};
@@ -652,9 +649,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostProgress.withProgress(extension, options, task);
 			},
 			createOutputChannel(name: string, languageId?: string): vscode.OutputChannel {
-				if (languageId) {
-					checkProposedApiEnabled(extension, 'outputChannelLanguage');
-				}
 				return extHostOutputService.createOutputChannel(name, languageId, extension);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn; preserveFocus?: boolean }, options?: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {

@@ -1738,7 +1738,7 @@ export class ToggleTestingPeekHistory extends EditorAction2 {
 			}],
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyH,
+				primary: KeyMod.Alt | KeyCode.KeyH,
 				when: TestingContextKeys.isPeekVisible.isEqualTo(true),
 			},
 		});

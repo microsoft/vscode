@@ -55,9 +55,15 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 		for (const bracket of bracketsInRange) {
 			result.push({
 				id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
-				options: { description: 'BracketPairColorization', inlineClassName: this.colorProvider.getInlineClassName(bracket) },
+				options: {
+					description: 'BracketPairColorization',
+					inlineClassName: this.colorProvider.getInlineClassName(
+						bracket,
+						this.colorizationOptions.useIndependentColorPoolPerBracketType
+					),
+				},
 				ownerId: 0,
-				range: bracket.range
+				range: bracket.range,
 			});
 		}
 		return result;
@@ -81,11 +87,11 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 class ColorProvider {
 	public readonly unexpectedClosingBracketClassName = 'unexpected-closing-bracket';
 
-	getInlineClassName(bracket: BracketInfo): string {
+	getInlineClassName(bracket: BracketInfo, useIndependentColorPoolPerBracketType: boolean): string {
 		if (bracket.isInvalid) {
 			return this.unexpectedClosingBracketClassName;
 		}
-		return this.getInlineClassNameOfLevel(bracket.nestingLevel);
+		return this.getInlineClassNameOfLevel(useIndependentColorPoolPerBracketType ? bracket.nestingLevelOfEqualBracketType : bracket.nestingLevel);
 	}
 
 	getInlineClassNameOfLevel(level: number): string {

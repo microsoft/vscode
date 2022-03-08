@@ -837,7 +837,7 @@ export interface ITerminalInstance {
 
 	/**
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
-	 * re-run it in the active terminal.
+	 * rerun it in the active terminal.
 	 */
 	runRecent(type: 'command' | 'cwd'): Promise<void>;
 

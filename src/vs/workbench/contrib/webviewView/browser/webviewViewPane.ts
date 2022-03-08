@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -141,7 +142,6 @@ export class WebviewViewPane extends ViewPane {
 			return;
 		}
 
-
 		this.layoutWebview();
 	}
 
@@ -182,6 +182,15 @@ export class WebviewViewPane extends ViewPane {
 		this._webviewDisposables.add(webview.onDidUpdateState(() => {
 			this.viewState[storageKeys.webviewState] = webview.state;
 		}));
+
+		// Re-dispatch all drag events back to the drop target to support view drag drop
+		for (const event of [EventType.DRAG, EventType.DRAG_END, EventType.DRAG_ENTER, EventType.DRAG_LEAVE, EventType.DRAG_START]) {
+			this._webviewDisposables.add(addDisposableListener(this._webview.value.container!, event, e => {
+				e.preventDefault();
+				e.stopImmediatePropagation();
+				this.dropTargetElement.dispatchEvent(new DragEvent(e.type, e));
+			}));
+		}
 
 		this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
 

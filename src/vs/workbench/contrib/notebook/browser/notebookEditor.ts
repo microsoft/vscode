@@ -12,7 +12,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import 'vs/css!./media/notebook';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';

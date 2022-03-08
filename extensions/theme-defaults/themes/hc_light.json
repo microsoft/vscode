@@ -10,7 +10,7 @@
 		"foreground": "#292929",
 		"selection.background": "#0F4A8580",
 		"descriptionForeground": "#292929",
-		"errorForeground": "#292929",
+		"errorForeground": "#B5200D",
 		"icon.foreground": "#292929",
 		"sash.hoverBorder": "#007ACC",
 
@@ -31,7 +31,7 @@
 
 		"button.background": "#0F4A85",
 		"button.foreground": "#ffffff",
-		"button.border": "#0000",
+		"button.border": "#0F4A85",
 		"button.hoverBackground": "#0F4A85",
 		"button.secondaryBackground": "#0000",
 		"button.secondaryForeground": "#292929",
@@ -203,6 +203,7 @@
 		"editorBracketMatch.border": "#0F4A85",
 		"editor.foldBackground": "#0000",
 		"editorWhitespace.foreground": "#CCCCCC",
+		"editorUnnecessaryCode.border": "#0F4A85",
 
 		"editorWidget.foreground": "#292929",
 		"editorWidget.background": "#ffffff",
@@ -213,7 +214,10 @@
 		"peekViewResult.background": "#ffffff",
 		"peekViewResult.selectionBackground": "#ffffff",
 		"peekViewResult.selectionForeground": "#292929",
+		"peekViewTitleLabel.foreground": "#292929",
 		"peekViewTitleDescription.foreground": "#292929",
+		"peekViewResult.fileForeground": "#292929",
+		"peekViewResult.lineForeground": "#292929",
 
 		"panelTitle.inactiveForeground": "#292929",
 		"panel.border": "#0F4A85",
@@ -244,6 +248,9 @@
 		"notifications.foreground": "#292929",
 		"notifications.background": "#ffffff",
 		"notifications.border": "#0F4A85",
+		"notificationsErrorIcon.foreground": "#B5200D",
+		"notificationsInfoIcon.foreground": "#007ACC",
+		"notificationsWarningIcon.foreground": "#895503",
 
 		"banner.background": "#0F4A85",
 		"banner.foreground": "#ffffff",
@@ -267,6 +274,7 @@
 		"breadcrumb.foreground": "#292929",
 
 		"terminal.foreground": "#292929",
+		"terminal.selectionBackground": "#f2f2f2",
 		"terminal.ansiBlack": "#292929",
 		"terminal.ansiBlue": "#0451a5",
 		"terminal.ansiBrightBlack": "#666666",
@@ -283,6 +291,9 @@
 		"terminal.ansiRed": "#cd3131",
 		"terminal.ansiWhite": "#555555",
 		"terminal.ansiYellow": "#949800",
+
+		"testing.iconFailed":"#B5200D",
+		"testing.iconPassed": "#007100",
 
 		"gitDecoration.addedResourceForeground": "#374e06",
 		"gitDecoration.conflictingResourceForeground": "#ad0707",

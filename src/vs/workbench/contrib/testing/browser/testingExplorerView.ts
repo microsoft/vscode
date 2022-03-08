@@ -53,11 +53,10 @@ import { ByNameTestItemElement, HierarchicalByNameProjection } from 'vs/workbenc
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { getTestItemContextOverlay } from 'vs/workbench/contrib/testing/browser/explorerProjections/testItemContextOverlay';
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
-import { ConfigureTestProfilesAction, DebugSelectedAction, RunSelectedAction, SelectDefaultTestProfiles } from 'vs/workbench/contrib/testing/browser/testExplorerActions';
 import { TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { labelForTestInState, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { labelForTestInState, TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
@@ -236,11 +235,11 @@ export class TestingExplorerView extends ViewPane {
 	/** @override  */
 	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
-			case Testing.FilterActionId:
+			case TestCommandId.FilterAction:
 				return this.filter = this.instantiationService.createInstance(TestingExplorerFilter, action);
-			case RunSelectedAction.ID:
+			case TestCommandId.RunSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
-			case DebugSelectedAction.ID:
+			case TestCommandId.DebugSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action);
 			default:
 				return super.getActionViewItem(action);
@@ -302,7 +301,7 @@ export class TestingExplorerView extends ViewPane {
 				localize('selectDefaultConfigs', 'Select Default Profile'),
 				undefined,
 				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(SelectDefaultTestProfiles.ID, group),
+				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.SelectDefaultTestProfiles, group),
 			));
 		}
 
@@ -312,7 +311,7 @@ export class TestingExplorerView extends ViewPane {
 				localize('configureTestProfiles', 'Configure Test Profiles'),
 				undefined,
 				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(ConfigureTestProfilesAction.ID, group),
+				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.ConfigureTestProfilesAction, group),
 			));
 		}
 
@@ -357,7 +356,7 @@ export class TestingExplorerView extends ViewPane {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			triggerKeys: { keyDown: false, keys: [] },
 		});
-		bar.push(new Action(Testing.FilterActionId));
+		bar.push(new Action(TestCommandId.FilterAction));
 		bar.getContainer().classList.add('testing-filter-action-bar');
 		return bar;
 	}

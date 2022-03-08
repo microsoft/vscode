@@ -16,7 +16,7 @@
     "jschardet": "3.0.0",
     "keytar": "7.6.0",
     "minimist": "^1.2.5",
-    "native-watchdog": "1.3.0",
+    "native-watchdog": "1.4.0",
     "node-pty": "0.11.0-beta11",
     "spdlog": "^0.13.0",
     "tas-client-umd": "0.1.4",

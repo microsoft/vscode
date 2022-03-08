@@ -225,6 +225,7 @@ export class View extends ViewEventHandler {
 		return {
 			viewDomNode: this.domNode.domNode,
 			linesContentDomNode: this._linesContent.domNode,
+			viewLinesDomNode: this._viewLines.getDomNode().domNode,
 
 			focusTextArea: () => {
 				this.focus();
