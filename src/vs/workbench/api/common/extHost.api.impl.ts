@@ -223,9 +223,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if (typeof filter.exclusive === 'boolean') {
 						checkProposedApiEnabled(extension, 'documentFiltersExclusive');
 					}
-					if (typeof filter.notebookType === 'string') {
-						checkProposedApiEnabled(extension, 'notebookDocumentSelector');
-					}
 				}
 				return selector;
 			};
