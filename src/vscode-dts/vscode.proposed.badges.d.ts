@@ -10,7 +10,7 @@ declare module 'vscode' {
 	/**
 	 * A badge presenting a value for a view
 	 */
-	export interface Badge {
+	export interface ViewBadge {
 
 		/**
 		 * A label to present in tooltips for the badge
@@ -28,7 +28,7 @@ declare module 'vscode' {
 		 * The badge to display for this TreeView.
 		 * To remove the badge, set to undefined.
 		 */
-		badge?: Badge | undefined;
+		badge?: ViewBadge | undefined;
 	}
 
 	export interface WebviewView {
@@ -36,6 +36,6 @@ declare module 'vscode' {
 		 * The badge to display for this webview view.
 		 * To remove the badge, set to undefined.
 		 */
-		badge?: Badge | undefined;
+		badge?: ViewBadge | undefined;
 	}
 }
