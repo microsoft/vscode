@@ -18,7 +18,7 @@ import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/c
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -866,19 +866,23 @@ export class FileService extends Disposable implements IFileService {
 		return { exists, isSameResourceWithDifferentPathCase };
 	}
 
-	async copyFile(source: URI, target: URI): Promise<void> {
+	async cloneFile(source: URI, target: URI): Promise<void> {
 		const sourceProvider = await this.withReadProvider(source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
-		// same provider with fast copy: leverage copy() functionality
-		if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
-			await sourceProvider.copy(source, target, { overwrite: true, hint: FileType.File /* only supports files */ });
+		// same provider, check for `cloneFile` support or `copy`
+		if (sourceProvider === targetProvider) {
+			if (hasFileCloneCapability(sourceProvider)) {
+				return sourceProvider.cloneFile(source, target);
+			}
+
+			if (hasFileFolderCopyCapability(sourceProvider)) {
+				return sourceProvider.copy(source, target, { overwrite: true });
+			}
 		}
 
 		// otherwise copy via buffer/unbuffered
-		else {
-			await this.doCopyFile(sourceProvider, source, targetProvider, target);
-		}
+		return this.doCopyFile(sourceProvider, source, targetProvider, target);
 	}
 
 	private getExtUri(provider: IFileSystemProvider): { providerExtUri: IExtUri; isPathCaseSensitive: boolean } {

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { isLinux } from 'vs/base/common/platform';
-import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, FileAtomicReadOptions, FileCopyOptions } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, FileDeleteOptions, IStat, FileType, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileAtomicReadCapability, FileAtomicReadOptions, IFileSystemProviderWithFileCloneCapability } from 'vs/platform/files/common/files';
 import { AbstractDiskFileSystemProvider } from 'vs/platform/files/common/diskFileSystemProvider';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -27,7 +27,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability,
-	IFileSystemProviderWithFileAtomicReadCapability {
+	IFileSystemProviderWithFileAtomicReadCapability,
+	IFileSystemProviderWithFileCloneCapability {
 
 	private readonly provider = this._register(new DiskFileSystemProviderClient(this.mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux, trash: true }));
 
@@ -114,8 +115,16 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.provider.rename(from, to, opts);
 	}
 
-	copy(from: URI, to: URI, opts: FileCopyOptions): Promise<void> {
+	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
 		return this.provider.copy(from, to, opts);
+	}
+
+	//#endregion
+
+	//#region Clone File
+
+	cloneFile(from: URI, to: URI): Promise<void> {
+		return this.provider.cloneFile(from, to);
 	}
 
 	//#endregion

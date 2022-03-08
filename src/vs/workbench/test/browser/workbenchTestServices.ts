@@ -23,7 +23,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata, FileCopyOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
@@ -1076,7 +1076,7 @@ export class TestFileService implements IFileService {
 
 	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
-	async copyFile(_source: URI, _target: URI): Promise<void> { }
+	async cloneFile(_source: URI, _target: URI): Promise<void> { }
 	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	createFolder(_resource: URI): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 
@@ -1337,7 +1337,7 @@ export class RemoteFileSystemProvider implements IFileSystemProvider {
 	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return this.wrappedFsp.delete(this.toFileResource(resource), opts); }
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.wrappedFsp.rename(this.toFileResource(from), this.toFileResource(to), opts); }
-	copy(from: URI, to: URI, opts: FileCopyOptions): Promise<void> { return this.wrappedFsp.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
+	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return this.wrappedFsp.copy!(this.toFileResource(from), this.toFileResource(to), opts); }
 
 	readFile(resource: URI): Promise<Uint8Array> { return this.wrappedFsp.readFile!(this.toFileResource(resource)); }
 	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return this.wrappedFsp.writeFile!(this.toFileResource(resource), content, opts); }

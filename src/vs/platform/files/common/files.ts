@@ -182,9 +182,11 @@ export interface IFileService {
 	canCopy(source: URI, target: URI, overwrite?: boolean): Promise<Error | true>;
 
 	/**
-	 * Copies a file to a path identified by the resource. Folders are not supported.
+	 * Clones a file to a path identified by the resource. Folders are not supported.
+	 *
+	 * If the target path exists, it will be overwritten.
 	 */
-	copyFile(source: URI, target: URI): Promise<void>;
+	cloneFile(source: URI, target: URI): Promise<void>;
 
 	/**
 	 * Creates a new file with the given path and optional contents. The returned promise
@@ -337,15 +339,6 @@ export interface FileOpenForWriteOptions extends FileUnlockOptions {
 	readonly create: true;
 }
 
-export interface FileCopyOptions extends FileOverwriteOptions {
-
-	/**
-	 * Gives a hint what type of file is being copied. This can
-	 * speed up the operation by avoiding extra resolve calls.
-	 */
-	readonly hint?: FileType;
-}
-
 export interface FileDeleteOptions {
 
 	/**
@@ -486,7 +479,12 @@ export const enum FileSystemProviderCapabilities {
 	 * Provider support to read files atomically. This implies the
 	 * provider provides the `FileReadWrite` capability too.
 	 */
-	FileAtomicRead = 1 << 14
+	FileAtomicRead = 1 << 14,
+
+	/**
+	 * Provider support to clone files atomically.
+	 */
+	FileClone = 1 << 15
 }
 
 export interface IFileSystemProvider {
@@ -504,7 +502,7 @@ export interface IFileSystemProvider {
 	delete(resource: URI, opts: FileDeleteOptions): Promise<void>;
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
-	copy?(from: URI, to: URI, opts: FileCopyOptions): Promise<void>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
 
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
@@ -527,11 +525,19 @@ export function hasReadWriteCapability(provider: IFileSystemProvider): provider 
 }
 
 export interface IFileSystemProviderWithFileFolderCopyCapability extends IFileSystemProvider {
-	copy(from: URI, to: URI, opts: FileCopyOptions): Promise<void>;
+	copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void>;
 }
 
 export function hasFileFolderCopyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileFolderCopyCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy);
+}
+
+export interface IFileSystemProviderWithFileCloneCapability extends IFileSystemProvider {
+	cloneFile(from: URI, to: URI): Promise<void>;
+}
+
+export function hasFileCloneCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileCloneCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileClone);
 }
 
 export interface IFileSystemProviderWithOpenReadWriteCloseCapability extends IFileSystemProvider {

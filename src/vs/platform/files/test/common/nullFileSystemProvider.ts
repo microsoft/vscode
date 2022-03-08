@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { FileCopyOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, IFileChange, IFileSystemProvider, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 export class NullFileSystemProvider implements IFileSystemProvider {
 
@@ -36,7 +36,7 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 	async readdir(resource: URI): Promise<[string, FileType][]> { return undefined!; }
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return undefined; }
 	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return undefined; }
-	async copy?(from: URI, to: URI, opts: FileCopyOptions): Promise<void> { return undefined; }
+	async copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return undefined; }
 	async readFile?(resource: URI): Promise<Uint8Array> { return undefined!; }
 	async writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return undefined; }
 	async open?(resource: URI, opts: FileOpenOptions): Promise<number> { return undefined!; }

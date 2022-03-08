@@ -12,7 +12,7 @@ import { IURITransformer } from 'vs/base/common/uriIpc';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ReadableStreamEventPayload, listenStream } from 'vs/base/common/stream';
-import { IStat, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileDeleteOptions, FileOverwriteOptions, IFileChange, IWatchOptions, FileType, FileAtomicReadOptions, FileCopyOptions } from 'vs/platform/files/common/files';
+import { IStat, FileReadStreamOptions, FileWriteOptions, FileOpenOptions, FileDeleteOptions, FileOverwriteOptions, IFileChange, IWatchOptions, FileType, FileAtomicReadOptions } from 'vs/platform/files/common/files';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IRecursiveWatcherOptions } from 'vs/platform/files/common/watcher';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -47,6 +47,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 			case 'writeFile': return this.writeFile(uriTransformer, arg[0], arg[1], arg[2]);
 			case 'rename': return this.rename(uriTransformer, arg[0], arg[1], arg[2]);
 			case 'copy': return this.copy(uriTransformer, arg[0], arg[1], arg[2]);
+			case 'cloneFile': return this.cloneFile(uriTransformer, arg[0], arg[1]);
 			case 'mkdir': return this.mkdir(uriTransformer, arg[0]);
 			case 'delete': return this.delete(uriTransformer, arg[0], arg[1]);
 			case 'watch': return this.watch(uriTransformer, arg[0], arg[1], arg[2], arg[3]);
@@ -178,12 +179,24 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.rename(source, target, opts);
 	}
 
-	private copy(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: FileCopyOptions): Promise<void> {
+	private copy(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
 		const source = this.transformIncoming(uriTransformer, _source);
 		const target = this.transformIncoming(uriTransformer, _target);
 
 		return this.provider.copy(source, target, opts);
 	}
+
+
+	//#endregion
+
+	private cloneFile(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents): Promise<void> {
+		const source = this.transformIncoming(uriTransformer, _source);
+		const target = this.transformIncoming(uriTransformer, _target);
+
+		return this.provider.cloneFile(source, target);
+	}
+
+	//#region File Clone
 
 	//#endregion
 

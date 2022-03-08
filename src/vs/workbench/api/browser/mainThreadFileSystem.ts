@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFilesConfiguration, IFileStatWithPartialMetadata, IFileStat, FileCopyOptions } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFilesConfiguration, IFileStatWithPartialMetadata, IFileStat } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -278,7 +278,7 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileCopyOptions): Promise<void> {
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 

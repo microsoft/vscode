@@ -13,7 +13,7 @@ import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { createFileSystemProviderError, FileAtomicReadOptions, FileChangeType, FileCopyOptions, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, FileAtomicReadOptions, FileChangeType, FileDeleteOptions, FileOpenOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 
 export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
 
@@ -27,7 +27,8 @@ export class DiskFileSystemProviderClient extends Disposable implements
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability,
 	IFileSystemProviderWithFileFolderCopyCapability,
-	IFileSystemProviderWithFileAtomicReadCapability {
+	IFileSystemProviderWithFileAtomicReadCapability,
+	IFileSystemProviderWithFileCloneCapability {
 
 	constructor(
 		private readonly channel: IChannel,
@@ -183,8 +184,12 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		return this.channel.call('rename', [resource, target, opts]);
 	}
 
-	copy(resource: URI, target: URI, opts: FileCopyOptions): Promise<void> {
+	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
 		return this.channel.call('copy', [resource, target, opts]);
+	}
+
+	cloneFile(resource: URI, target: URI): Promise<void> {
+		return this.channel.call('cloneFile', [resource, target]);
 	}
 
 	//#endregion
