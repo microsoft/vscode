@@ -25,8 +25,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { EditorResolution } from 'vs/platform/editor/common/editor';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -229,53 +227,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const prefersReducedMotionConfig = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.welcomePage.preferReducedMotion': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'boolean',
-			default: true,
-			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
-		}
-	}
-} as const;
-
-const prefersStandardMotionConfig = {
-	...workbenchConfigurationNodeBase,
-	'properties': {
-		'workbench.welcomePage.preferReducedMotion': {
-			scope: ConfigurationScope.APPLICATION,
-			type: 'boolean',
-			default: false,
-			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
-		}
-	}
-} as const;
-
-class WorkbenchConfigurationContribution {
-	constructor(
-		@IInstantiationService _instantiationService: IInstantiationService,
-		@IConfigurationService _configurationService: IConfigurationService,
-		@IWorkbenchAssignmentService _experimentSevice: IWorkbenchAssignmentService,
-	) {
-		this.registerConfigs(_experimentSevice);
-	}
-
-	private async registerConfigs(_experimentSevice: IWorkbenchAssignmentService) {
-		const preferReduced = await _experimentSevice.getTreatment('welcomePage.preferReducedMotion').catch(e => false);
-		if (preferReduced) {
-			configurationRegistry.updateConfigurations({ add: [prefersReducedMotionConfig], remove: [prefersStandardMotionConfig] });
-		}
-		else {
-			configurationRegistry.updateConfigurations({ add: [prefersStandardMotionConfig], remove: [prefersReducedMotionConfig] });
-		}
-	}
-}
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WorkbenchConfigurationContribution, LifecyclePhase.Restored);
-
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | 'webworker' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote or serverless contexts may be different from the platform of the UI"));
 class WorkspacePlatformContribution {
 	constructor(
@@ -335,30 +286,31 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			default: 'off',
 			description: localize('workbench.welcomePage.videoTutorials', "When enabled, the get started page has additional links to video tutorials.")
+		},
+		'workbench.startupEditor': {
+			'scope': ConfigurationScope.RESOURCE,
+			'type': 'string',
+			'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench'],
+			'enumDescriptions': [
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
+			],
+			'default': 'welcomePage',
+			'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
+		},
+		'workbench.welcomePage.preferReducedMotion': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: false,
+			deprecationMessage: localize('deprecationMessage', "Deprecated, use the global `workbench.reduceMotion`."),
+			description: localize('workbench.welcomePage.preferReducedMotion', "When enabled, reduce motion in welcome page.")
 		}
 	}
 });
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-	.registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		'properties': {
-			'workbench.startupEditor': {
-				'scope': ConfigurationScope.RESOURCE,
-				'type': 'string',
-				'enum': ['none', 'welcomePage', 'readme', 'newUntitledFile', 'welcomePageInEmptyWorkbench'],
-				'enumDescriptions': [
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.none' }, "Start without an editor."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePage' }, "Open the Welcome page, with content to aid in getting started with VS Code and extensions."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.readme' }, "Open the README when opening a folder that contains one, fallback to 'welcomePage' otherwise. Note: This is only observed as a global configuration, it will be ignored if set in a workspace or folder configuration."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.newUntitledFile' }, "Open a new untitled file (only applies when opening an empty window)."),
-					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.welcomePageInEmptyWorkbench' }, "Open the Welcome page when opening an empty workbench."),
-				],
-				'default': 'welcomePage',
-				'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
-			},
-		}
-	});
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StartupPageContribution, LifecyclePhase.Restored);

@@ -69,6 +69,7 @@ import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
 import { restoreWalkthroughsConfigurationKey, RestoreWalkthroughsConfigurationValue } from 'vs/workbench/contrib/welcomeGettingStarted/browser/startupPage';
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -176,6 +177,7 @@ export class GettingStartedPage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
@@ -249,7 +251,6 @@ export class GettingStartedPage extends EditorPane {
 					this.container.classList.toggle('animatable', this.shouldAnimate());
 				}
 			}));
-
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
@@ -273,8 +274,15 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpened = workspacesService.getRecentlyOpened();
 	}
 
+	// remove when 'workbench.welcomePage.preferReducedMotion' deprecated
 	private shouldAnimate() {
-		return !this.configurationService.getValue(REDUCED_MOTION_KEY);
+		if (this.configurationService.getValue(REDUCED_MOTION_KEY)) {
+			return false;
+		}
+		if (this.accessibilityService.isMotionReduced()) {
+			return false;
+		}
+		return true;
 	}
 
 	private getWalkthroughCompletionStats(walkthrough: IResolvedWalkthrough): { stepsComplete: number; stepsTotal: number } {
@@ -651,7 +659,7 @@ export class GettingStartedPage extends EditorPane {
 					node.setAttribute('aria-expanded', 'false');
 				}
 			});
-			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
+			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus && this.shouldAnimate() ? SLIDE_TRANSITION_TIME_MS : 0);
 
 			this.editorInput.selectedStep = id;
 
