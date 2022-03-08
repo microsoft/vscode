@@ -641,7 +641,7 @@ export interface IEditorTabDto {
 	isPinned: boolean;
 	isDirty: boolean;
 	kind: TabKind;
-	additionalResourcesAndViewIds: { resource?: UriComponents; viewId?: string }[];
+	additionalResourcesAndViewTypes: { resource?: UriComponents; viewId?: string }[];
 }
 
 export interface IExtHostEditorTabsShape {

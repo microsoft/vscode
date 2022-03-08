@@ -35,6 +35,10 @@ jobs:
           # Remove this once node-version > 17.4.x or > 16.14.0,
           # which ships with npm > 8.4.0 that has support for VS 2022 toolchain.
           $env:npm_config_node_gyp=$(Join-Path $(Get-Command node-gyp.cmd).Path "..\node_modules\node-gyp\bin\node-gyp.js" -Resolve)
+          # Electron <= 13 does not ship with correct config.gypi headers,
+          # remove this once we update to newer versions.
+          # Refs https://github.com/nodejs/node-gyp/pull/2497
+          $env:npm_config_force_process_config="true"
           yarn --frozen-lockfile
         env:
           CHILD_CONCURRENCY: 1

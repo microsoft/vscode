@@ -4517,7 +4517,6 @@ declare module 'vscode' {
 		 *
 		 * @param range The range the color appears in. Must not be empty.
 		 * @param color The value of the color.
-		 * @param format The format in which this color is currently formatted.
 		 */
 		constructor(range: Range, color: Color);
 	}
@@ -4675,6 +4674,9 @@ declare module 'vscode' {
 
 		/**
 		 * The tooltip text when you hover over this item.
+		 *
+		 * *Note* that this property can be set late during
+		 * {@link InlayHintsProvider.resolveInlayHint resolving} of inlay hints.
 		 */
 		tooltip?: string | MarkdownString | undefined;
 
@@ -4689,6 +4691,9 @@ declare module 'vscode' {
 		 *
 		 * *Note* that edits are expected to change the document so that the inlay hint (or its nearest variant) is
 		 * now part of the document and the inlay hint itself is now obsolete.
+		 *
+		 * *Note* that this property can be set late during
+		 * {@link InlayHintsProvider.resolveInlayHint resolving} of inlay hints.
 		 */
 		textEdits?: TextEdit[];
 
@@ -4740,8 +4745,8 @@ declare module 'vscode' {
 		provideInlayHints(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
-		 * Given an inlay hint fill in {@link InlayHint.tooltip tooltip}, {@link InlayHint.command command}, or complete
-		 * label {@link InlayHintLabelPart parts}.
+		 * Given an inlay hint fill in {@link InlayHint.tooltip tooltip}, {@link InlayHint.textEdits text edits},
+		 * or complete label {@link InlayHintLabelPart parts}.
 		 *
 		 * *Note* that the editor will resolve an inlay hint at most once.
 		 *
@@ -7236,7 +7241,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new task.
 		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
+		 * @param taskDefinition The task definition as defined in the taskDefinitions extension point.
 		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder. Global tasks are currently not supported.
 		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
@@ -7252,7 +7257,7 @@ declare module 'vscode' {
 		 *
 		 * @deprecated Use the new constructors that allow specifying a scope for the task.
 		 *
-		 * @param definition The task definition as defined in the taskDefinitions extension point.
+		 * @param taskDefinition The task definition as defined in the taskDefinitions extension point.
 		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
@@ -7889,8 +7894,8 @@ declare module 'vscode' {
 		/**
 		 * Rename a file or folder.
 		 *
-		 * @param oldUri The existing file.
-		 * @param newUri The new location.
+		 * @param source The existing file.
+		 * @param target The new location.
 		 * @param options Defines if existing files should be overwritten.
 		 */
 		rename(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
@@ -7899,7 +7904,7 @@ declare module 'vscode' {
 		 * Copy files or folders.
 		 *
 		 * @param source The existing file.
-		 * @param destination The destination location.
+		 * @param target The destination location.
 		 * @param options Defines if existing files should be overwritten.
 		 */
 		copy(source: Uri, target: Uri, options?: { overwrite?: boolean }): Thenable<void>;
@@ -14052,7 +14057,7 @@ declare module 'vscode' {
 		 * Registering a single provider with resolve methods for different trigger kinds, results in the same resolve methods called multiple times.
 		 * More than one provider can be registered for the same type.
 		 *
-		 * @param type The debug type for which the provider is registered.
+		 * @param debugType The debug type for which the provider is registered.
 		 * @param provider The {@link DebugConfigurationProvider debug configuration provider} to register.
 		 * @param triggerKind The {@link DebugConfigurationProviderTrigger trigger} for which the 'provideDebugConfiguration' method of the provider is registered. If `triggerKind` is missing, the value `DebugConfigurationProviderTriggerKind.Initial` is assumed.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
@@ -15011,7 +15016,7 @@ declare module 'vscode' {
 		readonly profile: TestRunProfile | undefined;
 
 		/**
-		 * @param tests Array of specific tests to run, or undefined to run all tests
+		 * @param include Array of specific tests to run, or undefined to run all tests
 		 * @param exclude An array of tests to exclude from the run.
 		 * @param profile The run profile used for this request.
 		 */
@@ -15062,7 +15067,7 @@ declare module 'vscode' {
 		 * Indicates a test has failed. You should pass one or more
 		 * {@link TestMessage TestMessages} to describe the failure.
 		 * @param test Test item to update.
-		 * @param messages Messages associated with the test failure.
+		 * @param message Messages associated with the test failure.
 		 * @param duration How long the test took to execute, in milliseconds.
 		 */
 		failed(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
@@ -15073,7 +15078,7 @@ declare module 'vscode' {
 		 * from the "failed" state in that it indicates a test that couldn't be
 		 * executed at all, from a compilation error for example.
 		 * @param test Test item to update.
-		 * @param messages Messages associated with the test failure.
+		 * @param message Messages associated with the test failure.
 		 * @param duration How long the test took to execute, in milliseconds.
 		 */
 		errored(test: TestItem, message: TestMessage | readonly TestMessage[], duration?: number): void;
@@ -15131,7 +15136,7 @@ declare module 'vscode' {
 		/**
 		 * Adds the test item to the children. If an item with the same ID already
 		 * exists, it'll be replaced.
-		 * @param items Item to add.
+		 * @param item Item to add.
 		 */
 		add(item: TestItem): void;
 

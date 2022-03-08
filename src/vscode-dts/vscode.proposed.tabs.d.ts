@@ -35,20 +35,20 @@ declare module 'vscode' {
 		readonly resource: Uri | undefined;
 
 		/**
-		 * The identifier of the view contained in the tab
+		 * The type of view contained in the tab
 		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
-		readonly viewId: string | undefined;
+		readonly viewType: string | undefined;
 
 		/**
 		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
+		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
 		 * always be at index 0.
 		 */
-		readonly additionalResourcesAndViewIds: readonly {
+		readonly additionalResourcesAndViewTypes: readonly {
 			readonly resource: Uri | undefined;
-			readonly viewId: string | undefined;
+			readonly viewType: string | undefined;
 		}[];
 
 		/**
@@ -99,6 +99,7 @@ declare module 'vscode' {
 		/**
 		 * All the groups within the group container
 		 */
+		// TODO@API rename to groups
 		readonly all: TabGroup[];
 
 		/**
@@ -111,6 +112,11 @@ declare module 'vscode' {
 		 */
 		onDidChangeTabGroup: Event<void>;
 
+		/**
+		 * An {@link Event} which fires when the active group changes.
+		 * Whether it be which group is active or its properties.
+		 */
+		onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 	}
 
 	interface TabGroup {

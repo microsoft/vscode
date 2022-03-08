@@ -19,6 +19,7 @@
 .test-output-peek-tree .test-peek-item {
 	display: flex;
 	align-items: center;
+	color: var(--vscode-editor-foreground);
 }
 
 .test-output-peek-tree .monaco-list-row .monaco-action-bar,

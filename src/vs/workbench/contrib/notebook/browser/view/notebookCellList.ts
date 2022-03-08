@@ -89,6 +89,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	get rowsContainer(): HTMLElement {
 		return this.view.containerDomNode;
 	}
+
+	get scrollableElement(): HTMLElement {
+		return this.view.scrollableElementDomNode;
+	}
 	private _previousFocusedElements: CellViewModel[] = [];
 	private readonly _localDisposableStore = new DisposableStore();
 	private readonly _viewModelStore = new DisposableStore();
@@ -1408,6 +1412,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	getRenderHeight() {
 		return this.view.renderHeight;
+	}
+
+	getScrollHeight() {
+		return this.view.scrollHeight;
 	}
 
 	override layout(height?: number, width?: number): void {

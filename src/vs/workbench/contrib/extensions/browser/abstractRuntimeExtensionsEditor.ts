@@ -370,15 +370,15 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				let extraLabel: string | null = null;
-				if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
+				if (element.status.runningLocation === ExtensionRunningLocation.LocalWebWorker) {
+					extraLabel = `$(globe) web worker`;
+				} else if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
 					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
 					if (hostLabel) {
 						extraLabel = `$(remote) ${hostLabel}`;
 					} else {
 						extraLabel = `$(remote) ${element.description.extensionLocation.authority}`;
 					}
-				} else if (element.status.runningLocation === ExtensionRunningLocation.LocalWebWorker) {
-					extraLabel = `$(globe) web worker`;
 				}
 
 				if (extraLabel) {

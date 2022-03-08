@@ -214,7 +214,7 @@ export class MainThreadDocuments extends Disposable implements MainThreadDocumen
 	async $tryOpenDocument(uriData: UriComponents): Promise<URI> {
 		const inputUri = URI.revive(uriData);
 		if (!inputUri.scheme || !(inputUri.fsPath || inputUri.authority)) {
-			new Error(`Invalid uri. Scheme and authority or path must be set.`);
+			throw new Error(`Invalid uri. Scheme and authority or path must be set.`);
 		}
 
 		const canonicalUri = this._uriIdentityService.asCanonicalUri(inputUri);
