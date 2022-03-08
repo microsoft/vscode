@@ -1,0 +1,62 @@
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: "14.x"
+
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode
+      SecretsFilter: "github-distro-mixin-password,ESRP-PKI,esrp-aad-username,esrp-aad-password"
+
+  - script: |
+      set -e
+      cat << EOF > ~/.netrc
+      machine github.com
+      login vscode
+      password $(github-distro-mixin-password)
+      EOF
+
+      git config user.email "vscode@microsoft.com"
+      git config user.name "VSCode"
+    displayName: Prepare tooling
+
+  - script: |
+      set -e
+      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+    displayName: Merge distro
+
+  - script: |
+      set -e
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    retryCountOnTaskFailure: 3
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
+
+  - script: |
+      set -e
+      export npm_config_arch=$(NPM_ARCH)
+
+      for i in {1..3}; do # try 3 times, for Terrapin
+        yarn --cwd remote --frozen-lockfile && break
+        if [ $i -eq 3 ]; then
+          echo "Yarn failed too many times" >&2
+          exit 1
+        fi
+        echo "Yarn failed $i, trying again..."
+      done
+    displayName: Install dependencies
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - script: |
+      set -e
+      tar -cz --ignore-failed-read -f $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz -C $(Build.SourcesDirectory)/remote node_modules
+    displayName: Compress node_modules output
+
+  - task: PublishPipelineArtifact@0
+    displayName: "Publish remote node_modules"
+    inputs:
+      artifactName: "reh_node_modules-$(VSCODE_ARCH)"
+      targetPath: $(Build.ArtifactStagingDirectory)/reh_node_modules-$(VSCODE_ARCH).tar.gz

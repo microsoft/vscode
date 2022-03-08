@@ -415,7 +415,7 @@ suite('Parsing .gitignore files', () => {
 	});
 
 	test('various advanced constructs found in popular repos', () => {
-		const runTest = ({ pattern, included, excluded }: { pattern: string, included: string[], excluded: string[] }) => {
+		const runTest = ({ pattern, included, excluded }: { pattern: string; included: string[]; excluded: string[] }) => {
 			for (const include of included) {
 				assertNoIgnoreMatch(pattern, '/', include);
 			}
@@ -477,7 +477,7 @@ suite('Parsing .gitignore files', () => {
 		});
 
 		runTest({
-			pattern: `[._]*.s[a-w][a-z]
+			pattern: `[._]*s[a-w][a-z]
 			[._]s[a-w][a-z]
 			*.un~
 			*~`,

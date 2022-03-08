@@ -9,12 +9,12 @@ import { parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as network from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -292,7 +292,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
 		type OpenKeybindingsClassification = {
-			textual: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+			textual: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 		};
 		this.telemetryService.publicLog2<{ textual: boolean }, OpenKeybindingsClassification>('openKeybindings', { textual });
 
@@ -550,7 +550,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		let setting = settingsModel.getPreference(settingKey);
 		if (!setting && edit) {
 			let defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
-			defaultValue = defaultValue === undefined && isOverrideProperty ? {} : undefined;
+			defaultValue = defaultValue === undefined && isOverrideProperty ? {} : defaultValue;
 			if (defaultValue !== undefined) {
 				const key = settingsModel instanceof WorkspaceConfigurationEditorModel ? ['settings', settingKey] : [settingKey];
 				await this.jsonEditingService.write(settingsModel.uri!, [{ path: key, value: defaultValue }], false);

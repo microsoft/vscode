@@ -198,19 +198,45 @@
 }
 
 .scm-view .button-container {
-	padding-left: 11px;
-	height: 100%;
 	display: flex;
+	height: 100%;
+	padding-left: 11px;
 	align-items: center;
+}
+
+.scm-view .button-container > .monaco-description-button {
+	flex-direction: row;
+	flex-wrap: wrap;
+	height: 30px;
+	padding: 0 4px;
+	overflow: hidden;
+}
+
+.scm-view .button-container > .monaco-description-button > .monaco-button-label {
+	flex-grow: 1;
+	width: 0;
+	overflow: hidden;
+}
+
+.scm-view .button-container > .monaco-description-button > .monaco-button-description {
+	flex-basis: 100%;
+}
+
+.scm-view .button-container > .monaco-description-button > .monaco-button-label,
+.scm-view .button-container > .monaco-description-button > .monaco-button-description {
+	font-style: inherit;
+	padding: 4px 0;
 }
 
 .scm-view .button-container .codicon.codicon-cloud-upload,
 .scm-view .button-container .codicon.codicon-sync {
+	line-height: 22px;
 	margin: 0 0.4em 0 0;
 }
 
 .scm-view .button-container .codicon.codicon-arrow-up,
 .scm-view .button-container .codicon.codicon-arrow-down {
+	line-height: 22px;
 	font-size: small !important;
 	margin: 0 0.2em 0 0;
 }

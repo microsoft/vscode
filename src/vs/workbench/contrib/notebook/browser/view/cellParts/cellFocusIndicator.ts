@@ -5,15 +5,16 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellFocusIndicator extends CellPart {
-	private codeFocusIndicator: FastDomNode<HTMLElement>;
-	private outputFocusIndicator: FastDomNode<HTMLElement>;
+	public codeFocusIndicator: FastDomNode<HTMLElement>;
+	public outputFocusIndicator: FastDomNode<HTMLElement>;
 
 	private currentElement: ICellViewModel | undefined;
 
@@ -26,8 +27,20 @@ export class CellFocusIndicator extends CellPart {
 	) {
 		super();
 
-		this.codeFocusIndicator = new FastDomNode(DOM.append(this.left.domNode, DOM.$('.codeOutput-focus-indicator.code-focus-indicator')));
-		this.outputFocusIndicator = new FastDomNode(DOM.append(this.left.domNode, DOM.$('.codeOutput-focus-indicator.output-focus-indicator')));
+		this.codeFocusIndicator = new FastDomNode(DOM.append(
+			this.left.domNode,
+			DOM.$(
+				'.codeOutput-focus-indicator-container',
+				undefined,
+				DOM.$('.codeOutput-focus-indicator.code-focus-indicator'))));
+
+		this.outputFocusIndicator = new FastDomNode(DOM.append(
+			this.left.domNode,
+			DOM.$(
+				'.codeOutput-focus-indicator-container',
+				undefined,
+				DOM.$('.codeOutput-focus-indicator.output-focus-indicator'))));
+
 		this._register(DOM.addDisposableListener(this.codeFocusIndicator.domNode, DOM.EventType.CLICK, () => {
 			if (this.currentElement) {
 				this.currentElement.isInputCollapsed = !this.currentElement.isInputCollapsed;

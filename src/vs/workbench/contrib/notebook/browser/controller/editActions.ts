@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { localize } from 'vs/nls';
 import { MenuId, MenuItemAction, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,7 +20,8 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { changeCellToKind, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellToolbarOrder, CELL_TITLE_CELL_GROUP_ID, CELL_TITLE_OUTPUT_GROUP_ID, executeNotebookCondition, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { CellEditState, CHANGE_CELL_LANGUAGE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_HAS_OUTPUTS, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { CellEditState, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellEditType, CellKind, ICellEditOperation, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';

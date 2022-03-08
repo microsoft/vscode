@@ -4,37 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
-import { ExtHostContext, ExtHostSecretStateShape, IExtHostContext, MainContext, MainThreadSecretStateShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostSecretStateShape, MainContext, MainThreadSecretStateShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadSecretState)
 export class MainThreadSecretState extends Disposable implements MainThreadSecretStateShape {
 	private readonly _proxy: ExtHostSecretStateShape;
 
+	private secretStoragePrefix = this.credentialsService.getSecretStoragePrefix();
+
 	constructor(
 		extHostContext: IExtHostContext,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
 		@IEncryptionService private readonly encryptionService: IEncryptionService,
-		@IProductService private readonly productService: IProductService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSecretState);
 
-		this._register(this.credentialsService.onDidChangePassword(e => {
-			const extensionId = e.service.substring(this.productService.urlProtocol.length);
+		this._register(this.credentialsService.onDidChangePassword(async e => {
+			const extensionId = e.service.substring((await this.secretStoragePrefix).length);
 			this._proxy.$onDidChangePassword({ extensionId, key: e.account });
 		}));
 	}
 
-	private getFullKey(extensionId: string): string {
-		return `${this.productService.urlProtocol}${extensionId}`;
+	private async getFullKey(extensionId: string): Promise<string> {
+		return `${await this.secretStoragePrefix}${extensionId}`;
 	}
 
 	async $getPassword(extensionId: string, key: string): Promise<string | undefined> {
-		const fullKey = this.getFullKey(extensionId);
+		const fullKey = await this.getFullKey(extensionId);
 		const password = await this.credentialsService.getPassword(fullKey, key);
 		const decrypted = password && await this.encryptionService.decrypt(password);
 
@@ -53,7 +53,7 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 	}
 
 	async $setPassword(extensionId: string, key: string, value: string): Promise<void> {
-		const fullKey = this.getFullKey(extensionId);
+		const fullKey = await this.getFullKey(extensionId);
 		const toEncrypt = JSON.stringify({
 			extensionId,
 			content: value
@@ -64,7 +64,7 @@ export class MainThreadSecretState extends Disposable implements MainThreadSecre
 
 	async $deletePassword(extensionId: string, key: string): Promise<void> {
 		try {
-			const fullKey = this.getFullKey(extensionId);
+			const fullKey = await this.getFullKey(extensionId);
 			await this.credentialsService.deletePassword(fullKey, key);
 		} catch (_) {
 			throw new Error('Cannot delete password');

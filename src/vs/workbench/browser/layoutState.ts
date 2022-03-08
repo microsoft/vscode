@@ -12,12 +12,12 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { PanelAlignment, Position, positionFromString, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 
 interface IWorkbenchLayoutStateKey {
-	name: string,
-	runtime: boolean,
-	defaultValue: any,
-	scope: StorageScope,
-	target: StorageTarget
-	zenModeIgnore?: boolean,
+	name: string;
+	runtime: boolean;
+	defaultValue: any;
+	scope: StorageScope;
+	target: StorageTarget;
+	zenModeIgnore?: boolean;
 }
 
 type StorageKeyType = string | boolean | number | object;
@@ -64,16 +64,17 @@ export const LayoutStateKeys = {
 	PANEL_WAS_LAST_MAXIMIZED: new RuntimeStateKey<boolean>('panel.wasLastMaximized', StorageScope.WORKSPACE, StorageTarget.USER, false),
 
 	// Part Positions
-	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.GLOBAL, StorageTarget.USER, Position.LEFT),
+	SIDEBAR_POSITON: new RuntimeStateKey<Position>('sideBar.position', StorageScope.WORKSPACE, StorageTarget.USER, Position.LEFT),
+	PANEL_POSITION: new RuntimeStateKey<Position>('panel.position', StorageScope.WORKSPACE, StorageTarget.USER, Position.BOTTOM),
 	PANEL_ALIGNMENT: new RuntimeStateKey<PanelAlignment>('panel.alignment', StorageScope.GLOBAL, StorageTarget.USER, 'center'),
 
 	// Part Visibility
-	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.GLOBAL, StorageTarget.USER, false, true),
+	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false, true),
 	SIDEBAR_HIDDEN: new RuntimeStateKey<boolean>('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false),
 	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false),
 	PANEL_HIDDEN: new RuntimeStateKey<boolean>('panel.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
 	AUXILIARYBAR_HIDDEN: new RuntimeStateKey<boolean>('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, true),
-	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.GLOBAL, StorageTarget.USER, false, true),
+	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.WORKSPACE, StorageTarget.USER, false, true),
 } as const;
 
 
@@ -82,7 +83,7 @@ interface ILayoutStateChangeEvent<T extends StorageKeyType> {
 	value: T;
 }
 export class LayoutStateModel extends Disposable {
-	static readonly STORAGE_PREFIX = 'workbench.state.';
+	static readonly STORAGE_PREFIX = 'workbench.';
 	private stateCache = new Map<string, any>();
 
 	private readonly _onDidChangeState: Emitter<ILayoutStateChangeEvent<StorageKeyType>> = this._register(new Emitter<ILayoutStateChangeEvent<StorageKeyType>>());
@@ -94,7 +95,7 @@ export class LayoutStateModel extends Disposable {
 		private readonly contextService: IWorkspaceContextService,
 		private readonly container: HTMLElement) {
 		super();
-		this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange));
+		this._register(this.configurationService.onDidChangeConfiguration(configurationChange => this.updateStateFromLegacySettings(configurationChange)));
 	}
 
 	private updateStateFromLegacySettings(configurationChangeEvent: IConfigurationChangeEvent): void {
@@ -148,10 +149,11 @@ export class LayoutStateModel extends Disposable {
 
 		// Set dynamic defaults: part sizing and side bar visibility
 		const workbenchDimensions = getClientArea(this.container);
+		LayoutStateKeys.PANEL_POSITION.defaultValue = positionFromString(this.configurationService.getValue(WorkbenchLayoutSettings.PANEL_POSITION) ?? 'bottom');
 		LayoutStateKeys.GRID_SIZE.defaultValue = { height: workbenchDimensions.height, width: workbenchDimensions.width };
 		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, workbenchDimensions.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, workbenchDimensions.width / 4);
-		LayoutStateKeys.PANEL_SIZE.defaultValue = workbenchDimensions.height / 3;
+		LayoutStateKeys.PANEL_SIZE.defaultValue = (this.stateCache.get(LayoutStateKeys.PANEL_POSITION.name) ?? LayoutStateKeys.PANEL_POSITION.defaultValue) === 'bottom' ? workbenchDimensions.height / 3 : workbenchDimensions.width / 4;
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 
 
@@ -162,6 +164,23 @@ export class LayoutStateModel extends Disposable {
 				this.stateCache.set(stateKey.name, stateKey.defaultValue);
 			}
 		}
+
+		// Register for runtime key changes
+		this._register(this.storageService.onDidChangeValue(storageChangeEvent => {
+			let key: keyof typeof LayoutStateKeys;
+			for (key in LayoutStateKeys) {
+				const stateKey = LayoutStateKeys[key] as WorkbenchLayoutStateKey<StorageKeyType>;
+				if (stateKey instanceof RuntimeStateKey && stateKey.scope === StorageScope.GLOBAL && stateKey.target === StorageTarget.USER) {
+					if (`${LayoutStateModel.STORAGE_PREFIX}${stateKey.name}` === storageChangeEvent.key) {
+						const value = this.loadKeyFromStorage(stateKey) ?? stateKey.defaultValue;
+						if (this.stateCache.get(stateKey.name) !== value) {
+							this.stateCache.set(stateKey.name, value);
+							this._onDidChangeState.fire({ key: stateKey, value });
+						}
+					}
+				}
+			}
+		}));
 	}
 
 	save(workspace: boolean, global: boolean): void {
@@ -243,6 +262,7 @@ export class LayoutStateModel extends Disposable {
 }
 
 export enum WorkbenchLayoutSettings {
+	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 	ZEN_MODE_CONFIG = 'zenMode',
 	ZEN_MODE_SILENT_NOTIFICATIONS = 'zenMode.silentNotifications',

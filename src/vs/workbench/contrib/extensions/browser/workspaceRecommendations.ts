@@ -78,7 +78,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		}
 	}
 
-	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ validRecommendations: string[], invalidRecommendations: string[], message: string }> {
+	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ validRecommendations: string[]; invalidRecommendations: string[]; message: string }> {
 
 		const validExtensions: string[] = [];
 		const invalidExtensions: string[] = [];
@@ -98,8 +98,8 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 
 		if (extensionsToQuery.length) {
 			try {
-				const queryResult = await this.galleryService.query({ names: extensionsToQuery, pageSize: extensionsToQuery.length }, CancellationToken.None);
-				const extensions = queryResult.firstPage.map(extension => extension.identifier.id.toLowerCase());
+				const galleryExtensions = await this.galleryService.getExtensions(extensionsToQuery.map(id => ({ id })), CancellationToken.None);
+				const extensions = galleryExtensions.map(extension => extension.identifier.id.toLowerCase());
 
 				for (const extensionId of extensionsToQuery) {
 					if (extensions.indexOf(extensionId) === -1) {

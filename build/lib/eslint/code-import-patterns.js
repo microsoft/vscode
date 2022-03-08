@@ -7,6 +7,9 @@ const path = require("path");
 const minimatch = require("minimatch");
 const utils_1 = require("./utils");
 const REPO_ROOT = path.normalize(path.join(__dirname, '../../../'));
+function isLayerAllowRule(option) {
+    return !!(option.when && option.allow);
+}
 /**
  * Returns the filename relative to the project root and using `/` as separators
  */
@@ -58,6 +61,22 @@ module.exports = new class {
             { layer: 'electron-browser', deps: orSegment(['common', 'browser', 'node', 'electron-sandbox', 'electron-browser']), isBrowser: true, isNode: true },
             { layer: 'electron-main', deps: orSegment(['common', 'node', 'electron-main']), isNode: true },
         ];
+        let browserAllow = [];
+        let nodeAllow = [];
+        let testAllow = [];
+        for (const option of options) {
+            if (isLayerAllowRule(option)) {
+                if (option.when === 'hasBrowser') {
+                    browserAllow = option.allow.slice(0);
+                }
+                else if (option.when === 'hasNode') {
+                    nodeAllow = option.allow.slice(0);
+                }
+                else if (option.when === 'test') {
+                    testAllow = option.allow.slice(0);
+                }
+            }
+        }
         function findLayer(layer) {
             for (const layerRule of layerRules) {
                 if (layerRule.layer === layer) {
@@ -68,12 +87,12 @@ module.exports = new class {
         }
         function generateConfig(layerRule, target, rawRestrictions) {
             const restrictions = [];
-            const testRestrictions = ['assert', 'sinon', 'sinon-test'];
+            const testRestrictions = [...testAllow];
             if (layerRule.isBrowser) {
-                restrictions.push('vs/css!./**/*');
+                restrictions.push(...browserAllow);
             }
             if (layerRule.isNode) {
-                restrictions.push('@microsoft/*', '@vscode/*', '@parcel/*', '*');
+                restrictions.push(...nodeAllow);
             }
             for (const rawRestriction of rawRestrictions) {
                 let importPattern;
@@ -110,6 +129,9 @@ module.exports = new class {
         }
         const configs = [];
         for (const option of options) {
+            if (isLayerAllowRule(option)) {
+                continue;
+            }
             const target = option.target;
             const targetIsVS = /^src\/vs\//.test(target);
             const restrictions = (typeof option.restrictions === 'string' ? [option.restrictions] : option.restrictions).slice(0);
@@ -149,7 +171,7 @@ module.exports = new class {
         // resolve relative paths
         if (importPath[0] === '.') {
             const relativeFilename = getRelativeFilename(context);
-            importPath = path.join(path.dirname(relativeFilename), importPath);
+            importPath = path.posix.join(path.posix.dirname(relativeFilename), importPath);
             if (/^src\/vs\//.test(importPath)) {
                 // resolve using AMD base url
                 importPath = importPath.substring('src/'.length);

@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/**
+ * This module contains utility functions related to the environment, cwd and paths.
+ */
+
 import * as path from 'vs/base/common/path';
 import { URI as Uri } from 'vs/base/common/uri';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -11,10 +15,6 @@ import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
-
-/**
- * This module contains utility functions related to the environment, cwd and paths.
- */
 
 export function mergeEnvironments(parent: IProcessEnvironment, other: ITerminalEnvironment | undefined): void {
 	if (!other) {

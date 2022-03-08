@@ -12,7 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ALL_SYNC_RESOURCES, getEnablementKey, IUserDataSyncEnablementService, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 
 type SyncEnablementClassification = {
-	enabled?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
 const enablementKey = 'sync.enable';
@@ -66,7 +66,6 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void {
 		if (this.isResourceEnabled(resource) !== enabled) {
 			const resourceEnablementKey = getEnablementKey(resource);
-			this.telemetryService.publicLog2<{ enabled: boolean }, SyncEnablementClassification>(resourceEnablementKey, { enabled });
 			this.storeResourceEnablement(resourceEnablementKey, enabled);
 		}
 	}

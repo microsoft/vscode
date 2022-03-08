@@ -31,16 +31,19 @@ import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CredentialsMainService, ICredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
+import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
+import { CredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
+import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { DialogMainService, IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
+import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
+import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { getResolvedShellEnv } from 'vs/platform/environment/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/terminal/node/shellEnv';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
@@ -57,7 +60,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IIssueMainService, IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
-import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { LoggerChannel, LogLevelChannel } from 'vs/platform/log/common/logIpc';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
@@ -73,7 +76,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProp
 import { ITelemetryService, machineIdKey, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
-import { getTelemetryLevel, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getPiiPathsFromEnvironment, getTelemetryLevel, NullTelemetryService, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
@@ -86,11 +89,13 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IWindowsMainService, OpenContext, WindowError } from 'vs/platform/windows/electron-main/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { ICodeWindow, WindowError } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
-import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -466,6 +471,16 @@ export class CodeApplication extends Disposable {
 
 		// Main process server (electron IPC based)
 		const mainProcessElectronServer = new ElectronIPCServer();
+		this.lifecycleMainService.onWillShutdown(e => {
+			if (e.reason === ShutdownReason.KILL) {
+				// When we go down abnormally, make sure to free up
+				// any IPC we accept from other windows to reduce
+				// the chance of doing work after we go down. Kill
+				// is special in that it does not orderly shutdown
+				// windows.
+				mainProcessElectronServer.dispose();
+			}
+		});
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
@@ -518,7 +533,7 @@ export class CodeApplication extends Disposable {
 		return machineId;
 	}
 
-	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess, sharedProcessReady: Promise<MessagePortClient>, sharedProcessClient: Promise<MessagePortClient> } {
+	private setupSharedProcess(machineId: string): { sharedProcess: SharedProcess; sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
 		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, this.userEnv));
 
 		const sharedProcessClient = (async () => {
@@ -572,6 +587,7 @@ export class CodeApplication extends Disposable {
 		services.set(ILaunchMainService, new SyncDescriptor(LaunchMainService));
 
 		// Diagnostics
+		services.set(IDiagnosticsMainService, new SyncDescriptor(DiagnosticsMainService));
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
@@ -587,7 +603,7 @@ export class CodeApplication extends Disposable {
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
 
 		// Credentials
-		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsMainService));
+		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsMainService, [false]));
 
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
@@ -631,7 +647,7 @@ export class CodeApplication extends Disposable {
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
 			const commonProperties = resolveCommonProperties(this.fileService, release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, this.productService.msftInternalDomains, this.environmentMainService.installSourcePath);
-			const piiPaths = [this.environmentMainService.appRoot, this.environmentMainService.extensionsPath];
+			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
@@ -647,12 +663,16 @@ export class CodeApplication extends Disposable {
 
 	private initChannels(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer, sharedProcessClient: Promise<MessagePortClient>): void {
 
-		// Launch: this one is explicitly registered to the node.js
-		// server because when a second instance starts up, that is
-		// the only possible connection between the first and the
-		// second instance. Electron IPC does not work across apps.
+		// Channels registered to node.js are exposed to second instances
+		// launching because that is the only way the second instance
+		// can talk to the first instance. Electron IPC does not work
+		// across apps until `requestSingleInstance` APIs are adopted.
+
 		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
+
+		const diagnosticsChannel = ProxyChannel.fromService(accessor.get(IDiagnosticsMainService), { disableMarshalling: true });
+		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
@@ -763,7 +783,7 @@ export class CodeApplication extends Disposable {
 			} catch {
 				return undefined;
 			}
-		}).filter((obj): obj is { uri: URI, url: string } => {
+		}).filter((obj): obj is { uri: URI; url: string } => {
 			if (!obj) {
 				return false;
 			}
@@ -792,8 +812,11 @@ export class CodeApplication extends Disposable {
 		const app = this;
 		const environmentService = this.environmentMainService;
 		const productService = this.productService;
+		const logService = this.logService;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+				logService.trace('app#handleURL: ', uri.toString(true), options);
+
 				if (uri.scheme === productService.urlProtocol && uri.path === 'workspace') {
 					uri = uri.with({
 						authority: 'file',
@@ -809,6 +832,7 @@ export class CodeApplication extends Disposable {
 
 				// Check for URIs to open in window
 				const windowOpenableFromProtocolLink = app.getWindowOpenableFromProtocolLink(uri);
+				logService.trace('app#handleURL: windowOpenableFromProtocolLink = ', windowOpenableFromProtocolLink);
 				if (windowOpenableFromProtocolLink) {
 					const [window] = windowsMainService.open({
 						context: OpenContext.API,
@@ -1035,11 +1059,11 @@ export class CodeApplication extends Disposable {
 
 			// Telemetry
 			type SharedProcessErrorClassification = {
-				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				visible: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
-				shuttingdown: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The type of shared process crash to understand the nature of the crash better.' };
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The type of shared process crash to understand the nature of the crash better.' };
+				code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'The type of shared process crash to understand the nature of the crash better.' };
+				visible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'Whether shared process window was visible or not.' };
+				shuttingdown: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; owner: 'bpasero'; comment: 'Whether the application is shutting down when the crash happens.' };
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;

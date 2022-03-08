@@ -27,6 +27,21 @@ export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selec
 	dark: '#FFFFFF40',
 	hc: '#FFFFFF80'
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
+export const TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.defaultBackground', {
+	light: '#00000040',
+	dark: '#ffffff40',
+	hc: '#ffffff80'
+}, nls.localize('terminalCommandDecoration.defaultBackground', 'The default terminal command decoration background color.'));
+export const TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.successBackground', {
+	dark: '#1B81A8',
+	light: '#2090D3',
+	hc: '#1B81A8'
+}, nls.localize('terminalCommandDecoration.successBackground', 'The terminal command decoration background color for successful commands.'));
+export const TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.errorBackground', {
+	dark: '#F14C4C',
+	light: '#E51400',
+	hc: '#F14C4C'
+}, nls.localize('terminalCommandDecoration.errorBackground', 'The terminal command decoration background color for error commands.'));
 export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,
@@ -43,7 +58,7 @@ export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBord
 	hc: TAB_ACTIVE_BORDER
 }, nls.localize('terminal.tab.activeBorder', 'Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder.'));
 
-export const ansiColorMap: { [key: string]: { index: number, defaults: ColorDefaults } } = {
+export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefaults } } = {
 	'terminal.ansiBlack': {
 		index: 0,
 		defaults: {

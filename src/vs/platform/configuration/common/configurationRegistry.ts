@@ -43,7 +43,7 @@ export interface IConfigurationRegistry {
 	 * 	- registering the configurations to add
 	 * 	- dereigstering the configurations to remove
 	 */
-	updateConfigurations(configurations: { add: IConfigurationNode[], remove: IConfigurationNode[] }): void;
+	updateConfigurations(configurations: { add: IConfigurationNode[]; remove: IConfigurationNode[] }): void;
 
 	/**
 	 * Register multiple default configurations to the registry.
@@ -67,16 +67,16 @@ export interface IConfigurationRegistry {
 	notifyConfigurationSchemaUpdated(...configurations: IConfigurationNode[]): void;
 
 	/**
-	 * Event that fires whenver a configuration has been
+	 * Event that fires whenever a configuration has been
 	 * registered.
 	 */
 	readonly onDidSchemaChange: Event<void>;
 
 	/**
-	 * Event that fires whenver a configuration has been
+	 * Event that fires whenever a configuration has been
 	 * registered.
 	 */
-	readonly onDidUpdateConfiguration: Event<{ properties: string[], defaultsOverrides?: boolean }>;
+	readonly onDidUpdateConfiguration: Event<{ properties: string[]; defaultsOverrides?: boolean }>;
 
 	/**
 	 * Returns all configuration nodes contributed to this registry.
@@ -200,19 +200,19 @@ export interface IConfigurationDefaults {
 }
 
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {
-	defaultDefaultValue?: any,
-	source?: IExtensionInfo,
+	defaultDefaultValue?: any;
+	source?: IExtensionInfo;
 	defaultValueSource?: IExtensionInfo | string;
 };
 
-export type IConfigurationDefaultOverride = { value: any, source?: IExtensionInfo | string };
+export type IConfigurationDefaultOverride = { value: any; source?: IExtensionInfo | string };
 
-export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const machineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const machineOverridableSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const windowSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
-export const resourceSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const machineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const machineOverridableSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const windowSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const resourceSettings: { properties: IStringDictionary<IConfigurationPropertySchema>; patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 
 export const resourceLanguageSettingsSchemaId = 'vscode://schemas/settings/resourceLanguage';
 export const configurationDefaultsSchemaId = 'vscode://schemas/settings/configurationDefaults';
@@ -232,7 +232,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	private readonly _onDidSchemaChange = new Emitter<void>();
 	readonly onDidSchemaChange: Event<void> = this._onDidSchemaChange.event;
 
-	private readonly _onDidUpdateConfiguration = new Emitter<{ properties: string[], defaultsOverrides?: boolean }>();
+	private readonly _onDidUpdateConfiguration = new Emitter<{ properties: string[]; defaultsOverrides?: boolean }>();
 	readonly onDidUpdateConfiguration = this._onDidUpdateConfiguration.event;
 
 	constructor() {
@@ -271,7 +271,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this._onDidUpdateConfiguration.fire({ properties });
 	}
 
-	public updateConfigurations({ add, remove }: { add: IConfigurationNode[], remove: IConfigurationNode[] }): void {
+	public updateConfigurations({ add, remove }: { add: IConfigurationNode[]; remove: IConfigurationNode[] }): void {
 		const properties = [];
 		properties.push(...this.doDeregisterConfigurations(remove));
 		properties.push(...this.doRegisterConfigurations(add, false));

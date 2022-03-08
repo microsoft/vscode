@@ -59,7 +59,7 @@ export interface ITreeShakingOptions {
 	 */
 	importIgnorePattern: RegExp;
 
-	redirects: { [module: string]: string; };
+	redirects: { [module: string]: string };
 }
 
 export interface ITreeShakingResult {
@@ -140,7 +140,7 @@ function createTypeScriptLanguageService(ts: typeof import('typescript'), option
 function discoverAndReadFiles(ts: typeof import('typescript'), options: ITreeShakingOptions): IFileMap {
 	const FILES: IFileMap = {};
 
-	const in_queue: { [module: string]: boolean; } = Object.create(null);
+	const in_queue: { [module: string]: boolean } = Object.create(null);
 	const queue: string[] = [];
 
 	const enqueue = (moduleId: string) => {
@@ -225,8 +225,8 @@ function processLibFiles(ts: typeof import('typescript'), options: ITreeShakingO
 	return result;
 }
 
-interface ILibMap { [libName: string]: string; }
-interface IFileMap { [fileName: string]: string; }
+interface ILibMap { [libName: string]: string }
+interface IFileMap { [fileName: string]: string }
 
 /**
  * A TypeScript language service host

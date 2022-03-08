@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/window/common/window';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { isSavedWorkspace, IWorkspaceContextService, WorkbenchState, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
 import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { WORKSPACE_EXTENSION, isUntitledWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -21,7 +21,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import Severity from 'vs/base/common/severity';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Schemas } from 'vs/base/common/network';
@@ -94,7 +94,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && configuration.scheme === schemeFilter && !isUntitledWorkspace(configuration, this.environmentService)) {
+			if (configuration && configuration.scheme === schemeFilter && isSavedWorkspace(configuration, this.environmentService)) {
 				defaultWorkspacePath = resources.dirname(configuration) || undefined;
 			}
 		}
@@ -162,7 +162,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: true, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 
 		if (uri) {
-			const stat = await this.fileService.resolve(uri);
+			const stat = await this.fileService.stat(uri);
 
 			const toOpen: IWindowOpenable = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
 			if (!isWorkspaceToOpen(toOpen) && isFileToOpen(toOpen)) {
@@ -193,7 +193,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 	}
 
-	private addFileToRecentlyOpened(uri: URI): void {
+	protected addFileToRecentlyOpened(uri: URI): void {
 		// add the picked file into the list of recently opened
 		// only if it is outside the currently opened workspace
 		if (!this.contextService.isInsideWorkspace(uri)) {
@@ -265,7 +265,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return defaultUriScheme ?? this.pathService.defaultUriScheme;
 	}
 
-	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {
+	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[]; defaultUri?: URI }): string {
 		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow(options.defaultUri?.scheme);
 	}
 
@@ -295,7 +295,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			availableFileSystems
 		};
 
-		interface IFilter { name: string; extensions: string[]; }
+		interface IFilter { name: string; extensions: string[] }
 
 		// Build the file filter by using our known languages
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;

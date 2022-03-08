@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -19,7 +19,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { insertCellAtIndex, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';

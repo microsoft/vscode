@@ -7,20 +7,22 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { SearchData } from 'vs/editor/common/model/textModelSearch';
+import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelInjectedTextChangedEvent, ModelRawContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { FormattingOptions, StandardTokenType } from 'vs/editor/common/languages';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { ContiguousMultilineTokens } from 'vs/editor/common/model/tokens/contiguousMultilineTokens';
-import { SparseMultilineTokens } from 'vs/editor/common/model/tokens/sparseMultilineTokens';
-import { TextChange } from 'vs/editor/common/model/textChange';
+import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
+import { SparseMultilineTokens } from 'vs/editor/common/tokens/sparseMultilineTokens';
+import { TextChange } from 'vs/editor/common/core/textChange';
 import { equals } from 'vs/base/common/objects';
-import { IBracketPairsTextModelPart } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
-import { IGuidesTextModelPart } from 'vs/editor/common/model/guidesTextModelPart';
+import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
+import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -301,24 +303,6 @@ export interface IModelDecorationsChangeAccessor {
 }
 
 /**
- * Word inside a model.
- */
-export interface IWordAtPosition {
-	/**
-	 * The word.
-	 */
-	readonly word: string;
-	/**
-	 * The column where the word starts.
-	 */
-	readonly startColumn: number;
-	/**
-	 * The column where the word ends.
-	 */
-	readonly endColumn: number;
-}
-
-/**
  * End of line character preference.
  */
 export const enum EndOfLinePreference {
@@ -380,47 +364,14 @@ export interface ISingleEditOperationIdentifier {
 }
 
 /**
- * A single edit operation, that acts as a simple replace.
- * i.e. Replace text at `range` with `text` in model.
- */
-export interface ISingleEditOperation {
-	/**
-	 * The range to replace. This can be empty to emulate a simple insert.
-	 */
-	range: IRange;
-	/**
-	 * The text to replace with. This can be null to emulate a simple delete.
-	 */
-	text: string | null;
-	/**
-	 * This indicates that this operation has "insert" semantics.
-	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-	 */
-	forceMoveMarkers?: boolean;
-}
-
-/**
  * A single edit operation, that has an identifier.
  */
-export interface IIdentifiedSingleEditOperation {
+export interface IIdentifiedSingleEditOperation extends ISingleEditOperation {
 	/**
 	 * An identifier associated with this single edit operation.
 	 * @internal
 	 */
 	identifier?: ISingleEditOperationIdentifier | null;
-	/**
-	 * The range to replace. This can be empty to emulate a simple insert.
-	 */
-	range: IRange;
-	/**
-	 * The text to replace with. This can be null to emulate a simple delete.
-	 */
-	text: string | null;
-	/**
-	 * This indicates that this operation has "insert" semantics.
-	 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-	 */
-	forceMoveMarkers?: boolean;
 	/**
 	 * This indicates that this operation is inserting automatic whitespace
 	 * that can be removed on next model edit operation if `config.trimAutoWhitespace` is true.
@@ -976,6 +927,11 @@ export interface ITextModel {
 	getTokenTypeIfInsertingCharacter(lineNumber: number, column: number, character: string): StandardTokenType;
 
 	/**
+	 * @internal
+	*/
+	tokenizeLineWithEdit(position: IPosition, length: number, newText: string): LineTokens | null;
+
+	/**
 	 * Get the word under or besides `position`.
 	 * @param position The position to look for a word.
 	 * @return The word under or besides `position`. Might be null.
@@ -1198,13 +1154,6 @@ export interface ITextModel {
 	 */
 	readonly onDidChangeContentOrInjectedText: Event<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent>;
 	/**
-	 * @deprecated Please use `onDidChangeContent` instead.
-	 * An event emitted when the contents of the model have changed.
-	 * @internal
-	 * @event
-	 */
-	readonly onDidChangeRawContent: Event<ModelRawContentChangedEvent>;
-	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
 	 */
@@ -1305,9 +1254,6 @@ export interface ITextModel {
 	readonly guides: IGuidesTextModelPart;
 }
 
-/**
- * @internal
- */
 export const enum PositionAffinity {
 	/**
 	 * Prefers the left most position.
@@ -1337,7 +1283,7 @@ export interface ITextBufferBuilder {
  * @internal
  */
 export interface ITextBufferFactory {
-	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; };
+	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable };
 	getFirstLineText(lengthLimit: number): string;
 }
 
@@ -1398,6 +1344,31 @@ export interface IReadonlyTextBuffer {
 /**
  * @internal
  */
+export class SearchData {
+
+	/**
+	 * The regex to search for. Always defined.
+	 */
+	public readonly regex: RegExp;
+	/**
+	 * The word separator classifier.
+	 */
+	public readonly wordSeparators: WordCharacterClassifier | null;
+	/**
+	 * The simple string to search for (if possible).
+	 */
+	public readonly simpleSearch: string | null;
+
+	constructor(regex: RegExp, wordSeparators: WordCharacterClassifier | null, simpleSearch: string | null) {
+		this.regex = regex;
+		this.wordSeparators = wordSeparators;
+		this.simpleSearch = simpleSearch;
+	}
+}
+
+/**
+ * @internal
+ */
 export interface ITextBuffer extends IReadonlyTextBuffer {
 	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
@@ -1422,4 +1393,13 @@ export class ApplyEditsResult {
 export interface IInternalModelContentChange extends IModelContentChange {
 	range: Range;
 	forceMoveMarkers: boolean;
+}
+
+/**
+ * @internal
+ */
+export function shouldSynchronizeModel(model: ITextModel): boolean {
+	return (
+		!model.isTooLargeForSyncing() && !model.isForSimpleWidget
+	);
 }

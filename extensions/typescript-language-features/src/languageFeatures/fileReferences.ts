@@ -8,7 +8,7 @@ import * as nls from 'vscode-nls';
 import { Command, CommandManager } from '../commands/commandManager';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { isSupportedLanguageMode } from '../utils/languageModeIds';
+import { isSupportedLanguageMode } from '../utils/languageIds';
 import * as typeConverters from '../utils/typeConverters';
 
 const localize = nls.loadMessageBundle();

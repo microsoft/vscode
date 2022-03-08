@@ -10,16 +10,17 @@ import { RenderLineNumbersType, TextEditorCursorStyle, cursorStyleToString, Edit
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, ScrollType } from 'vs/editor/common/editorCommon';
-import { ISingleEditOperation, ITextModel, ITextModelUpdateOptions, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
+import { ITextModel, ITextModelUpdateOptions } from 'vs/editor/common/model';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IModelService } from 'vs/editor/common/services/model';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { IApplyEditsOptions, IEditorPropertiesChangeData, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType } from 'vs/workbench/api/common/extHost.protocol';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { equals } from 'vs/base/common/arrays';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/browser/core/editorState';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
 
 export interface IFocusTracker {
@@ -481,7 +482,7 @@ export class MainThreadTextEditor {
 			this._model.pushEOL(opts.setEndOfLine);
 		}
 
-		const transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {
+		const transformedEdits = edits.map((edit): ISingleEditOperation => {
 			return {
 				range: Range.lift(edit.range),
 				text: edit.text,

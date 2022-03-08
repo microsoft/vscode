@@ -16,7 +16,6 @@ import { Action, ActionRunner, IAction, Separator } from 'vs/base/common/actions
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import * as extpath from 'vs/base/common/extpath';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -24,7 +23,7 @@ import { fuzzyContains } from 'vs/base/common/strings';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/testing';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -39,11 +38,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { UnmanagedProgress } from 'vs/platform/progress/common/progress';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IResourceLabel, IResourceLabelOptions, IResourceLabelProps, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -56,7 +56,7 @@ import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { labelForTestInState, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { labelForTestInState, TestCommandId, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { InternalTestItem, ITestRunProfile, TestItemExpandState, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestFilterTerm } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
@@ -69,7 +69,6 @@ import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ConfigureTestProfilesAction, DebugSelectedAction, RunSelectedAction, SelectDefaultTestProfiles } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -236,11 +235,11 @@ export class TestingExplorerView extends ViewPane {
 	/** @override  */
 	public override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
-			case Testing.FilterActionId:
+			case TestCommandId.FilterAction:
 				return this.filter = this.instantiationService.createInstance(TestingExplorerFilter, action);
-			case RunSelectedAction.ID:
+			case TestCommandId.RunSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Run, action);
-			case DebugSelectedAction.ID:
+			case TestCommandId.DebugSelectedAction:
 				return this.getRunGroupDropdown(TestRunProfileBitset.Debug, action);
 			default:
 				return super.getActionViewItem(action);
@@ -302,7 +301,7 @@ export class TestingExplorerView extends ViewPane {
 				localize('selectDefaultConfigs', 'Select Default Profile'),
 				undefined,
 				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(SelectDefaultTestProfiles.ID, group),
+				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.SelectDefaultTestProfiles, group),
 			));
 		}
 
@@ -312,7 +311,7 @@ export class TestingExplorerView extends ViewPane {
 				localize('configureTestProfiles', 'Configure Test Profiles'),
 				undefined,
 				undefined,
-				() => this.commandService.executeCommand<ITestRunProfile>(ConfigureTestProfilesAction.ID, group),
+				() => this.commandService.executeCommand<ITestRunProfile>(TestCommandId.ConfigureTestProfilesAction, group),
 			));
 		}
 
@@ -357,7 +356,7 @@ export class TestingExplorerView extends ViewPane {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			triggerKeys: { keyDown: false, keys: [] },
 		});
-		bar.push(new Action(Testing.FilterActionId));
+		bar.push(new Action(TestCommandId.FilterAction));
 		bar.getContainer().classList.add('testing-filter-action-bar');
 		return bar;
 	}
@@ -568,7 +567,7 @@ export class TestingExplorerViewModel extends Disposable {
 
 			// follow running tests, or tests whose state changed. Tests that
 			// complete very fast may not enter the running state at all.
-			if (evt.item.ownComputedState !== TestResultState.Running && !(evt.previous === TestResultState.Queued && isStateWithResult(evt.item.ownComputedState))) {
+			if (evt.item.ownComputedState !== TestResultState.Running && !(evt.previousState === TestResultState.Queued && isStateWithResult(evt.item.ownComputedState))) {
 				return;
 			}
 
@@ -592,8 +591,12 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this._register(editorService.onDidActiveEditorChange(onEditorChange));
 
-		this._register(this.storageService.onWillSaveState(() => {
-			this.lastViewState.store(this.tree.getViewState());
+		this._register(this.storageService.onWillSaveState(({ reason }) => {
+			if (reason === WillSaveStateReason.SHUTDOWN) {
+				this.lastViewState.store(this.tree.getViewState({
+					getId: e => e instanceof TestItemTreeElement ? e.test.item.extId : '',
+				}));
+			}
 		}));
 
 		onEditorChange();
@@ -708,11 +711,7 @@ export class TestingExplorerViewModel extends Disposable {
 		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testProfileService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
-			getActions: () => [
-				...actions.value.primary,
-				new Separator(),
-				...actions.value.secondary,
-			],
+			getActions: () => actions.value.secondary,
 			getActionsContext: () => element,
 			onHide: () => actions.dispose(),
 			actionRunner: this.actionRunner,
@@ -801,9 +800,7 @@ const enum FilterResult {
 	Include,
 }
 
-const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: URI, fromNode?: string) => {
-	const fsPath = testUri.fsPath;
-
+const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, ident: IUriIdentityService, testUri: URI, fromNode?: string) => {
 	const queue: Iterable<string>[] = [fromNode ? [fromNode] : collection.rootIds];
 	while (queue.length) {
 		for (const id of queue.pop()!) {
@@ -812,7 +809,7 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, testUri: 
 				continue;
 			}
 
-			if (!node.item.uri || !extpath.isEqualOrParent(fsPath, node.item.uri.fsPath)) {
+			if (!node.item.uri || !ident.extUri.isEqualOrParent(testUri, node.item.uri)) {
 				continue;
 			}
 
@@ -836,6 +833,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		private readonly collection: IMainThreadTestCollection,
 		@ITestExplorerFilterState private readonly state: ITestExplorerFilterState,
 		@ITestService private readonly testService: ITestService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) { }
 
 	/**
@@ -901,7 +899,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 			return FilterResult.Include;
 		}
 
-		if (hasNodeInOrParentOfUri(this.collection, this.documentUri, element.test.item.extId)) {
+		if (hasNodeInOrParentOfUri(this.collection, this.uriIdentityService, this.documentUri, element.test.item.extId)) {
 			return FilterResult.Include;
 		}
 
@@ -958,7 +956,7 @@ class TreeSorter implements ITreeSorter<TestExplorerTreeElement> {
 			}
 		}
 
-		return a.label.localeCompare(b.label);
+		return (a.sortText || a.label).localeCompare(b.sortText || b.label);
 	}
 }
 

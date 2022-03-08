@@ -5,12 +5,13 @@
 
 import { ITerminalAddon, Terminal } from 'xterm';
 import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TerminalCapability } from 'vs/platform/terminal/common/terminal';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/commandDetectionCapability';
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
+import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -35,104 +36,173 @@ const enum ShellIntegrationOscPs {
 	 */
 	FinalTerm = 133,
 	/**
+	 * Sequences pioneered by VS Code. The number is derived from the least significant digit of
+	 * "VSC" when encoded in hex ("VSC" = 0x56, 0x53, 0x43).
+	 */
+	VSCode = 633,
+	/**
 	 * Sequences pioneered by iTerm.
 	 */
 	ITerm = 1337
 }
 
 /**
- * The identifier for the textural parameter (`Pt`) for OSC commands used by shell integration.
+ * VS Code-specific shell integration sequences. Some of these are based on common alternatives like
+ * those pioneered in FinalTerm. The decision to move to entirely custom sequences was to try to
+ * improve reliability and prevent the possibility of applications confusing the terminal.
  */
-const enum ShellIntegrationOscPt {
+const enum VSCodeOscPt {
 	/**
 	 * The start of the prompt, this is expected to always appear at the start of a line.
+	 * Based on FinalTerm's `OSC 133 ; A ST`.
 	 */
 	PromptStart = 'A',
+
 	/**
 	 * The start of a command, ie. where the user inputs their command.
+	 * Based on FinalTerm's `OSC 133 ; B ST`.
 	 */
 	CommandStart = 'B',
+
 	/**
 	 * Sent just before the command output begins.
+	 * Based on FinalTerm's `OSC 133 ; C ST`.
 	 */
 	CommandExecuted = 'C',
-	// TODO: Understand this sequence better and add docs
+
+	/**
+	 * Sent just after a command has finished. The exit code is optional, when not specified it
+	 * means no command was run (ie. enter on empty prompt or ctrl+c).
+	 * Based on FinalTerm's `OSC 133 ; D [; <ExitCode>] ST`.
+	 */
 	CommandFinished = 'D',
+
+	/**
+	 * Explicitly set the command line. This helps workaround problems with conpty not having a
+	 * passthrough mode by providing an option on Windows to send the command that was run. With
+	 * this sequence there's no need for the guessing based on the unreliable cursor positions that
+	 * would otherwise be required.
+	 */
+	CommandLine = 'E',
+
+	/**
+	 * Similar to prompt start but for line continuations.
+	 */
+	ContinuationStart = 'F',
+
+	/**
+	 * Similar to command start but for line continuations.
+	 */
+	ContinuationEnd = 'G',
+
+	/**
+	 * Set an arbitrary property: `OSC 633 ; P ; <Property>=<Value> ST`, only known properties will
+	 * be handled.
+	 */
+	Property = 'P'
 }
 
-export const enum ShellIntegrationInfo {
-	CurrentDir = 'CurrentDir',
-}
-
-export const enum ShellIntegrationInteraction {
-	PromptStart = 'PROMPT_START',
-	CommandStart = 'COMMAND_START',
-	CommandExecuted = 'COMMAND_EXECUTED',
-	CommandFinished = 'COMMAND_FINISHED'
-}
-
+/**
+ * The shell integration addon extends xterm by reading shell integration sequences and creating
+ * capabilities and passing along relevant sequences to the capabilities. This is meant to
+ * encapsulate all handling/parsing of sequences so the capabilities don't need to.
+ */
 export class ShellIntegrationAddon extends Disposable implements IShellIntegration, ITerminalAddon {
 	private _terminal?: Terminal;
 	readonly capabilities = new TerminalCapabilityStore();
-	private readonly _onIntegratedShellChange = new Emitter<{ type: string, value: string }>();
-	readonly onIntegratedShellChange = this._onIntegratedShellChange.event;
+
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
+		super();
+	}
 
 	activate(xterm: Terminal) {
 		this._terminal = xterm;
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.FinalTerm, data => this._handleShellIntegration(data)));
-		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.ITerm, data => this._updateCwd(data)));
+		this.capabilities.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(this._terminal));
+		this._register(xterm.parser.registerOscHandler(ShellIntegrationOscPs.VSCode, data => this._handleVSCodeSequence(data)));
 	}
 
-	private _handleShellIntegration(data: string): boolean {
+	private _handleVSCodeSequence(data: string): boolean {
 		if (!this._terminal) {
 			return false;
 		}
-		let type: ShellIntegrationInteraction | undefined;
-		const [command, exitCode] = data.split(';');
+
+		// Pass the sequence along to the capability
+		const [command, ...args] = data.split(';');
 		switch (command) {
-			case ShellIntegrationOscPt.PromptStart:
-				type = ShellIntegrationInteraction.PromptStart;
-				if (!this.capabilities.has(TerminalCapability.CommandDetection)) {
-					this.capabilities.add(TerminalCapability.CommandDetection, new CommandDetectionCapability());
+			case VSCodeOscPt.PromptStart:
+				this._createOrGetCommandDetection(this._terminal).handlePromptStart();
+				return true;
+			case VSCodeOscPt.CommandStart:
+				this._createOrGetCommandDetection(this._terminal).handleCommandStart();
+				return true;
+			case VSCodeOscPt.CommandExecuted:
+				this._createOrGetCommandDetection(this._terminal).handleCommandExecuted();
+				return true;
+			case VSCodeOscPt.CommandFinished: {
+				const exitCode = args.length === 1 ? parseInt(args[0]) : undefined;
+				this._createOrGetCommandDetection(this._terminal).handleCommandFinished(exitCode);
+				return true;
+			}
+			case VSCodeOscPt.CommandLine: {
+				let commandLine: string;
+				if (args.length === 1) {
+					commandLine = (args[0]
+						.replace(/<LF>/g, '\n')
+						.replace(/<CL>/g, ';'));
+				} else {
+					commandLine = '';
 				}
-				if (!this.capabilities.has(TerminalCapability.CwdDetection)) {
-					this.capabilities.add(TerminalCapability.CwdDetection, new CwdDetectionCapability());
+				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
+				return true;
+			}
+			case VSCodeOscPt.ContinuationStart: {
+				this._createOrGetCommandDetection(this._terminal).handleContinuationStart();
+				return true;
+			}
+			case VSCodeOscPt.ContinuationEnd: {
+				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
+				return true;
+			}
+			case VSCodeOscPt.Property: {
+				const [key, value] = args[0].split('=');
+				switch (key) {
+					case 'Cwd': {
+						this._createOrGetCwdDetection().updateCwd(value);
+						const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+						if (commandDetection) {
+							commandDetection.setCwd(value);
+						}
+						return true;
+					}
+					case 'IsWindows': {
+						this._createOrGetCommandDetection(this._terminal).setIsWindowsPty(value === 'True' ? true : false);
+						return true;
+					}
 				}
-			case ShellIntegrationOscPt.CommandStart:
-				type = ShellIntegrationInteraction.CommandStart;
-				break;
-			case ShellIntegrationOscPt.CommandExecuted:
-				type = ShellIntegrationInteraction.CommandExecuted;
-				break;
-			case ShellIntegrationOscPt.CommandFinished:
-				type = ShellIntegrationInteraction.CommandFinished;
-				break;
-			default:
-				return false;
+			}
 		}
-		const value = exitCode || type;
-		if (!value) {
-			return false;
-		}
-		this._onIntegratedShellChange.fire({ type, value });
-		return true;
+
+		// Unrecognized sequence
+		return false;
 	}
 
-	private _updateCwd(data: string): boolean {
-		let value: string | undefined;
-		const [type, info] = data.split('=');
-		switch (type) {
-			case ShellIntegrationInfo.CurrentDir:
-				this.capabilities.get(TerminalCapability.CwdDetection)?.updateCwd(info);
-				value = info;
-				break;
-			default:
-				return false;
+	protected _createOrGetCwdDetection(): CwdDetectionCapability {
+		let cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
+		if (!cwdDetection) {
+			cwdDetection = new CwdDetectionCapability();
+			this.capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
 		}
-		if (!value) {
-			return false;
+		return cwdDetection;
+	}
+
+	protected _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
+		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+		if (!commandDetection) {
+			commandDetection = this._instantiationService.createInstance(CommandDetectionCapability, terminal);
+			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
-		this._onIntegratedShellChange.fire({ type, value });
-		return true;
+		return commandDetection;
 	}
 }

@@ -9,7 +9,7 @@ import { isObject, isArray, assertIsDefined, withUndefinedAsNull, withNullAsUnde
 import { IDiffEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, IEditorFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorOpenContext, EditorInputCapabilities, isEditorInput, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -140,16 +140,16 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
 			diffEditor.setModel(withUndefinedAsNull(resolvedDiffEditorModel.textDiffEditorModel));
 
-			/// Apply options to editor if any
+			// Restore view state (unless provided by options)
+			let hasPreviousViewState = false;
+			if (!isTextEditorViewState(options?.viewState)) {
+				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, options, context, diffEditor);
+			}
+
+			// Apply options to editor if any
 			let optionsGotApplied = false;
 			if (options) {
 				optionsGotApplied = applyTextEditorOptions(options, diffEditor, ScrollType.Immediate);
-			}
-
-			// Otherwise restore View State unless disabled via settings
-			let hasPreviousViewState = false;
-			if (!optionsGotApplied) {
-				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, context, diffEditor);
 			}
 
 			// Diff navigator
@@ -179,10 +179,14 @@ export class TextDiffEditor extends BaseTextEditor<IDiffEditorViewState> impleme
 		}
 	}
 
-	private restoreTextDiffEditorViewState(editor: DiffEditorInput, context: IEditorOpenContext, control: IDiffEditor): boolean {
-		const viewState = this.loadEditorViewState(editor, context);
-		if (viewState) {
-			control.restoreViewState(viewState);
+	private restoreTextDiffEditorViewState(editor: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, control: IDiffEditor): boolean {
+		const editorViewState = this.loadEditorViewState(editor, context);
+		if (editorViewState) {
+			if (options?.selection && editorViewState.modified) {
+				editorViewState.modified.cursorState = []; // prevent duplicate selections via options
+			}
+
+			control.restoreViewState(editorViewState);
 
 			return true;
 		}

@@ -70,6 +70,7 @@ interface StandardTsServerRequests {
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
 	'fileReferences': [Proto.FileRequestArgs, Proto.FileReferencesResponse];
 	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
+	'encodedSemanticClassifications-full': [Proto.EncodedSemanticClassificationsRequestArgs, Proto.EncodedSemanticClassificationsResponse];
 }
 
 interface NoResponseTsServerRequests {
@@ -150,7 +151,7 @@ export interface ITypeScriptServiceClient {
 	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
 	toOpenedFilePath(document: vscode.TextDocument, options?: {
-		suppressAlertOnFailure?: boolean
+		suppressAlertOnFailure?: boolean;
 	}): string | undefined;
 
 	/**
@@ -160,7 +161,7 @@ export interface ITypeScriptServiceClient {
 
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
-	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion, usedApiVersion: API }>;
+	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion; usedApiVersion: API }>;
 	readonly onProjectLanguageServiceStateChanged: vscode.Event<Proto.ProjectLanguageServiceStateEventBody>;
 	readonly onDidBeginInstallTypings: vscode.Event<Proto.BeginInstallTypesEventBody>;
 	readonly onDidEndInstallTypings: vscode.Event<Proto.EndInstallTypesEventBody>;

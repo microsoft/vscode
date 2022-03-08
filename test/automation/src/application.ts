@@ -71,7 +71,7 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 	}
 
-	async restart(options?: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {
+	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<any> {
 		await this.stop();
 		await this._start(options?.workspaceOrFolder, options?.extraArgs);
 	}
@@ -140,8 +140,8 @@ export class Application {
 		await code.waitForWindowIds(ids => ids.length > 0);
 		await code.waitForElement('.monaco-workbench');
 
-		// Web or remote: wait for a remote connection state change
-		if (this.remote || this.web) {
+		// Remote but not web: wait for a remote connection state change
+		if (this.remote) {
 			await code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, s => {
 				this.logger.log(`checkWindowReady: remote indicator text is ${s}`);
 

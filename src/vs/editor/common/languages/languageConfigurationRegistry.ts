@@ -6,10 +6,10 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
+import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/model/wordHelper';
+import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
 import { EnterAction, FoldingRules, IAutoClosingPair, IndentAction, IndentationRule, LanguageConfiguration, CompleteEnterAction, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
 import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
@@ -20,7 +20,7 @@ import { RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBr
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 /**
@@ -126,7 +126,7 @@ function computeConfig(
 
 	if (!languageConfig) {
 		if (!languageService.isRegisteredLanguageId(languageId)) {
-			throw new Error('Unexpected languageId');
+			throw new Error(`Language id "${languageId}" is not configured nor known`);
 		}
 		languageConfig = new ResolvedLanguageConfiguration(languageId, {});
 	}
@@ -263,7 +263,7 @@ export class LanguageConfigurationRegistryImpl {
 	 *
 	 * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
 	 */
-	public getInheritIndentForLine(autoIndent: EditorAutoIndentStrategy, model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string; action: IndentAction | null; line?: number; } | null {
+	public getInheritIndentForLine(autoIndent: EditorAutoIndentStrategy, model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string; action: IndentAction | null; line?: number } | null {
 		if (autoIndent < EditorAutoIndentStrategy.Full) {
 			return null;
 		}
@@ -455,7 +455,7 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
-	public getIndentForEnter(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range, indentConverter: IIndentConverter): { beforeEnter: string, afterEnter: string } | null {
+	public getIndentForEnter(autoIndent: EditorAutoIndentStrategy, model: ITextModel, range: Range, indentConverter: IIndentConverter): { beforeEnter: string; afterEnter: string } | null {
 		if (autoIndent < EditorAutoIndentStrategy.Full) {
 			return null;
 		}

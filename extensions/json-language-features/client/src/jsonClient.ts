@@ -59,7 +59,7 @@ namespace ResultLimitReachedNotification {
 interface Settings {
 	json?: {
 		schemas?: JSONSchemaSettings[];
-		format?: { enable: boolean; };
+		format?: { enable: boolean };
 		resultLimit?: number;
 	};
 	http?: {
@@ -96,7 +96,7 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 
 export interface Runtime {
 	schemaRequests: SchemaRequestService;
-	telemetry?: TelemetryReporter
+	telemetry?: TelemetryReporter;
 }
 
 export interface SchemaRequestService {
@@ -124,13 +124,13 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 	let isClientReady = false;
 
-	commands.registerCommand('json.clearCache', async () => {
+	toDispose.push(commands.registerCommand('json.clearCache', async () => {
 		if (isClientReady && runtime.schemaRequests.clearCache) {
 			const cachedSchemas = await runtime.schemaRequests.clearCache();
 			await client.sendNotification(SchemaContentChangeNotification.type, cachedSchemas);
 		}
 		window.showInformationMessage(localize('json.clearCache.completed', "JSON schema cache cleared."));
-	});
+	}));
 
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
@@ -306,9 +306,9 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
 
-		extensions.onDidChange(_ => {
+		toDispose.push(extensions.onDidChange(_ => {
 			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
-		});
+		}));
 
 		// manually register / deregister format provider based on the `json.format.enable` setting avoiding issues with late registration. See #71652.
 		updateFormatterRegistration();

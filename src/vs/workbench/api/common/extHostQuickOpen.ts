@@ -18,12 +18,11 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { coalesce } from 'vs/base/common/arrays';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon as ThemeIconUtils } from 'vs/platform/theme/common/themeService';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export type Item = string | QuickPickItem;
 
 export interface ExtHostQuickOpen {
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
 	showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
 	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
 	showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<Item | Item[] | undefined>;
@@ -57,7 +56,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			this._commands = commands;
 		}
 
-		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
+		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true }, token?: CancellationToken): Promise<QuickPickItem[] | undefined>;
 		showQuickPick(itemsOrItemsPromise: string[] | Promise<string[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<string | undefined>;
 		showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Promise<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Promise<QuickPickItem | undefined>;
 		showQuickPick(itemsOrItemsPromise: Item[] | Promise<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Promise<Item | Item[] | undefined> {
@@ -469,12 +468,12 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 	}
 
-	function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI; } | { id: string; } {
+	function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI; light?: URI } | { id: string } {
 		if (iconPath instanceof ThemeIcon) {
 			return { id: iconPath.id };
 		}
-		const dark = getDarkIconUri(iconPath as URI | { light: URI; dark: URI; });
-		const light = getLightIconUri(iconPath as URI | { light: URI; dark: URI; });
+		const dark = getDarkIconUri(iconPath as URI | { light: URI; dark: URI });
+		const light = getLightIconUri(iconPath as URI | { light: URI; dark: URI });
 		// Tolerate strings: https://github.com/microsoft/vscode/issues/110432#issuecomment-726144556
 		return {
 			dark: typeof dark === 'string' ? URI.file(dark) : dark,
@@ -482,17 +481,17 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		};
 	}
 
-	function getLightIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+	function getLightIconUri(iconPath: URI | { light: URI; dark: URI }) {
 		return typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath;
 	}
 
-	function getDarkIconUri(iconPath: URI | { light: URI; dark: URI; }) {
+	function getDarkIconUri(iconPath: URI | { light: URI; dark: URI }) {
 		return typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath;
 	}
 
 	function getIconPathOrClass(button: QuickInputButton) {
 		const iconPathOrIconClass = getIconUris(button.iconPath);
-		let iconPath: { dark: URI; light?: URI | undefined; } | undefined;
+		let iconPath: { dark: URI; light?: URI | undefined } | undefined;
 		let iconClass: string | undefined;
 		if ('id' in iconPathOrIconClass) {
 			iconClass = ThemeIconUtils.asClassName(iconPathOrIconClass);
@@ -522,8 +521,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private readonly _onDidChangeSelectionEmitter = new Emitter<T[]>();
 		private readonly _onDidTriggerItemButtonEmitter = new Emitter<QuickPickItemButtonEvent<T>>();
 
-		// TODO: revert this change once quickPickSeparators has been finalized.
-		constructor(private readonly extension: IExtensionDescription, onDispose: () => void) {
+		constructor(extension: IExtensionDescription, onDispose: () => void) {
 			super(extension.identifier, onDispose);
 			this._disposables.push(
 				this._onDidChangeActiveEmitter,
@@ -538,10 +536,6 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set items(items: T[]) {
-			if (items.some((item) => item.kind !== undefined)) {
-				checkProposedApiEnabled(this.extension, 'quickPickSeparators');
-			}
-
 			this._items = items.slice();
 			this._handlesToItems.clear();
 			this._itemsToHandles.clear();

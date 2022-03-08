@@ -55,7 +55,7 @@ function registerMarkdownLanguageFeatures(
 
 	return vscode.Disposable.from(
 		vscode.languages.registerDocumentSymbolProvider(selector, symbolProvider),
-		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()),
+		vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider(engine)),
 		vscode.languages.registerFoldingRangeProvider(selector, new MarkdownFoldingProvider(engine)),
 		vscode.languages.registerSelectionRangeProvider(selector, new MarkdownSmartSelect(engine)),
 		vscode.languages.registerWorkspaceSymbolProvider(new MarkdownWorkspaceSymbolProvider(symbolProvider)),

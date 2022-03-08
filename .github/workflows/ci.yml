@@ -13,7 +13,7 @@ on:
 jobs:
   windows:
     name: Windows
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
@@ -57,7 +57,18 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: |
+          # update node-gyp to latest for support in detecting VS 2022 toolchain
+          npm install -g node-gyp@latest
+          # Resolve to node-gyp.js
+          # Remove this once node-version > 17.4.x or > 16.14.0,
+          # which ships with npm > 8.4.0 that has support for VS 2022 toolchain.
+          $env:npm_config_node_gyp=$(Join-Path $(Get-Command node-gyp.cmd).Path "..\node_modules\node-gyp\bin\node-gyp.js" -Resolve)
+          # Electron <= 13 does not ship with correct config.gypi headers,
+          # remove this once we update to newer versions.
+          # Refs https://github.com/nodejs/node-gyp/pull/2497
+          $env:npm_config_force_process_config="true"
+          yarn --frozen-lockfile --network-timeout 180000
       - name: Create node_modules archive
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
@@ -70,7 +81,7 @@ jobs:
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
       - name: Compile Integration Tests
-        run: yarn compile-integration-tests
+        run: yarn --cwd test/integration/browser compile
 
       - name: Run Unit Tests (Electron)
         run: .\scripts\test.bat
@@ -79,18 +90,18 @@ jobs:
         run: yarn test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: yarn test-browser --browser chromium
+        run: yarn test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: .\scripts\test-integration.bat
 
       - name: Run Integration Tests (Browser, Firefox)
         timeout-minutes: 20
-        run: .\resources\server\test\test-web-integration.bat --browser firefox
+        run: .\scripts\test-web-integration.bat --browser firefox
 
       - name: Run Integration Tests (Remote)
         timeout-minutes: 20
-        run: .\resources\server\test\test-remote-integration.bat
+        run: .\scripts\test-remote-integration.bat
 
   linux:
     name: Linux
@@ -123,8 +134,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules14-
+          key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules20-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -147,7 +158,7 @@ jobs:
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
       - name: Compile Integration Tests
-        run: yarn compile-integration-tests
+        run: yarn --cwd test/integration/browser compile
 
       - name: Run Unit Tests (Electron)
         id: electron-unit-tests
@@ -159,7 +170,7 @@ jobs:
 
       - name: Run Unit Tests (Browser, Chromium)
         id: browser-unit-tests
-        run: DISPLAY=:10 yarn test-browser --browser chromium
+        run: DISPLAY=:10 yarn test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         id: electron-integration-tests
@@ -167,12 +178,12 @@ jobs:
 
       - name: Run Integration Tests (Browser, Chromium)
         id: browser-integration-tests
-        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
+        run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser chromium
 
       - name: Run Integration Tests (Remote)
         id: electron-remote-integration-tests
         timeout-minutes: 15
-        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
+        run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
   darwin:
     name: macOS
@@ -195,8 +206,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules14-
+          key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules20-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -219,7 +230,7 @@ jobs:
         run: yarn npm-run-all --max_old_space_size=4095 -lp compile "electron x64" playwright-install download-builtin-extensions
 
       - name: Compile Integration Tests
-        run: yarn compile-integration-tests
+        run: yarn --cwd test/integration/browser compile
 
       # This is required for keytar unittests, otherwise we hit
       # https://github.com/atom/node-keytar/issues/76
@@ -236,17 +247,17 @@ jobs:
         run: yarn test-node
 
       - name: Run Unit Tests (Browser, Chromium)
-        run: DISPLAY=:10 yarn test-browser --browser chromium
+        run: DISPLAY=:10 yarn test-browser-no-install --browser chromium
 
       - name: Run Integration Tests (Electron)
         run: DISPLAY=:10 ./scripts/test-integration.sh
 
       - name: Run Integration Tests (Browser, Webkit)
-        run: DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser webkit
+        run: DISPLAY=:10 ./scripts/test-web-integration.sh --browser webkit
 
       - name: Run Integration Tests (Remote)
         timeout-minutes: 15
-        run: DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
+        run: DISPLAY=:10 ./scripts/test-remote-integration.sh
 
   hygiene:
     name: Hygiene, Layering and Monaco Editor
@@ -269,8 +280,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules14-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules14-
+          key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules20-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -289,11 +300,20 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: yarn --frozen-lockfile --network-timeout 180000
 
+      - name: Download Playwright
+        run: yarn playwright-install
+
       - name: Run Hygiene Checks
         run: yarn gulp hygiene
 
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
+
+      - name: Compile /build/
+        run: yarn --cwd build compile
+
+      - name: Check clean git state
+        run: ./.github/workflows/check-clean-git-state.sh
 
       - name: Run eslint
         run: yarn eslint
@@ -310,6 +330,10 @@ jobs:
       - name: Editor Distro & ESM Bundle
         run: yarn gulp editor-esm-bundle
 
+      - name: Editor ESM sources check
+        working-directory: ./test/monaco
+        run: yarn run esm-check
+
       - name: Typings validation prep
         run: |
           mkdir typings-test
@@ -322,16 +346,13 @@ jobs:
           echo "import '../out-monaco-editor-core';" > a.ts
           ../node_modules/.bin/tsc --noEmit
 
-      - name: Webpack Editor
+      - name: Package Editor with Webpack
         working-directory: ./test/monaco
-        run: yarn run bundle
+        run: yarn run bundle-webpack
 
       - name: Compile Editor Tests
         working-directory: ./test/monaco
         run: yarn run compile
-
-      - name: Download Playwright
-        run: yarn playwright-install
 
       - name: Run Editor Tests
         timeout-minutes: 5

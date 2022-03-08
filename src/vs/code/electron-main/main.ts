@@ -26,6 +26,7 @@ import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
+import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { EnvironmentMainService, IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -48,8 +49,8 @@ import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
-import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { TunnelService } from 'vs/platform/remote/node/tunnelService';
+import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
+import { TunnelService } from 'vs/platform/tunnel/node/tunnelService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -310,14 +311,15 @@ class CodeMain {
 				}, 10000);
 			}
 
-			const launchService = ProxyChannel.toService<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
+			const otherInstanceLaunchMainService = ProxyChannel.toService<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
+			const otherInstanceDiagnosticsMainService = ProxyChannel.toService<IDiagnosticsMainService>(client.getChannel('diagnostics'), { disableMarshalling: true });
 
 			// Process Info
 			if (environmentMainService.args.status) {
 				return instantiationService.invokeFunction(async () => {
 					const diagnosticsService = new DiagnosticsService(NullTelemetryService, productService);
-					const mainProcessInfo = await launchService.getMainProcessInfo();
-					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
+					const mainProcessInfo = await otherInstanceLaunchMainService.getMainProcessInfo();
+					const remoteDiagnostics = await otherInstanceDiagnosticsMainService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
 					console.log(diagnostics);
 
@@ -327,12 +329,12 @@ class CodeMain {
 
 			// Windows: allow to set foreground
 			if (isWindows) {
-				await this.windowsAllowSetForegroundWindow(launchService, logService);
+				await this.windowsAllowSetForegroundWindow(otherInstanceLaunchMainService, logService);
 			}
 
 			// Send environment over...
 			logService.trace('Sending env to running instance...');
-			await launchService.start(environmentMainService.args, process.env as IProcessEnvironment);
+			await otherInstanceLaunchMainService.start(environmentMainService.args, process.env as IProcessEnvironment);
 
 			// Cleanup
 			client.dispose();

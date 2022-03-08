@@ -6,7 +6,8 @@
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
 import { timeout, Delayer, Promises } from 'vs/base/common/async';
-import { createErrorWithActions, isCancellationError } from 'vs/base/common/errors';
+import { isCancellationError } from 'vs/base/common/errors';
+import { createErrorWithActions } from 'vs/base/common/errorMessage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
@@ -15,7 +16,7 @@ import { append, $, Dimension, hide, show } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey } from '../common/extensions';
 import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -52,7 +53,7 @@ import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { VirtualWorkspaceContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { VirtualWorkspaceContext, WorkbenchStateContext } from 'vs/workbench/common/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -209,7 +210,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		viewDescriptors.push({
 			id: 'extensions.recommendedList',
 			name: localize('recommendedExtensions', "Recommended"),
-			ctorDescriptor: new SyncDescriptor(DefaultRecommendedExtensionsView, [{}]),
+			ctorDescriptor: new SyncDescriptor(DefaultRecommendedExtensionsView, [{ flexibleHeight: true }]),
 			when: ContextKeyExpr.and(DefaultViewsContext, ContextKeyExpr.not('config.extensions.showRecommendationsOnlyOnDemand')),
 			weight: 40,
 			order: 3,
@@ -448,7 +449,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
@@ -575,7 +576,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			this.root.classList.toggle('mini', dimension.width <= 200);
 		}
 		if (this.searchBox) {
-			this.searchBox.layout(new Dimension(dimension.width - 34, 20));
+			this.searchBox.layout(new Dimension(dimension.width - 34 - /*padding*/8, 20));
 		}
 		super.layout(new Dimension(dimension.width, dimension.height - 41));
 	}
@@ -593,6 +594,9 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	async refresh(): Promise<void> {
 		await this.updateInstalledExtensionsContexts();
 		this.doSearch(true);
+		if (this.configurationService.getValue(AutoCheckUpdatesConfigurationKey)) {
+			this.extensionsWorkbenchService.checkForUpdates();
+		}
 	}
 
 	private async updateInstalledExtensionsContexts(): Promise<void> {
@@ -627,17 +631,19 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	private doSearch(refresh?: boolean): Promise<void> {
 		const value = this.normalizedQuery();
-		const isRecommendedExtensionsQuery = ExtensionsListView.isRecommendedExtensionsQuery(value);
-		this.searchInstalledExtensionsContextKey.set(ExtensionsListView.isInstalledExtensionsQuery(value));
-		this.searchOutdatedExtensionsContextKey.set(ExtensionsListView.isOutdatedExtensionsQuery(value));
-		this.searchEnabledExtensionsContextKey.set(ExtensionsListView.isEnabledExtensionsQuery(value));
-		this.searchDisabledExtensionsContextKey.set(ExtensionsListView.isDisabledExtensionsQuery(value));
-		this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isSearchBuiltInExtensionsQuery(value));
-		this.searchWorkspaceUnsupportedExtensionsContextKey.set(ExtensionsListView.isSearchWorkspaceUnsupportedExtensionsQuery(value));
-		this.builtInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
-		this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
-		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
-		this.defaultViewsContextKey.set(!value);
+		this.contextKeyService.bufferChangeEvents(() => {
+			const isRecommendedExtensionsQuery = ExtensionsListView.isRecommendedExtensionsQuery(value);
+			this.searchInstalledExtensionsContextKey.set(ExtensionsListView.isInstalledExtensionsQuery(value));
+			this.searchOutdatedExtensionsContextKey.set(ExtensionsListView.isOutdatedExtensionsQuery(value));
+			this.searchEnabledExtensionsContextKey.set(ExtensionsListView.isEnabledExtensionsQuery(value));
+			this.searchDisabledExtensionsContextKey.set(ExtensionsListView.isDisabledExtensionsQuery(value));
+			this.searchBuiltInExtensionsContextKey.set(ExtensionsListView.isSearchBuiltInExtensionsQuery(value));
+			this.searchWorkspaceUnsupportedExtensionsContextKey.set(ExtensionsListView.isSearchWorkspaceUnsupportedExtensionsQuery(value));
+			this.builtInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
+			this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
+			this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
+			this.defaultViewsContextKey.set(!value);
+		});
 
 		return this.progress(Promise.all(this.panes.map(view =>
 			(<ExtensionsListView>view).show(this.normalizedQuery(), refresh)

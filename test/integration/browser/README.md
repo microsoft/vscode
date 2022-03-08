@@ -5,7 +5,7 @@
 Make sure to run the following commands to compile and install dependencies:
 
     yarn --cwd test/integration/browser
-    yarn compile-integration-tests
+    yarn --cwd test/integration/browser compile
 
 ## Run (inside Electron)
 
@@ -15,7 +15,7 @@ All integration tests run in an Electron instance. You can specify to run the te
 
 ## Run (inside browser)
 
-    resources/server/test/test-web-integration.[sh|bat] --browser [chromium|webkit] [--debug]
+    scripts/test-web-integration.[sh|bat] --browser [chromium|webkit] [--debug]
 
 All integration tests run in a browser instance as specified by the command line arguments.
 

@@ -88,7 +88,8 @@ export class KeybindingResolver {
 	public static handleRemovals(rules: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		// Do a first pass and construct a hash-map for removals
 		const removals = new Map<string, ResolvedKeybindingItem[]>();
-		for (const rule of rules) {
+		for (let i = 0, len = rules.length; i < len; i++) {
+			const rule = rules[i];
 			if (rule.command && rule.command.charAt(0) === '-') {
 				const command = rule.command.substring(1);
 				if (!removals.has(command)) {
@@ -106,7 +107,9 @@ export class KeybindingResolver {
 
 		// Do a second pass and keep only non-removed keybindings
 		const result: ResolvedKeybindingItem[] = [];
-		for (const rule of rules) {
+		for (let i = 0, len = rules.length; i < len; i++) {
+			const rule = rules[i];
+
 			if (!rule.command || rule.command.length === 0) {
 				result.push(rule);
 				continue;
@@ -115,7 +118,7 @@ export class KeybindingResolver {
 				continue;
 			}
 			const commandRemovals = removals.get(rule.command);
-			if (!commandRemovals) {
+			if (!commandRemovals || !rule.isDefault) {
 				result.push(rule);
 				continue;
 			}
@@ -330,7 +333,7 @@ export class KeybindingResolver {
 		for (let i = matches.length - 1; i >= 0; i--) {
 			let k = matches[i];
 
-			if (!KeybindingResolver.contextMatchesRules(context, k.when)) {
+			if (!KeybindingResolver._contextMatchesRules(context, k.when)) {
 				continue;
 			}
 
@@ -340,7 +343,7 @@ export class KeybindingResolver {
 		return null;
 	}
 
-	public static contextMatchesRules(context: IContext, rules: ContextKeyExpression | null | undefined): boolean {
+	private static _contextMatchesRules(context: IContext, rules: ContextKeyExpression | null | undefined): boolean {
 		if (!rules) {
 			return true;
 		}

@@ -10,7 +10,7 @@ import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { Action, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { Action } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IFileEditorInput, EditorResourceAccessor, IEditorPane, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
@@ -18,14 +18,14 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
-import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/linesOperations';
-import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/indentation';
+import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
+import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/browser/indentation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILanguageService, ILanguageSelection } from 'vs/editor/common/services/language';
+import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
@@ -179,15 +179,15 @@ class StateChange {
 }
 
 type StateDelta = (
-	{ type: 'selectionStatus'; selectionStatus: string | undefined; }
-	| { type: 'languageId'; languageId: string | undefined; }
-	| { type: 'encoding'; encoding: string | undefined; }
-	| { type: 'EOL'; EOL: string | undefined; }
-	| { type: 'indentation'; indentation: string | undefined; }
-	| { type: 'tabFocusMode'; tabFocusMode: boolean; }
-	| { type: 'columnSelectionMode'; columnSelectionMode: boolean; }
-	| { type: 'screenReaderMode'; screenReaderMode: boolean; }
-	| { type: 'metadata'; metadata: string | undefined; }
+	{ type: 'selectionStatus'; selectionStatus: string | undefined }
+	| { type: 'languageId'; languageId: string | undefined }
+	| { type: 'encoding'; encoding: string | undefined }
+	| { type: 'EOL'; EOL: string | undefined }
+	| { type: 'indentation'; indentation: string | undefined }
+	| { type: 'tabFocusMode'; tabFocusMode: boolean }
+	| { type: 'columnSelectionMode'; columnSelectionMode: boolean }
+	| { type: 'screenReaderMode'; screenReaderMode: boolean }
+	| { type: 'metadata'; metadata: string | undefined }
 );
 
 class State {
@@ -378,7 +378,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
-		const picks: QuickPickInput<IQuickPickItem & { run(): void; }>[] = [
+		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
 			activeTextEditorControl.getAction(IndentUsingSpaces.ID),
 			activeTextEditorControl.getAction(IndentUsingTabs.ID),
 			activeTextEditorControl.getAction(DetectIndentation.ID),
@@ -1234,14 +1234,32 @@ export class ChangeLanguageAction extends Action {
 				// Change language
 				if (typeof languageSelection !== 'undefined') {
 					languageSupport.setLanguageId(languageSelection.languageId);
+
+					if (resource?.scheme === Schemas.untitled) {
+						type SetUntitledDocumentLanguageEvent = { to: string; from: string };
+						type SetUntitledDocumentLanguageClassification = {
+							to: {
+								classification: 'SystemMetaData';
+								purpose: 'FeatureInsight';
+								owner: 'JacksonKearl';
+								comment: 'Help understand effectiveness of automatic language detection';
+							};
+							from: {
+								classification: 'SystemMetaData';
+								purpose: 'FeatureInsight';
+								owner: 'JacksonKearl';
+								comment: 'Help understand effectiveness of automatic language detection';
+							};
+						};
+						this.telemetryService.publicLog2<SetUntitledDocumentLanguageEvent, SetUntitledDocumentLanguageClassification>('setUntitledDocumentLanguage', {
+							to: languageSelection.languageId,
+							from: currentLanguageId ?? 'none',
+						});
+					}
 				}
 			}
 
 			activeTextEditorControl.focus();
-			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
-				id: ChangeLanguageAction.ID,
-				from: data?.from || 'quick open'
-			});
 		}
 	}
 

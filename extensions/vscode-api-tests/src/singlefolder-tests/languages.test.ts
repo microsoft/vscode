@@ -96,7 +96,7 @@ suite('vscode API - languages', () => {
 		assert.ok(found);
 	});
 
-	test.skip('link detector', async function () { // #140878
+	test('link detector', async function () {
 		const uri = await createRandomFile('class A { // http://a.com }', undefined, '.java');
 		const doc = await vscode.workspace.openTextDocument(uri);
 
@@ -111,14 +111,14 @@ suite('vscode API - languages', () => {
 		vscode.languages.registerDocumentLinkProvider({ language: 'java', scheme: testFs.scheme }, linkProvider);
 
 		const links = await vscode.commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', doc.uri);
-		assert.strictEqual(2, links && links.length);
+		assert.strictEqual(links && links.length, 2, links.map(l => !l.target).join(', '));
 		let [link1, link2] = links!.sort((l1, l2) => l1.range.start.compareTo(l2.range.start));
 
-		assert.strictEqual(target.toString(), link1.target && link1.target.toString());
-		assertEqualRange(range, link1.range);
+		assert.strictEqual(link1.target && link1.target.toString(), target.toString());
+		assertEqualRange(link1.range, range);
 
-		assert.strictEqual('http://a.com/', link2.target && link2.target.toString());
-		assertEqualRange(new vscode.Range(new vscode.Position(0, 13), new vscode.Position(0, 25)), link2.range);
+		assert.strictEqual(link2.target && link2.target.toString(), 'http://a.com/');
+		assertEqualRange(link2.range, new vscode.Range(new vscode.Position(0, 13), new vscode.Position(0, 25)));
 	});
 
 	test('diagnostics & CodeActionProvider', async function () {

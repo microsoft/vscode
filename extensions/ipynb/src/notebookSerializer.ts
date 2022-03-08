@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { nbformat } from '@jupyterlab/coreutils';
+import * as nbformat from '@jupyterlab/nbformat';
 import * as detectIndent from 'detect-indent';
 import * as vscode from 'vscode';
 import { defaultNotebookFormat } from './constants';
@@ -22,7 +22,7 @@ export class NotebookSerializer implements vscode.NotebookSerializer {
 		} catch {
 		}
 
-		let json = contents ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
+		let json = contents && /\S/.test(contents) ? (JSON.parse(contents) as Partial<nbformat.INotebookContent>) : {};
 
 		if (json.__webview_backup) {
 			const backupId = json.__webview_backup;

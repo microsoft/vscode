@@ -90,7 +90,7 @@ export interface IExtUri {
 	 * @param pathFragment The path fragment to add to the URI path.
 	 * @returns The resulting URI.
 	 */
-	joinPath(resource: URI, ...pathFragment: string[]): URI
+	joinPath(resource: URI, ...pathFragment: string[]): URI;
 	/**
 	 * Normalizes the path part of a URI: Resolves `.` and `..` elements with directory names.
 	 *

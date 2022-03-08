@@ -1032,7 +1032,7 @@ export class PredictionTimeline {
 }
 
 /**
- * Gets the escape sequence args to restore state/appearence in the cell.
+ * Gets the escape sequence args to restore state/appearance in the cell.
  */
 const attributesToArgs = (cell: XtermAttributes) => {
 	if (cell.isAttributeDefault()) { return [0]; }
@@ -1058,7 +1058,7 @@ const attributesToArgs = (cell: XtermAttributes) => {
 };
 
 /**
- * Gets the escape sequence to restore state/appearence in the cell.
+ * Gets the escape sequence to restore state/appearance in the cell.
  */
 const attributesToSeq = (cell: XtermAttributes) => `${CSI}${attributesToArgs(cell).join(';')}m`;
 

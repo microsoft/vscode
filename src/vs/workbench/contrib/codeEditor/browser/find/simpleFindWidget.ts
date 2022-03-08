@@ -10,9 +10,9 @@ import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findIn
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from 'vs/editor/contrib/find/findWidget';
+import { SimpleButton, findPreviousMatchIcon, findNextMatchIcon } from 'vs/editor/contrib/find/browser/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';

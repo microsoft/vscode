@@ -11,18 +11,18 @@ import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoEnablement } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -230,7 +230,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	}
 }
 
-function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
+function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string; detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
 		return {
 			message: nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length),
@@ -252,14 +252,14 @@ function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: str
 		};
 	}
 
-	if (distinctElements[0].isDirectory) {
+	if (distinctElements[0].isDirectory && !distinctElements[0].isSymbolicLink) {
 		return { message: nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name), detail: '' };
 	}
 
 	return { message: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name), detail: '' };
 }
 
-function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
+function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string; detail: string } {
 	if (containsBothDirectoryAndFile(distinctElements)) {
 		return {
 			message: nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length),
@@ -296,7 +296,7 @@ function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean
 }
 
 
-export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean, allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
+export function findValidPasteFileTarget(explorerService: IExplorerService, targetFolder: ExplorerItem, fileToPaste: { resource: URI; isDirectory?: boolean; allowOverwrite: boolean }, incrementalNaming: 'simple' | 'smart'): URI {
 	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
 	let candidate = resources.joinPath(targetFolder.resource, name);
@@ -622,7 +622,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 }
 
-export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string, severity: Severity } | null {
+export function validateFileName(pathService: IPathService, item: ExplorerItem, name: string, os: OperatingSystem): { content: string; severity: Severity } | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
@@ -870,6 +870,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 	const notificationService = accessor.get(INotificationService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
 	const pathService = accessor.get(IPathService);
+	const configurationService = accessor.get(IConfigurationService);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -888,6 +889,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 				if (stat.resource.toString() !== targetResource.toString()) {
 					try {
 						await explorerService.applyBulkEdit([new ResourceFileEdit(stat.resource, targetResource)], {
+							confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
 							undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", stat.name, value),
 							progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", stat.name, value),
 						});
@@ -1008,7 +1010,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
 				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 			}
-			const fileToPasteStat = await fileService.resolve(fileToPaste);
+			const fileToPasteStat = await fileService.stat(fileToPaste);
 
 			// Find target
 			let target: ExplorerItem;
@@ -1029,6 +1031,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			if (pasteShouldMove) {
 				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target));
 				const options = {
+					confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
 					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'movingBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Moving {0} files", sourceTargetPairs.length)
 						: nls.localize({ key: 'movingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file moved.'] }, "Moving {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
 					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'moveBulkEdit', comment: ['Placeholder will be replaced by the number of files being moved'] }, "Move {0} files", sourceTargetPairs.length)
@@ -1037,8 +1040,9 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 				await explorerService.applyBulkEdit(resourceFileEdits, options);
 			} else {
 				const resourceFileEdits = sourceTargetPairs.map(pair => new ResourceFileEdit(pair.source, pair.target, { copy: true }));
+				const undoLevel = configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 				const options = {
-					confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.enableUndo === UndoEnablement.Warn,
+					confirmBeforeUndo: undoLevel === UndoConfirmLevel.Default || undoLevel === UndoConfirmLevel.Verbose,
 					progressLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyingBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Copying {0} files", sourceTargetPairs.length)
 						: nls.localize({ key: 'copyingFileBulkEdit', comment: ['Placeholder will be replaced by the name of the file copied.'] }, "Copying {0}", resources.basenameOrAuthority(sourceTargetPairs[0].target)),
 					undoLabel: sourceTargetPairs.length > 1 ? nls.localize({ key: 'copyBulkEdit', comment: ['Placeholder will be replaced by the number of files being copied'] }, "Paste {0} files", sourceTargetPairs.length)

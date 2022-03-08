@@ -10,7 +10,7 @@ import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/b
 import { TestDiffOpType, TestItemExpandState, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/common/testStubs';
+import { Convert, TestItemImpl } from 'vs/workbench/contrib/testing/test/common/testStubs';
 import { TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 
 class TestHierarchicalByLocationProjection extends HierarchicalByLocationProjection {
@@ -53,13 +53,13 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 
 	test('updates render if second test provider appears', async () => {
 		harness.flush();
-		harness.pushDiff([
-			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'c', undefined)) },
-		], [
-			TestDiffOpType.Add,
-			{ controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'ca', undefined)) },
-		]);
+		harness.pushDiff({
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', parent: null, expand: TestItemExpandState.Expanded, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c', 'c', undefined)) },
+		}, {
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', parent: new TestId(['ctrl2', 'c']).toString(), expand: TestItemExpandState.NotExpandable, item: Convert.TestItem.from(new TestItemImpl('ctrl2', 'c-a', 'ca', undefined)) },
+		});
 
 		assert.deepStrictEqual(harness.flush(), [
 			{ e: 'c', children: [{ e: 'ca' }] },
@@ -106,7 +106,17 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
 
 		const resultInState = (state: TestResultState): TestResultItem => ({
-			item: Convert.TestItem.from(harness.c.tree.get(new TestId(['ctrlId', 'id-a']).toString())!.actual),
+			item: {
+				extId: new TestId(['ctrlId', 'id-a']).toString(),
+				busy: false,
+				description: null,
+				error: null,
+				label: 'a',
+				range: null,
+				sortText: null,
+				tags: [],
+				uri: undefined,
+			},
 			parent: 'id-root',
 			tasks: [],
 			retired: false,
@@ -120,8 +130,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,
-			previous: TestResultState.Unset,
+			previousState: TestResultState.Unset,
 			item: resultInState(TestResultState.Queued),
+			previousOwnDuration: undefined,
 		});
 		harness.projection.applyTo(harness.tree);
 
@@ -134,8 +145,9 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		onTestChanged.fire({
 			reason: TestResultItemChangeReason.OwnStateChange,
 			result: null as any,
-			previous: TestResultState.Queued,
+			previousState: TestResultState.Queued,
 			item: resultInState(TestResultState.Unset),
+			previousOwnDuration: undefined,
 		});
 		harness.projection.applyTo(harness.tree);
 

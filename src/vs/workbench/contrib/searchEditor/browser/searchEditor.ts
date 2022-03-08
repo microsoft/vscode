@@ -21,7 +21,7 @@ import { ICodeEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/peek/referencesController';
+import { ReferencesController } from 'vs/editor/contrib/gotoSymbol/browser/peek/referencesController';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -43,7 +43,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
-import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { SearchModel, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { InSearchEditor, SearchEditorFindMatchClass, SearchEditorID, SearchEditorInputTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
@@ -60,7 +60,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
 import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
-import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/unusualLineTerminators';
+import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTerminators/browser/unusualLineTerminators';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;

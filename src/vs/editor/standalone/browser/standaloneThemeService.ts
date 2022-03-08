@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { addMatchMediaChangeListener } from 'vs/base/browser/browser';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/languages';
@@ -32,7 +33,7 @@ class StandaloneTheme implements IStandaloneTheme {
 
 	private readonly themeData: IStandaloneThemeData;
 	private colors: Map<string, Color> | null;
-	private readonly defaultColors: { [colorId: string]: Color | undefined; };
+	private readonly defaultColors: { [colorId: string]: Color | undefined };
 	private _tokenTheme: TokenTheme | null;
 
 	constructor(name: string, standaloneThemeData: IStandaloneThemeData) {
@@ -252,7 +253,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 			this._updateCSS();
 		});
 
-		dom.addMatchMediaChangeListener('(forced-colors: active)', () => {
+		addMatchMediaChangeListener('(forced-colors: active)', () => {
 			this._updateActualTheme();
 		});
 	}
@@ -354,7 +355,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _updateThemeOrColorMap(): void {
 		const cssRules: string[] = [];
-		const hasRule: { [rule: string]: boolean; } = {};
+		const hasRule: { [rule: string]: boolean } = {};
 		const ruleCollector: ICssStyleCollector = {
 			addRule: (rule: string) => {
 				if (!hasRule[rule]) {

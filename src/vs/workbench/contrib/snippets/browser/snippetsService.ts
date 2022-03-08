@@ -9,8 +9,8 @@ import * as resources from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
-import { ILanguageService } from 'vs/editor/common/services/language';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
@@ -29,9 +29,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { isStringArray } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-// TODO@layers
-// eslint-disable-next-line code-import-patterns
-import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 
 namespace snippetExt {
 
@@ -187,6 +185,7 @@ class SnippetsService implements ISnippetsService {
 		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
 	) {
 		this._pendingWork.push(Promise.resolve(lifecycleService.when(LifecyclePhase.Restored).then(() => {
 			this._initExtensionSnippets();
@@ -194,7 +193,7 @@ class SnippetsService implements ISnippetsService {
 			this._initWorkspaceSnippets();
 		})));
 
-		setSnippetSuggestSupport(new SnippetCompletionProvider(this._languageService, this, new TestLanguageConfigurationService()));
+		setSnippetSuggestSupport(new SnippetCompletionProvider(this._languageService, this, languageConfigurationService));
 
 		this._enablement = instantiationService.createInstance(SnippetEnablement);
 	}

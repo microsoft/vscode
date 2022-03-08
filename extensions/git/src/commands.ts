@@ -6,7 +6,7 @@
 import * as os from 'os';
 import * as path from 'path';
 import { Command, commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider } from 'vscode';
-import TelemetryReporter from 'vscode-extension-telemetry';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher } from './api/git';
 import { Git, Stash } from './git';
@@ -14,7 +14,7 @@ import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri } from './uri';
-import { grep, isDescendant, logTimestamp, pathEquals } from './util';
+import { grep, isDescendant, logTimestamp, pathEquals, relativePath } from './util';
 import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
@@ -186,7 +186,7 @@ function command(commandId: string, options: ScmCommandOptions = {}): Function {
 // 	'image/bmp'
 // ];
 
-async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[], resolved: Resource[], unresolved: Resource[], deletionConflicts: Resource[] }> {
+async function categorizeResourceByResolution(resources: Resource[]): Promise<{ merge: Resource[]; resolved: Resource[]; unresolved: Resource[]; deletionConflicts: Resource[] }> {
 	const selection = resources.filter(s => s instanceof Resource) as Resource[];
 	const merge = selection.filter(s => s.resourceGroupType === ResourceGroupType.Merge);
 	const isBothAddedOrModified = (s: Resource) => s.type === Status.BOTH_MODIFIED || s.type === Status.BOTH_ADDED;
@@ -282,7 +282,7 @@ interface PushOptions {
 		remote?: string;
 		refspec?: string;
 		setUpstream?: boolean;
-	}
+	};
 }
 
 class CommandErrorOutputTextDocumentContentProvider implements TextDocumentContentProvider {
@@ -544,7 +544,7 @@ export class CommandCenter {
 			} else {
 				const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
 				const pick = { label: localize('choose', "Choose Folder...") };
-				const items: { label: string, folder?: WorkspaceFolder }[] = [
+				const items: { label: string; folder?: WorkspaceFolder }[] = [
 					...workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder })),
 					pick
 				];
@@ -803,7 +803,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const from = path.relative(repository.root, fromUri.fsPath);
+		const from = relativePath(repository.root, fromUri.fsPath);
 		let to = await window.showInputBox({
 			value: from,
 			valueSelection: [from.length - path.basename(from).length, from.length]
@@ -1683,7 +1683,7 @@ export class CommandCenter {
 		return this._checkout(repository, { detached: true, treeish });
 	}
 
-	private async _checkout(repository: Repository, opts?: { detached?: boolean, treeish?: string }): Promise<boolean> {
+	private async _checkout(repository: Repository, opts?: { detached?: boolean; treeish?: string }): Promise<boolean> {
 		if (typeof opts?.treeish === 'string') {
 			await repository.checkout(opts?.treeish, opts);
 			return true;
@@ -2698,7 +2698,7 @@ export class CommandCenter {
 		env.clipboard.writeText(item.message);
 	}
 
-	private _selectedForCompare: { uri: Uri, item: GitTimelineItem } | undefined;
+	private _selectedForCompare: { uri: Uri; item: GitTimelineItem } | undefined;
 
 	@command('git.timeline.selectForCompare', { repository: false })
 	async timelineSelectForCompare(item: TimelineItem, uri: Uri | undefined, _source: string) {
@@ -2751,6 +2751,17 @@ export class CommandCenter {
 		} else {
 			await window.showInformationMessage(localize('no rebase', "No rebase in progress."));
 		}
+	}
+
+	@command('git.closeAllDiffEditors', { repository: true })
+	closeDiffEditors(repository: Repository): void {
+		const resources = [
+			...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath),
+			...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath)
+		];
+
+		repository.closeDiffEditors(resources, resources, true);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
@@ -2959,7 +2970,7 @@ export class CommandCenter {
 			}
 
 			return result;
-		}, [] as { repository: Repository, resources: Uri[] }[]);
+		}, [] as { repository: Repository; resources: Uri[] }[]);
 
 		const promises = groups
 			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));

@@ -4,7 +4,7 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-9CevbjD7QdrWdGrVTVJD74tTH4eAhisvCOlLtWUn+Iw=' https:;
+			script-src 'self' 'unsafe-eval' 'sha256-Luz5WwVrEgqx3ZT5ekNejY0UMaLynWfImiCqdaT6CeQ=' https:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
@@ -27,7 +27,7 @@
 
 	try {
 		const worker = new Worker('../../../../base/worker/workerMain.js', { name });
-		worker.postMessage('vs/workbench/services/extensions/worker/extensionHostWorker');
+		worker.postMessage('vs/workbench/api/worker/extensionHostWorker');
 		const nestedWorkers = new Map();
 
 		worker.onmessage = (event) => {

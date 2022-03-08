@@ -6,10 +6,10 @@
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -20,14 +20,14 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
-type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
+type ValidationResult = { canApply: true } | { canApply: false; reason: URI };
 
 class ModelEditTask implements IDisposable {
 
 	readonly model: ITextModel;
 
 	private _expectedModelVersionId: number | undefined;
-	protected _edits: IIdentifiedSingleEditOperation[];
+	protected _edits: ISingleEditOperation[];
 	protected _newEol: EndOfLineSequence | undefined;
 
 	constructor(private readonly _modelReference: IReference<IResolvedTextEditorModel>) {

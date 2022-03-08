@@ -43,7 +43,7 @@ async function mixinClient(quality) {
             else {
                 fancyLog(ansiColors.blue('[mixin]'), 'Inheriting OSS built-in extensions', builtInExtensions.map(e => e.name));
             }
-            return Object.assign(Object.assign({ webBuiltInExtensions: originalProduct.webBuiltInExtensions }, o), { builtInExtensions });
+            return { webBuiltInExtensions: originalProduct.webBuiltInExtensions, ...o, builtInExtensions };
         }))
             .pipe(productJsonFilter.restore)
             .pipe(es.mapSync((f) => {
@@ -64,7 +64,7 @@ function mixinServer(quality) {
     fancyLog(ansiColors.blue('[mixin]'), `Mixing in server:`);
     const originalProduct = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'product.json'), 'utf8'));
     const serverProductJson = JSON.parse(fs.readFileSync(serverProductJsonPath, 'utf8'));
-    fs.writeFileSync('product.json', JSON.stringify(Object.assign(Object.assign({}, originalProduct), serverProductJson), undefined, '\t'));
+    fs.writeFileSync('product.json', JSON.stringify({ ...originalProduct, ...serverProductJson }, undefined, '\t'));
     fancyLog(ansiColors.blue('[mixin]'), 'product.json', ansiColors.green('✔︎'));
 }
 function main() {

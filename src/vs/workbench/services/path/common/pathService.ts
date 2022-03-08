@@ -10,7 +10,7 @@ import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
+import { getVirtualWorkspaceScheme } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -104,7 +104,6 @@ export abstract class AbstractPathService implements IPathService {
 		this.resolveUserHome = (async () => {
 			const env = await this.remoteAgentService.getEnvironment();
 			const userHome = this.maybeUnresolvedUserHome = env?.userHome || localUserHome;
-
 
 			return userHome;
 		})();

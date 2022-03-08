@@ -178,6 +178,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 				this._onDidDeleteFile.fire(Object.freeze({ files: files.map(f => URI.revive(f.target)) }));
 				break;
 			case FileOperation.CREATE:
+			case FileOperation.COPY:
 				this._onDidCreateFile.fire(Object.freeze({ files: files.map(f => URI.revive(f.target)) }));
 				break;
 			default:
@@ -213,6 +214,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			case FileOperation.DELETE:
 				return await this._fireWillEvent(this._onWillDeleteFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 			case FileOperation.CREATE:
+			case FileOperation.COPY:
 				return await this._fireWillEvent(this._onWillCreateFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 		}
 		return undefined;
@@ -248,7 +250,10 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		// concat all WorkspaceEdits collected via waitUntil-call and send them over to the renderer
 		const dto: IWorkspaceEditDto = { edits: [] };
 		for (let edit of edits) {
-			let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+			let { edits } = typeConverter.WorkspaceEdit.from(edit, {
+				getTextDocumentVersion: uri => this._extHostDocumentsAndEditors.getDocument(uri)?.version,
+				getNotebookDocumentVersion: () => undefined,
+			});
 			dto.edits = dto.edits.concat(edits);
 		}
 		return { edit: dto, extensionNames: Array.from(extensionNames) };

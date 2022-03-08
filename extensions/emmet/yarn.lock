@@ -2,10 +2,17 @@
 # yarn lockfile v1
 
 
-"@emmetio/abbreviation@^2.2.0", "@emmetio/abbreviation@^2.2.2":
+"@emmetio/abbreviation@^2.2.0":
   version "2.2.2"
   resolved "https://registry.yarnpkg.com/@emmetio/abbreviation/-/abbreviation-2.2.2.tgz#746762fd9e7a8c2ea604f580c62e3cfe250e6989"
   integrity sha512-TtE/dBnkTCct8+LntkqVrwqQao6EnPAs1YN3cUgxOxTaBlesBCY37ROUAVZrRlG64GNnVShdl/b70RfAI3w5lw==
+  dependencies:
+    "@emmetio/scanner" "^1.0.0"
+
+"@emmetio/abbreviation@^2.2.3":
+  version "2.2.3"
+  resolved "https://registry.yarnpkg.com/@emmetio/abbreviation/-/abbreviation-2.2.3.tgz#2b3c0383c1a4652f677d5b56fb3f1616fe16ef10"
+  integrity sha512-87pltuCPt99aL+y9xS6GPZ+Wmmyhll2WXH73gG/xpGcQ84DRnptBsI2r0BeIQ0EB/SQTOe2ANPqFqj3Rj5FOGA==
   dependencies:
     "@emmetio/scanner" "^1.0.0"
 
@@ -59,9 +66,9 @@
   integrity sha512-0GeIl2kmVMXEnx8tg1SlG6Gg8vkqirrW752KqolYo1PHevhhZN3bhJ67qHj+bQaINhX0Ra3TlWwRvMCd9iEfNQ==
 
 "@vscode/emmet-helper@^2.3.0":
-  version "2.8.3"
-  resolved "https://registry.yarnpkg.com/@vscode/emmet-helper/-/emmet-helper-2.8.3.tgz#f7c2b4a4751d03bcf2b421f0fce5b521a0f64a18"
-  integrity sha512-dkTSL+BaBBS8gFgPm/GMOU+XfxaMyI+Fl1IUYxEi8Iv24RfHf9/q2eCpV2hs7sncLcoKWEbMYe5gv4Ppmp2Oxw==
+  version "2.8.4"
+  resolved "https://registry.yarnpkg.com/@vscode/emmet-helper/-/emmet-helper-2.8.4.tgz#ab937e3ce79b0873c604d1ad50a9eeb7abae2937"
+  integrity sha512-lUki5QLS47bz/U8IlG9VQ+1lfxMtxMZENmU5nu4Z71eOD5j9FK0SmYGL5NiVJg9WBWeAU0VxRADMY2Qpq7BfVg==
   dependencies:
     emmet "^2.3.0"
     jsonc-parser "^2.3.0"
@@ -71,11 +78,11 @@
     vscode-uri "^2.1.2"
 
 emmet@^2.3.0:
-  version "2.3.5"
-  resolved "https://registry.yarnpkg.com/emmet/-/emmet-2.3.5.tgz#7f80f9c3db6831d1ee2b458717b9c36a074b1a47"
-  integrity sha512-LcWfTamJnXIdMfLvJEC5Ld3hY5/KHXgv1L1bp6I7eEvB0ZhacHZ1kX0BYovJ8FroEsreLcq7n7kZhRMsf6jkXQ==
+  version "2.3.6"
+  resolved "https://registry.yarnpkg.com/emmet/-/emmet-2.3.6.tgz#1d93c1ac03164da9ddf74864c1f341ed6ff6c336"
+  integrity sha512-pLS4PBPDdxuUAmw7Me7+TcHbykTsBKN/S9XJbUOMFQrNv9MoshzyMFK/R57JBm94/6HSL4vHnDeEmxlC82NQ4A==
   dependencies:
-    "@emmetio/abbreviation" "^2.2.2"
+    "@emmetio/abbreviation" "^2.2.3"
     "@emmetio/css-abbreviation" "^2.1.4"
 
 image-size@~1.0.0:

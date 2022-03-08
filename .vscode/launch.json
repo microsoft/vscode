@@ -244,10 +244,16 @@
 			}
 		},
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
-			"name": "VS Code (Web)",
-			"program": "${workspaceFolder}/resources/web/code-web.js",
+			"name": "VS Code Server (Web)",
+			"runtimeExecutable": "${workspaceFolder}/scripts/code-server.sh",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat",
+			},
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2
@@ -279,9 +285,9 @@
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
-			"name": "VS Code (Web, Chrome)",
-			"url": "http://localhost:8080",
-			"preLaunchTask": "Run web",
+			"name": "VS Code Server (Web, Chrome)",
+			"url": "http://localhost:8080?tkn=dev-token",
+			"preLaunchTask": "Run code server",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 3
@@ -292,10 +298,10 @@
 			"request": "launch",
 			"outFiles": [],
 			"perScriptSourcemaps": "yes",
-			"name": "VS Code (Web, Edge)",
-			"url": "http://localhost:8080",
+			"name": "VS Code Server (Web, Edge)",
+			"url": "http://localhost:8080?tkn=dev-token",
 			"pauseForSourceMap": false,
-			"preLaunchTask": "Run web",
+			"preLaunchTask": "Run code server",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 3

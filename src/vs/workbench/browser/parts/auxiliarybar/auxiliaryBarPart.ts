@@ -16,7 +16,7 @@ import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platf
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Extensions as PaneCompositeExtensions } from 'vs/workbench/browser/panecomposite';
 import { BasePanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/auxiliarybar';
+import { ActiveAuxiliaryContext, AuxiliaryBarFocusContext } from 'vs/workbench/common/contextkeys';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -27,6 +27,7 @@ import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { MoveSidePanelToPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
@@ -38,6 +39,8 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
+	readonly priority: LayoutPriority = LayoutPriority.Low;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,

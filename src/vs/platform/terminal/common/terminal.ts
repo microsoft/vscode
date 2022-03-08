@@ -49,6 +49,7 @@ export const enum TerminalSettingId {
 	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
 	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
 	CopyOnSelection = 'terminal.integrated.copyOnSelection',
+	EnableMultiLinePasteWarning = 'terminal.integrated.enableMultiLinePasteWarning',
 	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
 	FontFamily = 'terminal.integrated.fontFamily',
 	FontSize = 'terminal.integrated.fontSize',
@@ -89,7 +90,6 @@ export const enum TerminalSettingId {
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
-	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
 	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
 	LocalEchoEnabled = 'terminal.integrated.localEchoEnabled',
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
@@ -102,10 +102,16 @@ export const enum TerminalSettingId {
 	ShowLinkHover = 'terminal.integrated.showLinkHover',
 	IgnoreProcessNames = 'terminal.integrated.ignoreProcessNames',
 	AutoReplies = 'terminal.integrated.autoReplies',
-	EnableShellIntegration = 'terminal.integrated.enableShellIntegration'
+	ShellIntegrationEnabled = 'terminal.integrated.shellIntegration.enabled',
+	ShellIntegrationShowWelcome = 'terminal.integrated.shellIntegration.showWelcome',
+	ShellIntegrationDecorationsEnabled = 'terminal.integrated.shellIntegration.decorationsEnabled',
+	ShellIntegrationDecorationIcon = 'terminal.integrated.shellIntegration.decorationIcon',
+	ShellIntegrationDecorationIconError = 'terminal.integrated.shellIntegration.decorationIconError',
+	ShellIntegrationDecorationIconSuccess = 'terminal.integrated.shellIntegration.decorationIconSuccess',
+	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
-export enum WindowsShellType {
+export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
 	Wsl = 'wsl',
@@ -196,19 +202,19 @@ export const enum ProcessPropertyType {
 }
 
 export interface IProcessProperty<T extends ProcessPropertyType> {
-	type: T,
-	value: IProcessPropertyMap[T]
+	type: T;
+	value: IProcessPropertyMap[T];
 }
 
 export interface IProcessPropertyMap {
-	[ProcessPropertyType.Cwd]: string,
-	[ProcessPropertyType.InitialCwd]: string,
-	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions,
-	[ProcessPropertyType.Title]: string
-	[ProcessPropertyType.ShellType]: TerminalShellType | undefined,
-	[ProcessPropertyType.HasChildProcesses]: boolean,
-	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig,
-	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined
+	[ProcessPropertyType.Cwd]: string;
+	[ProcessPropertyType.InitialCwd]: string;
+	[ProcessPropertyType.FixedDimensions]: IFixedTerminalDimensions;
+	[ProcessPropertyType.Title]: string;
+	[ProcessPropertyType.ShellType]: TerminalShellType | undefined;
+	[ProcessPropertyType.HasChildProcesses]: boolean;
+	[ProcessPropertyType.ResolvedShellLaunchConfig]: IShellLaunchConfig;
+	[ProcessPropertyType.OverrideDimensions]: ITerminalDimensionsOverride | undefined;
 }
 
 export interface IFixedTerminalDimensions {
@@ -237,13 +243,13 @@ export interface IPtyHostController {
 export interface IPtyService extends IPtyHostController {
 	readonly _serviceBrand: undefined;
 
-	readonly onProcessData: Event<{ id: number, event: IProcessDataEvent | string }>;
-	readonly onProcessReady: Event<{ id: number, event: IProcessReadyEvent }>;
-	readonly onProcessReplay: Event<{ id: number, event: IPtyHostProcessReplayEvent }>;
+	readonly onProcessData: Event<{ id: number; event: IProcessDataEvent | string }>;
+	readonly onProcessReady: Event<{ id: number; event: IProcessReadyEvent }>;
+	readonly onProcessReplay: Event<{ id: number; event: IPtyHostProcessReplayEvent }>;
 	readonly onProcessOrphanQuestion: Event<{ id: number }>;
-	readonly onDidRequestDetach: Event<{ requestId: number, workspaceId: string, instanceId: number }>;
-	readonly onDidChangeProperty: Event<{ id: number, property: IProcessProperty<any> }>
-	readonly onProcessExit: Event<{ id: number, event: number | undefined }>;
+	readonly onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
+	readonly onDidChangeProperty: Event<{ id: number; property: IProcessProperty<any> }>;
+	readonly onProcessExit: Event<{ id: number; event: number | undefined }>;
 
 	restartPtyHost?(): Promise<void>;
 	shutdownAll?(): Promise<void>;
@@ -257,7 +263,7 @@ export interface IPtyService extends IPtyHostController {
 		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		options: ITerminalProcessOptions,
 		shouldPersist: boolean,
 		workspaceId: string,
 		workspaceName: string
@@ -325,16 +331,16 @@ export interface ISerializedTerminalState {
 	id: number;
 	shellLaunchConfig: IShellLaunchConfig;
 	processDetails: IProcessDetails;
-	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
+	processLaunchConfig: IPersistentTerminalProcessLaunchConfig;
 	unicodeVersion: '6' | '11';
 	replayEvent: IPtyHostProcessReplayEvent;
 	timestamp: number;
 }
 
-export interface IPersistentTerminalProcessLaunchOptions {
+export interface IPersistentTerminalProcessLaunchConfig {
 	env: IProcessEnvironment;
 	executableEnv: IProcessEnvironment;
-	windowsEnableConpty: boolean;
+	options: ITerminalProcessOptions;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -379,9 +385,9 @@ export interface IShellLaunchConfig {
 	name?: string;
 
 	/**
-	 * An string to follow the name of the terminal with, indicating a special kind of terminal
+	 * A string to follow the name of the terminal with, indicating the type of terminal
 	 */
-	description?: string;
+	type?: 'Task' | 'Local';
 
 	/**
 	 * The shell executable (bash, cmd, etc.).
@@ -437,7 +443,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string, hasChildProcesses?: boolean, fixedDimensions?: IFixedTerminalDimensions };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string; hasChildProcesses?: boolean; fixedDimensions?: IFixedTerminalDimensions };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -502,13 +508,13 @@ export interface IShellLaunchConfig {
 	/**
 	 * Opt-out of the default terminal persistence on restart and reload
 	 */
-	disablePersistence?: boolean;
+	isTransient?: boolean;
 }
 
 export interface ICreateContributedTerminalProfileOptions {
-	icon?: URI | string | { light: URI, dark: URI };
+	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
-	location?: TerminalLocation | { viewColumn: number, preserveState?: boolean } | { splitActiveTerminal: boolean };
+	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
 }
 
 export enum TerminalLocation {
@@ -533,6 +539,18 @@ export interface IShellLaunchConfigDto {
 	hideFromUser?: boolean;
 }
 
+/**
+ * A set of options for the terminal process. These differ from the shell launch config in that they
+ * are set internally to the terminal component, not from the outside.
+ */
+export interface ITerminalProcessOptions {
+	shellIntegration: {
+		enabled: boolean;
+		showWelcome: boolean;
+	};
+	windowsEnableConpty: boolean;
+}
+
 export interface ITerminalEnvironment {
 	[key: string]: string | null | undefined;
 }
@@ -543,35 +561,9 @@ export interface ITerminalLaunchError {
 }
 
 export interface IProcessReadyEvent {
-	pid: number,
-	cwd: string,
-	requiresWindowsMode?: boolean
-}
-
-/**
- * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
- * progressively enhancing various features that may not be supported in all terminals/shells.
- */
-export const enum TerminalCapability {
-	/**
-	 * The terminal can reliably detect the current working directory as soon as the change happens
-	 * within the buffer.
-	 */
-	CwdDetection,
-	/**
-	 * The terminal can reliably detect the current working directory when requested.
-	 */
-	NaiveCwdDetection,
-	/**
-	 * The terminal can reliably identify prompts, commands and command outputs within the buffer.
-	 */
-	CommandDetection,
-	/**
-	 * The terminal can often identify prompts, commands and command outputs within the buffer. It
-	 * may not be so good at remembering the position of commands that ran in the past. This state
-	 * may be enabled when something goes wrong or when using conpty for example.
-	 */
-	PartialCommandDetection
+	pid: number;
+	cwd: string;
+	requiresWindowsMode?: boolean;
 }
 
 /**
@@ -716,7 +708,7 @@ export interface ITerminalProfile {
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
 	color?: string;
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: ThemeIcon | URI | { light: URI; dark: URI };
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
@@ -735,7 +727,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
-	icon?: string | ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: string | ThemeIcon | URI | { light: URI; dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
 }
@@ -756,7 +748,7 @@ export interface ITerminalContributions {
 export interface ITerminalProfileContribution {
 	title: string;
 	id: string;
-	icon?: URI | { light: URI, dark: URI } | string;
+	icon?: URI | { light: URI; dark: URI } | string;
 	color?: string;
 }
 

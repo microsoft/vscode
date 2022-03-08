@@ -360,9 +360,9 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		async getSemanticTokens(document: TextDocument): Promise<SemanticTokenData[]> {
 			const jsDocument = jsDocuments.get(document);
 			const jsLanguageService = await host.getLanguageService(jsDocument);
-			return getSemanticTokens(jsLanguageService, jsDocument, jsDocument.uri);
+			return [...getSemanticTokens(jsLanguageService, jsDocument, jsDocument.uri)];
 		},
-		getSemanticTokenLegend(): { types: string[], modifiers: string[] } {
+		getSemanticTokenLegend(): { types: string[]; modifiers: string[] } {
 			return getSemanticTokenLegend();
 		},
 		dispose() {
@@ -375,7 +375,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 
 
-function convertRange(document: TextDocument, span: { start: number | undefined, length: number | undefined }): Range {
+function convertRange(document: TextDocument, span: { start: number | undefined; length: number | undefined }): Range {
 	if (typeof span.start === 'undefined') {
 		const pos = document.positionAt(0);
 		return Range.create(pos, pos);

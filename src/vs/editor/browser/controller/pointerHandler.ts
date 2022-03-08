@@ -8,10 +8,10 @@ import * as platform from 'vs/base/common/platform';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper, MouseHandler, createMouseMoveEventMerger } from 'vs/editor/browser/controller/mouseHandler';
-import { IMouseTarget } from 'vs/editor/browser/editorBrowser';
+import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
 
@@ -26,7 +26,7 @@ export class PointerEventHandler extends MouseHandler {
 		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, this.viewHelper.viewDomNode), false)));
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode), false)));
 
 		this._lastPointerType = 'mouse';
 
@@ -50,7 +50,7 @@ export class PointerEventHandler extends MouseHandler {
 			createMouseMoveEventMerger(this.mouseTargetFactory), MouseHandler.MOUSE_MOVE_MINIMUM_TIME));
 		this._register(pointerEvents.onPointerUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
-		this._register(pointerEvents.onPointerDown(this.viewHelper.viewDomNode, (e) => this._onMouseDown(e)));
+		this._register(pointerEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerId) => this._onMouseDown(e, pointerId)));
 	}
 
 	private onTap(event: GestureEvent): void {
@@ -60,7 +60,7 @@ export class PointerEventHandler extends MouseHandler {
 
 		event.preventDefault();
 		this.viewHelper.focusTextArea();
-		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
 			// this.viewController.moveTo(target.position);
@@ -77,22 +77,23 @@ export class PointerEventHandler extends MouseHandler {
 
 				leftButton: false,
 				middleButton: false,
+				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
 			});
 		}
 	}
 
 	private onChange(e: GestureEvent): void {
 		if (this._lastPointerType === 'touch') {
-			this._context.model.deltaScrollNow(-e.translationX, -e.translationY);
+			this._context.viewModel.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 		}
 	}
 
-	public override _onMouseDown(e: EditorMouseEvent): void {
+	public override _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
 		if ((e.browserEvent as any).pointerType === 'touch') {
 			return;
 		}
 
-		super._onMouseDown(e);
+		super._onMouseDown(e, pointerId);
 	}
 }
 
@@ -105,7 +106,7 @@ class TouchHandler extends MouseHandler {
 
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Change, (e) => this.onChange(e)));
-		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, this.viewHelper.viewDomNode), false)));
+		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Contextmenu, (e: MouseEvent) => this._onContextMenu(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode), false)));
 	}
 
 	private onTap(event: GestureEvent): void {
@@ -113,7 +114,7 @@ class TouchHandler extends MouseHandler {
 
 		this.viewHelper.focusTextArea();
 
-		const target = this._createMouseTarget(new EditorMouseEvent(event, this.viewHelper.viewDomNode), false);
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
 			// Send the tap event also to the <textarea> (for input purposes)
@@ -126,7 +127,7 @@ class TouchHandler extends MouseHandler {
 	}
 
 	private onChange(e: GestureEvent): void {
-		this._context.model.deltaScrollNow(-e.translationX, -e.translationY);
+		this._context.viewModel.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 	}
 }
 

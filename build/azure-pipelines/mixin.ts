@@ -29,7 +29,7 @@ interface OSSProduct {
 }
 
 interface Product {
-	readonly builtInExtensions?: IBuiltInExtension[] | { 'include'?: IBuiltInExtension[], 'exclude'?: string[] };
+	readonly builtInExtensions?: IBuiltInExtension[] | { 'include'?: IBuiltInExtension[]; 'exclude'?: string[] };
 	readonly webBuiltInExtensions?: IBuiltInExtension[];
 }
 

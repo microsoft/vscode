@@ -6,8 +6,8 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ExtHostContext, MainContext, IExtHostContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../common/extHost.protocol';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { ExtHostContext, MainContext, MainThreadDecorationsShape, ExtHostDecorationsShape, DecorationData, DecorationRequest } from '../common/extHost.protocol';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/common/decorations';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -33,11 +33,11 @@ class DecorationRequestsQueue {
 			this._resolver.set(id, resolve);
 			this._processQueue();
 		});
-		token.onCancellationRequested(() => {
+		const sub = token.onCancellationRequested(() => {
 			this._requests.delete(id);
 			this._resolver.delete(id);
 		});
-		return result;
+		return result.finally(() => sub.dispose());
 	}
 
 	private _processQueue(): void {

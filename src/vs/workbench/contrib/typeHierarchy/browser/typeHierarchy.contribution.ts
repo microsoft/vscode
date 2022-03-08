@@ -15,7 +15,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
+import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';

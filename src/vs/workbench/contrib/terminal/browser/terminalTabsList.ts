@@ -17,7 +17,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ITerminalBackend, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalCapability, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -46,7 +46,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { getTerminalResourcesFromDragEvent, parseTerminalUri } from 'vs/workbench/contrib/terminal/browser/terminalUri';
-import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
 
 const $ = DOM.$;
 
@@ -109,6 +109,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		const instanceDisposables: IDisposable[] = [
 			this._terminalGroupService.onDidChangeInstances(() => this.refresh()),
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
+			this._terminalGroupService.onDidShow(() => this.refresh()),
+			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
 			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
 			this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh()),
@@ -146,8 +148,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		// unless multi-selection is in progress
 		this.onMouseClick(async e => {
 			if (e.browserEvent.altKey && e.element) {
-				const cwd = await getCwdForSplit(this._terminalService.configHelper, e.element);
-				await this._terminalService.createTerminal({ location: { parentTerminal: e.element }, cwd });
+				await this._terminalService.createTerminal({ location: { parentTerminal: e.element } });
 			} else if (this._getFocusMode() === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
@@ -307,15 +308,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		}
 
-		let shellIntegrationString = '';
-		const capabilities = instance.xterm?.shellIntegration.capabilities.items;
-		if (capabilities) {
-			shellIntegrationString += `\n\n---\n\n$(plug) ${localize('shellIntegration.enabled', "Shell integration is enabled")}`;
-			for (const capability of capabilities) {
-				shellIntegrationString += `\n- ${this._getShellIntegrationCapabilityName(capability)}`;
-			}
-		}
-
+		const shellIntegrationString = getShellIntegrationTooltip(instance, true);
 		const iconId = getIconId(instance);
 		const hasActionbar = !this.shouldHideActionBar();
 		let label: string = '';
@@ -479,8 +472,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const actions = [
 			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
 				this._runForSelectionOrInstance(instance, async e => {
-					const cwd = await getCwdForSplit(this._terminalService.configHelper, e);
-					this._terminalService.createTerminal({ location: { parentTerminal: e }, cwd });
+					this._terminalService.createTerminal({ location: { parentTerminal: e } });
 				});
 			}),
 			new Action(TerminalCommandId.KillInstance, terminalStrings.kill.short, ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
@@ -507,18 +499,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		}
 		this._terminalGroupService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
-	}
-
-	private _getShellIntegrationCapabilityName(capability: TerminalCapability): string | undefined {
-		switch (capability) {
-			case TerminalCapability.CwdDetection:
-			case TerminalCapability.NaiveCwdDetection:
-				return localize('capability.cwdDetection', "Current working directory detection");
-			case TerminalCapability.CommandDetection:
-				return localize('capability.commandDetection', "Command detection");
-			case TerminalCapability.PartialCommandDetection:
-				return localize('capability.partialCommandDetection', "Command detection (partial)");
-		}
 	}
 }
 

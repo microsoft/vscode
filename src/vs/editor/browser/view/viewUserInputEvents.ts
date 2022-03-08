@@ -5,7 +5,7 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 export interface EventCallback<T> {

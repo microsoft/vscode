@@ -5,11 +5,10 @@
 
 import * as assert from 'assert';
 import { LanguageService } from 'vs/editor/common/services/languageService';
-import { ILanguageService } from 'vs/editor/common/services/language';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MonarchTokenizer } from 'vs/editor/standalone/common/monarch/monarchLexer';
 import { compile } from 'vs/editor/standalone/common/monarch/monarchCompile';
-import { Token } from 'vs/editor/common/core/token';
-import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { Token, TokenizationRegistry } from 'vs/editor/common/languages';
 import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTypes';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 

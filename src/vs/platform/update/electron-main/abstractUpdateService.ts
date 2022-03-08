@@ -19,7 +19,7 @@ export function createUpdateURL(platform: string, quality: string, productServic
 }
 
 export type UpdateNotAvailableClassification = {
-	explicit: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	explicit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
 };
 
 export abstract class AbstractUpdateService implements IUpdateService {

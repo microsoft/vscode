@@ -9,7 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import { disposableTimeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -19,9 +19,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { DeleteCellAction } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
-import { CellViewModelStateChangeEvent, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 export class BetweenCellToolbar extends CellPart {
@@ -111,12 +113,14 @@ export class CellTitleToolbarPart extends CellPart {
 	private readonly _onDidUpdateActions: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidUpdateActions: Event<void> = this._onDidUpdateActions.event;
 
+	private cellDisposable = this._register(new DisposableStore());
+
 	get hasActions(): boolean {
 		return this._hasActions;
 	}
 
 	constructor(
-		toolbarContainer: HTMLElement,
+		private readonly toolbarContainer: HTMLElement,
 		private readonly _rootClassDelegate: ICssClassDelegate,
 		toolbarId: MenuId,
 		private readonly _notebookEditor: INotebookEditorDelegate,
@@ -138,10 +142,12 @@ export class CellTitleToolbarPart extends CellPart {
 	}
 
 	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		this.cellDisposable.clear();
+		this.cellDisposable.add(registerStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
+
 		this.updateContext(<INotebookCellActionContext>{
 			ui: true,
 			cell: element,
-			cellTemplate: templateData,
 			notebookEditor: this._notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		});
@@ -216,7 +222,7 @@ export class CellTitleToolbarPart extends CellPart {
 	}
 }
 
-function getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; disposable: IDisposable; } {
+function getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[]; disposable: IDisposable } {
 	const primary: IAction[] = [];
 	const secondary: IAction[] = [];
 	const result = { primary, secondary };

@@ -84,4 +84,22 @@
 		"body": "~~${1:${TM_SELECTED_TEXT}}~~",
 		"description": "Insert strikethrough"
 	},
+	"Insert inline math": {
+		"prefix": [
+			"inline math"
+		],
+		"body": "$${1:${TM_SELECTED_TEXT}}$",
+		"description": "Insert inline math"
+	},
+	"Insert fenced math": {
+		"prefix": [
+			"fenced math"
+		],
+		"body": [
+			"$$",
+			"${1:${TM_SELECTED_TEXT}}",
+			"$$"
+		],
+		"description": "Insert fenced math"
+	}
 }

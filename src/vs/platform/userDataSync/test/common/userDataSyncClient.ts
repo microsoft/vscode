@@ -10,7 +10,7 @@ import { Emitter } from 'vs/base/common/event';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { joinPath } from 'vs/base/common/resources';
+import { joinPath, dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IHeaders, IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
@@ -126,6 +126,7 @@ export class UserDataSyncClient extends Disposable {
 			await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(JSON.stringify({})));
 			await fileService.writeFile(environmentService.keybindingsResource, VSBuffer.fromString(JSON.stringify([])));
 			await fileService.writeFile(joinPath(environmentService.snippetsHome, 'c.json'), VSBuffer.fromString(`{}`));
+			await fileService.writeFile(joinPath(dirname(environmentService.settingsResource), 'tasks.json'), VSBuffer.fromString(`{}`));
 			await fileService.writeFile(environmentService.argvResource, VSBuffer.fromString(JSON.stringify({ 'locale': 'en' })));
 		}
 		await configurationService.reloadConfiguration();
@@ -159,11 +160,11 @@ export class UserDataSyncTestServer implements IRequestService {
 	private session: string | null = null;
 	private readonly data: Map<ServerResource, IUserData> = new Map<SyncResource, IUserData>();
 
-	private _requests: { url: string, type: string, headers?: IHeaders }[] = [];
-	get requests(): { url: string, type: string, headers?: IHeaders }[] { return this._requests; }
+	private _requests: { url: string; type: string; headers?: IHeaders }[] = [];
+	get requests(): { url: string; type: string; headers?: IHeaders }[] { return this._requests; }
 
-	private _requestsWithAllHeaders: { url: string, type: string, headers?: IHeaders }[] = [];
-	get requestsWithAllHeaders(): { url: string, type: string, headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
+	private _requestsWithAllHeaders: { url: string; type: string; headers?: IHeaders }[] = [];
+	get requestsWithAllHeaders(): { url: string; type: string; headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
 
 	private _responses: { status: number }[] = [];
 	get responses(): { status: number }[] { return this._responses; }

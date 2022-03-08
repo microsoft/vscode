@@ -10,9 +10,9 @@ import * as ExtensionsActions from 'vs/workbench/contrib/extensions/browser/exte
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, ExtensionInstallLocation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
@@ -108,7 +108,7 @@ async function setupTest() {
 			return local;
 		},
 		async canInstall() { return true; },
-		async getTargetPlatform() { return getTargetPlatform(platform, arch); }
+		async getTargetPlatform() { return getTargetPlatform(platform, arch); },
 	});
 
 	instantiationService.stub(IRemoteAgentService, RemoteAgentService);
@@ -2368,6 +2368,10 @@ function aSingleRemoteExtensionManagementServerService(instantiationService: Tes
 				return remoteExtensionManagementServer;
 			}
 			return null;
+		},
+		getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null {
+			const server = this.getExtensionManagementServer(extension);
+			return server === remoteExtensionManagementServer ? ExtensionInstallLocation.Remote : ExtensionInstallLocation.Local;
 		}
 	};
 }
@@ -2396,6 +2400,10 @@ function aMultiExtensionManagementServerService(instantiationService: TestInstan
 				return remoteExtensionManagementServer;
 			}
 			throw new Error('');
+		},
+		getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null {
+			const server = this.getExtensionManagementServer(extension);
+			return server === remoteExtensionManagementServer ? ExtensionInstallLocation.Remote : ExtensionInstallLocation.Local;
 		}
 	};
 }
@@ -2415,7 +2423,8 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IE
 			local.publisherId = metadata.publisherId;
 			return local;
 		},
-		async getTargetPlatform() { return getTargetPlatform(platform, arch); }
+		async getTargetPlatform() { return getTargetPlatform(platform, arch); },
+		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [] }; },
 	};
 }
 

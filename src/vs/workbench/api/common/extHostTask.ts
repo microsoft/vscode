@@ -541,9 +541,9 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		});
 	}
 
-	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription };
+	protected abstract provideTasksInternal(validTypes: { [key: string]: boolean }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[]; extension: IExtensionDescription };
 
-	public $provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Promise<tasks.TaskSetDTO> {
+	public $provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.TaskSetDTO> {
 		const handler = this._handlers.get(handle);
 		if (!handler) {
 			return Promise.reject(new Error('no handler found'));
@@ -611,7 +611,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		return await this.resolveTaskInternal(resolvedTaskDTO);
 	}
 
-	public abstract $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }>;
+	public abstract $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
 
 	private nextHandle(): number {
 		return this._handleCounter++;
@@ -747,7 +747,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		return execution;
 	}
 
-	protected provideTasksInternal(validTypes: { [key: string]: boolean; }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[], extension: IExtensionDescription } {
+	protected provideTasksInternal(validTypes: { [key: string]: boolean }, taskIdPromises: Promise<void>[], handler: HandlerData, value: vscode.Task[] | null | undefined): { tasks: tasks.TaskDTO[]; extension: IExtensionDescription } {
 		const taskDTOs: tasks.TaskDTO[] = [];
 		if (value) {
 			for (let task of value) {
@@ -783,7 +783,7 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		return undefined;
 	}
 
-	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {
+	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }> {
 		const result = {
 			process: <unknown>undefined as string,
 			variables: Object.create(null)
