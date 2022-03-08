@@ -153,11 +153,11 @@ export class InteractiveEditor extends EditorPane {
 		this._register(this.#keybindingService.onDidUpdateKeybindings(this.#updateInputDecoration, this));
 	}
 
-	private get _inputCellContainerHeight() {
+	get #inputCellContainerHeight() {
 		return 19 + 2 + INPUT_CELL_VERTICAL_PADDING * 2 + INPUT_EDITOR_PADDING * 2;
 	}
 
-	private get _inputCellEditorHeight() {
+	get #inputCellEditorHeight() {
 		return 19 + INPUT_EDITOR_PADDING * 2;
 	}
 
@@ -167,7 +167,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookEditorContainer = DOM.append(this.#rootElement, DOM.$('.notebook-editor-container'));
 		this.#inputCellContainer = DOM.append(this.#rootElement, DOM.$('.input-cell-container'));
 		this.#inputCellContainer.style.position = 'absolute';
-		this.#inputCellContainer.style.height = `${this._inputCellContainerHeight}px`;
+		this.#inputCellContainer.style.height = `${this.#inputCellContainerHeight}px`;
 		this.#inputFocusIndicator = DOM.append(this.#inputCellContainer, DOM.$('.input-focus-indicator'));
 		this.#inputRunButtonContainer = DOM.append(this.#inputCellContainer, DOM.$('.run-button-container'));
 		this.#setupRunButtonToolbar(this.#inputRunButtonContainer);
@@ -249,7 +249,7 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	override saveState(): void {
-		this._saveEditorViewState(this.input);
+		this.#saveEditorViewState(this.input);
 		super.saveState();
 	}
 
@@ -259,11 +259,11 @@ export class InteractiveEditor extends EditorPane {
 			return undefined;
 		}
 
-		this._saveEditorViewState(input);
-		return this._loadNotebookEditorViewState(input);
+		this.#saveEditorViewState(input);
+		return this.#loadNotebookEditorViewState(input);
 	}
 
-	private _saveEditorViewState(input: EditorInput | undefined): void {
+	#saveEditorViewState(input: EditorInput | undefined): void {
 		if (this.group && this.#notebookWidget.value && input instanceof InteractiveEditorInput) {
 			if (this.#notebookWidget.value.isDisposed) {
 				return;
@@ -278,7 +278,7 @@ export class InteractiveEditor extends EditorPane {
 		}
 	}
 
-	private _loadNotebookEditorViewState(input: InteractiveEditorInput): InteractiveEditorViewState | undefined {
+	#loadNotebookEditorViewState(input: InteractiveEditorInput): InteractiveEditorViewState | undefined {
 		let result: InteractiveEditorViewState | undefined;
 		if (this.group) {
 			result = this.#editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
@@ -370,17 +370,17 @@ export class InteractiveEditor extends EditorPane {
 		});
 
 		if (this.#dimension) {
-			this.#notebookEditorContainer.style.height = `${this.#dimension.height - this._inputCellContainerHeight}px`;
-			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - this._inputCellContainerHeight), this.#notebookEditorContainer);
+			this.#notebookEditorContainer.style.height = `${this.#dimension.height - this.#inputCellContainerHeight}px`;
+			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - this.#inputCellContainerHeight), this.#notebookEditorContainer);
 			const {
 				codeCellLeftMargin,
 				cellRunGutter
 			} = this.#notebookOptions.getLayoutConfiguration();
 			const leftMargin = codeCellLeftMargin + cellRunGutter;
-			const maxHeight = Math.min(this.#dimension.height / 2, this._inputCellEditorHeight);
+			const maxHeight = Math.min(this.#dimension.height / 2, this.#inputCellEditorHeight);
 			this.#codeEditorWidget.layout(this.#validateDimension(this.#dimension.width - leftMargin - INPUT_CELL_HORIZONTAL_PADDING_RIGHT, maxHeight));
-			this.#inputFocusIndicator.style.height = `${this._inputCellEditorHeight}px`;
-			this.#inputCellContainer.style.top = `${this.#dimension.height - this._inputCellContainerHeight}px`;
+			this.#inputFocusIndicator.style.height = `${this.#inputCellEditorHeight}px`;
+			this.#inputCellContainer.style.top = `${this.#dimension.height - this.#inputCellContainerHeight}px`;
 			this.#inputCellContainer.style.width = `${this.#dimension.width}px`;
 		}
 
@@ -393,7 +393,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 
-		const viewState = options?.viewState ?? this._loadNotebookEditorViewState(input);
+		const viewState = options?.viewState ?? this.#loadNotebookEditorViewState(input);
 		await this.#notebookWidget.value!.setModel(model.notebook, viewState?.notebook);
 		model.notebook.setCellCollapseDefault(this.#notebookOptions.getCellCollapseDefault());
 		this.#notebookWidget.value!.setOptions({
@@ -621,12 +621,12 @@ export class InteractiveEditor extends EditorPane {
 			return;
 		}
 
-		this.#notebookEditorContainer.style.height = `${this.#dimension.height - this._inputCellContainerHeight}px`;
+		this.#notebookEditorContainer.style.height = `${this.#dimension.height - this.#inputCellContainerHeight}px`;
 		this.#layoutWidgets(dimension);
 	}
 
 	#layoutWidgets(dimension: DOM.Dimension) {
-		const contentHeight = this.#codeEditorWidget.hasModel() ? this.#codeEditorWidget.getContentHeight() : this._inputCellEditorHeight;
+		const contentHeight = this.#codeEditorWidget.hasModel() ? this.#codeEditorWidget.getContentHeight() : this.#inputCellEditorHeight;
 		const maxHeight = Math.min(dimension.height / 2, contentHeight);
 		const {
 			codeCellLeftMargin,
@@ -689,15 +689,19 @@ export class InteractiveEditor extends EditorPane {
 		this.#codeEditorWidget.focus();
 	}
 
+	focusHistory() {
+		this.#notebookWidget.value!.focus();
+	}
+
 	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		if (group) {
 			this.#groupListener.clear();
-			this.#groupListener.add(group.onWillCloseEditor(e => this._saveEditorViewState(e.editor)));
+			this.#groupListener.add(group.onWillCloseEditor(e => this.#saveEditorViewState(e.editor)));
 		}
 
 		if (!visible) {
-			this._saveEditorViewState(this.input);
+			this.#saveEditorViewState(this.input);
 			if (this.input && this.#notebookWidget.value) {
 				this.#notebookWidget.value.onWillHide();
 			}
@@ -706,7 +710,7 @@ export class InteractiveEditor extends EditorPane {
 
 	override clearInput() {
 		if (this.#notebookWidget.value) {
-			this._saveEditorViewState(this.input);
+			this.#saveEditorViewState(this.input);
 			this.#notebookWidget.value.onWillHide();
 		}
 

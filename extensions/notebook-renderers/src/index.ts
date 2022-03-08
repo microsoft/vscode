@@ -173,6 +173,22 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-ms-user-select: text;
 		cursor: auto;
 	}
+	.output-plaintext .code-bold,
+	.output-stream .code-bold {
+		font-weight: bold;
+	}
+	.output-plaintext .code-italic,
+	.output-stream .code-italic {
+		font-style: italic;
+	}
+	.output-plaintext .code-strike-through,
+	.output-stream .code-strike-through {
+		text-decoration: line-through;
+	}
+	.output-plaintext .code-underline,
+	.output-stream .code-underline {
+		text-decoration: underline;
+	}
 	`;
 	document.body.appendChild(style);
 	return {

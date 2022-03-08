@@ -676,6 +676,11 @@ export class DefaultSettings extends Disposable {
 					defaultValueSource = registeredConfigurationProp.defaultValueSource;
 				}
 
+				let isLanguageTagSetting = false;
+				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
+					isLanguageTagSetting = true;
+				}
+
 				result.push({
 					key,
 					value,
@@ -707,7 +712,8 @@ export class DefaultSettings extends Disposable {
 					allKeysAreBoolean,
 					editPresentation: prop.editPresentation,
 					order: prop.order,
-					defaultValueSource
+					defaultValueSource,
+					isLanguageTagSetting
 				});
 			}
 		}

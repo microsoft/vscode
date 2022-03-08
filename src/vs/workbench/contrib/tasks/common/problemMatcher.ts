@@ -21,7 +21,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 
 export enum FileLocationKind {
 	Default,
@@ -199,9 +199,9 @@ export async function getResource(filename: string, matcher: ProblemMatcher, fil
 		matcherClone.fileLocation = FileLocationKind.Relative;
 		if (fileService) {
 			const relative = await getResource(filename, matcherClone);
-			let stat: IFileStat | undefined = undefined;
+			let stat: IFileStatWithPartialMetadata | undefined = undefined;
 			try {
-				stat = await fileService.resolve(relative);
+				stat = await fileService.stat(relative);
 			} catch (ex) {
 				// Do nothing, we just need to catch file resolution errors.
 			}

@@ -126,7 +126,7 @@ function computeConfig(
 
 	if (!languageConfig) {
 		if (!languageService.isRegisteredLanguageId(languageId)) {
-			throw new Error('Unexpected languageId');
+			throw new Error(`Language id "${languageId}" is not configured nor known`);
 		}
 		languageConfig = new ResolvedLanguageConfiguration(languageId, {});
 	}

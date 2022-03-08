@@ -31,11 +31,11 @@ const audioCueFeatureBase: IConfigurationPropertySchema = {
 	],
 };
 
-// TODO@hediet: Migrate audioCues.enabled setting!
-// audioCues.enabled -> audioCues.{lineHasBreakpoint, lineHasInlineCompletion, ...}
-
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'properties': {
+		'audioCues.enabled': {
+			markdownDeprecationMessage: 'Deprecated. Use the specific setting for each audio cue instead (`audioCues.*`).',
+		},
 		'audioCues.lineHasBreakpoint': {
 			'description': localize('audioCues.lineHasBreakpoint', "Plays a sound when the active line has a breakpoint."),
 			...audioCueFeatureBase,
@@ -57,8 +57,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 			default: 'off',
 		},
-		'audioCues.debuggerStoppedOnBreakpoint': {
-			'description': localize('audioCues.debuggerStoppedOnBreakpoint', "Plays a sound when the debugger stopped on a breakpoint."),
+		'audioCues.onDebugBreak': {
+			'description': localize('audioCues.onDebugBreak', "Plays a sound when the debugger stopped on a breakpoint."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.noInlayHints': {
+			'description': localize('audioCues.noInlayHints', "Plays a sound when trying to read a line with inlay hints that has no inlay hints."),
 			...audioCueFeatureBase,
 		},
 	}

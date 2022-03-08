@@ -46,8 +46,8 @@ export class ProgressService extends Disposable implements IProgressService {
 
 	async withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
 		const { location } = options;
-		if (typeof location === 'string') {
 
+		const handleStringLocation = (location: string) => {
 			const viewContainer = this.viewDescriptorService.getViewContainerById(location);
 			if (viewContainer) {
 				const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
@@ -56,11 +56,15 @@ export class ProgressService extends Disposable implements IProgressService {
 				}
 			}
 
-			if (this.viewsService.getViewProgressIndicator(location)) {
+			if (this.viewDescriptorService.getViewDescriptorById(location) !== null) {
 				return this.withViewProgress(location, task, { ...options, location });
 			}
 
 			throw new Error(`Bad progress location: ${location}`);
+		};
+
+		if (typeof location === 'string') {
+			return handleStringLocation(location);
 		}
 
 		switch (location) {
@@ -78,7 +82,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			case ProgressLocation.Explorer:
 				return this.withPaneCompositeProgress('workbench.view.explorer', ViewContainerLocation.Sidebar, task, { ...options, location });
 			case ProgressLocation.Scm:
-				return this.withPaneCompositeProgress('workbench.view.scm', ViewContainerLocation.Sidebar, task, { ...options, location });
+				return handleStringLocation('workbench.scm');
 			case ProgressLocation.Extensions:
 				return this.withPaneCompositeProgress('workbench.view.extensions', ViewContainerLocation.Sidebar, task, { ...options, location });
 			case ProgressLocation.Dialog:

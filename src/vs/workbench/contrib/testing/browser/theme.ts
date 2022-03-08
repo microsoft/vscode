@@ -102,7 +102,7 @@ export const testStatesToIconColors: { [K in TestResultState]?: string } = {
 	[TestResultState.Passed]: testingColorIconPassed,
 	[TestResultState.Queued]: testingColorIconQueued,
 	[TestResultState.Unset]: testingColorIconUnset,
-	[TestResultState.Skipped]: testingColorIconUnset,
+	[TestResultState.Skipped]: testingColorIconSkipped,
 };
 
 

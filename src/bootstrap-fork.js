@@ -204,7 +204,8 @@ function pipeLoggingToParent() {
 		let buf = '';
 
 		Object.defineProperty(stream, 'write', {
-			value: (chunk, encoding, callback) => {
+			set: () => { },
+			get: () => (chunk, encoding, callback) => {
 				if (!isMakingConsoleCall) {
 					buf += chunk.toString(encoding);
 					const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');

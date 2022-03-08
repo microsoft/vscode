@@ -113,52 +113,57 @@ suite('ConfigurationEditingService', () => {
 
 	test('errors cases - invalid key', async () => {
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' });
-			assert.fail('Should fail with ERROR_UNKNOWN_KEY');
+			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY);
+			return;
 		}
+		assert.fail('Should fail with ERROR_UNKNOWN_KEY');
 	});
 
 	test('errors cases - no workspace', async () => {
 		await workspaceService.initialize({ id: uuid.generateUuid() });
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED');
+			await testObject.writeConfiguration(EditableConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
+			return;
 		}
+		assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED');
 	});
 
 	test('errors cases - invalid configuration', async () => {
 		await fileService.writeFile(environmentService.settingsResource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+			return;
 		}
+		assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
 	});
 
 	test('errors cases - invalid global tasks configuration', async () => {
 		const resource = joinPath(environmentService.userRoamingDataHome, USER_STANDALONE_CONFIGURATIONS['tasks']);
 		await fileService.writeFile(resource, VSBuffer.fromString(',,,,,,,,,,,,,,'));
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'tasks.configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
+			return;
 		}
+		assert.fail('Should fail with ERROR_INVALID_CONFIGURATION');
 	});
 
 	test('errors cases - dirty', async () => {
 		instantiationService.stub(ITextFileService, 'isDirty', true);
 		try {
-			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' });
-			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
+			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
 		} catch (error) {
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			return;
 		}
+		assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 	});
 
 	test('do not notify error', async () => {
@@ -167,11 +172,12 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(INotificationService, <INotificationService>{ prompt: target, _serviceBrand: undefined, onDidAddNotification: undefined!, onDidRemoveNotification: undefined!, notify: null!, error: null!, info: null!, warn: null!, status: null!, setFilter: null! });
 		try {
 			await testObject.writeConfiguration(EditableConfigurationTarget.USER_LOCAL, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true });
-			assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 		} catch (error) {
 			assert.strictEqual(false, target.calledOnce);
 			assert.strictEqual(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			return;
 		}
+		assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.');
 	});
 
 	test('write one setting - empty file', async () => {

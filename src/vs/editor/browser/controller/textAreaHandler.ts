@@ -81,18 +81,20 @@ class VisibleTextAreaData {
 		}
 	}
 
-	updatePresentation(tokenPresentation: ITokenPresentation | null): ITokenPresentation {
-		if (tokenPresentation) {
-			this._previousPresentation = tokenPresentation;
-		}
+	definePresentation(tokenPresentation: ITokenPresentation | null): ITokenPresentation {
 		if (!this._previousPresentation) {
-			this._previousPresentation = {
-				foreground: ColorId.DefaultForeground,
-				italic: false,
-				bold: false,
-				underline: false,
-				strikethrough: false,
-			};
+			// To avoid flickering, once set, always reuse a presentation throughout the entire IME session
+			if (tokenPresentation) {
+				this._previousPresentation = tokenPresentation;
+			} else {
+				this._previousPresentation = {
+					foreground: ColorId.DefaultForeground,
+					italic: false,
+					bold: false,
+					underline: false,
+					strikethrough: false,
+				};
+			}
 		}
 		return this._previousPresentation;
 	}
@@ -648,7 +650,14 @@ export class TextAreaHandler extends ViewPart {
 
 				let scrollLeft = this._visibleTextArea.widthOfHiddenLineTextBefore;
 				let left = (this._contentLeft + visibleStart.left - this._scrollLeft);
-				let width = visibleEnd.left - visibleStart.left;
+				// See https://github.com/microsoft/vscode/issues/141725#issuecomment-1050670841
+				// Here we are adding +1 to avoid flickering that might be caused by having a width that is too small.
+				// This could be caused by rounding errors that might only show up with certain font families.
+				// In other words, a pixel might be lost when doing something like
+				//      `Math.round(end) - Math.round(start)`
+				// vs
+				//      `Math.round(end - start)`
+				let width = visibleEnd.left - visibleStart.left + 1;
 				if (left < this._contentLeft) {
 					// the textarea would be rendered on top of the margin,
 					// so reduce its width. We use the same technique as
@@ -669,7 +678,7 @@ export class TextAreaHandler extends ViewPart {
 				const startTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(startPosition.column - 1);
 				const endTokenIndex = viewLineData.tokens.findTokenIndexAtOffset(endPosition.column - 1);
 				const textareaSpansSingleToken = (startTokenIndex === endTokenIndex);
-				const presentation = this._visibleTextArea.updatePresentation(
+				const presentation = this._visibleTextArea.definePresentation(
 					(textareaSpansSingleToken ? viewLineData.tokens.getPresentation(startTokenIndex) : null)
 				);
 

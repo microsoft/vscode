@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/notebook';
+import 'vs/css!./media/notebookCellInsertToolbar';
+import 'vs/css!./media/notebookCellStatusBar';
+import 'vs/css!./media/notebookCellTitleToolbar';
+import 'vs/css!./media/notebookFocusIndicator';
+import 'vs/css!./media/notebookToolbar';
 import { PixelRatio } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -19,7 +25,6 @@ import { setTimeout0 } from 'vs/base/common/platform';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import 'vs/css!./media/notebook';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -63,6 +68,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorDecorations';
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorToolbar';
 import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookEditorWidgetContextKeys';
+import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookOverviewRuler';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, INotebookSearchOptions, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -243,8 +249,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
 	readonly onDidChangeOptions: Event<void> = this._onDidChangeOptions.event;
+	private readonly _onDidChangeDecorations = this._register(new Emitter<void>());
+	readonly onDidChangeDecorations: Event<void> = this._onDidChangeDecorations.event;
 	private readonly _onDidScroll = this._register(new Emitter<void>());
 	readonly onDidScroll: Event<void> = this._onDidScroll.event;
+	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
+	readonly onDidChangeContentHeight: Event<number> = this._onDidChangeContentHeight.event;
 	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
 	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
@@ -273,6 +283,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _overlayContainer!: HTMLElement;
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorToolbar;
+	private _notebookOverviewRulerContainer!: HTMLElement;
+	private _notebookOverviewRuler!: NotebookOverviewRuler;
 	private _body!: HTMLElement;
 	private _styleElement!: HTMLStyleElement;
 	private _overflowContainer!: HTMLElement;
@@ -425,7 +437,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.markupFontSize || e.insertToolbarAlignment) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
-				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
+				this._webview?.updateOptions({
+					...this.notebookOptions.computeWebviewOptions(),
+					fontFamily: this._generateFontFamily()
+				});
 			}
 
 			if (this._dimension && this._isVisible) {
@@ -607,13 +622,23 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		DOM.append(parent, this._notebookTopToolbarContainer);
 		this._body = document.createElement('div');
 		DOM.append(parent, this._body);
+
 		this._body.classList.add('cell-list-container');
 		this._createLayoutStyles();
 		this._createCellList();
 
+		this._notebookOverviewRulerContainer = document.createElement('div');
+		this._notebookOverviewRulerContainer.classList.add('notebook-overview-ruler-container');
+		this._list.scrollableElement.appendChild(this._notebookOverviewRulerContainer);
+		this._registerNotebookOverviewRuler();
+
 		this._overflowContainer = document.createElement('div');
 		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
 		DOM.append(parent, this._overflowContainer);
+	}
+
+	private _generateFontFamily() {
+		return this._fontInfo?.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
 	}
 
 	private _createLayoutStyles(): void {
@@ -647,7 +672,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._generateFontInfo();
 		}
 
-		const fontFamily = this._fontInfo?.fontFamily ?? `"SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace`;
+		const fontFamily = this._generateFontFamily();
 
 		styleSheets.push(`
 		:root {
@@ -1042,6 +1067,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		});
 	}
 
+	private _registerNotebookOverviewRuler() {
+		this._notebookOverviewRuler = this._register(this.instantiationService.createInstance(NotebookOverviewRuler, this, this._notebookOverviewRulerContainer!));
+	}
+
 	private _registerNotebookActionsToolbar() {
 		this._notebookTopToolbar = this._register(this.instantiationService.createInstance(NotebookEditorToolbar, this, this.scopedContextKeyService, this._notebookOptions, this._notebookTopToolbarContainer));
 		this._register(this._notebookTopToolbar.onDidChangeState(() => {
@@ -1098,7 +1127,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				|| oldBottomToolbarDimensions.bottomToolbarHeight !== newBottomToolbarDimensions.bottomToolbarHeight) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
-				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
+				this._webview?.updateOptions({
+					...this.notebookOptions.computeWebviewOptions(),
+					fontFamily: this._generateFontFamily()
+				});
 			}
 			type WorkbenchNotebookOpenClassification = {
 				scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -1351,7 +1383,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			didDragMarkupCell: that._didDragMarkupCell.bind(that),
 			didDropMarkupCell: that._didDropMarkupCell.bind(that),
 			didEndDragMarkupCell: that._didEndDragMarkupCell.bind(that)
-		}, id, resource, this._notebookOptions.computeWebviewOptions(), this.notebookRendererMessaging.getScoped(this._uuid));
+		}, id, resource, {
+			...this._notebookOptions.computeWebviewOptions(),
+			fontFamily: this._generateFontFamily()
+		}, this.notebookRendererMessaging.getScoped(this._uuid));
 
 		this._webview.element.style.width = '100%';
 
@@ -1408,6 +1443,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			DOM.scheduleAtNextAnimationFrame(() => {
 				hasPendingChangeContentHeight = false;
 				this._updateScrollHeight();
+				this._onDidChangeContentHeight.fire(this._list.getScrollHeight());
 			}, 100);
 		}));
 
@@ -1771,6 +1807,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._notebookTopToolbar.layout(this._dimension);
+		this._notebookOverviewRuler.layout();
 
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
@@ -2072,7 +2109,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[] {
-		return this.viewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];
+		const ret = this.viewModel?.deltaCellDecorations(oldDecorations, newDecorations) || [];
+		this._onDidChangeDecorations.fire();
+		return ret;
 	}
 
 	deltaCellOutputContainerClassNames(cellId: string, added: string[], removed: string[]) {
@@ -2494,6 +2533,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return {
 			width: this._dimension?.width ?? 0,
 			height: this._dimension?.height ?? 0,
+			scrollHeight: this._list?.getScrollHeight() ?? 0,
 			fontInfo: this._fontInfo!
 		};
 	}
@@ -2507,7 +2547,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			await this._resolveWebview();
 		}
 
-		if (!this._webview) {
+		if (!this._webview || !this._list.webviewElement) {
 			return;
 		}
 
@@ -2522,13 +2562,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		const webviewTop = parseInt(this._list.webviewElement.domNode.style.top, 10);
+		const top = !!webviewTop ? (0 - webviewTop) : 0;
+
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		await this._webview.showMarkupPreview({
 			mime: cell.mime,
 			cellHandle: cell.handle,
 			cellId: cell.id,
 			content: cell.getText(),
-			offset: cellTop,
+			offset: cellTop + top,
 			visible: true,
 		});
 	}
@@ -3206,8 +3249,6 @@ registerThemingParticipant((theme, collector) => {
 	const scrollbarSliderHoverBackgroundColor = theme.getColor(listScrollbarSliderHoverBackground);
 	if (scrollbarSliderHoverBackgroundColor) {
 		collector.addRule(` .notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .scrollbar > .slider:hover { background: ${scrollbarSliderHoverBackgroundColor}; } `);
-		collector.addRule(` .monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb { background: ${scrollbarSliderHoverBackgroundColor}; } `);
-		collector.addRule(` .monaco-workbench .notebookOverlay .output .error .traceback::-webkit-scrollbar-thumb { background: ${scrollbarSliderHoverBackgroundColor}; } `);
 	}
 
 	const scrollbarSliderActiveBackgroundColor = theme.getColor(listScrollbarSliderActiveBackground);

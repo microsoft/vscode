@@ -23,8 +23,8 @@ import { BaseConfigurationResolverService } from 'vs/workbench/services/configur
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { TestEditorService, TestProductService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestEditorService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestContextService, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 const mockLineNumber = 10;

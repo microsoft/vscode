@@ -269,6 +269,9 @@ import 'vs/workbench/contrib/snippets/browser/tabCompletion';
 // Formatter Help
 import 'vs/workbench/contrib/format/browser/format.contribution';
 
+// Inlay Hint Accessibility
+import 'vs/workbench/contrib/inlayHints/browser/inlayHintsAccessibilty';
+
 // Themes
 import 'vs/workbench/contrib/themes/browser/themes.contribution';
 
@@ -285,7 +288,6 @@ import 'vs/workbench/contrib/surveys/browser/languageSurveys.contribution';
 
 // Welcome
 import 'vs/workbench/contrib/welcomeOverlay/browser/welcomeOverlay';
-import 'vs/workbench/contrib/welcomePage/browser/welcomePage.contribution';
 import 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution';
 import 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution';
 import 'vs/workbench/contrib/welcomeViews/common/viewsWelcome.contribution';

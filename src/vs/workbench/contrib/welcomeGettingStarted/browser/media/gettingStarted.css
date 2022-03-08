@@ -91,9 +91,16 @@
 	padding: 12px 24px;
 }
 
+/* duplicated until the getting-started specific setting is removed */
 .monaco-workbench .part.editor>.content .gettingStartedContainer.animatable .gettingStartedSlide {
 	/* keep consistant with SLIDE_TRANSITION_TIME_MS in gettingStarted.ts */
 	transition: left 0.25s, opacity 0.25s;
+}
+
+.monaco-workbench.reduce-motion .part.editor>.content .gettingStartedContainer .gettingStartedSlide,
+.monaco-workbench.reduce-motion .part.editor>.content .gettingStartedContainer.animatable .gettingStartedSlide {
+	/* keep consistant with SLIDE_TRANSITION_TIME_MS in gettingStarted.ts */
+	transition: left 0.0s, opacity 0.0s;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories>.gettingStartedCategoriesContainer {

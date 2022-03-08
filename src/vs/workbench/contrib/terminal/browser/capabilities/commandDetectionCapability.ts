@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IBuffer, IDisposable, IMarker, Terminal } from 'xterm';
 
-interface ICurrentPartialCommand {
+export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
 
 	promptStartMarker?: IMarker;
@@ -22,6 +23,9 @@ interface ICurrentPartialCommand {
 	commandExecutedX?: number;
 
 	commandFinishedMarker?: IMarker;
+
+	currentContinuationMarker?: IMarker;
+	continuations?: { marker: IMarker; end: number }[];
 
 	command?: string;
 }
@@ -39,6 +43,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
+	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
+	readonly onCommandStarted = this._onCommandStarted.event;
 	private readonly _onCommandFinished = new Emitter<ITerminalCommand>();
 	readonly onCommandFinished = this._onCommandFinished.event;
 
@@ -67,9 +73,30 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handlePromptStart', this._terminal.buffer.active.cursorX, this._currentCommand.promptStartMarker?.line);
 	}
 
+	handleContinuationStart(): void {
+		this._currentCommand.currentContinuationMarker = this._terminal.registerMarker(0);
+		this._logService.debug('CommandDetectionCapability#handleContinuationStart', this._currentCommand.currentContinuationMarker);
+	}
+
+	handleContinuationEnd(): void {
+		if (!this._currentCommand.currentContinuationMarker) {
+			this._logService.warn('CommandDetectionCapability#handleContinuationEnd Received continuation end without start');
+			return;
+		}
+		if (!this._currentCommand.continuations) {
+			this._currentCommand.continuations = [];
+		}
+		this._currentCommand.continuations.push({
+			marker: this._currentCommand.currentContinuationMarker,
+			end: this._terminal.buffer.active.cursorX
+		});
+		this._currentCommand.currentContinuationMarker = undefined;
+		this._logService.debug('CommandDetectionCapability#handleContinuationEnd', this._currentCommand.continuations[this._currentCommand.continuations.length - 1]);
+	}
+
 	handleCommandStart(): void {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
-		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+
 		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
 			this._commandMarkers.length = 0;
@@ -81,6 +108,16 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 					}
 				}
 			});
+			// HACK: Fire command started on the following frame on Windows to allow the cursor
+			// position to update as conpty often prints the sequence on a different line to the
+			// actual line the command started on.
+			timeout(0).then(() => {
+				this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+				this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
+			});
+		} else {
+			this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+			this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 		}
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
@@ -114,7 +151,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		for (; y < commandExecutedLine; y++) {
 			const line = this._terminal.buffer.active.getLine(y);
 			if (line) {
-				this._currentCommand.command += line.translateToString(true);
+				const continuation = this._currentCommand.continuations?.find(e => e.marker.line === y);
+				if (continuation) {
+					this._currentCommand.command += '\n';
+				}
+				const startColumn = continuation?.end ?? 0;
+				this._currentCommand.command += line.translateToString(true, startColumn);
 			}
 		}
 		if (y === commandExecutedLine) {
@@ -137,9 +179,22 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
 		this._exitCode = exitCode;
 
+		// HACK: Handle a special case on some versions of bash where identical commands get merged
+		// in the output of `history`, this detects that case and sets the exit code to the the last
+		// command's exit code. This covered the majority of cases but will fail if the same command
+		// runs with a different exit code, that will need a more robust fix where we send the
+		// command ID and exit code over to the capability to adjust there.
+		if (this._exitCode === undefined) {
+			const lastCommand = this.commands.length > 0 ? this.commands[this.commands.length - 1] : undefined;
+			if (command && command.length > 0 && lastCommand?.command === command) {
+				this._exitCode = lastCommand.exitCode;
+			}
+		}
+
 		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
 			return;
 		}
+
 		if (command !== undefined && !command.startsWith('\\')) {
 			const buffer = this._terminal.buffer.active;
 			const clonedPartialCommand = { ...this._currentCommand };
@@ -158,7 +213,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
-		this._currentCommand.previousCommandMarker?.dispose();
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
 		this._currentCommand = {};
 	}

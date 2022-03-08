@@ -431,7 +431,9 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			const sw = StopWatch.create(false);
 			this._extensionHostProcess!.start(opts).then(() => {
 				const duration = sw.elapsed();
-				this._logService.info(`IExtensionHostStarter.start() took ${duration} ms.`);
+				if (platform.isCI) {
+					this._logService.info(`IExtensionHostStarter.start() took ${duration} ms.`);
+				}
 			}, (err) => {
 				// Starting the ext host process resulted in an error
 				reject(err);

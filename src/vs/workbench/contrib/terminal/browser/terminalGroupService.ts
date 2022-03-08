@@ -42,6 +42,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	readonly onDidDisposeGroup = this._onDidDisposeGroup.event;
 	private readonly _onDidChangeGroups = new Emitter<void>();
 	readonly onDidChangeGroups = this._onDidChangeGroups.event;
+	private readonly _onDidShow = new Emitter<void>();
+	readonly onDidShow = this._onDidShow.event;
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
@@ -179,6 +181,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 				instance.setVisible(true);
 			}
 		}
+		this._onDidShow.fire();
 	}
 
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {

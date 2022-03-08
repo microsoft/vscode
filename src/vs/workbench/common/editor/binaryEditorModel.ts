@@ -58,7 +58,7 @@ export class BinaryEditorModel extends EditorModel {
 
 		// Make sure to resolve up to date stat for file resources
 		if (this.fileService.hasProvider(this.resource)) {
-			const stat = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			const stat = await this.fileService.stat(this.resource);
 			this.etag = stat.etag;
 			if (typeof stat.size === 'number') {
 				this.size = stat.size;

@@ -13,7 +13,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions, CATEGORIES
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/contextkeys';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/contextkeys';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -26,6 +26,7 @@ import { ICommandActionTitle } from 'vs/platform/action/common/action';
 const maximizeIcon = registerIcon('panel-maximize', Codicon.chevronUp, localize('maximizeIcon', 'Icon to maximize a panel.'));
 const restoreIcon = registerIcon('panel-restore', Codicon.chevronDown, localize('restoreIcon', 'Icon to restore a panel.'));
 const closeIcon = registerIcon('panel-close', Codicon.close, localize('closeIcon', 'Icon to close a panel.'));
+const panelIcon = registerIcon('panel-layout-icon', Codicon.layoutPanel, localize('togglePanelIcon', 'Icon to toggle the panel.'));
 
 export class TogglePanelAction extends Action {
 
@@ -391,6 +392,28 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.closeAuxiliaryBar',
+			title: { value: localize('closeSidePanel', "Close Side Panel"), original: 'Close Side Panel' },
+			category: CATEGORIES.View,
+			icon: closeIcon,
+			menu: [{
+				id: MenuId.CommandPalette,
+				when: AuxiliaryBarVisibleContext,
+			}, {
+				id: MenuId.AuxiliaryBarTitle,
+				group: 'navigation',
+				order: 2
+			}]
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(true, Parts.AUXILIARYBAR_PART);
+	}
+});
+
 MenuRegistry.appendMenuItems([
 	{
 		id: MenuId.MenubarAppearanceMenu,
@@ -404,15 +427,28 @@ MenuRegistry.appendMenuItems([
 			order: 5
 		}
 	}, {
-		id: MenuId.LayoutControlMenu,
+		id: MenuId.LayoutControlMenuSubmenu,
 		item: {
 			group: '0_workbench_layout',
 			command: {
 				id: TogglePanelAction.ID,
-				title: localize({ key: 'miShowPanel', comment: ['&& denotes a mnemonic'] }, "Show &&Panel"),
+				title: localize('miShowPanelNoMnemonic', "Show Panel"),
 				toggled: PanelVisibleContext
 			},
 			order: 4
+		}
+	}, {
+		id: MenuId.LayoutControlMenu,
+		item: {
+			group: '0_workbench_toggles',
+			command: {
+				id: TogglePanelAction.ID,
+				title: localize('togglePanel', "Toggle Panel"),
+				icon: panelIcon,
+				toggled: PanelVisibleContext
+			},
+			when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both')),
+			order: 1
 		}
 	}, {
 		id: MenuId.ViewTitleContext,
@@ -462,8 +498,8 @@ export class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
 		super(ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar, {
 			id: MovePanelToSidePanelAction.ID,
 			title: {
-				value: localize('movePanelToSidePanel', "Move Views From Panel To Side Panel"),
-				original: 'Move Views From Panel To Side Panel'
+				value: localize('movePanelToSidePanel', "Move Panel Views To Side Panel"),
+				original: 'Move Panel Views To Side Panel'
 			},
 			category: CATEGORIES.View,
 			f1: true,
@@ -488,8 +524,8 @@ export class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 		super(ViewContainerLocation.AuxiliaryBar, ViewContainerLocation.Panel, {
 			id: MoveSidePanelToPanelAction.ID,
 			title: {
-				value: localize('moveSidePanelToPanel', "Move Views From Side Panel To Panel"),
-				original: 'Move Views From Side Panel To Panel'
+				value: localize('moveSidePanelToPanel', "Move Side Panel Views To Panel"),
+				original: 'Move Side Panel Views To Panel'
 			},
 			category: CATEGORIES.View,
 			f1: true
