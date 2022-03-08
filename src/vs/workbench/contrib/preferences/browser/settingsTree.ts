@@ -583,7 +583,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	context?: SettingsTreeSettingElement;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
-	labelElement: HTMLElement;
+	labelElement: SimpleIconLabel;
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
 	deprecationWarningElement: HTMLElement;
@@ -775,7 +775,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
-		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
+		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
+		const labelElement = new SimpleIconLabel(labelElementContainer);
 
 		const miscLabel = new SettingsTreeMiscLabel(titleElement);
 
@@ -867,7 +868,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
 		template.categoryElement.title = titleTooltip;
 
-		template.labelElement.textContent = element.displayLabel;
+		template.labelElement.text = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
 		template.descriptionElement.innerText = '';
@@ -1756,7 +1757,8 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
-		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
+		const labelElementContainer = DOM.append(titleElement, $('span.setting-item-label'));
+		const labelElement = new SimpleIconLabel(labelElementContainer);
 		const miscLabel = new SettingsTreeMiscLabel(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
@@ -2301,6 +2303,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 			if (element.valueType === SettingValueType.BooleanObject) {
 				return SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.LanguageTag) {
+				return SETTINGS_COMPLEX_TEMPLATE_ID;
 			}
 
 			return SETTINGS_COMPLEX_TEMPLATE_ID;
