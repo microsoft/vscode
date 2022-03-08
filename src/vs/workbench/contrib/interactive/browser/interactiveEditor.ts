@@ -689,6 +689,10 @@ export class InteractiveEditor extends EditorPane {
 		this.#codeEditorWidget.focus();
 	}
 
+	focusHistory() {
+		this.#notebookWidget.value!.focus();
+	}
+
 	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		super.setEditorVisible(visible, group);
 		if (group) {
