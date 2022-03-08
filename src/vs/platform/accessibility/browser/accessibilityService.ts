@@ -19,6 +19,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	protected _accessibilitySupport = AccessibilitySupport.Unknown;
 	protected readonly _onDidChangeScreenReaderOptimized = new Emitter<void>();
 
+	protected _configMotionReduced: 'auto' | 'on' | 'off';
 	protected _systemMotionReduced: boolean;
 	protected readonly _onDidChangeReducedMotion = new Emitter<void>();
 
@@ -29,6 +30,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	) {
 		super();
 		this._accessibilityModeEnabledContext = CONTEXT_ACCESSIBILITY_MODE_ENABLED.bindTo(this._contextKeyService);
+
 		const updateContextKey = () => this._accessibilityModeEnabledContext.set(this.isScreenReaderOptimized());
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
@@ -36,6 +38,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 				this._onDidChangeScreenReaderOptimized.fire();
 			}
 			if (e.affectsConfiguration('workbench.reduceMotion')) {
+				this._configMotionReduced = this._configurationService.getValue('workbench.reduceMotion');
 				this._onDidChangeReducedMotion.fire();
 			}
 		}));
@@ -44,21 +47,28 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 		const reduceMotionMatcher = window.matchMedia(`(prefers-reduced-motion: reduce)`);
 		this._systemMotionReduced = reduceMotionMatcher.matches;
+		this._configMotionReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceMotion');
+
+		this.initReducedMotionListeners(reduceMotionMatcher);
+	}
+
+	private initReducedMotionListeners(reduceMotionMatcher: MediaQueryList) {
 
 		this._register(addDisposableListener(reduceMotionMatcher, 'change', () => {
 			this._systemMotionReduced = reduceMotionMatcher.matches;
-			if (this._configurationService.getValue('workbench.reduceMotion') === 'auto') {
+			if (this._configMotionReduced === 'auto') {
 				this._onDidChangeReducedMotion.fire();
 			}
 		}));
 
-		const updateRootClass = () => {
+		const updateRootClasses = () => {
 			const reduce = this.isMotionReduced();
 			this._layoutService.container.classList.toggle('reduce-motion', reduce);
 			this._layoutService.container.classList.toggle('enable-motion', !reduce);
 		};
-		updateRootClass();
-		this._register(this.onDidChangeReducedMotion(() => updateRootClass()));
+
+		updateRootClasses();
+		this._register(this.onDidChangeReducedMotion(() => updateRootClasses()));
 	}
 
 	get onDidChangeScreenReaderOptimized(): Event<void> {
@@ -75,7 +85,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	}
 
 	isMotionReduced(): boolean {
-		const config = this._configurationService.getValue('workbench.reduceMotion');
+		const config = this._configMotionReduced;
 		return config === 'on' || (config === 'auto' && this._systemMotionReduced);
 	}
 
