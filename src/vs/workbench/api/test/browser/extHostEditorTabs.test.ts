@@ -211,4 +211,59 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(activeTabGroup, undefined);
 		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
 	});
+
+	test.skip('Ensure reference stability', function () {
+
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+		const tabDto: IEditorTabDto = {
+			isActive: true,
+			isDirty: true,
+			isPinned: true,
+			label: 'label1',
+			resource: URI.parse('file://abc/def.txt'),
+			editorId: 'default',
+			viewColumn: 0,
+			additionalResourcesAndViewTypes: [],
+			kind: TabKind.Singular
+		};
+
+		// single dirty tab
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tabDto],
+			activeTab: undefined // NOT needed
+		}]);
+		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
+		assert.strictEqual(all.length, 1);
+		const apiTab1 = all[0];
+		assert.strictEqual(apiTab1.resource?.toString(), URI.revive(tabDto.resource)?.toString());
+		assert.strictEqual(apiTab1.isDirty, true);
+
+
+		// NOT DIRTY anymore
+
+		const tabDto2: IEditorTabDto = { ...tabDto, isDirty: false };
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tabDto2],
+			activeTab: undefined // NOT needed
+		}]);
+
+		all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
+		assert.strictEqual(all.length, 1);
+		const apiTab2 = all[0];
+		assert.strictEqual(apiTab2.resource?.toString(), URI.revive(tabDto.resource)?.toString());
+		assert.strictEqual(apiTab2.isDirty, false);
+
+		assert.strictEqual(apiTab1 === apiTab2, true);
+	});
 });
