@@ -336,15 +336,12 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		if (!this._proxy) {
 			return;
 		}
-		console.log('_activateByEvent', activationEvent);
-
 		const proxy = await this._proxy;
 		if (!proxy) {
 			// this case is already covered above and logged.
 			// i.e. the extension host could not be started
 			return;
 		}
-		console.log('_activateByEvent proxy.activateByEvent', activationEvent);
 		await proxy.activateByEvent(activationEvent, activationKind);
 		this._resolvedActivationEvents.add(activationEvent);
 	}

@@ -39,7 +39,7 @@ export interface IMessage {
 export const enum ExtensionRunningLocation {
 	None,
 	LocalProcess,
-	NotebookProcess,
+	LocalNotebookProcess,
 	LocalWebWorker,
 	Remote
 }
@@ -50,7 +50,7 @@ export function extensionRunningLocationToString(location: ExtensionRunningLocat
 			return 'None';
 		case ExtensionRunningLocation.LocalProcess:
 			return 'LocalProcess';
-		case ExtensionRunningLocation.NotebookProcess:
+		case ExtensionRunningLocation.LocalNotebookProcess:
 			return 'NotebookProcess';
 		case ExtensionRunningLocation.LocalWebWorker:
 			return 'LocalWebWorker';
