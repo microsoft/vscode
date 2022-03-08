@@ -513,6 +513,8 @@ export interface IFileSystemProvider {
 	close?(fd: number): Promise<void>;
 	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
 	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number>;
+
+	cloneFile?(from: URI, to: URI): Promise<void>;
 }
 
 export interface IFileSystemProviderWithFileReadWriteCapability extends IFileSystemProvider {

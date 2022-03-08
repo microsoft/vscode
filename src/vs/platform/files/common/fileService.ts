@@ -866,25 +866,6 @@ export class FileService extends Disposable implements IFileService {
 		return { exists, isSameResourceWithDifferentPathCase };
 	}
 
-	async cloneFile(source: URI, target: URI): Promise<void> {
-		const sourceProvider = await this.withReadProvider(source);
-		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
-
-		// same provider, check for `cloneFile` support or `copy`
-		if (sourceProvider === targetProvider) {
-			if (hasFileCloneCapability(sourceProvider)) {
-				return sourceProvider.cloneFile(source, target);
-			}
-
-			if (hasFileFolderCopyCapability(sourceProvider)) {
-				return sourceProvider.copy(source, target, { overwrite: true });
-			}
-		}
-
-		// otherwise copy via buffer/unbuffered
-		return this.doCopyFile(sourceProvider, source, targetProvider, target);
-	}
-
 	private getExtUri(provider: IFileSystemProvider): { providerExtUri: IExtUri; isPathCaseSensitive: boolean } {
 		const isPathCaseSensitive = this.isPathCaseSensitive(provider);
 
@@ -1017,6 +998,29 @@ export class FileService extends Disposable implements IFileService {
 
 		// Events
 		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+	}
+
+	//#endregion
+
+	//#region Clone File
+
+	async cloneFile(source: URI, target: URI): Promise<void> {
+		const sourceProvider = await this.withReadProvider(source);
+		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
+
+		// same provider, check for `cloneFile` support or `copy`
+		if (sourceProvider === targetProvider) {
+			if (hasFileCloneCapability(sourceProvider)) {
+				return sourceProvider.cloneFile(source, target);
+			}
+
+			if (hasFileFolderCopyCapability(sourceProvider)) {
+				return sourceProvider.copy(source, target, { overwrite: true });
+			}
+		}
+
+		// otherwise copy via buffer/unbuffered
+		return this.doCopyFile(sourceProvider, source, targetProvider, target);
 	}
 
 	//#endregion

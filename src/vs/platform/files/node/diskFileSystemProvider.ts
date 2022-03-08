@@ -68,7 +68,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				FileSystemProviderCapabilities.FileReadStream |
 				FileSystemProviderCapabilities.FileFolderCopy |
 				FileSystemProviderCapabilities.FileWriteUnlock |
-				FileSystemProviderCapabilities.FileAtomicRead;
+				FileSystemProviderCapabilities.FileAtomicRead |
+				FileSystemProviderCapabilities.FileClone;
 
 			if (isLinux) {
 				this._capabilities |= FileSystemProviderCapabilities.PathCaseSensitive;
@@ -564,17 +565,6 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	async cloneFile(from: URI, to: URI): Promise<void> {
-		const fromFilePath = this.toFilePath(from);
-		const toFilePath = this.toFilePath(to);
-
-		try {
-			await Promises.copyFile(fromFilePath, toFilePath);
-		} catch (error) {
-			throw this.toFileSystemProviderError(error);
-		}
-	}
-
 	async copy(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
@@ -624,6 +614,21 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 			// Delete target
 			await this.delete(to, { recursive: true, useTrash: false });
+		}
+	}
+
+	//#endregion
+
+	//#region Clone File
+
+	async cloneFile(from: URI, to: URI): Promise<void> {
+		const fromFilePath = this.toFilePath(from);
+		const toFilePath = this.toFilePath(to);
+
+		try {
+			await Promises.copyFile(fromFilePath, toFilePath);
+		} catch (error) {
+			throw this.toFileSystemProviderError(error);
 		}
 	}
 

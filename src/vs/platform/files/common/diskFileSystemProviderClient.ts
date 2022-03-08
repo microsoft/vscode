@@ -188,6 +188,10 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		return this.channel.call('copy', [resource, target, opts]);
 	}
 
+	//#endregion
+
+	//#region Clone File
+
 	cloneFile(resource: URI, target: URI): Promise<void> {
 		return this.channel.call('cloneFile', [resource, target]);
 	}

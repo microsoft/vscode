@@ -186,8 +186,9 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		return this.provider.copy(source, target, opts);
 	}
 
-
 	//#endregion
+
+	//#region Clone File
 
 	private cloneFile(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents): Promise<void> {
 		const source = this.transformIncoming(uriTransformer, _source);
@@ -195,8 +196,6 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 
 		return this.provider.cloneFile(source, target);
 	}
-
-	//#region File Clone
 
 	//#endregion
 
