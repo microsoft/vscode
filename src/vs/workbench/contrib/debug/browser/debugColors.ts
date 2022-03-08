@@ -181,6 +181,15 @@ export function registerColors() {
 			`);
 		}
 
+		// Use fully-opaque colors for line-number badges
+		if (theme.type === 'hc') {
+			collector.addRule(`
+			.debug-pane .line-number {
+				background-color: ${badgeBackgroundColor};
+				color: ${badgeForegroundColor};
+			}`);
+		}
+
 		const tokenNameColor = theme.getColor(debugTokenExpressionName)!;
 		const tokenValueColor = theme.getColor(debugTokenExpressionValue)!;
 		const tokenStringColor = theme.getColor(debugTokenExpressionString)!;

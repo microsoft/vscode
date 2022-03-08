@@ -372,6 +372,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				// On Mac, the delay is 1500.
 				'default': isMacintosh ? 1500 : 500
 			},
+			'workbench.reduceMotion': {
+				type: 'string',
+				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animated effects."),
+				'enumDescriptions': [
+					localize('workbench.reduceMotion.on', "Always render with reduced motion."),
+					localize('workbench.reduceMotion.off', "Do not render with reduced motion"),
+					localize('workbench.reduceMotion.auto', "Render with reduced motion based on OS configuration."),
+				],
+				default: 'auto',
+				enum: ['on', 'off', 'auto']
+			},
 			'workbench.experimental.layoutControl.enabled': {
 				'type': 'boolean',
 				'tags': ['experimental'],
