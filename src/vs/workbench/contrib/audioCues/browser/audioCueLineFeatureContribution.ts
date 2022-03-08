@@ -12,7 +12,17 @@ import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/edito
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { autorun, autorunDelta, constObservable, debouncedObservable, fromEvent, fromPromise, IObservable, LazyDerived, wasEventTriggeredRecently } from 'vs/workbench/contrib/audioCues/browser/observable';
+import {
+	autorun,
+	autorunDelta,
+	constObservable,
+	derivedObservable,
+	observableFromEvent,
+	observableFromPromise,
+	IObservable,
+	wasEventTriggeredRecently,
+	debouncedObservable,
+} from 'vs/workbench/contrib/audioCues/browser/observable';
 import { ITextModel } from 'vs/editor/common/model';
 import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextController';
 import { AudioCue, IAudioCueService } from 'vs/workbench/contrib/audioCues/browser/audioCueService';
@@ -38,15 +48,15 @@ export class AudioCueLineFeatureContribution
 	) {
 		super();
 
-		const someAudioCueFeatureIsEnabled = new LazyDerived(
+		const someAudioCueFeatureIsEnabled = derivedObservable(
+			'someAudioCueFeatureIsEnabled',
 			(reader) =>
 				this.features.some((feature) =>
 					this.audioCueService.isEnabled(feature.audioCue).read(reader)
-				),
-			'someAudioCueFeatureIsEnabled'
+				)
 		);
 
-		const activeEditorObservable = fromEvent(
+		const activeEditorObservable = observableFromEvent(
 			this.editorService.onDidActiveEditorChange,
 			(_) => {
 				const activeTextEditorControl =
@@ -83,89 +93,73 @@ export class AudioCueLineFeatureContribution
 		editorModel: ITextModel,
 		store: DisposableStore
 	): void {
-		const observableFeatureStates = this.features.map((feature) =>
-			feature.getObservableState(editor, editorModel)
-		);
-
-		const curLineNumber = fromEvent(
+		const curLineNumber = observableFromEvent(
 			editor.onDidChangeCursorPosition,
 			(args) => {
-				if (args && args.reason !== CursorChangeReason.Explicit) {
+				if (
+					args &&
+					args.reason !== CursorChangeReason.Explicit &&
+					args.reason !== CursorChangeReason.NotSet
+				) {
 					// Ignore cursor changes caused by navigation (e.g. which happens when execution is paused).
 					return undefined;
 				}
 				return editor.getPosition()?.lineNumber;
 			}
 		);
-		const debouncedLineNumber = debouncedObservable(curLineNumber, 100, store);
-
-		const lineNumberWithObservableFeatures = debouncedLineNumber.map(
-			(lineNumber) =>
-				lineNumber === undefined
-					? undefined
-					: {
-						lineNumber,
-						featureStatesForLine: observableFeatureStates.map(
-							(featureResult, idx) =>
-								// This caches the feature state for the active line
-								new LazyDerived(
-									(reader) =>
-										this.audioCueService
-											.isEnabled(this.features[idx].audioCue)
-											.read(reader) &&
-										featureResult.read(reader).isActive(lineNumber),
-									'isActiveForLine'
-								)
-						),
-					}
-		);
+		const debouncedLineNumber = debouncedObservable(curLineNumber, 300, store);
 
 		const isTyping = wasEventTriggeredRecently(
 			editorModel.onDidChangeContent.bind(editorModel),
 			1000,
 			store
 		);
-		const featureStatesBeforeTyping = isTyping.map(
-			(isTyping) =>
-				(!isTyping
-					? undefined
-					: lineNumberWithObservableFeatures
-						.get()
-						?.featureStatesForLine?.map((featureState, idx) =>
-							this.features[idx].debounceWhileTyping
-								? featureState.get()
-								: undefined
-						)) ?? []
-		);
 
-		const state = new LazyDerived((reader) => {
-			const lineInfo = lineNumberWithObservableFeatures.read(reader);
-			if (lineInfo === undefined) {
-				return undefined;
-			}
-			return {
-				lineNumber: lineInfo.lineNumber,
+		const featureStates = this.features.map((feature) => {
+			const lineFeatureState = feature.getObservableState(editor, editorModel);
+			const isFeaturePresent = derivedObservable(
+				`isPresentInLine:${feature.audioCue.name}`,
+				(reader) => {
+					if (!this.audioCueService.isEnabled(feature.audioCue).read(reader)) {
+						return false;
+					}
+					const lineNumber = debouncedLineNumber.read(reader);
+					return lineNumber === undefined
+						? false
+						: lineFeatureState.read(reader).isPresent(lineNumber);
+				}
+			);
+			return derivedObservable(
+				`typingDebouncedFeatureState:\n${feature.audioCue.name}`,
+				(reader) =>
+					feature.debounceWhileTyping && isTyping.read(reader)
+						? (debouncedLineNumber.read(reader), isFeaturePresent.get())
+						: isFeaturePresent.read(reader)
+			);
+		});
+
+		const state = derivedObservable(
+			'states',
+			(reader) => ({
+				lineNumber: debouncedLineNumber.read(reader),
 				featureStates: new Map(
-					lineInfo.featureStatesForLine.map((featureState, idx) => [
-						this.features[idx],
-						featureStatesBeforeTyping.read(reader)[idx] ??
-						featureState.read(reader),
+					this.features.map((feature, idx) => [
+						feature,
+						featureStates[idx].read(reader),
 					])
 				),
-			};
-		}, 'state');
+			})
+		);
 
 		store.add(
-			autorunDelta(state, ({ lastValue, newValue }) => {
-				for (const feature of this.features) {
-					if (
+			autorunDelta('Play Audio Cue', state, ({ lastValue, newValue }) => {
+				const newFeatures = this.features.filter(
+					feature =>
 						newValue?.featureStates.get(feature) &&
-						(!lastValue?.featureStates?.get(feature) ||
-							newValue.lineNumber !== lastValue.lineNumber)
-					) {
-						this.audioCueService.playAudioCue(feature.audioCue);
-					}
-				}
+						(!lastValue?.featureStates?.get(feature) || newValue.lineNumber !== lastValue.lineNumber)
+				);
+
+				this.audioCueService.playAudioCues(newFeatures.map(f => f.audioCue));
 			})
 		);
 	}
@@ -181,7 +175,7 @@ interface LineFeature {
 }
 
 interface LineFeatureState {
-	isActive(lineNumber: number): boolean;
+	isPresent(lineNumber: number): boolean;
 }
 
 class MarkerLineFeature implements LineFeature {
@@ -195,12 +189,12 @@ class MarkerLineFeature implements LineFeature {
 	) { }
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
-		return fromEvent(
+		return observableFromEvent<LineFeatureState>(
 			Event.filter(this.markerService.onMarkerChanged, (changedUris) =>
 				changedUris.some((u) => u.toString() === model.uri.toString())
 			),
 			() => ({
-				isActive: (lineNumber) => {
+				isPresent: (lineNumber) => {
 					const hasMarker = this.markerService
 						.read({ resource: model.uri })
 						.some(
@@ -223,15 +217,15 @@ class FoldedAreaLineFeature implements LineFeature {
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) {
 			return constObservable({
-				isActive: () => false,
+				isPresent: () => false,
 			});
 		}
 
-		const foldingModel = fromPromise(
+		const foldingModel = observableFromPromise(
 			foldingController.getFoldingModel() ?? Promise.resolve(undefined)
 		);
-		return foldingModel.map((v) => ({
-			isActive: (lineNumber) => {
+		return foldingModel.map<LineFeatureState>((v) => ({
+			isPresent: (lineNumber) => {
 				const regionAtLine = v.value?.getRegionAtLine(lineNumber);
 				const hasFolding = !regionAtLine
 					? false
@@ -249,10 +243,10 @@ class BreakpointLineFeature implements LineFeature {
 	constructor(@IDebugService private readonly debugService: IDebugService) { }
 
 	getObservableState(editor: ICodeEditor, model: ITextModel): IObservable<LineFeatureState> {
-		return fromEvent(
+		return observableFromEvent<LineFeatureState>(
 			this.debugService.getModel().onDidChangeBreakpoints,
 			() => ({
-				isActive: (lineNumber) => {
+				isPresent: (lineNumber) => {
 					const breakpoints = this.debugService
 						.getModel()
 						.getBreakpoints({ uri: model.uri, lineNumber });
@@ -270,30 +264,30 @@ class InlineCompletionLineFeature implements LineFeature {
 	getObservableState(editor: ICodeEditor, _model: ITextModel): IObservable<LineFeatureState> {
 		const ghostTextController = GhostTextController.get(editor);
 		if (!ghostTextController) {
-			return constObservable({
-				isActive: () => false,
+			return constObservable<LineFeatureState>({
+				isPresent: () => false,
 			});
 		}
 
-		const activeGhostText = fromEvent(
+		const activeGhostText = observableFromEvent(
 			ghostTextController.onActiveModelDidChange,
 			() => ghostTextController.activeModel
 		).map((activeModel) => (
 			activeModel
-				? fromEvent(
+				? observableFromEvent(
 					activeModel.inlineCompletionsModel.onDidChange,
 					() => activeModel.inlineCompletionsModel.ghostText
 				)
 				: undefined
 		));
 
-		return new LazyDerived(reader => {
+		return derivedObservable<LineFeatureState>('ghostText', reader => {
 			const ghostText = activeGhostText.read(reader)?.read(reader);
 			return {
-				isActive(lineNumber) {
+				isPresent(lineNumber) {
 					return ghostText?.lineNumber === lineNumber;
 				}
 			};
-		}, 'ghostText');
+		});
 	}
 }

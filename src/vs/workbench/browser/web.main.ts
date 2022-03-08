@@ -298,8 +298,9 @@ export class BrowserMain extends Disposable {
 		let indexedDB: IndexedDB | undefined;
 		const userDataStore = 'vscode-userdata-store';
 		const logsStore = 'vscode-logs-store';
+		const handlesStore = 'vscode-filehandles-store';
 		try {
-			indexedDB = await IndexedDB.create('vscode-web-db', 2, [userDataStore, logsStore]);
+			indexedDB = await IndexedDB.create('vscode-web-db', 3, [userDataStore, logsStore, handlesStore]);
 
 			// Close onWillShutdown
 			this.onWillShutdownDisposables.add(toDisposable(() => indexedDB?.close()));
@@ -336,7 +337,7 @@ export class BrowserMain extends Disposable {
 
 		// Local file access (if supported by browser)
 		if (WebFileSystemAccess.supported(window)) {
-			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider());
+			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider(indexedDB, handlesStore, logService));
 		}
 
 		// In-memory

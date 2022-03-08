@@ -153,7 +153,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'workbench.action.problems.focus',
 			title: { value: Messages.MARKERS_PANEL_SHOW_LABEL, original: 'Focus Problems (Errors, Warnings, Infos)' },
-			category: CATEGORIES.View.value,
+			category: CATEGORIES.View,
 			f1: true,
 		});
 	}
@@ -328,6 +328,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			keybinding: {
 				when: Constants.MarkerViewFilterFocusContextKey,
 				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Escape
 			},
 			viewId: Constants.MARKERS_VIEW_ID
 		});

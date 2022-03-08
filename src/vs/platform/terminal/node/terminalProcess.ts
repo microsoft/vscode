@@ -4,19 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
+import { promises as fs } from 'fs';
 import type * as pty from 'node-pty';
+import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { FileAccess } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Promises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { ChildProcessMonitor } from 'vs/platform/terminal/node/childProcessMonitor';
-import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
+import { findExecutable, getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from 'vs/platform/terminal/node/terminalEnvironment';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 
 const enum ShutdownConstants {
@@ -129,7 +132,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		 * environment used for `findExecutable`
 		 */
 		private readonly _executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		private readonly _options: ITerminalProcessOptions,
 		@ILogService private readonly _logService: ILogService
 	) {
 		super();
@@ -144,7 +147,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._initialCwd = cwd;
 		this._properties[ProcessPropertyType.InitialCwd] = this._initialCwd;
 		this._properties[ProcessPropertyType.Cwd] = this._initialCwd;
-		const useConpty = windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
+		const useConpty = this._options.windowsEnableConpty && process.platform === 'win32' && getWindowsBuildNumber() >= 18309;
 		this._ptyOptions = {
 			name,
 			cwd,
@@ -184,8 +187,40 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return firstError;
 		}
 
+		let injection: IShellIntegrationConfigInjection | undefined;
+		if (this._options.shellIntegration) {
+			injection = getShellIntegrationInjection(this.shellLaunchConfig, this._options.shellIntegration);
+			if (!injection) {
+				this._logService.warn(`Shell integration cannot be enabled for executable "${this.shellLaunchConfig.executable}" and args`, this.shellLaunchConfig.args);
+			} else {
+				if (injection.envMixin) {
+					for (const [key, value] of Object.entries(injection.envMixin)) {
+						this._ptyOptions.env ||= {};
+						this._ptyOptions.env[key] = value;
+					}
+				}
+				if (injection.filesToCopy) {
+					for (const f of injection.filesToCopy) {
+						await fs.mkdir(path.dirname(f.dest), { recursive: true });
+						await fs.copyFile(f.source, f.dest);
+					}
+				}
+			}
+		}
+
+		// Handle zsh shell integration - Set $ZDOTDIR to a temp dir and create $ZDOTDIR/.zshrc
+		if (this.shellLaunchConfig.env?.['_ZDOTDIR'] === '1') {
+			const zdotdir = path.join(tmpdir(), 'vscode-zsh');
+			await fs.mkdir(zdotdir, { recursive: true });
+			const source = path.join(path.dirname(FileAccess.asFileUri('', require).fsPath), 'out/vs/workbench/contrib/terminal/browser/media/shellIntegration.zsh');
+			await fs.copyFile(source, path.join(zdotdir, '.zshrc'));
+			this._ptyOptions.env = this._ptyOptions.env || {};
+			this._ptyOptions.env['ZDOTDIR'] = zdotdir;
+			delete this._ptyOptions.env['_ZDOTDIR'];
+		}
+
 		try {
-			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions);
+			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injection);
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -235,8 +270,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		return undefined;
 	}
 
-	private async setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): Promise<void> {
-		const args = shellLaunchConfig.args || [];
+	private async setupPtyProcess(
+		shellLaunchConfig: IShellLaunchConfig,
+		options: pty.IPtyForkOptions,
+		shellIntegrationInjection: IShellIntegrationConfigInjection | undefined
+	): Promise<void> {
+		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
 		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);

@@ -5,53 +5,34 @@
 
 export class FastDomNode<T extends HTMLElement> {
 
-	public readonly domNode: T;
-	private _maxWidth: number;
-	private _width: number;
-	private _height: number;
-	private _top: number;
-	private _left: number;
-	private _bottom: number;
-	private _right: number;
-	private _fontFamily: string;
-	private _fontWeight: string;
-	private _fontSize: number;
-	private _fontFeatureSettings: string;
-	private _lineHeight: number;
-	private _letterSpacing: number;
-	private _className: string;
-	private _display: string;
-	private _position: string;
-	private _visibility: string;
-	private _backgroundColor: string;
-	private _layerHint: boolean;
-	private _contain: 'none' | 'strict' | 'content' | 'size' | 'layout' | 'style' | 'paint';
-	private _boxShadow: string;
+	private _maxWidth: number = -1;
+	private _width: number = -1;
+	private _height: number = -1;
+	private _top: number = -1;
+	private _left: number = -1;
+	private _bottom: number = -1;
+	private _right: number = -1;
+	private _fontFamily: string = '';
+	private _fontWeight: string = '';
+	private _fontSize: number = -1;
+	private _fontStyle: string = '';
+	private _fontFeatureSettings: string = '';
+	private _textDecoration: string = '';
+	private _lineHeight: number = -1;
+	private _letterSpacing: number = -100;
+	private _className: string = '';
+	private _display: string = '';
+	private _position: string = '';
+	private _visibility: string = '';
+	private _color: string = '';
+	private _backgroundColor: string = '';
+	private _layerHint: boolean = false;
+	private _contain: 'none' | 'strict' | 'content' | 'size' | 'layout' | 'style' | 'paint' = 'none';
+	private _boxShadow: string = '';
 
-	constructor(domNode: T) {
-		this.domNode = domNode;
-		this._maxWidth = -1;
-		this._width = -1;
-		this._height = -1;
-		this._top = -1;
-		this._left = -1;
-		this._bottom = -1;
-		this._right = -1;
-		this._fontFamily = '';
-		this._fontWeight = '';
-		this._fontSize = -1;
-		this._fontFeatureSettings = '';
-		this._lineHeight = -1;
-		this._letterSpacing = -100;
-		this._className = '';
-		this._display = '';
-		this._position = '';
-		this._visibility = '';
-		this._backgroundColor = '';
-		this._layerHint = false;
-		this._contain = 'none';
-		this._boxShadow = '';
-	}
+	constructor(
+		public readonly domNode: T
+	) { }
 
 	public setMaxWidth(maxWidth: number): void {
 		if (this._maxWidth === maxWidth) {
@@ -141,12 +122,28 @@ export class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.fontSize = this._fontSize + 'px';
 	}
 
+	public setFontStyle(fontStyle: string): void {
+		if (this._fontStyle === fontStyle) {
+			return;
+		}
+		this._fontStyle = fontStyle;
+		this.domNode.style.fontStyle = this._fontStyle;
+	}
+
 	public setFontFeatureSettings(fontFeatureSettings: string): void {
 		if (this._fontFeatureSettings === fontFeatureSettings) {
 			return;
 		}
 		this._fontFeatureSettings = fontFeatureSettings;
 		this.domNode.style.fontFeatureSettings = this._fontFeatureSettings;
+	}
+
+	public setTextDecoration(textDecoration: string): void {
+		if (this._textDecoration === textDecoration) {
+			return;
+		}
+		this._textDecoration = textDecoration;
+		this.domNode.style.textDecoration = this._textDecoration;
 	}
 
 	public setLineHeight(lineHeight: number): void {
@@ -200,6 +197,14 @@ export class FastDomNode<T extends HTMLElement> {
 		}
 		this._visibility = visibility;
 		this.domNode.style.visibility = this._visibility;
+	}
+
+	public setColor(color: string): void {
+		if (this._color === color) {
+			return;
+		}
+		this._color = color;
+		this.domNode.style.color = this._color;
 	}
 
 	public setBackgroundColor(backgroundColor: string): void {

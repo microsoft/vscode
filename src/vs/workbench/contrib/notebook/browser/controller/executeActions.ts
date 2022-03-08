@@ -193,6 +193,10 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
+		if (context.ui) {
+			context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+		}
+
 		return runCell(accessor, context);
 	}
 });
@@ -231,6 +235,7 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction {
 		let endCellIdx: number | undefined = undefined;
 		if (context.ui) {
 			endCellIdx = context.notebookEditor.getCellIndex(context.cell);
+			context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		} else {
 			endCellIdx = Math.min(...context.selectedCells.map(cell => context.notebookEditor.getCellIndex(cell)));
 		}
@@ -277,6 +282,7 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction {
 		let startCellIdx: number | undefined = undefined;
 		if (context.ui) {
 			startCellIdx = context.notebookEditor.getCellIndex(context.cell);
+			context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 		} else {
 			startCellIdx = Math.min(...context.selectedCells.map(cell => context.notebookEditor.getCellIndex(cell)));
 		}
@@ -384,6 +390,7 @@ registerAction2(class CancelExecuteCell extends NotebookMultiCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext | INotebookCellToolbarActionContext): Promise<void> {
 		if (context.ui) {
+			context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 			return context.notebookEditor.cancelNotebookCells(Iterable.single(context.cell));
 		} else {
 			return context.notebookEditor.cancelNotebookCells(context.selectedCells);

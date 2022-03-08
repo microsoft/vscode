@@ -221,6 +221,14 @@ export class ActionBar extends Disposable implements IActionRunner {
 		container.appendChild(this.domNode);
 	}
 
+	private refreshRole(): void {
+		if (this.length() >= 2) {
+			this.actionsList.setAttribute('role', 'toolbar');
+		} else {
+			this.actionsList.setAttribute('role', 'presentation');
+		}
+	}
+
 	setAriaLabel(label: string): void {
 		if (label) {
 			this.actionsList.setAttribute('aria-label', label);
@@ -350,6 +358,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			// After a clear actions might be re-added to simply toggle some actions. We should preserve focus #97128
 			this.focus(this.focusedItem);
 		}
+		this.refreshRole();
 	}
 
 	getWidth(index: number): number {
@@ -379,6 +388,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
 			dispose(this.viewItems.splice(index, 1));
 			this._actionIds.splice(index, 1);
+			this.refreshRole();
 		}
 	}
 
@@ -387,6 +397,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.viewItems = [];
 		this._actionIds = [];
 		DOM.clearNode(this.actionsList);
+		this.refreshRole();
 	}
 
 	length(): number {

@@ -719,6 +719,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
+	public activationEventIsDone(activationEvent: string): boolean {
+		if (!this._installedExtensionsReady.isOpen()) {
+			return false;
+		}
+		if (!this._registry.containsActivationEvent(activationEvent)) {
+			// There is no extension that is interested in this activation event
+			return true;
+		}
+		return this._extensionHostManagers.every(manager => manager.activationEventIsDone(activationEvent));
+	}
+
 	public whenInstalledExtensionsRegistered(): Promise<boolean> {
 		return this._installedExtensionsReady.wait();
 	}
@@ -934,7 +945,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected createLogger(): Logger {
 		return new Logger((severity, source, message) => {
-			if (this._isDev && source) {
+			if (source) {
 				this._logOrShowMessage(severity, `[${source}]: ${message}`);
 			} else {
 				this._logOrShowMessage(severity, message);
@@ -945,9 +956,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	protected _logOrShowMessage(severity: Severity, msg: string): void {
 		if (this._isDev) {
 			this._showMessageToUser(severity, msg);
-		} else {
-			this._logMessageInConsole(severity, msg);
 		}
+		this._logMessageInConsole(severity, msg);
 	}
 
 	private _acquireInternalAPI(): IInternalExtensionService {
@@ -1160,14 +1170,6 @@ class ProposedApiController {
 
 		this._productEnabledExtensions = new Map<string, ApiProposalName[]>();
 
-		// todo@jrieken this is deprecated and will be removed
-		// OLD world - extensions that are listed in `extensionAllowedProposedApi` get all proposals enabled
-		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
-			for (let id of productService.extensionAllowedProposedApi) {
-				const key = ExtensionIdentifier.toKey(id);
-				this._productEnabledExtensions.set(key, Object.keys(allApiProposals));
-			}
-		}
 
 		// NEW world - product.json spells out what proposals each extension can use
 		if (productService.extensionEnabledApiProposals) {
@@ -1180,9 +1182,6 @@ class ProposedApiController {
 					}
 					return true;
 				});
-				if (this._productEnabledExtensions.has(key)) {
-					_logService.warn(`Extension '${key}' appears in BOTH 'product.json#extensionAllowedProposedApi' and 'extensionEnabledApiProposals'. The latter is more restrictive and will override the former.`);
-				}
 				this._productEnabledExtensions.set(key, proposalNames);
 			});
 		}
@@ -1239,7 +1238,7 @@ class ProposedApiController {
 
 		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposals)) {
 			// restrictive: extension cannot use proposed API in this context and its declaration is nulled
-			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') ?? '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
+			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
 			extension.enabledApiProposals = [];
 		}
 	}

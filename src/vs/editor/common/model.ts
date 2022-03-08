@@ -1154,13 +1154,6 @@ export interface ITextModel {
 	 */
 	readonly onDidChangeContentOrInjectedText: Event<ModelRawContentChangedEvent | ModelInjectedTextChangedEvent>;
 	/**
-	 * @deprecated Please use `onDidChangeContent` instead.
-	 * An event emitted when the contents of the model have changed.
-	 * @internal
-	 * @event
-	 */
-	readonly onDidChangeRawContent: Event<ModelRawContentChangedEvent>;
-	/**
 	 * An event emitted when the contents of the model have changed.
 	 * @event
 	 */

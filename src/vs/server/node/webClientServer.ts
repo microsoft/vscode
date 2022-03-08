@@ -280,6 +280,7 @@ export class WebClientServer {
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 				disableWorkspaceTrust: !!this._environmentService.args['disable-workspace-trust'],
 				productConfiguration: <Partial<IProductConfiguration>>{
+					embedderIdentifier: 'server-distro',
 					extensionsGallery: this._webExtensionResourceUrlTemplate ? {
 						...this._productService.extensionsGallery,
 						'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({

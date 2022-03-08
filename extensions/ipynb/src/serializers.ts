@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nbformat } from '@jupyterlab/coreutils';
+import * as nbformat from '@jupyterlab/nbformat';
 import { NotebookCell, NotebookCellData, NotebookCellKind, NotebookCellOutput } from 'vscode';
 import { CellMetadata, CellOutputMetadata } from './common';
 import { textMimeTypes } from './deserializers';

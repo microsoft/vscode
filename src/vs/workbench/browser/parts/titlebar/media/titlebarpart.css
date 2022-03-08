@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.titlebar {
+.monaco-workbench .part.titlebar > .titlebar-container {
 	box-sizing: border-box;
 	width: 100%;
 	padding: 0 70px;
@@ -19,7 +19,11 @@
 	display: flex;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-drag-region {
+.monaco-workbench .part.titlebar > .titlebar-container {
+	transform-origin: 0 0;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-drag-region {
 	top: 0;
 	left: 0;
 	display: block;
@@ -29,7 +33,7 @@
 	-webkit-app-region: drag;
 }
 
-.monaco-workbench .part.titlebar > .window-title {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-title {
 	flex: 0 1 auto;
 	font-size: 12px;
 	overflow: hidden;
@@ -41,9 +45,9 @@
 }
 
 /* Windows/Linux: Rules for custom title (icon, window controls)  */
-.monaco-workbench.web .part.titlebar,
-.monaco-workbench.windows .part.titlebar,
-.monaco-workbench.linux .part.titlebar {
+.monaco-workbench.web .part.titlebar > .titlebar-container,
+.monaco-workbench.windows .part.titlebar > .titlebar-container,
+.monaco-workbench.linux .part.titlebar > .titlebar-container {
 	padding: 0;
 	height: 30px;
 	line-height: 30px;
@@ -51,23 +55,23 @@
 	overflow: visible;
 }
 
-.monaco-workbench.web .part.titlebar > .window-title,
-.monaco-workbench.windows .part.titlebar > .window-title,
-.monaco-workbench.linux .part.titlebar > .window-title {
+.monaco-workbench.web .part.titlebar > .titlebar-container > .window-title,
+.monaco-workbench.windows .part.titlebar > .titlebar-container > .window-title,
+.monaco-workbench.linux .part.titlebar > .titlebar-container > .window-title {
 	cursor: default;
 }
 
-.monaco-workbench .part.titlebar > .menubar {
+.monaco-workbench .part.titlebar > .titlebar-container > .menubar {
 	/* move menubar above drag region as negative z-index on drag region cause greyscale AA */
 	z-index: 2500;
 }
 
-.monaco-workbench.linux .part.titlebar > .window-title {
+.monaco-workbench.linux .part.titlebar > .titlebar-container > .window-title {
 	font-size: inherit;
 }
 
-.monaco-workbench.windows .part.titlebar > .resizer,
-.monaco-workbench.linux .part.titlebar > .resizer {
+.monaco-workbench.windows .part.titlebar > .titlebar-container > .resizer,
+.monaco-workbench.linux .part.titlebar > .titlebar-container > .resizer {
 	-webkit-app-region: no-drag;
 	position: absolute;
 	top: 0;
@@ -75,12 +79,12 @@
 	height: 4px;
 }
 
-.monaco-workbench.windows.fullscreen .part.titlebar > .resizer,
-.monaco-workbench.linux.fullscreen .part.titlebar > .resizer {
+.monaco-workbench.windows.fullscreen .part.titlebar > .titlebar-container > .resizer,
+.monaco-workbench.linux.fullscreen .part.titlebar > .titlebar-container > .resizer {
 	display: none;
 }
 
-.monaco-workbench .part.titlebar > .window-appicon {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-appicon {
 	width: 35px;
 	height: 100%;
 	position: relative;
@@ -88,14 +92,14 @@
 	flex-shrink: 0;
 }
 
-.monaco-workbench .part.titlebar > .window-appicon:not(.codicon) {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-appicon:not(.codicon) {
 	background-image: url('../../../media/code-icon.svg');
 	background-repeat: no-repeat;
 	background-position: center center;
 	background-size: 16px;
 }
 
-.monaco-workbench .part.titlebar .window-appicon > .home-bar-icon-badge {
+.monaco-workbench .part.titlebar > .titlebar-container .window-appicon > .home-bar-icon-badge {
 	position: absolute;
 	right: 9px;
 	bottom: 6px;
@@ -111,15 +115,15 @@
 	border-left: 1px solid transparent;
 }
 
-.monaco-workbench .part.titlebar > .window-appicon.codicon {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-appicon.codicon {
 	line-height: 30px;
 }
 
-.monaco-workbench.fullscreen .part.titlebar > .window-appicon {
+.monaco-workbench.fullscreen .part.titlebar > .titlebar-container > .window-appicon {
 	display: none;
 }
 
-.monaco-workbench .part.titlebar > .window-controls-container {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container {
 	display: flex;
 	flex-grow: 0;
 	flex-shrink: 0;
@@ -128,53 +132,54 @@
 	z-index: 3000;
 	-webkit-app-region: no-drag;
 	height: 100%;
-	width: 138px;
+	min-width: 138px;
 	margin-left: auto;
 }
 
-.monaco-workbench .part.titlebar > .window-controls-container.show-layout-control {
-	width: 160px;
+.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control {
+	min-width: 160px;
 }
 
-.monaco-workbench.web .part.titlebar > .window-controls-container.show-layout-control {
-	width: 28px;
+.monaco-workbench.web .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control {
+	min-width: 28px;
 	padding-right: 8px;
 }
 
-.monaco-workbench.mac:not(.web) .part.titlebar > .window-controls-container {
+.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .window-controls-container {
 	position: absolute;
 	right: 8px;
-	width: 28px;
+	min-width: 28px;
 	display: none;
 }
 
-.monaco-workbench.mac:not(.web) .part.titlebar > .window-controls-container.show-layout-control {
+.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control {
 	display: flex;
 }
 
-.monaco-workbench.fullscreen .part.titlebar > .window-controls-container {
+.monaco-workbench.fullscreen .part.titlebar > .titlebar-container > .window-controls-container {
 	display: none;
 	background-color: transparent;
 }
 
-.monaco-workbench .part.titlebar > .window-controls-container > .layout-dropdown-container {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container > .layout-dropdown-container {
+	padding-right: 2px;
 	display: none;
 }
 
-.monaco-workbench .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control > .layout-dropdown-container {
 	display: flex;
 	justify-content: center;
 }
 
-.monaco-workbench:not(.mac):not(.web) .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container {
-	width: 46px;
+.monaco-workbench:not(.mac):not(.web) .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control > .layout-dropdown-container {
+	min-width: 46px;
 }
 
-.monaco-workbench .part.titlebar > .window-controls-container.show-layout-control > .layout-dropdown-container .codicon {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container.show-layout-control > .layout-dropdown-container .codicon {
 	color: inherit;
 }
 
-.monaco-workbench .part.titlebar > .window-controls-container > .window-icon {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container > .window-icon {
 	display: inline-block;
 	line-height: 30px;
 	height: 100%;
@@ -182,18 +187,18 @@
 	font-size: 16px;
 }
 
-.monaco-workbench .part.titlebar > .window-controls-container > .window-icon:hover {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container > .window-icon:hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-workbench .part.titlebar.light > .window-controls-container > .window-icon:hover {
+.monaco-workbench .part.titlebar > .titlebar-container.light > .window-controls-container > .window-icon:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
-.monaco-workbench .part.titlebar > .window-controls-container > .window-icon.window-close:hover {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container > .window-icon.window-close:hover {
 	background-color: rgba(232, 17, 35, 0.9);
 }
 
-.monaco-workbench .part.titlebar > .window-controls-container .window-icon.window-close:hover {
+.monaco-workbench .part.titlebar > .titlebar-container > .window-controls-container .window-icon.window-close:hover {
 	color: white;
 }

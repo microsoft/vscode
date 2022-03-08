@@ -77,6 +77,7 @@ export const editorBracketPairGuideActiveBackground5 = registerColor('editorBrac
 export const editorBracketPairGuideActiveBackground6 = registerColor('editorBracketPairGuide.activeBackground6', { dark: '#00000000', light: '#00000000', hc: '#00000000' }, nls.localize('editorBracketPairGuide.activeBackground6', 'Background color of active bracket pair guides (6). Requires enabling bracket pair guides.'));
 
 export const editorUnicodeHighlightBorder = registerColor('editorUnicodeHighlight.border', { dark: '#BD9B03', light: '#CEA33D', hc: '#ff0000' }, nls.localize('editorUnicodeHighlight.border', 'Border color used to highlight unicode characters.'));
+export const editorUnicodeHighlightBackground = registerColor('editorUnicodeHighlight.background', { dark: '#bd9b0326', light: '#cea33d14', hc: '#00000000' }, nls.localize('editorUnicodeHighlight.background', 'Background color used to highlight unicode characters.'));
 
 
 // contains all color rules that used to defined in editor/browser/widget/editor.css

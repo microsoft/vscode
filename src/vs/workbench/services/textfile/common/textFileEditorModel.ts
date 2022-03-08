@@ -319,7 +319,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		let size: number;
 		let etag: string;
 		try {
-			const metadata = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			const metadata = await this.fileService.stat(this.resource);
 			mtime = metadata.mtime;
 			ctime = metadata.ctime;
 			size = metadata.size;
@@ -492,7 +492,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			readonly: content.readonly,
 			isFile: true,
 			isDirectory: false,
-			isSymbolicLink: false
+			isSymbolicLink: false,
+			children: undefined
 		});
 
 		// Keep the original encoding to not loose it when saving
@@ -889,7 +890,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: ITextFileSaveOptions): void {
-		this.logService.error(`[text file model] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(true));
+		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error)(`[text file model] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(true));
 
 		// Return early if the save() call was made asking to
 		// handle the save error itself.

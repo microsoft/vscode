@@ -131,7 +131,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 		this._register(dom.addDisposableListener(window, dom.EventType.RESIZE, () => this.setCoordinates()));
 
-		this._register(dom.addDisposableGenericMouseUpListner(this.dragArea, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseUpListener(this.dragArea, (event: MouseEvent) => {
 			const mouseClickEvent = new StandardMouseEvent(event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
@@ -141,10 +141,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 		}));
 
-		this._register(dom.addDisposableGenericMouseDownListner(this.dragArea, (event: MouseEvent) => {
+		this._register(dom.addDisposableGenericMouseDownListener(this.dragArea, (event: MouseEvent) => {
 			this.dragArea.classList.add('dragged');
 
-			const mouseMoveListener = dom.addDisposableGenericMouseMoveListner(window, (e: MouseEvent) => {
+			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(window, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
@@ -152,7 +152,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - (this.layoutService.offset?.top ?? 0));
 			});
 
-			const mouseUpListener = dom.addDisposableGenericMouseUpListner(window, (e: MouseEvent) => {
+			const mouseUpListener = dom.addDisposableGenericMouseUpListener(window, (e: MouseEvent) => {
 				this.storePosition();
 				this.dragArea.classList.remove('dragged');
 

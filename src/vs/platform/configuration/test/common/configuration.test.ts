@@ -17,6 +17,18 @@ suite('Configuration', () => {
 		assert.deepStrictEqual(base, { 'a': 1, 'b': 2, 'c': 4 });
 	});
 
+	test('object merge', () => {
+		let base = { 'a': { 'b': 1, 'c': true, 'd': 2 } };
+		merge(base, { 'a': { 'b': undefined, 'c': false, 'e': 'a' } }, true);
+		assert.deepStrictEqual(base, { 'a': { 'b': undefined, 'c': false, 'd': 2, 'e': 'a' } });
+	});
+
+	test('array merge', () => {
+		let base = { 'a': ['b', 'c'] };
+		merge(base, { 'a': ['b', 'd'] }, true);
+		assert.deepStrictEqual(base, { 'a': ['b', 'd'] });
+	});
+
 	test('removeFromValueTree: remove a non existing key', () => {
 		let target = { 'a': { 'b': 2 } };
 

@@ -802,8 +802,10 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}));
 
 		this._register(this.parentData.parent.onScroll(() => {
-			this.parentData.parent.focus(false);
-			this.cleanupExistingSubmenu(false);
+			if (this.parentData.submenu === this.mysubmenu) {
+				this.parentData.parent.focus(false);
+				this.cleanupExistingSubmenu(true);
+			}
 		}));
 	}
 

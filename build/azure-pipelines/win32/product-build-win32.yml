@@ -1,11 +1,11 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "16.x"
+      versionSpec: "14.x"
 
   - task: UsePythonVersion@0
     inputs:
-      versionSpec: "2.x"
+      versionSpec: "3.x"
       addToPath: true
 
   - task: AzureKeyVault@1

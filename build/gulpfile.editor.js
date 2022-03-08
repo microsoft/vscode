@@ -235,6 +235,9 @@ const appendJSToESMImportsTask = task.define('append-js-to-esm-imports', () => {
 	}
 });
 
+/**
+ * @param {string} contents
+ */
 function toExternalDTS(contents) {
 	let lines = contents.split(/\r\n|\r|\n/);
 	let killNextCloseCurlyBrace = false;
@@ -278,6 +281,9 @@ function toExternalDTS(contents) {
 	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');
 }
 
+/**
+ * @param {{ (path: string): boolean }} testFunc
+ */
 function filterStream(testFunc) {
 	return es.through(function (data) {
 		if (!testFunc(data.relative)) {
@@ -479,6 +485,8 @@ function createTscCompileTask(watch) {
 			});
 			let errors = [];
 			let reporter = createReporter('monaco');
+
+			/** @type {NodeJS.ReadWriteStream | undefined} */
 			let report;
 			// eslint-disable-next-line no-control-regex
 			let magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings

@@ -328,17 +328,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		this._register(Event.runAndSubscribe(webviewThemeDataProvider.onThemeDataChanged, () => this.style()));
 
-		/* __GDPR__
-			"webview.createWebview" : {
-				"extension": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"webviewElementType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		this._telemetryService.publicLog('webview.createWebview', {
-			extension: extension?.id.value,
-			webviewElementType: 'iframe',
-		});
-
 		this._confirmBeforeClose = configurationService.getValue<string>('window.confirmBeforeClose');
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
@@ -523,16 +512,15 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				this._onMissingCsp.fire(this.extension.id);
 			}
 
-			type TelemetryClassification = {
-				extension?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-			};
-			type TelemetryData = {
-				extension?: string;
+			const payload = {
+				extension: this.extension.id.value
+			} as const;
+
+			type Classification = {
+				extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'The id of the extension that created the webview.' };
 			};
 
-			this._telemetryService.publicLog2<TelemetryData, TelemetryClassification>('webviewMissingCsp', {
-				extension: this.extension.id.value
-			});
+			this._telemetryService.publicLog2<typeof payload, Classification>('webviewMissingCsp', payload);
 		}
 	}
 

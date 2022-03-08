@@ -6,7 +6,7 @@
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalCommandIcon, TerminalCommandIconError, TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -103,26 +103,20 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'view',
 			description: localize('terminal.integrated.defaultLocation', "Controls where newly created terminals will appear.")
 		},
-		[TerminalSettingId.CommandIcon]: {
+		[TerminalSettingId.ShellIntegrationDecorationIconSuccess]: {
 			type: 'string',
-			enum: [TerminalCommandIcon.ChevronRight, TerminalCommandIcon.TriangleRight],
-			enumDescriptions: [
-				localize('terminal.integrated.commandIcon.chevronRight', "A chevron pointed to the right"),
-				localize('terminal.integrated.commandIcon.triangleRight', "A triangle pointed to the right")
-			],
-			default: 'triangle-right',
-			description: localize('terminal.integrated.commandIcon', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code.")
+			default: 'primitive-dot',
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconSuccess', "Controls the icon that will be used for each command in terminals with shell integration enabled that do not have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
 		},
-		[TerminalSettingId.CommandIconError]: {
+		[TerminalSettingId.ShellIntegrationDecorationIconError]: {
 			type: 'string',
-			enum: [TerminalCommandIconError.ChevronRight, TerminalCommandIconError.TriangleRight, TerminalCommandIconError.X],
-			enumDescriptions: [
-				localize('terminal.integrated.commandIconError.chevronRight', "A chevron pointed to the right"),
-				localize('terminal.integrated.commandIconError.triangleRight', "A triangle pointed to the right"),
-				localize('terminal.integrated.commandIconError.x', "An X"),
-			],
-			default: 'x',
-			description: localize('terminal.integrated.commandIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code.")
+			default: 'error-small',
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIconError', "Controls the icon that will be used for each command in terminals with shell integration enabled that do have an associated exit code. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`.")
+		},
+		[TerminalSettingId.ShellIntegrationDecorationIcon]: {
+			type: 'string',
+			default: 'circle-outline',
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationIcon', "Controls the icon that will be used for skipped/empty commands. Set to `''` to hide the icon or disable decorations with `#terminal.integrated.shellIntegration.decorationsEnabled#`")
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
@@ -155,7 +149,7 @@ const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		[TerminalSettingId.EnableMultiLinePasteWarning]: {
-			description: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal."),
+			markdownDescription: localize('terminal.integrated.enableMultiLinePasteWarning', "Show a warning dialog when pasting multiple lines into the terminal. The dialog does not show when:\n\n- Bracketed paste mode is enabled (the shell supports multi-line paste natively)\n- The paste is handled by the shell's readline (in the case of pwsh)"),
 			type: 'boolean',
 			default: true
 		},
@@ -537,17 +531,29 @@ const terminalConfiguration: IConfigurationNode = {
 			},
 			default: {}
 		},
-		[TerminalSettingId.EnableShellIntegration]: {
+		[TerminalSettingId.ShellIntegrationEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.enableShellIntegration', "Enable the experimental shell integration feature which will turn on certain features like enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh"),
+			markdownDescription: localize('terminal.integrated.shellIntegration.enabled', "Enable the experimental shell integration feature which will turn on certain features like enhanced command tracking and current working directory detection. Shell integration works by injecting a script that is run when the shell is initialized which lets the terminal gain additional insights into what is happening within the terminal, the script injection may not work if you have custom arguments defined in the terminal profile.\n\nSupported shells:\n\n- Linux/macOS: bash, pwsh, zsh\n - Windows: pwsh\n\nThis setting applies only when terminals are created, you will need to restart terminals for the setting to take effect."),
 			type: 'boolean',
 			default: false
 		},
-		[TerminalSettingId.ShowShellIntegrationWelcome]: {
+		[TerminalSettingId.ShellIntegrationDecorationsEnabled]: {
 			restricted: true,
-			markdownDescription: localize('terminal.integrated.showShellIntegrationWelcome', "Whether to show the shell integration activated welcome message in the terminal when the feature is enabled."),
+			markdownDescription: localize('terminal.integrated.shellIntegration.decorationsEnabled', "When shell integration is enabled, adds a decoration for each command."),
 			type: 'boolean',
 			default: true
+		},
+		[TerminalSettingId.ShellIntegrationShowWelcome]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.showWelcome', "Whether to show the shell integration activated welcome message in the terminal when the feature is enabled."),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.ShellIntegrationCommandHistory]: {
+			restricted: true,
+			markdownDescription: localize('terminal.integrated.shellIntegration.history', "Controls the number of recently used commands to keep in the terminal command history. Set to 0 to disable terminal command history."),
+			type: 'number',
+			default: 100
 		},
 	}
 };

@@ -18,6 +18,8 @@ import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isReadable, isReadableStream } from 'vs/base/common/stream';
+import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
 suite('Untitled text editors', () => {
 
@@ -217,6 +219,17 @@ suite('Untitled text editors', () => {
 
 		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create({ initialValue: 'Hello World' }));
 		assert.ok(untitled.isDirty());
+
+		const backup = (await untitled.model.backup(CancellationToken.None)).content;
+		if (isReadableStream(backup)) {
+			const value = await streamToBuffer(backup as VSBufferReadableStream);
+			assert.strictEqual(value.toString(), 'Hello World');
+		} else if (isReadable(backup)) {
+			const value = readableToBuffer(backup as VSBufferReadable);
+			assert.strictEqual(value.toString(), 'Hello World');
+		} else {
+			assert.fail('Missing untitled backup');
+		}
 
 		// dirty
 		const model = await untitled.resolve();

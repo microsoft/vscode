@@ -24,7 +24,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { FileAccess } from 'vs/base/common/network';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -181,6 +182,10 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		} else {
 			this._timerService.setPerformanceMarks('remoteExtHost', marks);
 		}
+	}
+
+	async $asBrowserUri(uri: UriComponents): Promise<UriComponents> {
+		return FileAccess.asBrowserUri(URI.revive(uri));
 	}
 }
 

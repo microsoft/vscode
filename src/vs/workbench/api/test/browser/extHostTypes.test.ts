@@ -9,7 +9,7 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
 import { Mimes } from 'vs/base/common/mime';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -679,7 +679,7 @@ suite('ExtHostTypes', function () {
 		// --- JSON
 
 		item = types.NotebookCellOutputItem.json(1);
-		assert.strictEqual(item.mime, 'application/json');
+		assert.strictEqual(item.mime, 'text/x-json');
 		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
 
 		item = types.NotebookCellOutputItem.json(1, 'foo/bar');
@@ -687,11 +687,11 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
 
 		item = types.NotebookCellOutputItem.json(true);
-		assert.strictEqual(item.mime, 'application/json');
+		assert.strictEqual(item.mime, 'text/x-json');
 		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(true)));
 
 		item = types.NotebookCellOutputItem.json([true, 1, 'ddd']);
-		assert.strictEqual(item.mime, 'application/json');
+		assert.strictEqual(item.mime, 'text/x-json');
 		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify([true, 1, 'ddd'], undefined, '\t')));
 
 		// --- text

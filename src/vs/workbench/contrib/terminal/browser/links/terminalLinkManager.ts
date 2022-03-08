@@ -329,7 +329,7 @@ export class TerminalLinkManager extends DisposableStore {
 			uri = nls.localize('followLinkUrl', 'Link');
 		}
 
-		return markdown.appendMarkdown(`[${label}](${uri}) (${clickLabel})`);
+		return markdown.appendLink(uri, label).appendMarkdown(` (${clickLabel})`);
 	}
 
 	private get _osPath(): IPath {
@@ -392,7 +392,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 		if (uri) {
 			try {
-				const stat = await this._fileService.resolve(uri);
+				const stat = await this._fileService.stat(uri);
 				const result = { uri, link, isDirectory: stat.isDirectory };
 				this._resolvedLinkCache.set(uri, result);
 				return result;
@@ -429,7 +429,7 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 
 			try {
-				const stat = await this._fileService.resolve(uri);
+				const stat = await this._fileService.stat(uri);
 				const result = { uri, link, isDirectory: stat.isDirectory };
 				this._resolvedLinkCache.set(link, result);
 				return result;

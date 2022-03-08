@@ -86,6 +86,16 @@ const enum VSCodeOscPt {
 	CommandLine = 'E',
 
 	/**
+	 * Similar to prompt start but for line continuations.
+	 */
+	ContinuationStart = 'F',
+
+	/**
+	 * Similar to command start but for line continuations.
+	 */
+	ContinuationEnd = 'G',
+
+	/**
 	 * Set an arbitrary property: `OSC 633 ; P ; <Property>=<Value> ST`, only known properties will
 	 * be handled.
 	 */
@@ -145,6 +155,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 					commandLine = '';
 				}
 				this._createOrGetCommandDetection(this._terminal).setCommandLine(commandLine);
+				return true;
+			}
+			case VSCodeOscPt.ContinuationStart: {
+				this._createOrGetCommandDetection(this._terminal).handleContinuationStart();
+				return true;
+			}
+			case VSCodeOscPt.ContinuationEnd: {
+				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
 				return true;
 			}
 			case VSCodeOscPt.Property: {

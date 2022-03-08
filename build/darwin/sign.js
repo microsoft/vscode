@@ -41,14 +41,26 @@ async function main() {
         identity: '99FM488X57',
         'gatekeeper-assess': false
     };
-    const appOpts = Object.assign(Object.assign({}, defaultOpts), { 
+    const appOpts = {
+        ...defaultOpts,
         // TODO(deepak1556): Incorrectly declared type in electron-osx-sign
         ignore: (filePath) => {
             return filePath.includes(gpuHelperAppName) ||
                 filePath.includes(rendererHelperAppName);
-        } });
-    const gpuHelperOpts = Object.assign(Object.assign({}, defaultOpts), { app: path.join(appFrameworkPath, gpuHelperAppName), entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'), 'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist') });
-    const rendererHelperOpts = Object.assign(Object.assign({}, defaultOpts), { app: path.join(appFrameworkPath, rendererHelperAppName), entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'), 'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist') });
+        }
+    };
+    const gpuHelperOpts = {
+        ...defaultOpts,
+        app: path.join(appFrameworkPath, gpuHelperAppName),
+        entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
+        'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
+    };
+    const rendererHelperOpts = {
+        ...defaultOpts,
+        app: path.join(appFrameworkPath, rendererHelperAppName),
+        entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
+        'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
+    };
     let infoPlistString = await fs.readFile(infoPlistPath, 'utf8');
     let infoPlistJson = plist.parse(infoPlistString);
     Object.assign(infoPlistJson, {

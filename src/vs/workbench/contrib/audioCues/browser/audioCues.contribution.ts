@@ -31,34 +31,38 @@ const audioCueFeatureBase: IConfigurationPropertySchema = {
 	],
 };
 
-// TODO@hediet: Migrate audioCues.enabled setting!
-// audioCues.enabled -> audioCues.{lineHasBreakpoint, lineHasInlineCompletion, ...}
-
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'properties': {
+		'audioCues.enabled': {
+			markdownDeprecationMessage: 'Deprecated. Use the specific setting for each audio cue instead (`audioCues.*`).',
+		},
 		'audioCues.lineHasBreakpoint': {
-			'description': localize('audioCues.lineHasBreakpoint', "Plays an audio cue when the active line has a breakpoint."),
+			'description': localize('audioCues.lineHasBreakpoint', "Plays a sound when the active line has a breakpoint."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.lineHasInlineSuggestion': {
-			'description': localize('audioCues.lineHasInlineSuggestion', "Plays an audio cue when the active line has an inline suggestion."),
+			'description': localize('audioCues.lineHasInlineSuggestion', "Plays a sound when the active line has an inline suggestion."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.lineHasError': {
-			'description': localize('audioCues.lineHasError', "Plays an audio cue when the active line has an error."),
+			'description': localize('audioCues.lineHasError', "Plays a sound when the active line has an error."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.lineHasFoldedArea': {
-			'description': localize('audioCues.lineHasFoldedArea', "Plays an audio cue when the active line has a folded area that can be unfolded."),
+			'description': localize('audioCues.lineHasFoldedArea', "Plays a sound when the active line has a folded area that can be unfolded."),
 			...audioCueFeatureBase,
 		},
 		'audioCues.lineHasWarning': {
-			'description': localize('audioCues.lineHasWarning', "Plays an audio cue when the active line has a warning."),
+			'description': localize('audioCues.lineHasWarning', "Plays a sound when the active line has a warning."),
 			...audioCueFeatureBase,
 			default: 'off',
 		},
-		'audioCues.debuggerExecutionPaused': {
-			'description': localize('audioCues.debuggerExecutionPaused', "Plays an audio cue when the debugger paused."),
+		'audioCues.onDebugBreak': {
+			'description': localize('audioCues.onDebugBreak', "Plays a sound when the debugger stopped on a breakpoint."),
+			...audioCueFeatureBase,
+		},
+		'audioCues.noInlayHints': {
+			'description': localize('audioCues.noInlayHints', "Plays a sound when trying to read a line with inlay hints that has no inlay hints."),
 			...audioCueFeatureBase,
 		},
 	}
