@@ -14,7 +14,7 @@ declare module 'vscode' {
 
 		readonly metadata: { [key: string]: any } | undefined;
 		readonly outputs: readonly NotebookCellOutput[] | undefined;
-		readonly executionSummary: readonly NotebookCellExecutionSummary[] | undefined;
+		readonly executionSummary: NotebookCellExecutionSummary | undefined;
 	}
 
 	export interface NotebookDocumentContentChange {

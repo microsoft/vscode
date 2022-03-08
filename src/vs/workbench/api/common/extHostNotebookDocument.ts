@@ -238,52 +238,51 @@ export class ExtHostNotebookDocument {
 			cellChanges: <vscode.NotebookDocumentContentCellChange[]>[],
 			contentChanges: <vscode.NotebookDocumentContentChange[]>[],
 		};
-		const cellOutputChanges = new Set<ExtHostCell>();
-		const cellMetadataChanges = new Set<ExtHostCell>();
 
 		// -- apply change and populate content changes
 
 		for (const rawEvent of event.rawEvents) {
 			if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ModelChange) {
 				this._spliceNotebookCells(rawEvent.changes, false, result.contentChanges);
+
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.Move) {
 				this._moveCell(rawEvent.index, rawEvent.newIdx, result.contentChanges);
+
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.Output) {
 				this._setCellOutputs(rawEvent.index, rawEvent.outputs);
-				cellOutputChanges.add(this._cells[rawEvent.index]);
+				result.cellChanges.push({ cell: this._cells[rawEvent.index].apiCell, outputs: this._cells[rawEvent.index].apiCell.outputs, executionSummary: undefined, metadata: undefined });
+
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.OutputItem) {
 				this._setCellOutputItems(rawEvent.index, rawEvent.outputId, rawEvent.append, rawEvent.outputItems);
-				cellOutputChanges.add(this._cells[rawEvent.index]);
+				result.cellChanges.push({ cell: this._cells[rawEvent.index].apiCell, outputs: this._cells[rawEvent.index].apiCell.outputs, executionSummary: undefined, metadata: undefined });
+
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeLanguage) {
 				this._changeCellLanguage(rawEvent.index, rawEvent.language);
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellMime) {
 				this._changeCellMime(rawEvent.index, rawEvent.mime);
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellMetadata) {
 				this._changeCellMetadata(rawEvent.index, rawEvent.metadata);
-				cellMetadataChanges.add(this._cells[rawEvent.index]);
+				result.cellChanges.push({ cell: this._cells[rawEvent.index].apiCell, outputs: undefined, executionSummary: undefined, metadata: this._cells[rawEvent.index].apiCell.metadata });
+
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellInternalMetadata) {
 				this._changeCellInternalMetadata(rawEvent.index, rawEvent.internalMetadata);
+				result.cellChanges.push({ cell: this._cells[rawEvent.index].apiCell, outputs: undefined, executionSummary: this._cells[rawEvent.index].apiCell.executionSummary, metadata: undefined });
 			}
 		}
 
-		// -- populate cell changes
+		// -- compact cellChanges
 
-		for (const cell of cellOutputChanges) {
-			result.cellChanges.push({
-				cell: cell.apiCell,
-				outputs: cell.apiCell.outputs,
-				metadata: cellMetadataChanges.has(cell) ? cell.apiCell.metadata : undefined,
-				executionSummary: undefined
-			});
-			cellMetadataChanges.delete(cell);
-		}
-		for (const cell of cellMetadataChanges) {
-			result.cellChanges.push({
-				cell: cell.apiCell,
-				metadata: cell.apiCell.metadata,
-				outputs: undefined,
-				executionSummary: undefined
-			});
+		const map = new Map<vscode.NotebookCell, number>();
+		for (let i = 0; i < result.cellChanges.length; i++) {
+			let c = result.cellChanges[i];
+			let existing = map.get(c.cell);
+			if (existing === undefined) {
+				map.set(c.cell, i);
+			} else {
+				result.cellChanges[existing] = { ...result.cellChanges[existing], ...c };
+				result.cellChanges.splice(i, 1);
+				i--;
+			}
 		}
 
 		return result;
