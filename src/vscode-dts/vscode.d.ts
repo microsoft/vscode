@@ -4674,6 +4674,9 @@ declare module 'vscode' {
 
 		/**
 		 * The tooltip text when you hover over this item.
+		 *
+		 * *Note* that this property can be set late during
+		 * {@link InlayHintsProvider.resolveInlayHint resolving} of inlay hints.
 		 */
 		tooltip?: string | MarkdownString | undefined;
 
@@ -4688,6 +4691,9 @@ declare module 'vscode' {
 		 *
 		 * *Note* that edits are expected to change the document so that the inlay hint (or its nearest variant) is
 		 * now part of the document and the inlay hint itself is now obsolete.
+		 *
+		 * *Note* that this property can be set late during
+		 * {@link InlayHintsProvider.resolveInlayHint resolving} of inlay hints.
 		 */
 		textEdits?: TextEdit[];
 
@@ -4739,8 +4745,8 @@ declare module 'vscode' {
 		provideInlayHints(document: TextDocument, range: Range, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
-		 * Given an inlay hint fill in {@link InlayHint.tooltip tooltip}, {@link InlayHint.command command}, or complete
-		 * label {@link InlayHintLabelPart parts}.
+		 * Given an inlay hint fill in {@link InlayHint.tooltip tooltip}, {@link InlayHint.textEdits text edits},
+		 * or complete label {@link InlayHintLabelPart parts}.
 		 *
 		 * *Note* that the editor will resolve an inlay hint at most once.
 		 *
