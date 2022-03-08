@@ -11,7 +11,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { isEqual } from 'vs/base/common/extpath';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename, dirname } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase, joinPath } from 'vs/base/common/resources';
@@ -630,23 +630,26 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			return; // cloning is only supported `from` and `to` are different files
 		}
 
-		let fromLock: IDisposable | undefined = undefined;
-		let toLock: IDisposable | undefined = undefined;
-
 		// Implement clone by using `fs.copyFile`, however setup locks
 		// for both `from` and `to` because node.js does not ensure
 		// this to be an atomic operation
 
+		const locks = new DisposableStore();
+
 		try {
-			fromLock = await this.createResourceLock(from);
-			toLock = await this.createResourceLock(to);
+			const [fromLock, toLock] = await Promise.all([
+				this.createResourceLock(from),
+				this.createResourceLock(to)
+			]);
+
+			locks.add(fromLock);
+			locks.add(toLock);
 
 			await Promises.copyFile(fromFilePath, toFilePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
-			fromLock?.dispose();
-			toLock?.dispose();
+			locks.dispose();
 		}
 	}
 

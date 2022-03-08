@@ -1005,7 +1005,7 @@ export class FileService extends Disposable implements IFileService {
 	//#region Clone File
 
 	async cloneFile(source: URI, target: URI): Promise<void> {
-		const sourceProvider = await this.withReadProvider(source);
+		const sourceProvider = await this.withProvider(source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
 		// same provider, check for `cloneFile` support or fallback to `copy`
