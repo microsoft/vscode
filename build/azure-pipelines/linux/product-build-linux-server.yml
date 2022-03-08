@@ -48,6 +48,8 @@ steps:
         echo "Yarn failed $i, trying again..."
       done
     displayName: Install dependencies
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
