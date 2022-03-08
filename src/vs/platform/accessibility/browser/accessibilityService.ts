@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener } from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class AccessibilityService extends Disposable implements IAccessibilityService {
 	declare readonly _serviceBrand: undefined;
@@ -17,8 +19,12 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	protected _accessibilitySupport = AccessibilitySupport.Unknown;
 	protected readonly _onDidChangeScreenReaderOptimized = new Emitter<void>();
 
+	protected _systemMotionReduced: boolean;
+	protected readonly _onDidChangeReducedMotion = new Emitter<void>();
+
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 	) {
 		super();
@@ -29,9 +35,30 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 				updateContextKey();
 				this._onDidChangeScreenReaderOptimized.fire();
 			}
+			if (e.affectsConfiguration('workbench.reduceMotion')) {
+				this._onDidChangeReducedMotion.fire();
+			}
 		}));
 		updateContextKey();
-		this.onDidChangeScreenReaderOptimized(() => updateContextKey());
+		this._register(this.onDidChangeScreenReaderOptimized(() => updateContextKey()));
+
+		const reduceMotionMatcher = window.matchMedia(`(prefers-reduced-motion: reduce)`);
+		this._systemMotionReduced = reduceMotionMatcher.matches;
+
+		this._register(addDisposableListener(reduceMotionMatcher, 'change', () => {
+			this._systemMotionReduced = reduceMotionMatcher.matches;
+			if (this._configurationService.getValue('workbench.reduceMotion') === 'auto') {
+				this._onDidChangeReducedMotion.fire();
+			}
+		}));
+
+		const updateRootClass = () => {
+			const reduce = this.isMotionReduced();
+			this._layoutService.container.classList.toggle('reduce-motion', reduce);
+			this._layoutService.container.classList.toggle('enable-motion', !reduce);
+		};
+		updateRootClass();
+		this._register(this.onDidChangeReducedMotion(() => updateRootClass()));
 	}
 
 	get onDidChangeScreenReaderOptimized(): Event<void> {
@@ -43,12 +70,21 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		return config === 'on' || (config === 'auto' && this._accessibilitySupport === AccessibilitySupport.Enabled);
 	}
 
-	getAccessibilitySupport(): AccessibilitySupport {
-		return this._accessibilitySupport;
+	get onDidChangeReducedMotion(): Event<void> {
+		return this._onDidChangeReducedMotion.event;
+	}
+
+	isMotionReduced(): boolean {
+		const config = this._configurationService.getValue('workbench.reduceMotion');
+		return config === 'on' || (config === 'auto' && this._systemMotionReduced);
 	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {
 		return Promise.resolve(false);
+	}
+
+	getAccessibilitySupport(): AccessibilitySupport {
+		return this._accessibilitySupport;
 	}
 
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {
