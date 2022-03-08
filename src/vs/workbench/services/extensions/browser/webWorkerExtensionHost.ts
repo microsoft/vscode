@@ -29,7 +29,7 @@ import { Barrier } from 'vs/base/common/async';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { parentOriginHash } from 'vs/workbench/common/webview';
+import { parentOriginHash } from 'vs/workbench/browser/webview';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;

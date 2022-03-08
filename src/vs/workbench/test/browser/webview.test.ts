@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { parentOriginHash } from 'vs/workbench/common/webview';
+import { parentOriginHash } from 'vs/workbench/browser/webview';
 
 suite('parentOriginHash', () => {
 
