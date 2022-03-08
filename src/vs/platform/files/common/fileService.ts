@@ -466,7 +466,7 @@ export class FileService extends Disposable implements IFileService {
 
 	private async doReadFileAtomic(provider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability | IFileSystemProviderWithFileReadStreamCapability, resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
 		return new Promise<IFileContent>((resolve, reject) => {
-			return this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
+			this.writeQueue.queueFor(resource, this.getExtUri(provider).providerExtUri).queue(async () => {
 				try {
 					const content = await this.doReadFile(provider, resource, options, token);
 					resolve(content);
