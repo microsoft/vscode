@@ -1019,6 +1019,11 @@ export class FileService extends Disposable implements IFileService {
 			}
 		}
 
+		const { providerExtUri } = this.getExtUri(sourceProvider);
+		if (providerExtUri.isEqual(source, target)) {
+			return; // important to return early to prevent a deadlock with the write queue!
+		}
+
 		// otherwise copy via buffer/unbuffered and use a write queue
 		// on the source to ensure atomic operation as much as possible
 		return this.writeQueue.queueFor(source, this.getExtUri(sourceProvider).providerExtUri).queue(() => this.doCopyFile(sourceProvider, source, targetProvider, target));

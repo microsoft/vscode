@@ -1166,6 +1166,42 @@ flakySuite('Disk File Service', function () {
 		assert.strictEqual(source.size, copied.size);
 	});
 
+	test('cloneFile - basics', () => {
+		return testCloneFile();
+	});
+
+	test('cloneFile - via copy capability', () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose | FileSystemProviderCapabilities.FileFolderCopy);
+
+		return testCloneFile();
+	});
+
+	test('cloneFile - via pipe', () => {
+		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
+
+		return testCloneFile();
+	});
+
+	async function testCloneFile(): Promise<void> {
+		const source = URI.file(join(testDir, 'index.html'));
+
+		// same path is a no-op
+		await service.cloneFile(source, source);
+
+		const targetParent = URI.file(testDir);
+		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.path)) });
+
+		await service.cloneFile(source, URI.file(target.fsPath));
+
+		assert.strictEqual(existsSync(target.fsPath), true);
+		assert.strictEqual(basename(target.fsPath), 'index.html');
+
+		const sourceSize = (await service.resolve(source, { resolveMetadata: true })).size;
+		const targetSize = (await service.resolve(target, { resolveMetadata: true })).size;
+
+		assert.strictEqual(sourceSize, targetSize);
+	}
+
 	test('readFile - small file - default', () => {
 		return testReadFile(URI.file(join(testDir, 'small.txt')));
 	});
