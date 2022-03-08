@@ -81,6 +81,7 @@ declare module 'vscode' {
 	*/
 	// TODO@API We could keep this and allow for `vscode.Command` instances that explain
 	// the result. That would replace the existing proposed menu-identifier and be more LSP friendly
+	// TODO@API maybe use MarkdownString
 	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
 		items: T[];
 
@@ -101,7 +102,6 @@ declare module 'vscode' {
 		 * However, any indentation of the text to replace does not matter for the subword constraint.
 		 * Thus, `  B` can be replaced with ` ABC`, effectively removing a whitespace and inserting `A` and `C`.
 		*/
-		// TODO@API support vscode.SnippetString in addition to string, see CompletionItem#insertText
 		insertText?: string | SnippetString;
 
 		/**
