@@ -22,6 +22,7 @@ import { fromNow } from 'vs/base/common/date';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { Color } from 'vs/base/common/color';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -168,6 +169,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!decoration) {
 			return undefined;
 		}
+		let scrollbarDecorationColor = command.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
+		if (scrollbarDecorationColor && typeof scrollbarDecorationColor !== 'string') {
+			scrollbarDecorationColor = scrollbarDecorationColor.toString();
+		}
+		const element = this._terminal.registerDecoration({ marker: command.marker, scrollbarDecorationColor });
+		if (element) {
+			//TODO: why doesn't this css work
+			element.element!.style.position = 'fixed';
+			element.element!.style.right = '0px';
+		}
 		decoration.onRender(element => {
 			decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 			if (beforeCommandExecution && !this._placeholderDecoration) {
@@ -282,11 +293,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		return actions;
 	}
 }
-
+let successColor: string | Color | undefined;
+let errorColor: string | Color | undefined;
+let defaultColor: string | Color | undefined;
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
-	const errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
-	const defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
+	successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
+	errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
+	defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
 	const hoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 
 	if (successColor) {
