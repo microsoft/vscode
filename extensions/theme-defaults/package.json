@@ -46,7 +46,7 @@
       {
         "id": "Light High Contrast",
         "label": "%lightHcColorThemeLabel%",
-        "uiTheme": "hc-black",
+        "uiTheme": "hc-light",
         "path": "./themes/hc_light.json"
       }
     ],

@@ -10,7 +10,7 @@ import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/
 import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
 import { isSafari, isStandalone } from 'vs/base/browser/browser';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -92,7 +92,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	// High Contrast theme overwrites for outline
-	if (theme.type === ColorScheme.HIGH_CONTRAST) {
+	if (isHighContrast(theme.type)) {
 		collector.addRule(`
 		.hc-black [tabindex="0"]:focus,
 		.hc-black [tabindex="-1"]:focus,

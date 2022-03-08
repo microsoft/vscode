@@ -376,7 +376,9 @@ registerAction2(class extends Action2 {
 		const picks: QuickPickInput<ThemeItem>[] = [
 			...toEntries(themes.filter(t => t.type === ColorScheme.LIGHT), localize('themes.category.light', "light themes")),
 			...toEntries(themes.filter(t => t.type === ColorScheme.DARK), localize('themes.category.dark', "dark themes")),
-			...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes")),
+			...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST_LIGHT), localize('themes.category.hclight', "light high contrast themes")),
+			...toEntries(themes.filter(t => t.type === ColorScheme.HIGH_CONTRAST_DARK), localize('themes.category.hcdark', "dark high contrast themes")),
+
 		];
 		await picker.openQuickPick(picks, currentTheme);
 	}

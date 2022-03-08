@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchColorTheme, IWorkbenchFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME, ThemeSettings, IWorkbenchProductIconTheme, ThemeSettingTarget } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -66,6 +66,7 @@ function validateThemeId(theme: string): string {
 		case VS_LIGHT_THEME: return `vs ${defaultThemeExtensionId}-themes-light_vs-json`;
 		case VS_DARK_THEME: return `vs-dark ${defaultThemeExtensionId}-themes-dark_vs-json`;
 		case VS_HC_THEME: return `hc-black ${defaultThemeExtensionId}-themes-hc_black-json`;
+		case VS_HC_LIGHT_THEME: return `hc-light ${defaultThemeExtensionId}-themes-hc_light-json`;
 	}
 	return theme;
 }
@@ -254,8 +255,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_THEME) && this.getPreferredColorScheme() === ColorScheme.LIGHT) {
 				this.applyPreferredColorTheme(ColorScheme.LIGHT);
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_THEME) && this.getPreferredColorScheme() === ColorScheme.HIGH_CONTRAST) {
-				this.applyPreferredColorTheme(ColorScheme.HIGH_CONTRAST);
+			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_THEME) && this.getPreferredColorScheme() === ColorScheme.HIGH_CONTRAST_DARK) {
+				this.applyPreferredColorTheme(ColorScheme.HIGH_CONTRAST_DARK);
 			}
 			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)) {
 				this.restoreFileIconTheme();
@@ -382,7 +383,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private getPreferredColorScheme(): ColorScheme | undefined {
 		if (this.configurationService.getValue(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
-			return ColorScheme.HIGH_CONTRAST;
+			return this.hostColorService.dark ? ColorScheme.HIGH_CONTRAST_DARK : ColorScheme.HIGH_CONTRAST_LIGHT;
 		}
 		if (this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
 			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
@@ -525,7 +526,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (this.currentColorTheme.id) {
 			this.container.classList.remove(...this.currentColorTheme.classNames);
 		} else {
-			this.container.classList.remove(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
+			this.container.classList.remove(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME, VS_HC_LIGHT_THEME);
 		}
 		this.container.classList.add(...newTheme.classNames);
 

@@ -18,44 +18,44 @@ export const TERMINAL_BACKGROUND_COLOR = registerColor('terminal.background', nu
 export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', {
 	light: '#333333',
 	dark: '#CCCCCC',
-	hc: '#FFFFFF'
+	hcDark: '#FFFFFF'
 }, nls.localize('terminal.foreground', 'The foreground color of the terminal.'));
 export const TERMINAL_CURSOR_FOREGROUND_COLOR = registerColor('terminalCursor.foreground', null, nls.localize('terminalCursor.foreground', 'The foreground color of the terminal cursor.'));
 export const TERMINAL_CURSOR_BACKGROUND_COLOR = registerColor('terminalCursor.background', null, nls.localize('terminalCursor.background', 'The background color of the terminal cursor. Allows customizing the color of a character overlapped by a block cursor.'));
 export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', {
 	light: '#00000040',
 	dark: '#FFFFFF40',
-	hc: '#FFFFFF80'
+	hcDark: '#FFFFFF80'
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
 export const TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.defaultBackground', {
 	light: '#00000040',
 	dark: '#ffffff40',
-	hc: '#ffffff80'
+	hcDark: '#ffffff80'
 }, nls.localize('terminalCommandDecoration.defaultBackground', 'The default terminal command decoration background color.'));
 export const TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.successBackground', {
 	dark: '#1B81A8',
 	light: '#2090D3',
-	hc: '#1B81A8'
+	hcDark: '#1B81A8'
 }, nls.localize('terminalCommandDecoration.successBackground', 'The terminal command decoration background color for successful commands.'));
 export const TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.errorBackground', {
 	dark: '#F14C4C',
 	light: '#E51400',
-	hc: '#F14C4C'
+	hcDark: '#F14C4C'
 }, nls.localize('terminalCommandDecoration.errorBackground', 'The terminal command decoration background color for error commands.'));
 export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,
-	hc: PANEL_BORDER
+	hcDark: PANEL_BORDER
 }, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
 export const TERMINAL_DRAG_AND_DROP_BACKGROUND = registerColor('terminal.dropBackground', {
 	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
-	hc: EDITOR_DRAG_AND_DROP_BACKGROUND
+	hcDark: EDITOR_DRAG_AND_DROP_BACKGROUND
 }, nls.localize('terminal.dragAndDropBackground', "Background color when dragging on top of terminals. The color should have transparency so that the terminal contents can still shine through."));
 export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBorder', {
 	dark: TAB_ACTIVE_BORDER,
 	light: TAB_ACTIVE_BORDER,
-	hc: TAB_ACTIVE_BORDER
+	hcDark: TAB_ACTIVE_BORDER
 }, nls.localize('terminal.tab.activeBorder', 'Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder.'));
 
 export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefaults } } = {
@@ -64,7 +64,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#000000',
 			dark: '#000000',
-			hc: '#000000'
+			hcDark: '#000000',
+			hcLight: '#000000'
 		}
 	},
 	'terminal.ansiRed': {
@@ -72,7 +73,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#cd3131',
 			dark: '#cd3131',
-			hc: '#cd0000'
+			hcDark: '#cd0000',
+			hcLight: '#cd0000'
 		}
 	},
 	'terminal.ansiGreen': {
@@ -80,7 +82,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#00BC00',
 			dark: '#0DBC79',
-			hc: '#00cd00'
+			hcDark: '#00cd00',
+			hcLight: '#00cd00'
 		}
 	},
 	'terminal.ansiYellow': {
@@ -88,7 +91,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#949800',
 			dark: '#e5e510',
-			hc: '#cdcd00'
+			hcDark: '#cdcd00',
+			hcLight: '#cdcd00'
 		}
 	},
 	'terminal.ansiBlue': {
@@ -96,7 +100,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#0451a5',
 			dark: '#2472c8',
-			hc: '#0000ee'
+			hcDark: '#0000ee',
+			hcLight: '#0000ee'
 		}
 	},
 	'terminal.ansiMagenta': {
@@ -104,7 +109,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#bc05bc',
 			dark: '#bc3fbc',
-			hc: '#cd00cd'
+			hcDark: '#cd00cd',
+			hcLight: '#cd00cd'
 		}
 	},
 	'terminal.ansiCyan': {
@@ -112,7 +118,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#0598bc',
 			dark: '#11a8cd',
-			hc: '#00cdcd'
+			hcDark: '#00cdcd',
+			hcLight: '#00cdcd'
 		}
 	},
 	'terminal.ansiWhite': {
@@ -120,7 +127,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#555555',
 			dark: '#e5e5e5',
-			hc: '#e5e5e5'
+			hcDark: '#e5e5e5',
+			hcLight: '#e5e5e5'
 		}
 	},
 	'terminal.ansiBrightBlack': {
@@ -128,7 +136,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#666666',
 			dark: '#666666',
-			hc: '#7f7f7f'
+			hcDark: '#7f7f7f',
+			hcLight: '#7f7f7f'
 		}
 	},
 	'terminal.ansiBrightRed': {
@@ -136,7 +145,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#cd3131',
 			dark: '#f14c4c',
-			hc: '#ff0000'
+			hcDark: '#ff0000',
+			hcLight: '#ff0000'
 		}
 	},
 	'terminal.ansiBrightGreen': {
@@ -144,7 +154,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#14CE14',
 			dark: '#23d18b',
-			hc: '#00ff00'
+			hcDark: '#00ff00',
+			hcLight: '#00ff00'
 		}
 	},
 	'terminal.ansiBrightYellow': {
@@ -152,7 +163,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#b5ba00',
 			dark: '#f5f543',
-			hc: '#ffff00'
+			hcDark: '#ffff00',
+			hcLight: '#ffff00'
 		}
 	},
 	'terminal.ansiBrightBlue': {
@@ -160,7 +172,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#0451a5',
 			dark: '#3b8eea',
-			hc: '#5c5cff'
+			hcDark: '#5c5cff',
+			hcLight: '#5c5cff'
 		}
 	},
 	'terminal.ansiBrightMagenta': {
@@ -168,7 +181,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#bc05bc',
 			dark: '#d670d6',
-			hc: '#ff00ff'
+			hcDark: '#ff00ff',
+			hcLight: '#ff00ff'
 		}
 	},
 	'terminal.ansiBrightCyan': {
@@ -176,7 +190,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#0598bc',
 			dark: '#29b8db',
-			hc: '#00ffff'
+			hcDark: '#00ffff',
+			hcLight: '#00ffff'
 		}
 	},
 	'terminal.ansiBrightWhite': {
@@ -184,7 +199,8 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 		defaults: {
 			light: '#a5a5a5',
 			dark: '#e5e5e5',
-			hc: '#ffffff'
+			hcDark: '#ffffff',
+			hcLight: '#ffffff'
 		}
 	}
 };

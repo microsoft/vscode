@@ -95,7 +95,8 @@ export const FolderThemeIcon = Codicon.folder;
 export function getThemeTypeSelector(type: ColorScheme): string {
 	switch (type) {
 		case ColorScheme.DARK: return 'vs-dark';
-		case ColorScheme.HIGH_CONTRAST: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_DARK: return 'hc-black';
+		case ColorScheme.HIGH_CONTRAST_LIGHT: return 'hc-light';
 		default: return 'vs';
 	}
 }

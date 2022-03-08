@@ -6813,7 +6813,8 @@ declare module 'vscode' {
 	export enum ColorThemeKind {
 		Light = 1,
 		Dark = 2,
-		HighContrast = 3
+		HighContrast = 3,
+		HighContrastLight = 4
 	}
 
 	/**
@@ -6822,7 +6823,7 @@ declare module 'vscode' {
 	export interface ColorTheme {
 
 		/**
-		 * The kind of this color theme: light, dark or high contrast.
+		 * The kind of this color theme: light, dark, high contrast dark and high contrast light.
 		 */
 		readonly kind: ColorThemeKind;
 	}
