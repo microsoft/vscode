@@ -401,32 +401,30 @@ interface SuggestController extends IEditorContribution {
 }
 
 
-const _once = new WeakMap<ICodeEditor, IDisposable>();
+let _onlyOnceProvider: languages.CompletionItemProvider | undefined;
+let _onlyOnceSuggestions: languages.CompletionItem[] = [];
 
 export function showSimpleSuggestions(accessor: ServicesAccessor, editor: ICodeEditor, suggestions: languages.CompletionItem[]) {
 
 	const { completionProvider } = accessor.get(ILanguageFeaturesService);
 
-	const _provider = new class implements languages.CompletionItemProvider {
-
-		onlyOnceSuggestions: languages.CompletionItem[] = [];
-
-		provideCompletionItems(): languages.CompletionList {
-			let suggestions = this.onlyOnceSuggestions.slice(0);
-			let result = { suggestions };
-			this.onlyOnceSuggestions.length = 0;
-			dispo.dispose();
-			return result;
-		}
-	};
-
-	const dispo = completionProvider.register('*', _provider);
-	_once.get(editor)?.dispose();
-	_once.set(editor, dispo);
+	if (!_onlyOnceProvider) {
+		_onlyOnceProvider = new class implements languages.CompletionItemProvider {
+			provideCompletionItems(): languages.CompletionList {
+				let suggestions = _onlyOnceSuggestions.slice(0);
+				let result = { suggestions };
+				_onlyOnceSuggestions.length = 0;
+				return result;
+			}
+		};
+		completionProvider.register('*', _onlyOnceProvider);
+	}
 
 	setTimeout(() => {
-		_provider.onlyOnceSuggestions.push(...suggestions);
-		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(new Set<languages.CompletionItemProvider>().add(_provider));
+		_onlyOnceSuggestions.push(...suggestions);
+		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(
+			new Set<languages.CompletionItemProvider>().add(_onlyOnceProvider!)
+		);
 	}, 0);
 }
 
