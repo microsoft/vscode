@@ -36,6 +36,10 @@ import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contr
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IViewsService } from 'vs/workbench/common/views';
+import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 
 export const ID = 'editor.contrib.review';
 
@@ -167,7 +171,9 @@ export class CommentController implements IEditorContribution {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
@@ -399,7 +405,12 @@ export class CommentController implements IEditorContribution {
 
 		}));
 
-		this.beginCompute();
+		this.beginCompute().then(() => {
+			if (this._commentWidgets.length
+				&& (this.configurationService.getValue<ICommentsConfiguration>(COMMENTS_SECTION).openView === 'file')) {
+				this.viewsService.openView(COMMENTS_VIEW_ID);
+			}
+		});
 	}
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | null): void {
@@ -629,6 +640,10 @@ export class CommentController implements IEditorContribution {
 		}
 
 		this._commentWidgets = [];
+	}
+
+	public hasComments(): boolean {
+		return !!this._commentWidgets.length;
 	}
 }
 
