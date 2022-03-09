@@ -79,9 +79,6 @@ class SmartSelectController implements IEditorContribution {
 
 		const selections = this._editor.getSelections();
 		const model = this._editor.getModel();
-		if (!this._languageFeaturesService.selectionRangeProvider.has(model)) {
-			return;
-		}
 
 		if (!this._state) {
 
