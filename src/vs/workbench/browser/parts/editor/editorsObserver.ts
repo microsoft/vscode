@@ -312,7 +312,7 @@ export class EditorsObserver extends Disposable {
 		}
 
 		const limit = this.editorGroupsService.partOptions.limit.value;
-		const ignoreDirtyTab: boolean = this.editorGroupsService.partOptions.limit.ignoreDirtyTab!;
+		const ignoreDirtyTab: boolean = this.editorGroupsService.partOptions.limit.ignoreDirtyTab ? this.editorGroupsService.partOptions.limit.ignoreDirtyTab : false;
 
 		// In editor group
 		if (this.editorGroupsService.partOptions.limit?.perEditorGroup) {
@@ -361,7 +361,6 @@ export class EditorsObserver extends Disposable {
 			return true;
 		});
 		let editorsToCloseCount: number;
-		// Close editors until we reached the limit again
 		if (ignoreDirtyTab === true) {
 			editorsToCloseCount = leastRecentlyClosableEditors.length - limit + 1;
 		} else {
@@ -371,6 +370,7 @@ export class EditorsObserver extends Disposable {
 			return;
 		}
 
+		// Close editors until we reached the limit again
 		const mapGroupToEditorsToClose = new Map<GroupIdentifier, EditorInput[]>();
 		for (const { groupId, editor } of leastRecentlyClosableEditors) {
 			let editorsInGroupToClose = mapGroupToEditorsToClose.get(groupId);
