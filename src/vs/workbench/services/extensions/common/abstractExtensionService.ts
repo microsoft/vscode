@@ -188,6 +188,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		super();
 
 		this._runningLocationClassifier = new ExtensionRunningLocationClassifier(
+			_configurationService,
 			(extension) => this._getExtensionKind(extension),
 			(extensionId, extensionKinds, isInstalledLocally, isInstalledRemotely, preference) => this._pickRunningLocation(extensionId, extensionKinds, isInstalledLocally, isInstalledRemotely, preference)
 		);
@@ -1101,6 +1102,7 @@ class ExtensionInfo {
 
 class ExtensionRunningLocationClassifier {
 	constructor(
+		private readonly configurationService: IConfigurationService,
 		private readonly getExtensionKind: (extensionDescription: IExtensionDescription) => ExtensionKind[],
 		private readonly pickRunningLocation: (extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference) => ExtensionRunningLocation,
 	) {
@@ -1132,6 +1134,7 @@ class ExtensionRunningLocationClassifier {
 		localExtensions.forEach((ext) => collectExtension(ext));
 		remoteExtensions.forEach((ext) => collectExtension(ext));
 
+		const isDedicatedNotebookProcessEnabled = this.configurationService.getValue<boolean>('extensions.experimental.dedicatedNotebookProcess');
 		const runningLocation = new Map<string, ExtensionRunningLocation>();
 		allExtensions.forEach((ext) => {
 			const isInstalledLocally = Boolean(ext.local);
@@ -1147,7 +1150,7 @@ class ExtensionRunningLocationClassifier {
 				preference = ExtensionRunningPreference.Remote;
 			}
 
-			const location = (ext.local?.desc.categories ?? []).indexOf('Notebooks') >= 0 ? ExtensionRunningLocation.LocalNotebookProcess : this.pickRunningLocation(ext.identifier, ext.kind, isInstalledLocally, isInstalledRemotely, preference);
+			const location = isDedicatedNotebookProcessEnabled && (ext.local?.desc.categories ?? []).indexOf('Notebooks') >= 0 ? ExtensionRunningLocation.LocalNotebookProcess : this.pickRunningLocation(ext.identifier, ext.kind, isInstalledLocally, isInstalledRemotely, preference);
 
 			runningLocation.set(ext.key, location);
 		});
