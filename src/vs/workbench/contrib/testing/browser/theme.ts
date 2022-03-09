@@ -73,12 +73,12 @@ export const testMessageSeverityColors: {
 	[TestMessageType.Error]: {
 		decorationForeground: registerColor(
 			'testing.message.error.decorationForeground',
-			{ dark: editorErrorForeground, light: editorErrorForeground, hcDark: editorForeground },
+			{ dark: editorErrorForeground, light: editorErrorForeground, hcDark: editorForeground, hcLight: editorForeground },
 			localize('testing.message.error.decorationForeground', 'Text color of test error messages shown inline in the editor.')
 		),
 		marginBackground: registerColor(
 			'testing.message.error.lineBackground',
-			{ dark: new Color(new RGBA(255, 0, 0, 0.2)), light: new Color(new RGBA(255, 0, 0, 0.2)), hcDark: null },
+			{ dark: new Color(new RGBA(255, 0, 0, 0.2)), light: new Color(new RGBA(255, 0, 0, 0.2)), hcDark: null, hcLight: null },
 			localize('testing.message.error.marginBackground', 'Margin color beside error messages shown inline in the editor.')
 		),
 	},
@@ -90,7 +90,7 @@ export const testMessageSeverityColors: {
 		),
 		marginBackground: registerColor(
 			'testing.message.info.lineBackground',
-			{ dark: null, light: null, hcDark: null },
+			{ dark: null, light: null, hcDark: null, hcLight: null },
 			localize('testing.message.info.marginBackground', 'Margin color beside info messages shown inline in the editor.')
 		),
 	},
