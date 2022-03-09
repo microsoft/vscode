@@ -27,7 +27,7 @@ import { ICommandAction } from 'vs/platform/action/common/action';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { isWindows, isMacintosh, isCI } from 'vs/base/common/platform';
@@ -317,58 +317,83 @@ export class NativeWindow extends Disposable {
 		this.onDidChangePanelPosition(this.layoutService.getPanelPosition());
 
 		// Lifecycle
+		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
 		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
 		this._register(this.lifecycleService.onWillShutdown((e) => this.onWillShutdown(e)));
 	}
 
-	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
-		let message: string;
-		switch (reason) {
-			case ShutdownReason.CLOSE:
-				message = localize('shutdownErrorClose', "An unexpected error prevented the window to close.");
-				break;
-			case ShutdownReason.QUIT:
-				message = localize('shutdownErrorQuit', "An unexpected error prevented the application to quit.");
-				break;
-			case ShutdownReason.RELOAD:
-				message = localize('shutdownErrorReload', "An unexpected error prevented the window to reload.");
-				break;
-			case ShutdownReason.LOAD:
-				message = localize('shutdownErrorLoad', "An unexpected error prevented to change the workspace of the window.");
-				break;
-		}
+	private onBeforeShutdown({ reason }: BeforeShutdownEvent): void {
+		this.progressService.withProgress({
+			location: ProgressLocation.Window, 	// use window progress to not be too annoying about this operation
+			delay: 800,							// delay so that it only appears when operation takes a long time
+			title: this.toShutdownLabel(reason, false),
+		}, () => {
+			return Event.toPromise(Event.any(
+				this.lifecycleService.onWillShutdown, 	// dismiss this dialog when we shutdown
+				this.lifecycleService.onShutdownVeto, 	// or when shutdown was vetoed
+				this.dialogService.onWillShowDialog		// or when a dialog asks for input
+			));
+		});
+	}
 
-		this.dialogService.show(Severity.Error, message, undefined, {
+	private onBeforeShutdownError({ error, reason }: BeforeShutdownErrorEvent): void {
+		this.dialogService.show(Severity.Error, this.toShutdownLabel(reason, true), undefined, {
 			detail: localize('shutdownErrorDetail', "Error: {0}", toErrorMessage(error))
 		});
 	}
 
-	private onWillShutdown({ reason }: WillShutdownEvent): void {
-		let title: string;
-		switch (reason) {
-			case ShutdownReason.CLOSE:
-				title = localize('shutdownTitleClose', "Closing the window is taking longer than expected...");
-				break;
-			case ShutdownReason.QUIT:
-				title = localize('shutdownTitleQuit', "Quitting the application is taking longer than expected...");
-				break;
-			case ShutdownReason.RELOAD:
-				title = localize('shutdownTitleReload', "Reloading the window is taking longer than expected...");
-				break;
-			case ShutdownReason.LOAD:
-				title = localize('shutdownTitleLoad', "Changing the workspace is taking longer than expected...");
-				break;
-		}
-
+	private onWillShutdown({ reason, force }: WillShutdownEvent): void {
 		this.progressService.withProgress({
-			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more interactions now
-			delay: 800,							// delay notification so that it only appears when operation takes a long time
-			cancellable: false,					// do not allow to cancel
-			sticky: true,						// do not allow to dismiss
-			title
+			location: ProgressLocation.Dialog, 				// use a dialog to prevent the user from making any more interactions now
+			buttons: [this.toForceShutdownLabel(reason)],	// allow to force shutdown anyway
+			delay: 800,										// delay so that it only appears when operation takes a long time
+			cancellable: false,								// do not allow to cancel
+			sticky: true,									// do not allow to dismiss
+			title: this.toShutdownLabel(reason, false)
 		}, () => {
 			return Event.toPromise(this.lifecycleService.onDidShutdown); // dismiss this dialog when we actually shutdown
+		}, () => {
+			force();
 		});
+	}
+
+	private toShutdownLabel(reason: ShutdownReason, isError: boolean): string {
+		if (isError) {
+			switch (reason) {
+				case ShutdownReason.CLOSE:
+					return localize('shutdownErrorClose', "An unexpected error prevented the window to close");
+				case ShutdownReason.QUIT:
+					return localize('shutdownErrorQuit', "An unexpected error prevented the application to quit");
+				case ShutdownReason.RELOAD:
+					return localize('shutdownErrorReload', "An unexpected error prevented the window to reload");
+				case ShutdownReason.LOAD:
+					return localize('shutdownErrorLoad', "An unexpected error prevented to change the workspace");
+			}
+		}
+
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				return localize('shutdownTitleClose', "Closing the window is taking longer than expected...");
+			case ShutdownReason.QUIT:
+				return localize('shutdownTitleQuit', "Quitting the application is taking longer than expected...");
+			case ShutdownReason.RELOAD:
+				return localize('shutdownTitleReload', "Reloading the window is taking longer than expected...");
+			case ShutdownReason.LOAD:
+				return localize('shutdownTitleLoad', "Changing the workspace is taking longer than expected...");
+		}
+	}
+
+	private toForceShutdownLabel(reason: ShutdownReason): string {
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				return localize('shutdownForceClose', "Close Anyway");
+			case ShutdownReason.QUIT:
+				return localize('shutdownForceQuit', "Quit Anyway");
+			case ShutdownReason.RELOAD:
+				return localize('shutdownForceReload', "Reload Anyway");
+			case ShutdownReason.LOAD:
+				return localize('shutdownForceLoad', "Change Anyway");
+		}
 	}
 
 	private onWindowResize(e: UIEvent, retry: boolean): void {

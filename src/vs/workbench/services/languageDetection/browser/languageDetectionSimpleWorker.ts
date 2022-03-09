@@ -9,7 +9,7 @@ import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 
-type RegexpModel = { detect: (inp: string, potentialLangs: string[]) => string | undefined };
+type RegexpModel = { detect: (inp: string, langBiases: Record<string, number>) => string | undefined };
 
 /**
  * Called on the worker side
@@ -34,27 +34,50 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 	private _modelOperations: ModelOperations | undefined;
 	private _loadFailed: boolean = false;
 
-	public async detectLanguage(uri: string, userPreferredLanguages: string[]): Promise<string | undefined> {
+	public async detectLanguage(uri: string, langBiases: Record<string, number> | undefined, preferHistory: boolean): Promise<string | undefined> {
 		const languages: string[] = [];
 		const confidences: number[] = [];
 		const stopWatch = new StopWatch(true);
 		const documentTextSample = this.getTextForDetection(uri);
 		if (!documentTextSample) { return; }
 
-		for await (const language of this.detectLanguagesImpl(documentTextSample)) {
-			languages.push(language.languageId);
-			confidences.push(language.confidence);
-		}
-		stopWatch.stop();
+		const neuralResolver = async () => {
+			for await (const language of this.detectLanguagesImpl(documentTextSample)) {
+				languages.push(language.languageId);
+				confidences.push(language.confidence);
+			}
+			stopWatch.stop();
 
-		if (languages.length) {
-			this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
-			return languages[0];
-		}
+			if (languages.length) {
+				this._host.fhr('sendTelemetryEvent', [languages, confidences, stopWatch.elapsed()]);
+				return languages[0];
+			}
+			return undefined;
+		};
 
-		const regexpDetection = await this.runRegexpModel(documentTextSample, userPreferredLanguages);
-		if (regexpDetection) {
-			return regexpDetection;
+		const historicalResolver = async () => {
+			// only detect when we have at least a line of data
+			if (documentTextSample.length > 20 || documentTextSample.includes('\n')) {
+				if (langBiases) {
+					const regexpDetection = await this.runRegexpModel(documentTextSample, langBiases);
+					if (regexpDetection) {
+						return regexpDetection;
+					}
+				}
+			}
+			return undefined;
+		};
+
+		if (preferHistory) {
+			const history = await historicalResolver();
+			if (history) { return history; }
+			const neural = await neuralResolver();
+			if (neural) { return neural; }
+		} else {
+			const neural = await neuralResolver();
+			if (neural) { return neural; }
+			const history = await historicalResolver();
+			if (history) { return history; }
 		}
 
 		return undefined;
@@ -87,16 +110,16 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			return this._regexpModel;
 		} catch (e) {
 			this._regexpLoadFailed = true;
-			console.warn('error loading language detection model', e);
+			// console.warn('error loading language detection model', e);
 			return;
 		}
 	}
 
-	private async runRegexpModel(content: string, userPreferredLanguages: string[]): Promise<string | undefined> {
+	private async runRegexpModel(content: string, langBiases: Record<string, number>): Promise<string | undefined> {
 		const regexpModel = await this.getRegexpModel();
 		if (!regexpModel) { return; }
 
-		const detected = regexpModel.detect(content, userPreferredLanguages);
+		const detected = regexpModel.detect(content, langBiases);
 		return detected;
 	}
 

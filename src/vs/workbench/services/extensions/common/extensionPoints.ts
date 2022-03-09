@@ -468,6 +468,12 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 				return false;
 			}
 		}
+		if (typeof extensionDescription.extensionKind !== 'undefined') {
+			if (typeof extensionDescription.main === 'undefined') {
+				notices.push(nls.localize('extensionDescription.extensionKind', "property `{0}` can be defined only if property `main` is also defined.", 'extensionKind'));
+				// not a failure case
+			}
+		}
 		if (typeof extensionDescription.main !== 'undefined') {
 			if (typeof extensionDescription.main !== 'string') {
 				notices.push(nls.localize('extensionDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main'));

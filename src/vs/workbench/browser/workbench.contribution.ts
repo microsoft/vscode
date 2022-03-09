@@ -99,14 +99,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('workbench.editor.languageDetection', "Controls whether the language in a text editor is automatically detected unless the language has been explicitly set by the language picker. This can also be scoped by language so you can specify which languages you do not want to be switched off of. This is useful for languages like Markdown that often contain other languages that might trick language detection into thinking it's the embedded language and not Markdown."),
 				scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
-			'workbench.editor.languageDetectionPreferredLanguages': {
-				type: 'array',
-				default: ['cpp', 'csharp', 'css', 'html', 'java', 'javascript', 'json', 'markdown', 'php', 'python', 'typescript', 'yaml',],
-				items: {
-					type: 'string',
-					enum: ['bat', 'c', 'coffeescript', 'cpp', 'csharp', 'css', 'go', 'html', 'java', 'javascript', 'json', 'lua', 'markdown', 'objective-c', 'perl', 'php', 'powershell', 'python', 'r', 'ruby', 'rust', 'scala', 'sh', 'sql', 'swift', 'typescript', 'yaml',],
-				},
-				description: localize('workbench.editor.languageDetectionPreferredLanguages', "Configures languages automatic language detection will prefer to select for a given document. This applies primarily to short documents where there is insufficient data to confidently predict a language."),
+			'workbench.editor.historyBasedLanguageDetection': {
+				type: 'boolean',
+				default: false,
+				tags: ['experimental'],
+				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
@@ -375,15 +372,31 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				// On Mac, the delay is 1500.
 				'default': isMacintosh ? 1500 : 500
 			},
+			'workbench.reduceMotion': {
+				type: 'string',
+				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animations."),
+				'enumDescriptions': [
+					localize('workbench.reduceMotion.on', "Always render with reduced motion."),
+					localize('workbench.reduceMotion.off', "Do not render with reduced motion"),
+					localize('workbench.reduceMotion.auto', "Render with reduced motion based on OS configuration."),
+				],
+				default: 'auto',
+				enum: ['on', 'off', 'auto']
+			},
 			'workbench.experimental.layoutControl.enabled': {
 				'type': 'boolean',
 				'tags': ['experimental'],
 				'default': false,
-				'description': localize('layoutControlEnabled', "Controls whether the layout controls in the custom title bar is enabled."),
+				'markdownDescription': localize({ key: 'layoutControlEnabled', comment: ['{0} is a placeholder for a setting identifier.'] }, "Controls whether the layout controls in the custom title bar is enabled via {0}.", '`#window.titleBarStyle#`'),
 			},
 			'workbench.experimental.layoutControl.type': {
 				'type': 'string',
 				'enum': ['menu', 'toggles', 'both'],
+				'enumDescriptions': [
+					localize('layoutcontrol.type.menu', "Shows a single button with a dropdown of layout options."),
+					localize('layoutcontrol.type.toggles', "Shows several buttons for toggling the visibility of the panels and side bar."),
+					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
+				],
 				'tags': ['experimental'],
 				'default': 'menu',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
@@ -485,8 +498,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription':
 					isMacintosh ?
-						localize('openFilesInNewWindowMac', "Controls whether files should open in a new window. \nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
-						localize('openFilesInNewWindow', "Controls whether files should open in a new window.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
+						localize('openFilesInNewWindowMac', "Controls whether files should open in a new window when using a command line or file dialog.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).") :
+						localize('openFilesInNewWindow', "Controls whether files should open in a new window when using a command line or file dialog.\nNote that there can still be cases where this setting is ignored (e.g. when using the `--new-window` or `--reuse-window` command line option).")
 			},
 			'window.openFoldersInNewWindow': {
 				'type': 'string',
@@ -508,7 +521,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('window.confirmBeforeClose.keyboardOnly', "Only ask for confirmation if a keybinding was detected. Note that detection may not be possible in some cases."),
 					localize('window.confirmBeforeClose.never', "Never explicitly ask for confirmation unless data loss is imminent.")
 				],
-				'default': isWeb && !isStandalone ? 'keyboardOnly' : 'never', // on by default in web, unless PWA
+				'default': isWeb && !isStandalone() ? 'keyboardOnly' : 'never', // on by default in web, unless PWA
 				'description': localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases."),
 				'scope': ConfigurationScope.APPLICATION,
 				'included': isWeb

@@ -9,6 +9,7 @@ import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/exten
 import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
+import { FileAccess } from 'vs/base/common/network';
 
 export interface IExtensionManagementServer {
 	readonly id: string;
@@ -31,6 +32,8 @@ export interface IExtensionManagementServerService {
 	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null;
 	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null;
 }
+
+export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png', require).toString(true);
 
 export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
 export type UninstallExtensionOnServerEvent = IExtensionIdentifier & { server: IExtensionManagementServer };

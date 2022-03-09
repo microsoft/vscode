@@ -183,7 +183,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 
 		// Draggable region that we can manipulate for #52522
-		this.dragRegion = prepend(this.element, $('div.titlebar-drag-region'));
+		this.dragRegion = prepend(this.rootContainer, $('div.titlebar-drag-region'));
 
 		// Window Controls (Native Windows/Linux)
 		if (!isMacintosh && this.windowControls) {
@@ -211,7 +211,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 			}));
 
 			// Resizer
-			this.resizer = append(this.element, $('div.resizer'));
+			this.resizer = append(this.rootContainer, $('div.resizer'));
 
 			this._register(this.layoutService.onDidChangeWindowMaximized(maximized => this.onDidChangeWindowMaximized(maximized)));
 			this.onDidChangeWindowMaximized(this.layoutService.isWindowMaximized());
@@ -224,29 +224,14 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		this.lastLayoutDimensions = dimension;
 
 		if (getTitleBarStyle(this.configurationService) === 'custom') {
-			// Only prevent zooming behavior on macOS or when the menubar is not visible
 			if (isMacintosh || this.currentMenubarVisibility === 'hidden') {
-				(this.title.style as any).zoom = `${1 / getZoomFactor()}`;
-				if (isWindows || isLinux) {
-					if (this.appIcon) {
-						(this.appIcon.style as any).zoom = `${1 / getZoomFactor()}`;
-					}
-				}
-
-				if (this.windowControls) {
-					(this.windowControls.style as any).zoom = `${1 / getZoomFactor()}`;
-				}
+				this.rootContainer.style.height = `${100.0 * getZoomFactor()}%`;
+				this.rootContainer.style.width = `${100.0 * getZoomFactor()}%`;
+				this.rootContainer.style.transform = `scale(${1 / getZoomFactor()})`;
 			} else {
-				(this.title.style as any).zoom = '';
-				if (isWindows || isLinux) {
-					if (this.appIcon) {
-						(this.appIcon.style as any).zoom = '';
-					}
-				}
-
-				if (this.windowControls) {
-					(this.windowControls.style as any).zoom = '';
-				}
+				this.rootContainer.style.height = `100%`;
+				this.rootContainer.style.width = `100%`;
+				this.rootContainer.style.transform = '';
 			}
 
 			runAtThisOrScheduleAtNextAnimationFrame(() => this.adjustTitleMarginToCenter());

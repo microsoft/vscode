@@ -119,6 +119,11 @@ export class ExtensionHostMain {
 		});
 	}
 
+	async asBrowserUri(uri: URI): Promise<URI> {
+		const mainThreadExtensionsProxy = this._rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
+		return URI.revive(await mainThreadExtensionsProxy.$asBrowserUri(uri));
+	}
+
 	terminate(reason: string): void {
 		if (this._isTerminating) {
 			// we are already shutting down...

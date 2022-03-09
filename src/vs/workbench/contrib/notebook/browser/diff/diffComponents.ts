@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DiffElementViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
+import { DiffElementViewModelBase, getFormattedMetadataJSON, getFormattedOutputJSON, OutputComparison, outputEqual, OUTPUT_EDITOR_HEIGHT_MAGIC, PropertyFoldingState, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { CellDiffSideBySideRenderTemplate, CellDiffSingleSideRenderTemplate, DiffSide, DIFF_CELL_MARGIN, INotebookTextDiffEditor, NOTEBOOK_DIFF_CELL_INPUT, NOTEBOOK_DIFF_CELL_PROPERTY, NOTEBOOK_DIFF_CELL_PROPERTY_EXPANDED } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -286,12 +286,13 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected _outputViewContainer?: HTMLElement;
 	protected _outputLeftContainer?: HTMLElement;
 	protected _outputRightContainer?: HTMLElement;
+	protected _outputMetadataContainer?: HTMLElement;
 	protected _outputEmptyElement?: HTMLElement;
 	protected _outputLeftView?: OutputContainer;
 	protected _outputRightView?: OutputContainer;
 	protected _outputEditorDisposeStore!: DisposableStore;
 	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget;
-
+	protected _outputMetadataEditor?: DiffEditorWidget;
 
 	protected _diffEditorContainer!: HTMLElement;
 	protected _diagonalFill?: HTMLElement;
@@ -1398,8 +1399,16 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			this._outputLeftContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-left'));
 			this._outputRightContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-right'));
+			this._outputMetadataContainer = DOM.append(this._outputViewContainer!, DOM.$('.output-view-container-metadata'));
 
-			if (this.cell.checkIfOutputsModified()) {
+			const outputModified = this.cell.checkIfOutputsModified();
+			const outputMetadataChangeOnly = outputModified
+				&& outputModified.kind === OutputComparison.Metadata
+				&& this.cell.original!.outputs.length === 1
+				&& this.cell.modified!.outputs.length === 1
+				&& outputEqual(this.cell.original!.outputs[0], this.cell.modified!.outputs[0]) === OutputComparison.Metadata;
+
+			if (outputModified && !outputMetadataChangeOnly) {
 				const originalOutputRenderListener = this.notebookEditor.onDidDynamicOutputRendered(e => {
 					if (e.cell.uri.toString() === this.cell.original.uri.toString()) {
 						this.notebookEditor.deltaCellOutputContainerClassNames(DiffSide.Original, this.cell.original.id, ['nb-cellDeleted'], []);
@@ -1425,7 +1434,48 @@ export class ModifiedElement extends AbstractElementRenderer {
 			this._outputRightView = this.instantiationService.createInstance(OutputContainer, this.notebookEditor, this.notebookEditor.textModel!, this.cell, this.cell.modified!, DiffSide.Modified, this._outputRightContainer!);
 			this._outputRightView.render();
 			this._register(this._outputRightView);
-			this._decorate();
+
+			if (outputModified && !outputMetadataChangeOnly) {
+				this._decorate();
+			}
+
+			if (outputMetadataChangeOnly) {
+
+				this._outputMetadataContainer.style.top = `${this.cell.layoutInfo.rawOutputHeight}px`;
+				// single output, metadata change, let's render a diff editor for metadata
+				this._outputMetadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputMetadataContainer!, {
+					...fixedDiffEditorOptions,
+					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
+					readOnly: true,
+					ignoreTrimWhitespace: false,
+					automaticLayout: false,
+					dimension: {
+						height: OUTPUT_EDITOR_HEIGHT_MAGIC,
+						width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true)
+					}
+				}, {
+					originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
+					modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()
+				});
+				this._register(this._outputMetadataEditor);
+				const originalOutputMetadataSource = JSON.stringify(this.cell.original!.outputs[0].metadata ?? {}, undefined, '\t');
+				const modifiedOutputMetadataSource = JSON.stringify(this.cell.modified!.outputs[0].metadata ?? {}, undefined, '\t');
+
+				const mode = this.languageService.createById('json');
+				const originalModel = this.modelService.createModel(originalOutputMetadataSource, mode, undefined, true);
+				const modifiedModel = this.modelService.createModel(modifiedOutputMetadataSource, mode, undefined, true);
+
+				this._outputMetadataEditor.setModel({
+					original: originalModel,
+					modified: modifiedModel
+				});
+
+				this.cell.outputMetadataHeight = this._outputMetadataEditor.getContentHeight();
+
+				this._register(this._outputMetadataEditor.onDidContentSizeChange((e) => {
+					this.cell.outputMetadataHeight = e.contentHeight;
+				}));
+			}
 		}
 
 		this._outputViewContainer.style.display = 'block';
@@ -1444,6 +1494,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 
 			this._outputLeftView?.showOutputs();
 			this._outputRightView?.showOutputs();
+			this._outputMetadataEditor?.layout();
 			this._decorate();
 		}
 	}
@@ -1571,6 +1622,12 @@ export class ModifiedElement extends AbstractElementRenderer {
 				if (this._outputEditorContainer) {
 					this._outputEditorContainer.style.height = `${this.cell.layoutInfo.outputTotalHeight}px`;
 					this._outputEditor?.layout();
+				}
+
+				if (this._outputMetadataContainer) {
+					this._outputMetadataContainer.style.height = `${this.cell.layoutInfo.outputMetadataHeight}px`;
+					this._outputMetadataContainer.style.top = `${this.cell.layoutInfo.outputTotalHeight - this.cell.layoutInfo.outputMetadataHeight}px`;
+					this._outputMetadataEditor?.layout();
 				}
 			}
 

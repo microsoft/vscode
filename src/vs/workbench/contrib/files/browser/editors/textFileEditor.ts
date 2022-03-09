@@ -10,7 +10,7 @@ import { toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorOpenContext, EditorInputCapabilities, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -33,6 +33,7 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * An implementation of editor for file system resources.
@@ -57,7 +58,8 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
@@ -140,16 +142,11 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 			textEditor.setModel(textFileModel.textEditorModel);
 
 			// Restore view state (unless provided by options)
-			if (!options?.viewState) {
+			if (!isTextEditorViewState(options?.viewState)) {
 				const editorViewState = this.loadEditorViewState(input, context);
 				if (editorViewState) {
 					if (options?.selection) {
-						// If we have a selection, make sure to not
-						// restore any selection from the view state
-						// to ensure the right selection change event
-						// is fired and we avoid changing selections
-						// twice.
-						editorViewState.cursorState = [];
+						editorViewState.cursorState = []; // prevent duplicate selections via options
 					}
 
 					textEditor.restoreViewState(editorViewState);
@@ -215,18 +212,29 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 
-		// Mark file input for forced binary opening
-		input.setForceOpenAsBinary();
-
-		// Open in group
-		(this.group ?? this.editorGroupService.activeGroup).openEditor(input, {
+		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.editor.defaultBinaryEditor');
+		const groupToOpen = this.group ?? this.editorGroupService.activeGroup;
+		const editorOptions = {
 			...options,
 			// Make sure to not steal away the currently active group
 			// because we are triggering another openEditor() call
 			// and do not control the initial intent that resulted
 			// in us now opening as binary.
 			activation: EditorActivation.PRESERVE
-		});
+		};
+
+		// If we the user setting specifies a default binary editor we use that.
+		if (defaultBinaryEditor && defaultBinaryEditor !== '') {
+			this.editorService.replaceEditors([{
+				editor: input,
+				replacement: { resource: input.resource, options: { ...editorOptions, override: defaultBinaryEditor } }
+			}], groupToOpen);
+		} else {
+			// Mark file input for forced binary opening
+			input.setForceOpenAsBinary();
+			// Open in group
+			groupToOpen.openEditor(input, editorOptions);
+		}
 	}
 
 	private async openAsFolder(input: FileEditorInput): Promise<void> {

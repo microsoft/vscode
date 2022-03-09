@@ -9,7 +9,7 @@ import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { isIOS, OS } from 'vs/base/common/platform';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
+import { ToggleActionViewItem } from 'vs/base/browser/ui/toggle/toggle';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction, Action, Separator } from 'vs/base/common/actions';
@@ -35,7 +35,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { attachStylerCallback, attachInputBoxStyler, attachCheckboxStyler, attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback, attachInputBoxStyler, attachToggleStyler, attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -57,7 +57,7 @@ type KeybindingEditorActionClassification = {
 
 const $ = DOM.$;
 
-class ThemableCheckboxActionViewItem extends CheckboxActionViewItem {
+class ThemableToggleActionViewItem extends ToggleActionViewItem {
 
 	constructor(context: any, action: IAction, options: IActionViewItemOptions, private readonly themeService: IThemeService) {
 		super(context, action, options);
@@ -65,7 +65,7 @@ class ThemableCheckboxActionViewItem extends CheckboxActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
-		this._register(attachCheckboxStyler(this.checkbox, this.themeService));
+		this._register(attachToggleStyler(this.toggle, this.themeService));
 	}
 }
 
@@ -375,7 +375,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const toolBar = this._register(new ToolBar(this.actionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === this.sortByPrecedenceAction.id || action.id === this.recordKeysAction.id) {
-					return new ThemableCheckboxActionViewItem(null, action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel() }, this.themeService);
+					return new ThemableToggleActionViewItem(null, action, { keybinding: this.keybindingsService.lookupKeybinding(action.id)?.getLabel() }, this.themeService);
 				}
 				return undefined;
 			},

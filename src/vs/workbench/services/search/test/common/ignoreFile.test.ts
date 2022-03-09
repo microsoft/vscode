@@ -477,7 +477,7 @@ suite('Parsing .gitignore files', () => {
 		});
 
 		runTest({
-			pattern: `[._]*.s[a-w][a-z]
+			pattern: `[._]*s[a-w][a-z]
 			[._]s[a-w][a-z]
 			*.un~
 			*~`,

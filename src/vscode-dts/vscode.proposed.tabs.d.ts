@@ -8,10 +8,10 @@ declare module 'vscode' {
 	// https://github.com/Microsoft/vscode/issues/15178
 
 	export enum TabKind {
-		SINGULAR = 0,
-		DIFF = 1,
-		SIDEBYSIDE = 2,
-		OTHER = 3
+		Singular = 0,
+		Diff = 1,
+		SidebySide = 2,
+		Other = 3
 	}
 
 	/**
@@ -35,20 +35,20 @@ declare module 'vscode' {
 		readonly resource: Uri | undefined;
 
 		/**
-		 * The identifier of the view contained in the tab
+		 * The type of view contained in the tab
 		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
-		readonly viewId: string | undefined;
+		readonly viewType: string | undefined;
 
 		/**
 		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
+		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
 		 * always be at index 0.
 		 */
-		readonly additionalResourcesAndViewIds: readonly {
+		readonly additionalResourcesAndViewTypes: readonly {
 			readonly resource: Uri | undefined;
-			readonly viewId: string | undefined;
+			readonly viewType: string | undefined;
 		}[];
 
 		/**
@@ -61,6 +61,11 @@ declare module 'vscode' {
 		 * Whether or not the dirty indicator is present on the tab
 		 */
 		readonly isDirty: boolean;
+
+		/**
+		 * Whether or not the tab is pinned
+		 */
+		readonly isPinned: boolean;
 
 		/**
 		 * Indicates the type of tab it is.
@@ -94,13 +99,24 @@ declare module 'vscode' {
 		/**
 		 * All the groups within the group container
 		 */
+		// TODO@API rename to groups
 		readonly all: TabGroup[];
+
+		/**
+		 * The currently active group
+		 */
+		readonly activeTabGroup: TabGroup | undefined;
 
 		/**
 		 * An {@link Event} which fires when a group changes.
 		 */
 		onDidChangeTabGroup: Event<void>;
 
+		/**
+		 * An {@link Event} which fires when the active group changes.
+		 * Whether it be which group is active or its properties.
+		 */
+		onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 	}
 
 	interface TabGroup {

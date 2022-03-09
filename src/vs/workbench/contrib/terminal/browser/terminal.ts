@@ -304,7 +304,8 @@ export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalF
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;
 	/** Fires when a group is created, disposed of, or shown (in the case of a background group). */
 	readonly onDidChangeGroups: Event<void>;
-
+	/** Fires when the panel has been shown and expanded, so has non-zero dimensions. */
+	readonly onDidShow: Event<void>;
 	readonly onDidChangePanelOrientation: Event<Orientation>;
 
 	createGroup(shellLaunchConfig?: IShellLaunchConfig): ITerminalGroup;
@@ -471,6 +472,11 @@ export interface ITerminalInstance {
 	 * Whether the process communication channel has been disconnected.
 	 */
 	readonly isDisconnected: boolean;
+
+	/*
+	 * Whether this terminal has been disposed of
+	 */
+	readonly isDisposed: boolean;
 
 	/**
 	 * Whether the terminal's pty is hosted on a remote.
@@ -831,7 +837,7 @@ export interface ITerminalInstance {
 
 	/**
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
-	 * re-run it in the active terminal.
+	 * rerun it in the active terminal.
 	 */
 	runRecent(type: 'command' | 'cwd'): Promise<void>;
 
@@ -890,6 +896,11 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
+
+	/**
+	 * Clears decorations - for example, when shell integration is disabled.
+	 */
+	clearDecorations(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

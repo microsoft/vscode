@@ -7,14 +7,11 @@ import * as dom from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Command } from 'vs/editor/common/languages';
-import { InlayHintItem } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
+import { InlayHintItem, asCommandLink } from 'vs/editor/contrib/inlayHints/browser/inlayHints';
 import { InlayHintsController } from 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
@@ -122,7 +119,7 @@ export class InlayHintsAccessibility implements IEditorContribution {
 				for (let part of label) {
 					if (part.command) {
 						const link = this._instaService.createInstance(Link, em,
-							{ href: InlayHintsAccessibility._asCommandLink(part.command), label: part.label, title: part.command.title },
+							{ href: asCommandLink(part.command), label: part.label, title: part.command.title },
 							undefined
 						);
 						this._sessionDispoosables.add(link);
@@ -150,13 +147,6 @@ export class InlayHintsAccessibility implements IEditorContribution {
 		}));
 	}
 
-	private static _asCommandLink(command: Command): string {
-		return URI.from({
-			scheme: Schemas.command,
-			path: command.id,
-			query: encodeURIComponent(JSON.stringify(command.arguments))
-		}).toString();
-	}
 
 
 	startInlayHintsReading(): void {

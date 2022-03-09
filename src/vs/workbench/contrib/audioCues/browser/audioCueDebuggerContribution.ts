@@ -20,7 +20,7 @@ export class AudioCueLineDebuggerContribution
 		super();
 
 		this._register(autorunWithStore((reader, store) => {
-			if (!audioCueService.isEnabled(AudioCue.debuggerStoppedOnBreakpoint).read(reader)) {
+			if (!audioCueService.isEnabled(AudioCue.onDebugBreak).read(reader)) {
 				return;
 			}
 
@@ -56,7 +56,7 @@ export class AudioCueLineDebuggerContribution
 			const stoppedDetails = session.getStoppedDetails();
 			const BREAKPOINT_STOP_REASON = 'breakpoint';
 			if (stoppedDetails && stoppedDetails.reason === BREAKPOINT_STOP_REASON) {
-				this.audioCueService.playAudioCue(AudioCue.debuggerStoppedOnBreakpoint);
+				this.audioCueService.playAudioCue(AudioCue.onDebugBreak);
 			}
 		});
 

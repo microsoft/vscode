@@ -29,10 +29,11 @@ import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Mimes } from 'vs/base/common/mime';
 import { LanguageDetectionService } from 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 suite('EditorModel', () => {
 
@@ -57,6 +58,7 @@ suite('EditorModel', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(IUndoRedoService, undoRedoService);
+		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
 

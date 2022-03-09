@@ -13,7 +13,7 @@ const rootDir = path.resolve(__dirname, '..', '..');
 function runProcess(command, args = []) {
     return new Promise((resolve, reject) => {
         const child = (0, child_process_1.spawn)(command, args, { cwd: rootDir, stdio: 'inherit', env: process.env });
-        child.on('exit', err => !err ? resolve() : process.exit(err !== null && err !== void 0 ? err : 1));
+        child.on('exit', err => !err ? resolve() : process.exit(err ?? 1));
         child.on('error', reject);
     });
 }
@@ -22,7 +22,7 @@ async function exists(subdir) {
         await fs_1.promises.stat(path.join(rootDir, subdir));
         return true;
     }
-    catch (_a) {
+    catch {
         return false;
     }
 }

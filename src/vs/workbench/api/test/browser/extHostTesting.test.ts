@@ -473,7 +473,7 @@ suite('ExtHost Testing', () => {
 			cts = new CancellationTokenSource();
 			c = new TestRunCoordinator(proxy);
 
-			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
+			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
 			await single.expand(single.root.id, Infinity);
 			single.collectDiff();
@@ -527,7 +527,7 @@ suite('ExtHost Testing', () => {
 					controllerId: 'ctrl',
 					id: tracker.id,
 					include: [single.root.id],
-					exclude: ['id-b'],
+					exclude: [new TestId(['ctrlId', 'id-b']).toString()],
 					persist: false,
 				}]
 			]);

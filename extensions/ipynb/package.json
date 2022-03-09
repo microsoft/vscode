@@ -32,6 +32,10 @@
 			{
 				"command": "ipynb.newUntitledIpynb",
 				"title": "Jupyter Notebook"
+			},
+			{
+				"command": "ipynb.openIpynbInNotebookEditor",
+				"title": "Open ipynb file in notebook editor"
 			}
 		],
 		"notebooks": [
@@ -52,6 +56,16 @@
 					"command": "ipynb.newUntitledIpynb",
 					"when": "!jupyterEnabled"
 				}
+			],
+			"commandPalette": [
+				{
+					"command": "ipynb.newUntitledIpynb",
+					"when": "false"
+				},
+				{
+					"command": "ipynb.openIpynbInNotebookEditor",
+					"when": "false"
+				}
 			]
 		}
 	},
@@ -65,7 +79,7 @@
 		"uuid": "^8.3.2"
 	},
 	"devDependencies": {
-		"@jupyterlab/coreutils": "^3.1.0",
+		"@jupyterlab/nbformat": "^3.2.9",
 		"@types/uuid": "^8.3.1"
 	},
 	"repository": {

@@ -36,11 +36,9 @@ interface IAccountUsage {
 	lastUsed: number;
 }
 
-const VSO_ALLOWED_EXTENSIONS = [
+const FIRST_PARTY_ALLOWED_EXTENSIONS = [
 	'github.vscode-pull-request-github',
-	'github.vscode-pull-request-github-insiders',
 	'vscode.git',
-	'ms-vsonline.vsonline',
 	'github.remotehub',
 	'github.remotehub-insiders',
 	'github.codespaces',
@@ -390,11 +388,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 
 		const remoteConnection = this.remoteAgentService.getConnection();
-		const isVSO = remoteConnection !== null
-			? remoteConnection.remoteAuthority.startsWith('vsonline') || remoteConnection.remoteAuthority.startsWith('codespaces')
+		// Right now, this is hardcoded to only happen in Codespaces and on web.
+		// TODO: this should be determined by the embedder so that this logic isn't in core.
+		const allowedAllowedExtensions = remoteConnection !== null
+			? remoteConnection.remoteAuthority.startsWith('codespaces')
 			: isWeb;
 
-		if (isVSO && VSO_ALLOWED_EXTENSIONS.includes(extensionId)) {
+		if (allowedAllowedExtensions && FIRST_PARTY_ALLOWED_EXTENSIONS.includes(extensionId)) {
 			return true;
 		}
 

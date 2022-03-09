@@ -118,7 +118,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		return this.bracketPairsTree.value?.object.getBracketsInRange(range) || [];
 	}
 
-	public findMatchingBracketUp(_bracket: string, _position: IPosition): Range | null {
+	public findMatchingBracketUp(_bracket: string, _position: IPosition, maxDuration?: number): Range | null {
 		const bracket = _bracket.toLowerCase();
 		const position = this.textModel.validatePosition(_position);
 
@@ -135,11 +135,12 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 			return null;
 		}
 
-		return stripBracketSearchCanceled(this._findMatchingBracketUp(data, position, null));
+		return stripBracketSearchCanceled(this._findMatchingBracketUp(data, position, createTimeBasedContinueBracketSearchPredicate(maxDuration)));
 	}
 
-	public matchBracket(position: IPosition): [Range, Range] | null {
-		return this._matchBracket(this.textModel.validatePosition(position));
+	public matchBracket(position: IPosition, maxDuration?: number): [Range, Range] | null {
+		const continueSearchPredicate = createTimeBasedContinueBracketSearchPredicate(maxDuration);
+		return this._matchBracket(this.textModel.validatePosition(position), continueSearchPredicate);
 	}
 
 	private _establishBracketSearchOffsets(position: Position, lineTokens: LineTokens, modeBrackets: RichEditBrackets, tokenIndex: number) {
@@ -175,7 +176,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		return { searchStartOffset, searchEndOffset };
 	}
 
-	private _matchBracket(position: Position): [Range, Range] | null {
+	private _matchBracket(position: Position, continueSearchPredicate: ContinueBracketSearchPredicate): [Range, Range] | null {
 		const lineNumber = position.lineNumber;
 		const lineTokens = this.textModel.getLineTokens(lineNumber);
 		const lineText = this.textModel.getLineContent(lineNumber);
@@ -204,7 +205,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 				// check that we didn't hit a bracket too far away from position
 				if (foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
 					const foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1).toLowerCase();
-					const r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText], null);
+					const r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText], continueSearchPredicate);
 					if (r) {
 						if (r instanceof BracketSearchCanceled) {
 							return null;
@@ -236,7 +237,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 				// check that we didn't hit a bracket too far away from position
 				if (foundBracket && foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
 					const foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1).toLowerCase();
-					const r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText], null);
+					const r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText], continueSearchPredicate);
 					if (r) {
 						if (r instanceof BracketSearchCanceled) {
 							return null;
@@ -602,15 +603,7 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 	}
 
 	public findEnclosingBrackets(_position: IPosition, maxDuration?: number): [Range, Range] | null {
-		let continueSearchPredicate: ContinueBracketSearchPredicate;
-		if (typeof maxDuration === 'undefined') {
-			continueSearchPredicate = null;
-		} else {
-			const startTime = Date.now();
-			continueSearchPredicate = () => {
-				return (Date.now() - startTime <= maxDuration);
-			};
-		}
+		const continueSearchPredicate = createTimeBasedContinueBracketSearchPredicate(maxDuration);
 		const position = this.textModel.validatePosition(_position);
 		const lineCount = this.textModel.getLineCount();
 		const savedCounts = new Map<string, number[]>();
@@ -761,7 +754,18 @@ function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference
 	};
 }
 
-type ContinueBracketSearchPredicate = null | (() => boolean);
+type ContinueBracketSearchPredicate = (() => boolean);
+
+function createTimeBasedContinueBracketSearchPredicate(maxDuration: number | undefined): ContinueBracketSearchPredicate {
+	if (typeof maxDuration === 'undefined') {
+		return () => true;
+	} else {
+		const startTime = Date.now();
+		return () => {
+			return (Date.now() - startTime <= maxDuration);
+		};
+	}
+}
 
 class BracketSearchCanceled {
 	public static INSTANCE = new BracketSearchCanceled();

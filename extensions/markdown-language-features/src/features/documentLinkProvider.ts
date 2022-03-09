@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { MarkdownEngine } from '../markdownEngine';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/links';
-import { dirname } from '../util/path';
 
 const localize = nls.loadMessageBundle();
 
@@ -46,7 +46,7 @@ function parseLink(
 				resourceUri = vscode.Uri.joinPath(root, tempUri.path);
 			}
 		} else {
-			const base = document.uri.with({ path: dirname(document.uri.fsPath) });
+			const base = uri.Utils.dirname(document.uri);
 			resourceUri = vscode.Uri.joinPath(base, tempUri.path);
 		}
 	}
