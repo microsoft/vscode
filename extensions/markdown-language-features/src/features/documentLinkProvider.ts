@@ -104,7 +104,7 @@ export function stripAngleBrackets(link: string) {
 }
 
 const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
-const referenceLinkPattern = /(\[([^\]]+)\])(\[\s*?([^\s\]]*)\])?/g;
+const referenceLinkPattern = /((?<=^|[^\]])\[((?:\\\]|[^\]])+)\])(?:[^\[]|$|\[\s*?([^\s\]]*?)\])/g;
 const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
 const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
@@ -183,13 +183,20 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 		for (const match of text.matchAll(referenceLinkPattern)) {
 			let linkStart: vscode.Position;
 			let linkEnd: vscode.Position;
-			let reference = match[4] || match[2];
-			if (!reference) {
+			let reference = match[3];
+			if (reference) { // [text][ref]
+				const pre = match[1];
+				const offset = (match.index || 0) + pre.length + 1;
+				linkStart = document.positionAt(offset);
+				linkEnd = document.positionAt(offset + reference.length);
+			} else if (match[2]) { // [ref][], [ref]
+				reference = match[2];
+				const offset = (match.index || 0) + 1;
+				linkStart = document.positionAt(offset);
+				linkEnd = document.positionAt(offset + match[2].length);
+			} else {
 				continue;
 			}
-			const offset = (match.index || 0) + 1;
-			linkStart = document.positionAt(offset);
-			linkEnd = document.positionAt(offset + match[2].length);
 
 			try {
 				const link = definitions.get(reference);
