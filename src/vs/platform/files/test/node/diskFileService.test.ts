@@ -1184,23 +1184,48 @@ flakySuite('Disk File Service', function () {
 	});
 
 	async function testCloneFile(): Promise<void> {
-		const source = URI.file(join(testDir, 'index.html'));
+		const source1 = URI.file(join(testDir, 'index.html'));
+		const source1Size = (await service.resolve(source1, { resolveMetadata: true })).size;
 
-		// same path is a no-op
-		await service.cloneFile(source, source);
+		const source2 = URI.file(join(testDir, 'lorem.txt'));
+		const source2Size = (await service.resolve(source2, { resolveMetadata: true })).size;
 
 		const targetParent = URI.file(testDir);
-		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.path)) });
 
-		await service.cloneFile(source, URI.file(target.fsPath));
+		// same path is a no-op
+		await service.cloneFile(source1, source1);
 
-		assert.strictEqual(existsSync(target.fsPath), true);
-		assert.strictEqual(basename(target.fsPath), 'index.html');
+		// simple clone to existing parent folder path
+		const target1 = targetParent.with({ path: posix.join(targetParent.path, `${posix.basename(source1.path)}-clone`) });
 
-		const sourceSize = (await service.resolve(source, { resolveMetadata: true })).size;
-		const targetSize = (await service.resolve(target, { resolveMetadata: true })).size;
+		await service.cloneFile(source1, URI.file(target1.fsPath));
 
-		assert.strictEqual(sourceSize, targetSize);
+		assert.strictEqual(existsSync(target1.fsPath), true);
+		assert.strictEqual(basename(target1.fsPath), 'index.html-clone');
+
+		let target1Size = (await service.resolve(target1, { resolveMetadata: true })).size;
+
+		assert.strictEqual(source1Size, target1Size);
+
+		// clone to same path overwrites
+		await service.cloneFile(source2, URI.file(target1.fsPath));
+
+		target1Size = (await service.resolve(target1, { resolveMetadata: true })).size;
+
+		assert.strictEqual(source2Size, target1Size);
+		assert.notStrictEqual(source1Size, target1Size);
+
+		// clone creates missing folders ad-hoc
+		const target2 = targetParent.with({ path: posix.join(targetParent.path, 'foo', 'bar', `${posix.basename(source1.path)}-clone`) });
+
+		await service.cloneFile(source1, URI.file(target2.fsPath));
+
+		assert.strictEqual(existsSync(target2.fsPath), true);
+		assert.strictEqual(basename(target2.fsPath), 'index.html-clone');
+
+		let target2Size = (await service.resolve(target2, { resolveMetadata: true })).size;
+
+		assert.strictEqual(source1Size, target2Size);
 	}
 
 	test('readFile - small file - default', () => {

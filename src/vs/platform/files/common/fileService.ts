@@ -1008,25 +1008,33 @@ export class FileService extends Disposable implements IFileService {
 		const sourceProvider = await this.withProvider(source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
 
-		// same provider, check for `cloneFile` support or fallback to `copy`
-		if (sourceProvider === targetProvider) {
-			if (hasFileCloneCapability(sourceProvider)) {
-				return sourceProvider.cloneFile(source, target);
-			}
-
-			if (hasFileFolderCopyCapability(sourceProvider)) {
-				return sourceProvider.copy(source, target, { overwrite: true });
-			}
+		if (sourceProvider === targetProvider && this.getExtUri(sourceProvider).providerExtUri.isEqual(source, target)) {
+			return; // return early if paths are equal
 		}
 
-		const { providerExtUri } = this.getExtUri(sourceProvider);
-		if (providerExtUri.isEqual(source, target)) {
-			return; // important to return early to prevent a deadlock with the write queue!
+		// same provider, use `cloneFile` when native support is provided
+		if (sourceProvider === targetProvider && hasFileCloneCapability(sourceProvider)) {
+			return sourceProvider.cloneFile(source, target);
+		}
+
+		// otherwise, either providers are different or there is no native
+		// `cloneFile` support, then we fallback to emulate a clone as best
+		// as we can with the other primitives
+
+		// create parent folders
+		await this.mkdirp(targetProvider, this.getExtUri(targetProvider).providerExtUri.dirname(target));
+
+		// queue on the source to ensure atomic read
+		const sourceWriteQueue = this.writeQueue.queueFor(source, this.getExtUri(sourceProvider).providerExtUri);
+
+		// leverage `copy` method if provided and providers are identical
+		if (sourceProvider === targetProvider && hasFileFolderCopyCapability(sourceProvider)) {
+			return sourceWriteQueue.queue(() => sourceProvider.copy(source, target, { overwrite: true }));
 		}
 
 		// otherwise copy via buffer/unbuffered and use a write queue
 		// on the source to ensure atomic operation as much as possible
-		return this.writeQueue.queueFor(source, this.getExtUri(sourceProvider).providerExtUri).queue(() => this.doCopyFile(sourceProvider, source, targetProvider, target));
+		return sourceWriteQueue.queue(() => this.doCopyFile(sourceProvider, source, targetProvider, target));
 	}
 
 	//#endregion

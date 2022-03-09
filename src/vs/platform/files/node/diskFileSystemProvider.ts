@@ -622,6 +622,10 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	//#region Clone File
 
 	async cloneFile(from: URI, to: URI): Promise<void> {
+		return this.doCloneFile(from, to, false /* optimistically assume parent folders exist */);
+	}
+
+	private async doCloneFile(from: URI, to: URI, mkdir: boolean): Promise<void> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
@@ -645,8 +649,16 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			locks.add(fromLock);
 			locks.add(toLock);
 
+			if (mkdir) {
+				await Promises.mkdir(dirname(toFilePath), { recursive: true });
+			}
+
 			await Promises.copyFile(fromFilePath, toFilePath);
 		} catch (error) {
+			if (error.code === 'ENOENT' && !mkdir) {
+				return this.doCloneFile(from, to, true);
+			}
+
 			throw this.toFileSystemProviderError(error);
 		} finally {
 			locks.dispose();
