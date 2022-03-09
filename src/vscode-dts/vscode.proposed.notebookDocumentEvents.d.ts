@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// https://github.com/microsoft/vscode/issues/144662
+
 declare module 'vscode' {
 
 	export interface NotebookDocumentContentCellChange {
@@ -18,8 +20,17 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookDocumentContentChange {
+		/**
+		 * The range at which cells have been either and or removed.
+		 */
 		readonly range: NotebookRange;
+		/**
+		 * Cells that have been added to the document.
+		 */
 		readonly addedCells: NotebookCell[];
+		/**
+		 * Cells that have been removed from the document.
+		 */
 		readonly removedCells: NotebookCell[];
 	}
 
