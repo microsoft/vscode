@@ -54,6 +54,12 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 	private initReducedMotionListeners(reduceMotionMatcher: MediaQueryList) {
 
+		if (!this._layoutService.hasContainer) {
+			// we can't use `ILayoutService.container` because the application
+			// doesn't have a single container
+			return;
+		}
+
 		this._register(addDisposableListener(reduceMotionMatcher, 'change', () => {
 			this._systemMotionReduced = reduceMotionMatcher.matches;
 			if (this._configMotionReduced === 'auto') {

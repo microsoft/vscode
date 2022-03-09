@@ -340,6 +340,10 @@
 	padding-left: 1px;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-label .codicon {
+	vertical-align: text-top;
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides a.modified-scope {
 	text-decoration: underline;
 	cursor: pointer;

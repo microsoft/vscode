@@ -374,7 +374,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.reduceMotion': {
 				type: 'string',
-				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animated effects."),
+				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animations."),
 				'enumDescriptions': [
 					localize('workbench.reduceMotion.on', "Always render with reduced motion."),
 					localize('workbench.reduceMotion.off', "Do not render with reduced motion"),

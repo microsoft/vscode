@@ -15,14 +15,14 @@ if (outputRootIndex >= 0) {
 	outputRoot = args[outputRootIndex + 1];
 }
 
-const outDir = path.join(outputRoot, 'renderer-out');
+const outDir = path.join(outputRoot, 'notebook-out');
 
 esbuild.build({
 	entryPoints: [
-		path.join(__dirname, 'src', 'index.ts'),
+		path.join(__dirname, 'notebook', 'index.ts'),
 	],
 	bundle: true,
-	minify: false,
+	minify: true,
 	sourcemap: false,
 	format: 'esm',
 	outdir: outDir,

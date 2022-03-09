@@ -99,6 +99,7 @@ declare module 'vscode' {
 		/**
 		 * All the groups within the group container
 		 */
+		// TODO@API rename to groups
 		readonly all: TabGroup[];
 
 		/**

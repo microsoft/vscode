@@ -122,7 +122,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		const domNode = widgetData.domNode;
 
 		if (widgetData.preference === null) {
-			domNode.unsetTop();
+			domNode.setTop('');
 			return;
 		}
 

@@ -692,31 +692,18 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				if (!previousInput && input.length === 1 && this.configurationService.getValue<IFilesConfiguration>().explorer.expandSingleFolderWorkspaces) {
 					await this.tree.expand(input[0]).catch(() => { });
 				}
-				// TODO@jkearl: Hidden & Probably not needed, remove eventaully.
-				const useOldStyle = this.configurationService.getValue<boolean>('explorer.legacyWorkspaceFolderExpandMode');
-				if (useOldStyle) {
-					if (Array.isArray(previousInput) && previousInput.length < input.length) {
-						// Roots added to the explorer -> expand them.
-						await Promise.all(input.slice(previousInput.length).map(async item => {
+				if (Array.isArray(previousInput)) {
+					const previousRoots = new ResourceMap<true>();
+					previousInput.forEach(previousRoot => previousRoots.set(previousRoot.resource, true));
+
+					// Roots added to the explorer -> expand them.
+					await Promise.all(input.map(async item => {
+						if (!previousRoots.has(item.resource)) {
 							try {
 								await this.tree.expand(item);
 							} catch (e) { }
-						}));
-					}
-				} else {
-					if (Array.isArray(previousInput)) {
-						const previousRoots = new ResourceMap<true>();
-						previousInput.forEach(previousRoot => previousRoots.set(previousRoot.resource, true));
-
-						// Roots added to the explorer -> expand them.
-						await Promise.all(input.map(async item => {
-							if (!previousRoots.has(item.resource)) {
-								try {
-									await this.tree.expand(item);
-								} catch (e) { }
-							}
-						}));
-					}
+						}
+					}));
 				}
 			}
 			if (initialInputSetup) {

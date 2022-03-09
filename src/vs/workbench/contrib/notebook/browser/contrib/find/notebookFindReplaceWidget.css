@@ -16,6 +16,10 @@
 	visibility: hidden;
 }
 
+.monaco-workbench.reduce-motion .simple-fr-find-part-wrapper {
+	transition: top 0ms linear;
+}
+
 .monaco-workbench .notebookOverlay .simple-fr-find-part-wrapper.visible {
 	z-index: 100;
 }
