@@ -18,7 +18,7 @@ import {
 	IExtensionsControlManifest, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, TargetPlatform
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, ExtensionKey, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -1123,7 +1123,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const toUpdate = this.outdated.filter(e =>
-			!this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)) &&
+			!this.isAutoUpdateIgnored(new ExtensionKey(e.identifier, e.version)) &&
 			(this.getAutoUpdateValue() === true || (e.local && this.extensionEnablementService.isEnabled(e.local)))
 		);
 
@@ -1217,7 +1217,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			installOptions.installGivenVersion = true;
 			const installed = await this.installFromGallery(extension, gallery, installOptions);
 			if (extension.latestVersion !== version) {
-				this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(gallery.identifier, version));
+				this.ignoreAutoUpdate(new ExtensionKey(gallery.identifier, version));
 			}
 			return installed;
 		}, gallery.displayName);
@@ -1288,7 +1288,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const { identifier } = await this.extensionManagementService.install(vsix, installOptions);
 
 		if (existingExtension && existingExtension.latestVersion !== manifest.version) {
-			this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(identifier, manifest.version));
+			this.ignoreAutoUpdate(new ExtensionKey(identifier, manifest.version));
 		}
 
 		return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
@@ -1529,18 +1529,18 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.storageService.store('extensions.ignoredAutoUpdateExtension', JSON.stringify(this._ignoredAutoUpdateExtensions), StorageScope.GLOBAL, StorageTarget.MACHINE);
 	}
 
-	private ignoreAutoUpdate(identifierWithVersion: ExtensionIdentifierWithVersion): void {
-		if (!this.isAutoUpdateIgnored(identifierWithVersion)) {
-			this.ignoredAutoUpdateExtensions = [...this.ignoredAutoUpdateExtensions, identifierWithVersion.key()];
+	private ignoreAutoUpdate(extensionKey: ExtensionKey): void {
+		if (!this.isAutoUpdateIgnored(extensionKey)) {
+			this.ignoredAutoUpdateExtensions = [...this.ignoredAutoUpdateExtensions, extensionKey.toString()];
 		}
 	}
 
-	private isAutoUpdateIgnored(identifierWithVersion: ExtensionIdentifierWithVersion): boolean {
-		return this.ignoredAutoUpdateExtensions.indexOf(identifierWithVersion.key()) !== -1;
+	private isAutoUpdateIgnored(extensionKey: ExtensionKey): boolean {
+		return this.ignoredAutoUpdateExtensions.indexOf(extensionKey.toString()) !== -1;
 	}
 
 	private resetIgnoreAutoUpdateExtensions(): void {
-		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => !!local.local && new ExtensionIdentifierWithVersion(local.identifier, local.version).key() === extensionId));
+		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => !!local.local && new ExtensionKey(local.identifier, local.version).toString() === extensionId));
 	}
 
 }

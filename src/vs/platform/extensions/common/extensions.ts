@@ -6,6 +6,7 @@
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
+import { TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
@@ -355,6 +356,7 @@ export class ExtensionIdentifier {
 export interface IExtensionDescription extends IExtensionManifest {
 	readonly identifier: ExtensionIdentifier;
 	readonly uuid?: string;
+	readonly targetPlatform?: TargetPlatform;
 	readonly isBuiltin: boolean;
 	readonly isUserBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;
