@@ -647,7 +647,7 @@ export interface ITerminalInstance {
 	hasSelection(): boolean;
 
 	/**
-	 * Copies the terminal selection to the clipboardg.
+	 * Copies the terminal selection to the clipboard.
 	 */
 	copySelection(asHtml?: boolean): Promise<void>;
 
