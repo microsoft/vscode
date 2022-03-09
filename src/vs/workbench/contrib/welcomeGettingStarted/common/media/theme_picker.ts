@@ -20,6 +20,10 @@ export default () => `
 		<img width="150" src="./monokai.png"/>
 		${escape(localize('HighContrast', "High Contrast"))}
 	</checkbox>
+	<checkbox when-checked="setTheme:Default High Contrast Light" checked-on="config.workbench.colorTheme == 'Default High Contrast Light'">
+		<img width="150" src="./monokai.png"/>
+		${escape(localize('HighContrast Light', "High Contrast Light"))}
+	</checkbox>
 </checklist>
 <checkbox when-checked="command:workbench.action.selectTheme" checked-on="false">
 	${escape(localize('seeMore', "See More Themes..."))}

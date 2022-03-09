@@ -18,8 +18,6 @@ export const VS_DARK_THEME = 'vs-dark';
 export const VS_HC_THEME = 'hc-black';
 export const VS_HC_LIGHT_THEME = 'hc-light';
 
-export const HC_THEME_ID = 'Default High Contrast';
-
 export const THEME_SCOPE_OPEN_PAREN = '[';
 export const THEME_SCOPE_CLOSE_PAREN = ']';
 export const THEME_SCOPE_WILDCARD = '*';
@@ -36,7 +34,8 @@ export enum ThemeSettings {
 
 	PREFERRED_DARK_THEME = 'workbench.preferredDarkColorTheme',
 	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
-	PREFERRED_HC_THEME = 'workbench.preferredHighContrastColorTheme',
+	PREFERRED_HC_DARK_THEME = 'workbench.preferredHighContrastColorTheme', /* id kept for compatibility reasons */
+	PREFERRED_HC_LIGHT_THEME = 'workbench.preferredHighContrastLightColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
 	DETECT_HC = 'window.autoDetectHighContrast'
 }

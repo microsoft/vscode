@@ -243,20 +243,31 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private installConfigurationListener() {
 		this.configurationService.onDidChangeConfiguration(e => {
+			let lazyPreferredColorScheme: ColorScheme | undefined | null = null;
+			const getPreferredColorScheme = () => {
+				if (lazyPreferredColorScheme === null) {
+					lazyPreferredColorScheme = this.getPreferredColorScheme();
+				}
+				return lazyPreferredColorScheme;
+			};
+
 			if (e.affectsConfiguration(ThemeSettings.COLOR_THEME)) {
 				this.restoreColorTheme();
 			}
 			if (e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME) || e.affectsConfiguration(ThemeSettings.DETECT_HC)) {
 				this.handlePreferredSchemeUpdated();
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_THEME) && this.getPreferredColorScheme() === ColorScheme.DARK) {
+			if (e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_THEME) && getPreferredColorScheme() === ColorScheme.DARK) {
 				this.applyPreferredColorTheme(ColorScheme.DARK);
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_THEME) && this.getPreferredColorScheme() === ColorScheme.LIGHT) {
+			if (e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_THEME) && getPreferredColorScheme() === ColorScheme.LIGHT) {
 				this.applyPreferredColorTheme(ColorScheme.LIGHT);
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_THEME) && this.getPreferredColorScheme() === ColorScheme.HIGH_CONTRAST_DARK) {
+			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_DARK_THEME) && getPreferredColorScheme() === ColorScheme.HIGH_CONTRAST_DARK) {
 				this.applyPreferredColorTheme(ColorScheme.HIGH_CONTRAST_DARK);
+			}
+			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_LIGHT_THEME) && getPreferredColorScheme() === ColorScheme.HIGH_CONTRAST_LIGHT) {
+				this.applyPreferredColorTheme(ColorScheme.HIGH_CONTRAST_LIGHT);
 			}
 			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)) {
 				this.restoreFileIconTheme();
@@ -392,7 +403,14 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private async applyPreferredColorTheme(type: ColorScheme): Promise<IWorkbenchColorTheme | null> {
-		const settingId = type === ColorScheme.DARK ? ThemeSettings.PREFERRED_DARK_THEME : type === ColorScheme.LIGHT ? ThemeSettings.PREFERRED_LIGHT_THEME : ThemeSettings.PREFERRED_HC_THEME;
+		let settingId: ThemeSettings;
+		switch (type) {
+			case ColorScheme.LIGHT: settingId = ThemeSettings.PREFERRED_LIGHT_THEME; break;
+			case ColorScheme.HIGH_CONTRAST_DARK: settingId = ThemeSettings.PREFERRED_HC_DARK_THEME; break;
+			case ColorScheme.HIGH_CONTRAST_LIGHT: settingId = ThemeSettings.PREFERRED_HC_LIGHT_THEME; break;
+			default:
+				settingId = ThemeSettings.PREFERRED_DARK_THEME;
+		}
 		const themeSettingId = this.configurationService.getValue(settingId);
 		if (themeSettingId && typeof themeSettingId === 'string') {
 			const theme = this.colorThemeRegistry.findThemeBySettingsId(themeSettingId, undefined);

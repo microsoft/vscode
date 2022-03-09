@@ -1,7 +1,6 @@
 {
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light High Contrast",
-	"type": "hc",
 	"colors": {
 		"contrastActiveBorder": "#0F4A85",
 		"contrastBorder": "#0F4A85",

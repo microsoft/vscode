@@ -781,12 +781,18 @@ let defaultThemeColors: { [baseTheme: string]: ITextMateThemingRule[] } = {
 		{ scope: 'token.error-token', settings: { foreground: '#f44747' } },
 		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
 	],
-	'hc': [
+	'hcLight': [
+		{ scope: 'token.info-token', settings: { foreground: '#316bcd' } },
+		{ scope: 'token.warn-token', settings: { foreground: '#cd9731' } },
+		{ scope: 'token.error-token', settings: { foreground: '#cd3131' } },
+		{ scope: 'token.debug-token', settings: { foreground: '#800080' } }
+	],
+	'hcDark': [
 		{ scope: 'token.info-token', settings: { foreground: '#6796e6' } },
 		{ scope: 'token.warn-token', settings: { foreground: '#008000' } },
 		{ scope: 'token.error-token', settings: { foreground: '#FF0000' } },
 		{ scope: 'token.debug-token', settings: { foreground: '#b267e6' } }
-	],
+	]
 };
 
 const noMatch = (_scope: ProbeScope) => -1;
