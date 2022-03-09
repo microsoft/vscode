@@ -2113,6 +2113,20 @@ export function registerTerminalActions() {
 				await accessor.get(ITerminalService).activeInstance?.copySelection();
 			}
 		});
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: TerminalCommandId.CopySelectionAsHtml,
+					title: { value: localize('workbench.action.terminal.copySelectionAsHtml', "Copy Selection as HTML"), original: 'Copy Selection as HTML' },
+					f1: true,
+					category,
+					precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.textSelected)
+				});
+			}
+			async run(accessor: ServicesAccessor) {
+				await accessor.get(ITerminalService).activeInstance?.copySelection(true);
+			}
+		});
 	}
 
 	if (BrowserFeatures.clipboard.readText) {

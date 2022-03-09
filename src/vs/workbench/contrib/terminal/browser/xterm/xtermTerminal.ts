@@ -33,6 +33,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
+import { SerializeAddon } from 'xterm-addon-serialize';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -64,6 +65,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
+	private _serializeAddon?: SerializeAddon;
 
 	private readonly _onDidRequestRunCommand = new Emitter<string>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -165,6 +167,21 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, capabilities);
 		this._decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
 		this.raw.loadAddon(this._decorationAddon);
+	}
+
+	copyAsHtml(): void {
+		if (!this._serializeAddon) {
+			this._serializeAddon = this._instantiationService.createInstance(SerializeAddon);
+			this.raw.loadAddon(this._serializeAddon);
+		}
+		const selectionAsHtml = this._serializeAddon.serializeAsHTML({ onlySelection: true });
+		function listener(e: any) {
+			e.clipboardData.setData('text/html', selectionAsHtml);
+			e.preventDefault();
+		}
+		document.addEventListener('copy', listener);
+		document.execCommand('copy');
+		document.removeEventListener('copy', listener);
 	}
 
 	attachToElement(container: HTMLElement): HTMLElement {

@@ -1126,10 +1126,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm ? this.xterm.raw.hasSelection() : false;
 	}
 
-	async copySelection(): Promise<void> {
+	async copySelection(asHTML?: boolean): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
 		if (this.hasSelection()) {
-			await this._clipboardService.writeText(xterm.raw.getSelection());
+			asHTML ? xterm.copyAsHtml() : await this._clipboardService.writeText(xterm.raw.getSelection());
 		} else {
 			this._notificationService.warn(nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
 		}
