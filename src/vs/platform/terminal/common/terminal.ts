@@ -111,13 +111,23 @@ export const enum TerminalSettingId {
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
+export const enum PosixShellType {
+	PowerShell = 'pwsh',
+	Bash = 'bash',
+	Fish = 'fish',
+	Sh = 'sh',
+	Csh = 'csh',
+	Ksh = 'ksh',
+	Zsh = 'zsh',
+}
 export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
 	Wsl = 'wsl',
 	GitBash = 'gitbash'
 }
-export type TerminalShellType = WindowsShellType | undefined;
+export type TerminalShellType = PosixShellType | WindowsShellType | undefined;
+
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
 	terminal: T;
