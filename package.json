@@ -61,7 +61,6 @@
   "dependencies": {
     "@microsoft/applicationinsights-web": "^2.6.4",
     "@parcel/watcher": "2.0.5",
-    "@vscode/debugprotocol": "1.54.0",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/ripgrep": "^1.14.1",
     "@vscode/sqlite3": "4.0.12",
