@@ -24,6 +24,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Command } from 'vs/editor/common/languages';
 import { TreeDataTransferConverter, TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
 import { ITreeViewsService, TreeviewsService } from 'vs/workbench/services/views/common/treeViewsService';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 type TreeItemHandle = string;
 
@@ -113,6 +114,14 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			},
 			set description(description: string | undefined) {
 				treeView.description = description;
+			},
+			get badge() {
+				checkProposedApiEnabled(extension, 'badges');
+				return treeView.badge;
+			},
+			set badge(badge: vscode.ViewBadge | undefined) {
+				checkProposedApiEnabled(extension, 'badges');
+				treeView.badge = badge;
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
@@ -404,6 +413,16 @@ class ExtHostTreeView<T> extends Disposable {
 	set description(description: string | undefined) {
 		this._description = description;
 		this.proxy.$setTitle(this.viewId, this._title, description);
+	}
+
+	private _badge: vscode.ViewBadge | undefined;
+	get badge(): vscode.ViewBadge | undefined {
+		return this._badge;
+	}
+
+	set badge(badge: vscode.ViewBadge | undefined) {
+		this._badge = badge;
+		this.proxy.$setBadge(this.viewId, badge);
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
