@@ -309,12 +309,28 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 }
 
 export interface ITextFileSaveEvent {
+
+	/**
+	 * The model that was saved.
+	 */
 	readonly model: ITextFileEditorModel;
-	readonly reason: SaveReason;
+
+	/**
+	 * The reason why the model was saved.
+	 */
+	readonly reason?: SaveReason;
 }
 
 export interface ITextFileResolveEvent {
+
+	/**
+	 * The model that was resolved.
+	 */
 	readonly model: ITextFileEditorModel;
+
+	/**
+	 * The reason why the model was resolved.
+	 */
 	readonly reason: TextFileResolveReason;
 }
 

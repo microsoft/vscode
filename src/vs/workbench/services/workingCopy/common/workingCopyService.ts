@@ -9,9 +9,17 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
-import { IWorkingCopy, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyIdentifier, IWorkingCopySaveEvent as IBaseWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export const IWorkingCopyService = createDecorator<IWorkingCopyService>('workingCopyService');
+
+export interface IWorkingCopySaveEvent extends IBaseWorkingCopySaveEvent {
+
+	/**
+	 * The working copy that was saved.
+	 */
+	readonly workingCopy: IWorkingCopy;
+}
 
 export interface IWorkingCopyService {
 
@@ -39,6 +47,11 @@ export interface IWorkingCopyService {
 	 * An event for when a working copy's content changed.
 	 */
 	readonly onDidChangeContent: Event<IWorkingCopy>;
+
+	/**
+	 * An event for when a working copy was saved.
+	 */
+	readonly onDidSave: Event<IWorkingCopySaveEvent>;
 
 	//#endregion
 
@@ -124,6 +137,9 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 	private readonly _onDidChangeContent = this._register(new Emitter<IWorkingCopy>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
+	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
+
 	//#endregion
 
 
@@ -154,6 +170,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		const disposables = new DisposableStore();
 		disposables.add(workingCopy.onDidChangeContent(() => this._onDidChangeContent.fire(workingCopy)));
 		disposables.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
+		disposables.add(workingCopy.onDidSave(({ reason }) => this._onDidSave.fire({ workingCopy, reason })));
 
 		// Send some initial events
 		this._onDidRegister.fire(workingCopy);

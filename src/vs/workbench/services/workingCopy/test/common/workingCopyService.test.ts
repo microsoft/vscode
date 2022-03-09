@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/base/common/uri';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopySaveEvent, WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 suite('WorkingCopyService', () => {
 
@@ -19,6 +19,9 @@ suite('WorkingCopyService', () => {
 
 		const onDidChangeContent: IWorkingCopy[] = [];
 		service.onDidChangeContent(copy => onDidChangeContent.push(copy));
+
+		const onDidSave: IWorkingCopySaveEvent[] = [];
+		service.onDidSave(copy => onDidSave.push(copy));
 
 		const onDidRegister: IWorkingCopy[] = [];
 		service.onDidRegister(copy => onDidRegister.push(copy));
@@ -51,6 +54,7 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(service.hasDirty, false);
 
 		copy1.setDirty(true);
+		copy1.save();
 
 		assert.strictEqual(copy1.isDirty(), true);
 		assert.strictEqual(service.dirtyCount, 1);
@@ -62,6 +66,8 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(service.hasDirty, true);
 		assert.strictEqual(onDidChangeDirty.length, 1);
 		assert.strictEqual(onDidChangeDirty[0], copy1);
+		assert.strictEqual(onDidSave.length, 1);
+		assert.strictEqual(onDidSave[0].workingCopy, copy1);
 
 		copy1.setContent('foo');
 

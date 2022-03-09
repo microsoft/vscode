@@ -13,7 +13,7 @@ import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -139,6 +139,9 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
+	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
+
 	readonly capabilities = WorkingCopyCapabilities.None;
 
 	readonly name = basename(this.resource);
@@ -167,6 +170,8 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	}
 
 	async save(options?: ISaveOptions): Promise<boolean> {
+		this._onDidSave.fire({ reason: options?.reason ?? SaveReason.EXPLICIT });
+
 		return true;
 	}
 
