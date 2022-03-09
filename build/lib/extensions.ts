@@ -436,13 +436,13 @@ const extensionsPath = path.join(root, 'extensions');
 
 // Additional projects to webpack. These typically build code for webviews
 const webpackMediaConfigFiles = [
-	'markdown-language-features/webpack.config.js',
 	'simple-browser/webpack.config.js',
 ];
 
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
-	'markdown-language-features/esbuild.js',
+	'markdown-language-features/esbuild-notebook.js',
+	'markdown-language-features/esbuild-preview.js',
 	'markdown-math/esbuild.js',
 	'notebook-renderers/esbuild.js'
 ];
