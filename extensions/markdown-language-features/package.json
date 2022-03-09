@@ -424,19 +424,20 @@
     "watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-    "build-preview": "npx webpack-cli --mode production",
-    "build-notebook": "node ./esbuild",
+    "build-notebook": "node ./esbuild-notebook",
+    "build-preview": "node ./esbuild-preview",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
+    "@vscode/extension-telemetry": "0.4.6",
     "dompurify": "^2.3.3",
-    "highlight.js": "^10.4.1",
+    "highlight.js": "^11.4.0",
     "markdown-it": "^12.3.2",
     "markdown-it-front-matter": "^0.2.1",
     "morphdom": "^2.6.1",
-    "@vscode/extension-telemetry": "0.4.6",
-    "vscode-nls": "^5.0.0"
+    "vscode-nls": "^5.0.0",
+    "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
     "@types/dompurify": "^2.3.1",

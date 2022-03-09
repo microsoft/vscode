@@ -8196,15 +8196,15 @@ native-is-elevated@0.4.3:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.3.tgz#f1071c4a821acc71d43f36ff8051d3816d832e1c"
   integrity sha512-bHS3sCoh+raqFGIxmL/plER3eBQ+IEBy4RH/4uahhToZneTvqNKQrL0PgOTtnpL55XjBd3dy0pNtZMkCk0J48g==
 
-native-keymap@3.2.1:
-  version "3.2.1"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.2.1.tgz#2b34ee7e08722f107baba9beae7e61ea43eceae7"
-  integrity sha512-kR8r1Ody16qNE52fenuCMQBHtFpIV7HNVjQA7dm/pXpFcQmqCl8jWQuJYdZvNH7fQmyAv3lOgPfR3FDHPRYiiA==
+native-keymap@3.3.0:
+  version "3.3.0"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-3.3.0.tgz#927ca6afcf4ebd986b5dc1bddfab4270e750915d"
+  integrity sha512-nvhI1Cdr+ywhpqqGdM+JM8EjMYA1s6SW8EqhWNKtffHU07JcTKDhd8N3o0TLSFn8y2YuRFoOwfAIzdTU6TVhDA==
 
-native-watchdog@1.3.0:
-  version "1.3.0"
-  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.3.0.tgz#88cee94c9dc766b85c8506eda14c8bd8c9618e27"
-  integrity sha512-WOjGRNGkYZ5MXsntcvCYrKtSYMaewlbCFplbcUVo9bE80LPVt8TAVFHYWB8+a6fWCGYheq21+Wtt6CJrUaCJhw==
+native-watchdog@1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/native-watchdog/-/native-watchdog-1.4.0.tgz#547a1f9f88754c38089c622d405ed1e324c7a545"
+  integrity sha512-4FynAeGtTpoQ2+5AxVJXGEGsOzPsNYDh8Xmawjgs7YWJe+bbbgt7CYlA/Qx6X+kwtN5Ey1aNSm9MqZa0iNKkGw==
 
 natural-compare@^1.4.0:
   version "1.4.0"

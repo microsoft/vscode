@@ -109,10 +109,6 @@
 	position: relative;
 }
 
-.monaco-workbench .xterm .hoverHighlight {
-	pointer-events: none;
-}
-
 .monaco-workbench .editor-instance .terminal-wrapper > div,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
 	height: 100%;
