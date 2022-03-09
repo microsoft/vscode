@@ -14,6 +14,9 @@ declare module 'vscode' {
 		 */
 		readonly cell: NotebookCell;
 
+		/**
+		 * The metadata of the cell or `undefined` when it didn't change
+		 */
 		readonly metadata: { [key: string]: any } | undefined;
 		readonly outputs: readonly NotebookCellOutput[] | undefined;
 		readonly executionSummary: NotebookCellExecutionSummary | undefined;
