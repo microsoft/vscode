@@ -173,11 +173,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (scrollbarDecorationColor && typeof scrollbarDecorationColor !== 'string') {
 			scrollbarDecorationColor = scrollbarDecorationColor.toString();
 		}
-		const element = this._terminal.registerDecoration({ marker: command.marker, scrollbarDecorationColor });
-		if (element) {
-			//TODO: why doesn't this css work
-			element.element!.style.position = 'fixed';
-			element.element!.style.right = '0px';
+		const scrollbarDecoration = this._terminal.registerDecoration({ marker: command.marker, scrollbarDecorationColor });
+		if (scrollbarDecoration) {
+			//TODO: move this to a css class
+			scrollbarDecoration.element!.style.top = '0px';
+			scrollbarDecoration.element!.style.position = 'sticky';
+			scrollbarDecoration.element!.style.width = '10px';
+			// TODO: get zindex to work
+			// scrollbarDecoration.element!.style.marginRight = '-6px';
+			// scrollbarDecoration.element!.style.zIndex = '100';
+			scrollbarDecoration.element!.style.left = `${scrollbarDecoration.element!.closest('.xterm-viewport')!.clientWidth + 40}px`;
 		}
 		decoration.onRender(element => {
 			decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
