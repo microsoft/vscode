@@ -39,6 +39,7 @@ export interface IMessage {
 export const enum ExtensionRunningLocation {
 	None,
 	LocalProcess,
+	LocalNotebookProcess,
 	LocalWebWorker,
 	Remote
 }
@@ -49,6 +50,8 @@ export function extensionRunningLocationToString(location: ExtensionRunningLocat
 			return 'None';
 		case ExtensionRunningLocation.LocalProcess:
 			return 'LocalProcess';
+		case ExtensionRunningLocation.LocalNotebookProcess:
+			return 'NotebookProcess';
 		case ExtensionRunningLocation.LocalWebWorker:
 			return 'LocalWebWorker';
 		case ExtensionRunningLocation.Remote:
@@ -110,6 +113,7 @@ export interface IExtensionHostProfile {
 export const enum ExtensionHostKind {
 	LocalProcess,
 	LocalWebWorker,
+	LocalNotebook,
 	Remote
 }
 
@@ -117,6 +121,7 @@ export function extensionHostKindToString(kind: ExtensionHostKind): string {
 	switch (kind) {
 		case ExtensionHostKind.LocalProcess: return 'LocalProcess';
 		case ExtensionHostKind.LocalWebWorker: return 'LocalWebWorker';
+		case ExtensionHostKind.LocalNotebook: return 'LocalNotebook';
 		case ExtensionHostKind.Remote: return 'Remote';
 	}
 }
