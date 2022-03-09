@@ -7,17 +7,20 @@ import { localize } from 'vs/nls';
 import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground, treeIndentGuidesStroke, errorForeground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 // < --- Workbench (not customizable) --- >
 
 export function WORKBENCH_BACKGROUND(theme: IColorTheme): Color {
 	switch (theme.type) {
-		case 'dark':
-			return Color.fromHex('#252526');
-		case 'light':
+		case ColorScheme.LIGHT:
 			return Color.fromHex('#F3F3F3');
-		default:
+		case ColorScheme.HIGH_CONTRAST_LIGHT:
+			return Color.fromHex('#FFFFFF');
+		case ColorScheme.HIGH_CONTRAST_DARK:
 			return Color.fromHex('#000000');
+		default:
+			return Color.fromHex('#252526');
 	}
 }
 
