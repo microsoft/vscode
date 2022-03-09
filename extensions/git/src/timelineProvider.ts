@@ -155,6 +155,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const dateType = config.get<'committed' | 'authored'>('date');
 		const showAuthor = config.get<boolean>('showAuthor');
+		const openComparison = localize('git.timeline.openComparison', "Open Comparison");
 
 		const items = commits.map<GitTimelineItem>((c, i) => {
 			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
@@ -171,7 +172,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
 				item.command = {
-					title: 'Open Comparison',
+					title: openComparison,
 					command: cmd.command,
 					arguments: cmd.arguments,
 				};
@@ -196,7 +197,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
 					item.command = {
-						title: 'Open Comparison',
+						title: openComparison,
 						command: cmd.command,
 						arguments: cmd.arguments,
 					};
@@ -218,7 +219,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
 					item.command = {
-						title: 'Open Comparison',
+						title: openComparison,
 						command: cmd.command,
 						arguments: cmd.arguments,
 					};
