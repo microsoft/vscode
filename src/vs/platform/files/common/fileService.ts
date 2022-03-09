@@ -18,7 +18,7 @@ import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/c
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, FileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -998,6 +998,35 @@ export class FileService extends Disposable implements IFileService {
 
 		// Events
 		this._onDidRunOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+	}
+
+	//#endregion
+
+	//#region Clone File
+
+	async cloneFile(source: URI, target: URI): Promise<void> {
+		const sourceProvider = await this.withProvider(source);
+		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
+
+		// same provider, check for `cloneFile` support or fallback to `copy`
+		if (sourceProvider === targetProvider) {
+			if (hasFileCloneCapability(sourceProvider)) {
+				return sourceProvider.cloneFile(source, target);
+			}
+
+			if (hasFileFolderCopyCapability(sourceProvider)) {
+				return sourceProvider.copy(source, target, { overwrite: true });
+			}
+		}
+
+		const { providerExtUri } = this.getExtUri(sourceProvider);
+		if (providerExtUri.isEqual(source, target)) {
+			return; // important to return early to prevent a deadlock with the write queue!
+		}
+
+		// otherwise copy via buffer/unbuffered and use a write queue
+		// on the source to ensure atomic operation as much as possible
+		return this.writeQueue.queueFor(source, this.getExtUri(sourceProvider).providerExtUri).queue(() => this.doCopyFile(sourceProvider, source, targetProvider, target));
 	}
 
 	//#endregion
