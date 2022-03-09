@@ -434,17 +434,13 @@ export function translatePackageJSON(packageJSON: string, packageNLSPath: string
 
 const extensionsPath = path.join(root, 'extensions');
 
-// Additional projects to webpack. These typically build code for webviews
-const webpackMediaConfigFiles = [
-	'markdown-language-features/webpack.config.js',
-	'simple-browser/webpack.config.js',
-];
-
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
-	'markdown-language-features/esbuild.js',
+	'markdown-language-features/esbuild-notebook.js',
+	'markdown-language-features/esbuild-preview.js',
 	'markdown-math/esbuild.js',
-	'notebook-renderers/esbuild.js'
+	'notebook-renderers/esbuild.js',
+	'simple-browser/esbuild-preview.js',
 ];
 
 export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string; outputRoot?: string }[]) {
@@ -554,16 +550,8 @@ async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { 
 }
 
 export async function buildExtensionMedia(isWatch: boolean, outputRoot?: string) {
-	return Promise.all([
-		webpackExtensions('webpacking extension media', isWatch, webpackMediaConfigFiles.map(p => {
-			return {
-				configPath: path.join(extensionsPath, p),
-				outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
-			};
-		})),
-		esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
-			script: path.join(extensionsPath, p),
-			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
-		}))),
-	]);
+	return esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
+		script: path.join(extensionsPath, p),
+		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+	})));
 }

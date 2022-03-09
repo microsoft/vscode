@@ -195,11 +195,9 @@ export class CodeApplication extends Disposable {
 			return false;
 		};
 
-		const isAllowedWebviewRequest = (details: Electron.OnBeforeRequestListenerDetails): boolean => {
-			const url = URI.parse(details.url);
-
+		const isAllowedWebviewRequest = (uri: URI, details: Electron.OnBeforeRequestListenerDetails): boolean => {
 			// Only restrict top level page of webviews: index.html
-			if (url.path !== '/index.html') {
+			if (uri.path !== '/index.html') {
 				return true;
 			}
 
@@ -222,9 +220,8 @@ export class CodeApplication extends Disposable {
 
 		session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
-
 			if (uri.scheme === Schemas.vscodeWebview) {
-				if (!isAllowedWebviewRequest(details)) {
+				if (!isAllowedWebviewRequest(uri, details)) {
 					this.logService.error('Blocked vscode-webview request', details.url);
 					return callback({ cancel: true });
 				}

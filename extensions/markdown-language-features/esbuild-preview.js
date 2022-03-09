@@ -15,11 +15,12 @@ if (outputRootIndex >= 0) {
 	outputRoot = args[outputRootIndex + 1];
 }
 
-const outDir = path.join(outputRoot, 'notebook-out');
+const outDir = path.join(outputRoot, 'media');
 
 esbuild.build({
 	entryPoints: [
-		path.join(__dirname, 'notebook', 'index.ts'),
+		path.join(__dirname, 'preview-src', 'index.ts'),
+		path.join(__dirname, 'preview-src', 'pre'),
 	],
 	bundle: true,
 	minify: true,
@@ -28,5 +29,6 @@ esbuild.build({
 	outdir: outDir,
 	platform: 'browser',
 	target: ['es2020'],
+	watch: isWatch,
 	incremental: isWatch,
 }).catch(() => process.exit(1));
