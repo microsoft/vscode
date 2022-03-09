@@ -810,10 +810,14 @@ class TreeViewIdentityProvider implements IIdentityProvider<ITreeItem> {
 	}
 }
 
-class TreeViewDelegate implements IListVirtualDelegate<ITreeItem> {
+class TreeViewDelegate implements IListVirtualDelegate<ITreeItem, IConfigurationService> {
 
-	getHeight(element: ITreeItem): number {
-		return TreeRenderer.ITEM_HEIGHT;
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: ITreeItem, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: ITreeItem): string {
@@ -884,8 +888,7 @@ interface ITreeExplorerTemplateData {
 }
 
 class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData> {
-	static readonly ITEM_HEIGHT = 22;
-	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
+	static TREE_TEMPLATE_ID = 'treeExplorer';
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;

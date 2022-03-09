@@ -342,7 +342,8 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 }
 
 export function createNotebookCellList(instantiationService: TestInstantiationService, viewContext?: ViewContext) {
-	const delegate: IListVirtualDelegate<CellViewModel> = {
+	const delegate: IListVirtualDelegate<CellViewModel, IConfigurationService> = {
+		getFontSize(configurationService: IConfigurationService) { return configurationService.getValue<number>('workbench.FontSize'); },
 		getHeight(element: CellViewModel) { return element.getHeight(17); },
 		getTemplateId() { return 'template'; }
 	};

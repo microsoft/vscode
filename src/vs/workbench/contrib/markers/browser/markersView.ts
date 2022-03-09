@@ -877,7 +877,7 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> {
 	constructor(
 		user: string,
 		readonly container: HTMLElement,
-		delegate: IListVirtualDelegate<MarkerElement>,
+		delegate: IListVirtualDelegate<MarkerElement, IConfigurationService>,
 		renderers: ITreeRenderer<MarkerElement, FilterData, any>[],
 		options: IWorkbenchObjectTreeOptions<MarkerElement, FilterData>,
 		@IContextKeyService contextKeyService: IContextKeyService,

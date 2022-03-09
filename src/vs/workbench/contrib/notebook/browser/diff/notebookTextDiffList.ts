@@ -30,7 +30,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { PixelRatio } from 'vs/base/browser/browser';
 
-export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase> {
+export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<DiffElementViewModelBase, IConfigurationService> {
 	private readonly lineHeight: number;
 
 	constructor(
@@ -38,6 +38,10 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Di
 	) {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight;
+	}
+
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
 	}
 
 	getHeight(element: DiffElementViewModelBase): number {
@@ -291,7 +295,7 @@ export class NotebookTextDiffList extends WorkbenchList<DiffElementViewModelBase
 	constructor(
 		listUser: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<DiffElementViewModelBase>,
+		delegate: IListVirtualDelegate<DiffElementViewModelBase, IConfigurationService>,
 		renderers: IListRenderer<DiffElementViewModelBase, CellDiffSingleSideRenderTemplate | CellDiffSideBySideRenderTemplate>[],
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<DiffElementViewModelBase>,

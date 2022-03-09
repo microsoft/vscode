@@ -835,17 +835,21 @@ class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], Fuzzy
 	}
 }
 
-class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
+class CallStackDelegate implements IListVirtualDelegate<CallStackItem, IConfigurationService> {
 
-	getHeight(element: CallStackItem): number {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: CallStackItem, configurationService: IConfigurationService): number {
 		if (element instanceof StackFrame && element.presentationHint === 'label') {
-			return 16;
+			return this.getFontSize(configurationService) * 1.2;
 		}
 		if (element instanceof ThreadAndSessionIds || element instanceof Array) {
-			return 16;
+			return this.getFontSize(configurationService) * 1.2;
 		}
 
-		return 22;
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: CallStackItem): string {

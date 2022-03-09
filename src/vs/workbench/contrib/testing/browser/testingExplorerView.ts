@@ -1041,9 +1041,13 @@ class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelPro
 	}
 }
 
-class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement> {
-	getHeight(_element: TestExplorerTreeElement) {
-		return 22;
+class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(_element: TestExplorerTreeElement, configurationService: IConfigurationService) {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: TestExplorerTreeElement) {

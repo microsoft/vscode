@@ -29,6 +29,7 @@ import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./list';
 import { IIdentityProvider, IKeyboardNavigationDelegate, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListError } from './list';
 import { IListViewAccessibilityProvider, IListViewDragAndDrop, IListViewOptions, IListViewOptionsUpdate, ListView } from './listView';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -1312,7 +1313,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	constructor(
 		private user: string,
 		container: HTMLElement,
-		virtualDelegate: IListVirtualDelegate<T>,
+		virtualDelegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		private _options: IListOptions<T> = DefaultOptions
 	) {

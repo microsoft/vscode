@@ -52,7 +52,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
 
-export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel> {
+export class NotebookCellListDelegate extends Disposable implements IListVirtualDelegate<CellViewModel, IConfigurationService> {
 	private readonly lineHeight: number;
 
 	constructor(
@@ -62,6 +62,10 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value).lineHeight;
+	}
+
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
 	}
 
 	getHeight(element: CellViewModel): number {

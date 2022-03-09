@@ -8,6 +8,7 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface Element {
 	id: string;
@@ -54,7 +55,8 @@ class IdentityProvider implements IIdentityProvider<Element> {
 	}
 }
 
-class VirtualDelegate implements IListVirtualDelegate<Element> {
+class VirtualDelegate implements IListVirtualDelegate<Element, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) { return configurationService.getValue<number>('workbench.FontSize'); }
 	getHeight() { return 20; }
 	getTemplateId(element: Element): string { return 'default'; }
 }

@@ -26,6 +26,7 @@ import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ISpliceable } from 'vs/base/common/sequence';
 import 'vs/css!./media/tree';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -203,9 +204,13 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 	};
 }
 
-export class ComposedTreeDelegate<T, N extends { element: T }> implements IListVirtualDelegate<N> {
+export class ComposedTreeDelegate<T, N extends { element: T }> implements IListVirtualDelegate<N, IConfigurationService> {
 
-	constructor(private delegate: IListVirtualDelegate<T>) { }
+	constructor(private delegate: IListVirtualDelegate<T, IConfigurationService>) { }
+
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
 
 	getHeight(element: N): number {
 		return this.delegate.getHeight(element.element);
@@ -1231,7 +1236,7 @@ class TreeNodeList<T, TFilterData, TRef> extends List<ITreeNode<T, TFilterData>>
 	constructor(
 		user: string,
 		container: HTMLElement,
-		virtualDelegate: IListVirtualDelegate<ITreeNode<T, TFilterData>>,
+		virtualDelegate: IListVirtualDelegate<ITreeNode<T, TFilterData>, IConfigurationService>,
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		private focusTrait: Trait<T>,
 		private selectionTrait: Trait<T>,
@@ -1365,7 +1370,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	constructor(
 		private readonly _user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private _options: IAbstractTreeOptions<T, TFilterData> = {}
 	) {

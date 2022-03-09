@@ -320,10 +320,14 @@ interface IScopeTemplateData {
 	label: HighlightedLabel;
 }
 
-class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
+class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope, IConfigurationService> {
 
-	getHeight(element: IExpression | IScope): number {
-		return 22;
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: IExpression | IScope, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: IExpression | IScope): string {

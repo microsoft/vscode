@@ -30,6 +30,7 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // --- VIEW MODEL
 
@@ -648,10 +649,14 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 	disposeTemplate(_template: TextEditElementTemplate): void { }
 }
 
-export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement> {
+export class BulkEditDelegate implements IListVirtualDelegate<BulkEditElement, IConfigurationService> {
 
-	getHeight(): number {
-		return 23;
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: BulkEditElement, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: BulkEditElement): string {

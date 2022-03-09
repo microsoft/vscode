@@ -13,6 +13,7 @@ import { IThemable } from 'vs/base/common/styler';
 import 'vs/css!./list';
 import { IListContextMenuEvent, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from './list';
 import { IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, List } from './listWidget';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -128,7 +129,7 @@ export class PagedList<T> implements IThemable, IDisposable {
 	constructor(
 		user: string,
 		container: HTMLElement,
-		virtualDelegate: IListVirtualDelegate<number>,
+		virtualDelegate: IListVirtualDelegate<number, IConfigurationService>,
 		renderers: IPagedRenderer<T, any>[],
 		options: IPagedListOptions<T> = {}
 	) {

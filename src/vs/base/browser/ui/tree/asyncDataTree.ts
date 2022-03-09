@@ -21,6 +21,7 @@ import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle'
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IThemable } from 'vs/base/common/styler';
 import { isIterable } from 'vs/base/common/types';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -362,7 +363,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	constructor(
 		protected user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IAsyncDataSource<TInput, T>,
 		options: IAsyncDataTreeOptions<T, TFilterData> = {}
@@ -395,7 +396,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	protected createTree(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IAsyncDataTreeOptions<T, TFilterData>
 	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {
@@ -1143,7 +1144,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	constructor(
 		user: string,
 		container: HTMLElement,
-		virtualDelegate: IListVirtualDelegate<T>,
+		virtualDelegate: IListVirtualDelegate<T, IConfigurationService>,
 		private compressionDelegate: ITreeCompressionDelegate<T>,
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
 		dataSource: IAsyncDataSource<TInput, T>,
@@ -1156,7 +1157,7 @@ export class CompressibleAsyncDataTree<TInput, T, TFilterData = void> extends As
 	protected override createTree(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
 		options: ICompressibleAsyncDataTreeOptions<T, TFilterData>
 	): ObjectTree<IAsyncDataTreeNode<TInput, T>, TFilterData> {

@@ -23,13 +23,18 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
 
-class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError> {
-	getHeight(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {
-		return 22;
+class ProcessListDelegate implements IListVirtualDelegate<MachineProcessInformation | ProcessItem | IRemoteDiagnosticError, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: MachineProcessInformation | ProcessItem | IRemoteDiagnosticError, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: ProcessInformation | MachineProcessInformation | ProcessItem | IRemoteDiagnosticError) {

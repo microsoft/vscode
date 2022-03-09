@@ -18,6 +18,7 @@ import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInputButton, IQ
 import { activeContrastBorder, badgeBackground, badgeForeground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, keybindingLabelForeground, pickerGroupBorder, pickerGroupForeground, progressBarBackground, quickInputBackground, quickInputForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, quickInputTitleBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { computeStyles } from 'vs/platform/theme/common/styler';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IQuickInputControllerHost extends ILayoutService { }
 
@@ -72,7 +73,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			createList: <T>(
 				user: string,
 				container: HTMLElement,
-				delegate: IListVirtualDelegate<T>,
+				delegate: IListVirtualDelegate<T, IConfigurationService>,
 				renderers: IListRenderer<T, any>[],
 				options: IWorkbenchListOptions<T>,
 			) => this.instantiationService.createInstance(WorkbenchList, user, container, delegate, renderers, options) as List<T>,

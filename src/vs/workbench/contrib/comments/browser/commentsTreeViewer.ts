@@ -67,16 +67,20 @@ interface ICommentThreadTemplateData {
 	disposables: IDisposable[];
 }
 
-export class CommentsModelVirualDelegate implements IListVirtualDelegate<any> {
+export class CommentsModelVirualDelegate implements IListVirtualDelegate<any, IConfigurationService> {
 	private static readonly RESOURCE_ID = 'resource-with-comments';
 	private static readonly COMMENT_ID = 'comment-node';
 
 
-	getHeight(element: any): number {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: any, configurationService: IConfigurationService): number {
 		if ((element instanceof CommentNode) && element.hasReply()) {
-			return 44;
+			return (this.getFontSize(configurationService) * 1.5) * 2;
 		}
-		return 22;
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	public getTemplateId(element: any): string {

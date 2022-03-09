@@ -33,6 +33,7 @@ import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 import { QuickInputBox } from './quickInputBox';
 import { QuickInputList, QuickInputListFocus } from './quickInputList';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -45,7 +46,7 @@ export interface IQuickInputOptions {
 	createList<T>(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: IListRenderer<T, any>[],
 		options: IListOptions<T>,
 	): List<T>;

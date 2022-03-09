@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface E {
 	value: number;
@@ -35,7 +36,8 @@ suite('DataTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const delegate = new class implements IListVirtualDelegate<E> {
+		const delegate = new class implements IListVirtualDelegate<E, IConfigurationService> {
+			getFontSize(configurationService: IConfigurationService) { return configurationService.getValue<number>('workbench.FontSize'); }
 			getHeight() { return 20; }
 			getTemplateId(): string { return 'default'; }
 		};

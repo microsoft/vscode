@@ -151,10 +151,15 @@ export abstract class BreadcrumbsPicker {
 
 //#region - Files
 
-class FileVirtualDelegate implements IListVirtualDelegate<IFileStat | IWorkspaceFolder> {
-	getHeight(_element: IFileStat | IWorkspaceFolder) {
-		return 22;
+class FileVirtualDelegate implements IListVirtualDelegate<IFileStat | IWorkspaceFolder, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
 	}
+
+	getHeight(element: IFileStat | IWorkspaceFolder, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
+	}
+
 	getTemplateId(_element: IFileStat | IWorkspaceFolder): string {
 		return 'FileStat';
 	}

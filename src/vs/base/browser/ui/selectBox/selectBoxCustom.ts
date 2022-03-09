@@ -20,6 +20,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./selectBoxCustom';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 const $ = dom.$;
@@ -76,7 +77,7 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 	}
 }
 
-export class SelectBoxList extends Disposable implements ISelectBoxDelegate, IListVirtualDelegate<ISelectOptionItem> {
+export class SelectBoxList extends Disposable implements ISelectBoxDelegate, IListVirtualDelegate<ISelectOptionItem, IConfigurationService> {
 
 	private static readonly DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN = 32;
 	private static readonly DEFAULT_DROPDOWN_MINIMUM_TOP_MARGIN = 2;
@@ -102,6 +103,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private _hasDetails: boolean = false;
 	private selectionDetailsPane!: HTMLElement;
 	private _skipLayout: boolean = false;
+	private configurationService!: IConfigurationService;
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -143,9 +145,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	// IDelegate - List renderer
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
 
 	getHeight(): number {
-		return 18;
+		return this.getFontSize(this.configurationService) * 1.5;
 	}
 
 	getTemplateId(): string {

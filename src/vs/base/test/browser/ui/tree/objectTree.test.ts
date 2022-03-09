@@ -8,6 +8,7 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('ObjectTree', function () {
 	suite('TreeNavigator', function () {
@@ -19,7 +20,8 @@ suite('ObjectTree', function () {
 			container.style.width = '200px';
 			container.style.height = '200px';
 
-			const delegate = new class implements IListVirtualDelegate<number> {
+			const delegate = new class implements IListVirtualDelegate<number, IConfigurationService> {
+				getFontSize(configurationService: IConfigurationService) { return configurationService.getValue<number>('workbench.FontSize'); }
 				getHeight() { return 20; }
 				getTemplateId(): string { return 'default'; }
 			};
@@ -185,7 +187,8 @@ suite('ObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const delegate = new class implements IListVirtualDelegate<number> {
+		const delegate = new class implements IListVirtualDelegate<number, IConfigurationService> {
+			getFontSize(configurationService: IConfigurationService) { return configurationService.getValue<number>('workbench.FontSize'); }
 			getHeight() { return 20; }
 			getTemplateId(): string { return 'default'; }
 		};
@@ -227,7 +230,8 @@ function getRowsTextContent(container: HTMLElement): string[] {
 
 suite('CompressibleObjectTree', function () {
 
-	class Delegate implements IListVirtualDelegate<number> {
+	class Delegate implements IListVirtualDelegate<number, IConfigurationService> {
+		getFontSize(configurationService: IConfigurationService) { return configurationService.getValue<number>('workbench.FontSize'); }
 		getHeight() { return 20; }
 		getTemplateId(): string { return 'default'; }
 	}

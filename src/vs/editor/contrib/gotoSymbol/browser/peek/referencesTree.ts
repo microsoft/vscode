@@ -23,6 +23,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 //#region data source
 
@@ -64,9 +65,13 @@ export class DataSource implements IAsyncDataSource<ReferencesModel | FileRefere
 
 //#endregion
 
-export class Delegate implements IListVirtualDelegate<TreeElement> {
-	getHeight(): number {
-		return 23;
+export class Delegate implements IListVirtualDelegate<TreeElement, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: TreeElement, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 	getTemplateId(element: FileReferences | OneReference): string {
 		if (element instanceof FileReferences) {

@@ -9,6 +9,7 @@ import { CompressibleObjectTreeModel, ElementMapper, ICompressedTreeElement, ICo
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModel, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ICollapseStateChangeEvent, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { memoize } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
@@ -52,7 +53,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 	constructor(
 		protected readonly user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		options: IObjectTreeOptions<T, TFilterData> = {}
 	) {
@@ -206,7 +207,7 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 	constructor(
 		user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ICompressibleTreeRenderer<T, TFilterData, any>[],
 		options: ICompressibleObjectTreeOptions<T, TFilterData> = {}
 	) {

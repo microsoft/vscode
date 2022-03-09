@@ -628,10 +628,14 @@ export class LoadedScriptsView extends ViewPane {
 	}
 }
 
-class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem> {
+class LoadedScriptsDelegate implements IListVirtualDelegate<LoadedScriptsItem, IConfigurationService> {
 
-	getHeight(element: LoadedScriptsItem): number {
-		return 22;
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: LoadedScriptsItem, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: LoadedScriptsItem): string {

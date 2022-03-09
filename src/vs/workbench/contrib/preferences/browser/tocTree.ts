@@ -136,13 +136,17 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 	}
 }
 
-class TOCTreeDelegate implements IListVirtualDelegate<SettingsTreeElement> {
+class TOCTreeDelegate implements IListVirtualDelegate<SettingsTreeElement, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
 	getTemplateId(element: SettingsTreeElement): string {
 		return TOC_ENTRY_TEMPLATE_ID;
 	}
 
-	getHeight(element: SettingsTreeElement): number {
-		return 22;
+	getHeight(element: SettingsTreeElement, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 }
 

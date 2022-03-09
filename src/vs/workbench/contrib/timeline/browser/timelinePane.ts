@@ -51,8 +51,6 @@ import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
-const ItemHeight = 22;
-
 type TreeElement = TimelineItem | LoadMoreCommand;
 
 function isLoadMoreCommand(item: TreeElement | undefined): item is LoadMoreCommand {
@@ -302,9 +300,10 @@ export class TimelinePane extends ViewPane {
 
 	get pageSize() {
 		let pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize');
+		let fontSize = this.configurationService.getValue<number>('workbench.fontSize');
 		if (pageSize === undefined || pageSize === null) {
 			// If we are paging when scrolling, then add an extra item to the end to make sure the "Load more" item is out of view
-			pageSize = Math.max(20, Math.floor((this.tree.renderHeight / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
+			pageSize = Math.max(20, Math.floor((this.tree.renderHeight / (fontSize * 1.5)) + (this.pageOnScroll ? 1 : -1)));
 		}
 		return pageSize;
 	}
@@ -1084,9 +1083,13 @@ export class TimelineKeyboardNavigationLabelProvider implements IKeyboardNavigat
 	}
 }
 
-export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeElement> {
-	getHeight(_element: TreeElement): number {
-		return ItemHeight;
+export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeElement, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(_element: TreeElement, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: TreeElement): string {

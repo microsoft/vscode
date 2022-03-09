@@ -36,6 +36,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IExtensionProfileInformation {
 	/**
@@ -195,10 +196,15 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
-		const delegate = new class implements IListVirtualDelegate<IRuntimeExtension>{
-			getHeight(element: IRuntimeExtension): number {
-				return 62;
+		const delegate = new class implements IListVirtualDelegate<IRuntimeExtension, IConfigurationService>{
+			getFontSize(configurationService: IConfigurationService) {
+				return configurationService.getValue<number>('workbench.FontSize');
 			}
+
+			getHeight(element: IRuntimeExtension, configurationService: IConfigurationService): number {
+				return this.getFontSize(configurationService) * 5;
+			}
+
 			getTemplateId(element: IRuntimeExtension): string {
 				return TEMPLATE_ID;
 			}

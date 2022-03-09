@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ListView } from 'vs/base/browser/ui/list/listView';
 import { range } from 'vs/base/common/arrays';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 suite('ListView', function () {
 	test('all rows get disposed', function () {
@@ -14,7 +15,8 @@ suite('ListView', function () {
 		element.style.height = '200px';
 		element.style.width = '200px';
 
-		const delegate: IListVirtualDelegate<number> = {
+		const delegate: IListVirtualDelegate<number, IConfigurationService> = {
+			getFontSize(configurationService: IConfigurationService) { return configurationService.getValue<number>('workbench.FontSize'); },
 			getHeight() { return 20; },
 			getTemplateId() { return 'template'; }
 		};

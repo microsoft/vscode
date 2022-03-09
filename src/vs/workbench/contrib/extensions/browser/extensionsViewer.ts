@@ -48,14 +48,14 @@ export class ExtensionsGridView extends Disposable {
 		this.disposableStore = this._register(new DisposableStore());
 	}
 
-	setExtensions(extensions: IExtension[]): void {
+	setExtensions(extensions: IExtension[], configurationService: IConfigurationService): void {
 		this.disposableStore.clear();
-		extensions.forEach((e, index) => this.renderExtension(e, index));
+		extensions.forEach((e, index) => this.renderExtension(e, index, configurationService));
 	}
 
-	private renderExtension(extension: IExtension, index: number): void {
+	private renderExtension(extension: IExtension, index: number, configurationService: IConfigurationService): void {
 		const extensionContainer = dom.append(this.element, dom.$('.extension-container'));
-		extensionContainer.style.height = `${this.delegate.getHeight()}px`;
+		extensionContainer.style.height = `${this.delegate.getFontSize(configurationService) * 5}px`;
 		extensionContainer.setAttribute('tabindex', '0');
 
 		const template = this.renderer.renderTemplate(extensionContainer);
@@ -114,11 +114,16 @@ export class AsyncDataSource implements IAsyncDataSource<IExtensionData, any> {
 
 }
 
-export class VirualDelegate implements IListVirtualDelegate<IExtensionData> {
+export class VirualDelegate implements IListVirtualDelegate<IExtensionData, IConfigurationService> {
 
-	public getHeight(element: IExtensionData): number {
-		return 62;
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
 	}
+
+	getHeight(element: IExtensionData, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 5;
+	}
+
 	public getTemplateId({ extension }: IExtensionData): string {
 		return extension ? ExtensionRenderer.TEMPLATE_ID : UnknownExtensionRenderer.TEMPLATE_ID;
 	}

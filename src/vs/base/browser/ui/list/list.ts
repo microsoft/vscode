@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { GestureEvent } from 'vs/base/browser/touch';
 
-export interface IListVirtualDelegate<T> {
-	getHeight(element: T): number;
+export interface IListVirtualDelegate<T, IConfigurationService> {
+	getFontSize(configurationService?: IConfigurationService): void;
+	getHeight(element: T, configurationService?: IConfigurationService): number;
 	getTemplateId(element: T): string;
 	hasDynamicHeight?(element: T): boolean;
 	getDynamicHeight?(element: T): number | null;
@@ -111,11 +113,15 @@ export class ListError extends Error {
 	}
 }
 
-export abstract class CachedListVirtualDelegate<T extends object> implements IListVirtualDelegate<T> {
+export abstract class CachedListVirtualDelegate<T extends object> implements IListVirtualDelegate<T, IConfigurationService> {
 
 	private cache = new WeakMap<T, number>();
 
-	getHeight(element: T): number {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: T, configurationService: IConfigurationService): number {
 		return this.cache.get(element) ?? this.estimateHeight(element);
 	}
 

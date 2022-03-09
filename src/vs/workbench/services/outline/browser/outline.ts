@@ -14,6 +14,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { IEditorPane } from 'vs/workbench/common/editor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IOutlineService = createDecorator<IOutlineService>('IOutlineService');
 
@@ -61,7 +62,7 @@ export interface IQuickPickDataSource<E> {
 export interface IOutlineListConfig<E> {
 	readonly breadcrumbsDataSource: IBreadcrumbsDataSource<E>;
 	readonly treeDataSource: IDataSource<IOutline<E>, E>;
-	readonly delegate: IListVirtualDelegate<E>;
+	readonly delegate: IListVirtualDelegate<E, IConfigurationService>;
 	readonly renderers: ITreeRenderer<E, FuzzyScore, any>[];
 	readonly comparator: IOutlineComparator<E>;
 	readonly options: IWorkbenchDataTreeOptions<E, FuzzyScore>;

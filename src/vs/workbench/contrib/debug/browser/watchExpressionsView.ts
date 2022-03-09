@@ -223,10 +223,13 @@ export class WatchExpressionsView extends ViewPane {
 	}
 }
 
-class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression> {
+class WatchExpressionsDelegate implements IListVirtualDelegate<IExpression, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
 
-	getHeight(_element: IExpression): number {
-		return 22;
+	getHeight(_element: IExpression, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: IExpression): string {

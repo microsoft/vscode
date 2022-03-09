@@ -9,6 +9,7 @@ import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { IDataSource, ITreeElement, ITreeModel, ITreeNode, ITreeRenderer, ITreeSorter, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
@@ -25,7 +26,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 	constructor(
 		private user: string,
 		container: HTMLElement,
-		delegate: IListVirtualDelegate<T>,
+		delegate: IListVirtualDelegate<T, IConfigurationService>,
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private dataSource: IDataSource<TInput, T>,
 		options: IDataTreeOptions<T, TFilterData> = {}

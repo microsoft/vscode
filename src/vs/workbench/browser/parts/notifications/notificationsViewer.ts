@@ -27,11 +27,12 @@ import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown
 import { DomEmitter } from 'vs/base/browser/event';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { Event } from 'vs/base/common/event';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
+export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem, IConfigurationService> {
 
-	private static readonly ROW_HEIGHT = 42;
-	private static readonly LINE_HEIGHT = 22;
+	private static ROW_HEIGHT = 42;
+	private static LINE_HEIGHT = 22;
 
 	private offsetHelper: HTMLElement;
 
@@ -48,7 +49,14 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		return offsetHelper;
 	}
 
-	getHeight(notification: INotificationViewItem): number {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(notification: INotificationViewItem, configurationService: IConfigurationService): number {
+		NotificationsListDelegate.LINE_HEIGHT = this.getFontSize(configurationService) * 1.5;
+		NotificationsListDelegate.ROW_HEIGHT = this.getFontSize(configurationService) * 3;
+
 		if (!notification.expanded) {
 			return NotificationsListDelegate.ROW_HEIGHT; // return early if there are no more rows to show
 		}

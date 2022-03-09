@@ -58,11 +58,16 @@ import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
-export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
+export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem, IConfigurationService> {
 
-	static readonly ITEM_HEIGHT = 22;
+	static ITEM_HEIGHT = 22;
 
-	getHeight(element: ExplorerItem): number {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: ExplorerItem, configurationService: IConfigurationService): number {
+		ExplorerDelegate.ITEM_HEIGHT = this.getFontSize(configurationService) * 1.5;
 		return ExplorerDelegate.ITEM_HEIGHT;
 	}
 

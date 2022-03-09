@@ -25,6 +25,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from 'vs/base/parts/quickinput/common/quickInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
 
@@ -224,10 +225,14 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 	}
 }
 
-class ListElementDelegate implements IListVirtualDelegate<ListElement> {
+class ListElementDelegate implements IListVirtualDelegate<ListElement, IConfigurationService> {
 
-	getHeight(element: ListElement): number {
-		return element.saneDetail ? 44 : 22;
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: ListElement, configurationService: IConfigurationService): number {
+		return element.saneDetail ? (this.getFontSize(configurationService) * 1.5) * 2 : this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: ListElement): string {

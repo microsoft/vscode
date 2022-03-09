@@ -305,14 +305,18 @@ export class BreakpointsView extends ViewPane {
 	}
 }
 
-class BreakpointsDelegate implements IListVirtualDelegate<BreakpointItem> {
+class BreakpointsDelegate implements IListVirtualDelegate<BreakpointItem, IConfigurationService> {
 
 	constructor(private view: BreakpointsView) {
 		// noop
 	}
 
-	getHeight(_element: BreakpointItem): number {
-		return 22;
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(_element: BreakpointItem, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: BreakpointItem): string {

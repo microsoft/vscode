@@ -78,10 +78,14 @@ class DocumentSymbolTemplate {
 	) { }
 }
 
-export class DocumentSymbolVirtualDelegate implements IListVirtualDelegate<DocumentSymbolItem> {
+export class DocumentSymbolVirtualDelegate implements IListVirtualDelegate<DocumentSymbolItem, IConfigurationService> {
 
-	getHeight(_element: DocumentSymbolItem): number {
-		return 22;
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(_element: DocumentSymbolItem, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: DocumentSymbolItem): string {

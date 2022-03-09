@@ -614,17 +614,21 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	}
 }
 
-class ListDelegate implements IListVirtualDelegate<TreeElement> {
+class ListDelegate implements IListVirtualDelegate<TreeElement, IConfigurationService> {
 
 	constructor(private readonly inputRenderer: InputRenderer) { }
 
-	getHeight(element: TreeElement) {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: TreeElement, configurationService: IConfigurationService) {
 		if (isSCMInput(element)) {
 			return this.inputRenderer.getHeight(element);
 		} else if (isSCMActionButton(element)) {
 			return ActionButtonRenderer.DEFAULT_HEIGHT + 10;
 		} else {
-			return 22;
+			return this.getFontSize(configurationService) * 1.5;
 		}
 	}
 

@@ -52,10 +52,13 @@ interface IMatchTemplate {
 	actions: ActionBar;
 }
 
-export class SearchDelegate implements IListVirtualDelegate<RenderableMatch> {
+export class SearchDelegate implements IListVirtualDelegate<RenderableMatch, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
 
-	getHeight(element: RenderableMatch): number {
-		return 22;
+	getHeight(element: RenderableMatch, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: RenderableMatch): string {

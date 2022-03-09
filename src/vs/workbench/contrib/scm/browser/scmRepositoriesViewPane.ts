@@ -24,10 +24,14 @@ import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmReposito
 import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
-class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
+class ListDelegate implements IListVirtualDelegate<ISCMRepository, IConfigurationService> {
 
-	getHeight(): number {
-		return 22;
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: ISCMRepository, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(): string {

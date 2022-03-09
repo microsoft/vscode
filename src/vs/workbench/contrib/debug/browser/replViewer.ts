@@ -298,6 +298,10 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 		super();
 	}
 
+	override getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
 	override getHeight(element: IReplElement): number {
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 
@@ -305,7 +309,7 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 			return this.estimateHeight(element, true);
 		}
 
-		return super.getHeight(element);
+		return super.getHeight(element, this.configurationService);
 	}
 
 	protected estimateHeight(element: IReplElement, ignoreValueLength = false): number {

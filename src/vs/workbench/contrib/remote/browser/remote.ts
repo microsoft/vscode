@@ -92,9 +92,13 @@ interface IViewModel {
 	helpInformation: HelpInformation[];
 }
 
-class HelpTreeVirtualDelegate implements IListVirtualDelegate<IHelpItem> {
-	getHeight(element: IHelpItem): number {
-		return 22;
+class HelpTreeVirtualDelegate implements IListVirtualDelegate<IHelpItem, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: IHelpItem, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(element: IHelpItem): string {

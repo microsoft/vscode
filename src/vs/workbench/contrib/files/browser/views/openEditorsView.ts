@@ -526,11 +526,16 @@ class OpenEditorActionRunner extends ActionRunner {
 	}
 }
 
-class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGroup> {
+class OpenEditorsDelegate implements IListVirtualDelegate<OpenEditor | IEditorGroup, IConfigurationService> {
 
-	public static readonly ITEM_HEIGHT = 22;
+	public static ITEM_HEIGHT = 22;
 
-	getHeight(_element: OpenEditor | IEditorGroup): number {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(_element: OpenEditor | IEditorGroup, configurationService: IConfigurationService): number {
+		OpenEditorsDelegate.ITEM_HEIGHT = this.getFontSize(configurationService) * 1.5;
 		return OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 

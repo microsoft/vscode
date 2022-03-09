@@ -34,6 +34,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isMacintosh } from 'vs/base/common/platform';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -391,9 +392,13 @@ class DebugHoverDataSource implements IAsyncDataSource<IExpression, IExpression>
 	}
 }
 
-class DebugHoverDelegate implements IListVirtualDelegate<IExpression> {
-	getHeight(element: IExpression): number {
-		return 18;
+class DebugHoverDelegate implements IListVirtualDelegate<IExpression, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
+
+	getHeight(element: IExpression, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.3;
 	}
 
 	getTemplateId(element: IExpression): string {

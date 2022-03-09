@@ -48,6 +48,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Link } from 'vs/platform/opener/browser/link';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IResourceMarkersTemplateData {
 	resourceLabel: IResourceLabel;
@@ -94,11 +95,15 @@ const enum TemplateId {
 	RelatedInformation = 'ri'
 }
 
-export class VirtualDelegate implements IListVirtualDelegate<MarkerElement> {
+export class VirtualDelegate implements IListVirtualDelegate<MarkerElement, IConfigurationService> {
 
 	static LINE_HEIGHT: number = 22;
 
 	constructor(private readonly markersViewState: MarkersViewModel) { }
+
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
 
 	getHeight(element: MarkerElement): number {
 		if (element instanceof Marker) {

@@ -8,6 +8,7 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { IListOptions, List } from 'vs/base/browser/ui/list/listWidget';
 import { QuickInputController } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IQuickPick, IQuickPickItem } from 'vs/base/parts/quickinput/common/quickInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // Simple promisify of setTimeout
 function wait(delayMS: number) {
@@ -38,7 +39,7 @@ suite('QuickInput', () => {
 			createList: <T>(
 				user: string,
 				container: HTMLElement,
-				delegate: IListVirtualDelegate<T>,
+				delegate: IListVirtualDelegate<T, IConfigurationService>,
 				renderers: IListRenderer<T, any>[],
 				options: IListOptions<T>,
 			) => new List<T>(user, container, delegate, renderers, options),
