@@ -83,9 +83,15 @@ preexec() {
 update_prompt
 prompt_cmd_original() {
 	STATUS="$?"
-	$ORIGINAL_PROMPT_COMMAND
+	IFS=';'
+	read -ra ADDR <<< "$ORIGINAL_PROMPT_COMMAND"
+	for i in "${ADDR[@]}"; do
+		eval $i
+	done
+	IFS=''
 	precmd
 }
+
 prompt_cmd() {
 	STATUS="$?"
 	precmd
