@@ -365,28 +365,52 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	private renderStat(stat: ExplorerItem, label: string | string[], domId: string | undefined, filterData: FuzzyScore | undefined, templateData: IFileTemplateData): IDisposable {
+		const elementDisposables = new DisposableStore();
 		templateData.label.element.style.display = 'flex';
 		const extraClasses = ['explorer-item'];
 		if (this.explorerService.isCut(stat)) {
 			extraClasses.push('cut');
 		}
 
-		templateData.label.setResource({ resource: stat.resource, name: label }, {
-			fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-			extraClasses,
-			fileDecorations: this.config.explorer.decorations,
-			matches: createMatches(filterData),
-			separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
-			domId
-		});
+		// Always render chevrons for file nests, or else may not be able to identify them.
+		const twistieContainer = (templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie') as HTMLElement);
+		if (twistieContainer) {
+			if (stat.hasNests) {
+				twistieContainer.classList.add('force-twistie');
+			} else {
+				twistieContainer.classList.remove('force-twistie');
+			}
+		}
 
-		return templateData.label.onDidRender(() => {
+
+		const setResourceData = () => {
+			const theme = this.themeService.getFileIconTheme();
+			// Dont render file icons for nest parents unless folders have both chevrons and icons, otherwise alignment breaks
+			const hideNestParentFileIcons = theme.hidesExplorerArrows || !theme.hasFolderIcons;
+
+			templateData.label.setResource({ resource: stat.resource, name: label }, {
+				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+				extraClasses,
+				hideIcon: stat.hasNests && hideNestParentFileIcons,
+				fileDecorations: this.config.explorer.decorations,
+				matches: createMatches(filterData),
+				separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
+				domId
+			});
+		};
+
+		elementDisposables.add(this.themeService.onDidFileIconThemeChange(() => setResourceData()));
+		setResourceData();
+
+		elementDisposables.add(templateData.label.onDidRender(() => {
 			try {
 				this.updateWidth(stat);
 			} catch (e) {
 				// noop since the element might no longer be in the tree, no update of width necessary
 			}
-		});
+		}));
+
+		return elementDisposables;
 	}
 
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {
