@@ -8,6 +8,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -29,7 +30,8 @@ export class WorkingCopyHistoryTracker extends Disposable {
 	constructor(
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IWorkingCopyHistoryService private readonly workingCopyHistoryService: IWorkingCopyHistoryService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super();
 
@@ -55,6 +57,10 @@ export class WorkingCopyHistoryTracker extends Disposable {
 	}
 
 	private onDidSave(e: IWorkingCopySaveEvent): void {
+		if (!this.shouldTrackHistory(e.workingCopy)) {
+			return; // return early for working copies we are not interested in
+		}
+
 		const contentVersion = this.getContentVersion(e.workingCopy);
 		if (this.historyEntryContentVersion.get(e.workingCopy.resource) === contentVersion) {
 			return; // return early when content version already has associated history entry
@@ -88,5 +94,13 @@ export class WorkingCopyHistoryTracker extends Disposable {
 			// Finally remove from pending operations
 			this.pendingAddHistoryEntryOperations.delete(e.workingCopy.resource);
 		});
+	}
+
+	private shouldTrackHistory(workingCopy: IWorkingCopy): boolean {
+		if (workingCopy.resource.scheme !== this.pathService.defaultUriScheme) {
+			return false; // drop schemes such as `vscode-userdata` (settings)
+		}
+
+		return true;
 	}
 }
