@@ -307,7 +307,7 @@ class FileServiceBasedConfiguration extends Disposable {
 
 	private handleFileOperationEvent(event: FileOperationEvent): boolean {
 		// One of the resources has changed
-		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
+		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.COPY) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
 			&& this.allResources.some(resource => this.uriIdentityService.extUri.isEqual(event.resource, resource))) {
 			return true;
 		}
@@ -504,7 +504,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	private handleFileOperationEvent(event: FileOperationEvent): void {
-		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
+		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.COPY) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
 			&& this.uriIdentityService.extUri.isEqual(event.resource, this.configurationResource)) {
 			this.reloadConfigurationScheduler.schedule();
 		}
@@ -721,7 +721,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 
 		this._register(Event.any(
 			Event.filter(this.fileService.onDidFilesChange, e => !!this._workspaceIdentifier && e.contains(this._workspaceIdentifier.configPath)),
-			Event.filter(this.fileService.onDidRunOperation, e => !!this._workspaceIdentifier && (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE)) && uriIdentityService.extUri.isEqual(e.resource, this._workspaceIdentifier.configPath))
+			Event.filter(this.fileService.onDidRunOperation, e => !!this._workspaceIdentifier && (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE)) && uriIdentityService.extUri.isEqual(e.resource, this._workspaceIdentifier.configPath))
 		)(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
 		this.workspaceConfigWatcher = this._register(this.watchWorkspaceConfigurationFile());
