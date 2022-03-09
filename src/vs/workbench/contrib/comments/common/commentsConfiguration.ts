@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/// <reference types='@types/node'/>
+export interface ICommentsConfiguration {
+	openView: 'never' | 'file';
+	useRelativeTime: boolean;
+}
 
-export { basename, dirname, extname, isAbsolute, join } from 'path';
+export const COMMENTS_SECTION = 'comments';

@@ -238,6 +238,7 @@ type GalleryServiceQueryClassification = {
 	readonly flags: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly sortBy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly sortOrder: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly pageNumber: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true };
 	readonly success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly requestBodySize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -252,6 +253,7 @@ type QueryTelemetryData = {
 	readonly filterTypes: string[];
 	readonly sortBy: string;
 	readonly sortOrder: string;
+	readonly pageNumber: string;
 };
 
 type GalleryServiceQueryEvent = QueryTelemetryData & {
@@ -336,7 +338,8 @@ class Query {
 			filterTypes: this.state.criteria.map(criterium => String(criterium.filterType)),
 			flags: this.state.flags,
 			sortBy: String(this.sortBy),
-			sortOrder: String(this.sortOrder)
+			sortOrder: String(this.sortOrder),
+			pageNumber: String(this.pageNumber)
 		};
 	}
 }

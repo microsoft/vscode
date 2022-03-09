@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/sumneko/lua.tmbundle/commit/e531d0a651f1de222c6059d6e2edaca61b4dd4c4",
+	"version": "https://github.com/sumneko/lua.tmbundle/commit/9b79cbc54c3267065fca3d7b5b3845d1efbd091d",
 	"name": "Lua",
 	"scopeName": "source.lua",
 	"patterns": [
@@ -188,7 +188,11 @@
 		},
 		{
 			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b(?=\\s*\\??:)",
-			"name": "support.type.property-name.lua"
+			"name": "entity.name.class.lua"
+		},
+		{
+			"match": "(?<=[^.]\\.|:)\\b([a-zA-Z_][a-zA-Z0-9_]*)",
+			"name": "entity.other.attribute.lua"
 		},
 		{
 			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",

@@ -28,8 +28,7 @@ const enum DecorationSelector {
 	ErrorColor = 'error',
 	DefaultColor = 'default',
 	Codicon = 'codicon',
-	XtermDecoration = 'xterm-decoration',
-	ShellIntegration = 'shell-integration'
+	XtermDecoration = 'xterm-decoration'
 }
 
 const enum DecorationStyles {
@@ -89,15 +88,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	public clearDecorations(disposeOfListeners?: boolean): void {
-		if (disposeOfListeners) {
+	public clearDecorations(disableDecorations?: boolean): void {
+		if (disableDecorations) {
 			this._commandStartedListener?.dispose();
 			this._commandFinishedListener?.dispose();
 		}
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
 		for (const value of this._decorations.values()) {
-			value.decoration.element?.parentElement?.parentElement?.parentElement?.classList.remove(DecorationSelector.ShellIntegration);
 			value.decoration.dispose();
 			value.decoration.marker.dispose();
 			dispose(value.disposables);
@@ -146,14 +144,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			return;
 		}
 		this._commandFinishedListener = capability.onCommandFinished(command => {
-			if (this._placeholderDecoration?.marker.id) {
-				this._decorations.delete(this._placeholderDecoration?.marker.id);
-			}
 			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
 				this.clearDecorations();
 				return;
 			}
-			this._placeholderDecoration?.dispose();
 			this.registerCommandDecoration(command);
 		});
 	}
@@ -168,13 +162,17 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			throw new Error(`cannot add a decoration for a command ${JSON.stringify(command)} with no marker`);
 		}
 
+		this._placeholderDecoration?.dispose();
+
 		const decoration = this._terminal.registerDecoration({ marker: command.marker });
 		if (!decoration) {
 			return undefined;
 		}
 		decoration.onRender(element => {
+			decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 			if (beforeCommandExecution && !this._placeholderDecoration) {
 				this._placeholderDecoration = decoration;
+				this._placeholderDecoration.onDispose(() => this._placeholderDecoration = undefined);
 			} else {
 				this._decorations.set(decoration.marker.id,
 					{
@@ -183,9 +181,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 						exitCode: command.exitCode
 					});
 			}
-
-			if (!element.classList.contains(DecorationSelector.Codicon)) {
-				// first render
+			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
+				// first render or buffer was cleared
 				this._updateLayout(element);
 				this._updateClasses(element, command.exitCode);
 			}
@@ -218,7 +215,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			element.classList.remove(classes);
 		}
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
-		element.parentElement?.parentElement?.parentElement?.classList.add(DecorationSelector.ShellIntegration);
 		if (exitCode === undefined) {
 			element.classList.add(DecorationSelector.DefaultColor);
 			element.classList.add(`codicon-${this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationIcon)}`);
@@ -280,7 +276,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			});
 		}
 		actions.push({
-			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Re-run Command'), enabled: true,
+			class: 'rerun-command', tooltip: 'Rerun Command', dispose: () => { }, id: 'terminal.rerunCommand', label: localize("terminal.rerunCommand", 'Rerun Command'), enabled: true,
 			run: () => this._onDidRequestRunCommand.fire(command.command)
 		});
 		return actions;

@@ -786,8 +786,11 @@ export interface InlineCompletion {
 	 * The text to insert.
 	 * If the text contains a line break, the range must end at the end of a line.
 	 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+	 *
+	 * The text can also be a snippet. In that case, a preview with default parameters is shown.
+	 * When accepting the suggestion, the full snippet is inserted.
 	*/
-	readonly text: string;
+	readonly text: string | { snippet: string };
 
 	/**
 	 * The range to replace.

@@ -46,7 +46,6 @@
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-    "treeViewDragAndDrop",
     "treeViewReveal",
     "workspaceTrust",
     "telemetry"

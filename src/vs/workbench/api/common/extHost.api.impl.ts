@@ -223,9 +223,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					if (typeof filter.exclusive === 'boolean') {
 						checkProposedApiEnabled(extension, 'documentFiltersExclusive');
 					}
-					if (typeof filter.notebookType === 'string') {
-						checkProposedApiEnabled(extension, 'notebookDocumentSelector');
-					}
 				}
 				return selector;
 			};
@@ -652,9 +649,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostProgress.withProgress(extension, options, task);
 			},
 			createOutputChannel(name: string, languageId?: string): vscode.OutputChannel {
-				if (languageId) {
-					checkProposedApiEnabled(extension, 'outputChannelLanguage');
-				}
 				return extHostOutputService.createOutputChannel(name, languageId, extension);
 			},
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn; preserveFocus?: boolean }, options?: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
@@ -881,6 +875,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					throw new Error('Invalid arguments');
 				}
 				return extHostNotebook.getNotebookDocument(uri).apiNotebook;
+			},
+			onDidSaveNotebookDocument(listener, thisArg, disposables) {
+				checkProposedApiEnabled(extension, 'notebookDocumentEvents');
+				return extHostNotebookDocuments.onDidSaveNotebookDocument(listener, thisArg, disposables);
+			},
+			onDidChangeNotebookDocument(listener, thisArg, disposables) {
+				checkProposedApiEnabled(extension, 'notebookDocumentEvents');
+				return extHostNotebookDocuments.onDidChangeNotebookDocument(listener, thisArg, disposables);
 			},
 			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
 				return extHostNotebook.onDidOpenNotebookDocument;
@@ -1303,8 +1305,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
-			TreeDataTransfer: extHostTypes.TreeDataTransfer,
-			TreeDataTransferItem: extHostTypes.TreeDataTransferItem,
+			DataTransfer: extHostTypes.DataTransfer,
+			DataTransferItem: extHostTypes.DataTransferItem,
 			CoveredCount: extHostTypes.CoveredCount,
 			FileCoverage: extHostTypes.FileCoverage,
 			StatementCoverage: extHostTypes.StatementCoverage,

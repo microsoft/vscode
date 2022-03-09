@@ -664,7 +664,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
 
 
-const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
+export const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('https://')
 	? URI.parse(path, true)
 	: FileAccess.asFileUri('vs/workbench/contrib/welcomeGettingStarted/common/media/' + path, require);
 

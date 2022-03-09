@@ -23,7 +23,7 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import { IntellisenseStatus } from './ui/intellisenseStatus';
 import { VersionStatus } from './ui/versionStatus';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
-import { coalesce, flatten } from './utils/arrays';
+import { coalesce } from './utils/arrays';
 import { ServiceConfigurationProvider } from './utils/configuration';
 import { Disposable } from './utils/dispose';
 import * as errorCodes from './utils/errorCodes';
@@ -165,11 +165,10 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	}
 
 	private getAllModeIds(descriptions: LanguageDescription[], pluginManager: PluginManager) {
-		const allModeIds = flatten([
+		return [
 			...descriptions.map(x => x.languageIds),
 			...pluginManager.plugins.map(x => x.languages)
-		]);
-		return allModeIds;
+		].flat();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
