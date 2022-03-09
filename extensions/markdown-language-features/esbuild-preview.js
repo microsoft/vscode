@@ -29,5 +29,6 @@ esbuild.build({
 	outdir: outDir,
 	platform: 'browser',
 	target: ['es2020'],
+	watch: isWatch,
 	incremental: isWatch,
 }).catch(() => process.exit(1));
