@@ -280,11 +280,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this.loadingIndicator.reset();
 	}
 
-	public restartTsServer(): void {
+	public restartTsServer(fromUserAction = false): void {
 		if (this.serverState.type === ServerState.Type.Running) {
 			this.info('Killing TS Server');
 			this.isRestarting = true;
 			this.serverState.server.kill();
+		}
+
+		if (fromUserAction) {
+			// Reset crash trackers
+			this.hasServerFatallyCrashedTooManyTimes = false;
+			this.numberRestarts = 0;
+			this.lastStart = Date.now();
 		}
 
 		this.serverState = this.startService(true);
