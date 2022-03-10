@@ -11,7 +11,7 @@ export const EDITOR_MODEL_DEFAULTS = {
 	trimAutoWhitespace: true,
 	largeFileOptimizations: true,
 	bracketPairColorizationOptions: {
-		enabled: false,
+		enabled: true,
 		useIndependentColorPoolPerBracketType: false,
 	},
 };
