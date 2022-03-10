@@ -707,7 +707,6 @@ function closeBrackets(text: string, position: Position, model: ITextModel, lang
 		return text;
 	}
 
-	console.log(slicedTokens);
 	const newText = fixBracketsInLine(slicedTokens, languageConfigurationService);
 
 	return newText;
