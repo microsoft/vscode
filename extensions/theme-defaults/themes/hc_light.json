@@ -2,9 +2,6 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light High Contrast",
 	"colors": {
-		"testing.iconFailed":"#B5200D",
-		"testing.iconPassed": "#007100",
-
 		"gitDecoration.addedResourceForeground": "#374e06",
 		"gitDecoration.conflictingResourceForeground": "#ad0707",
 		"gitDecoration.deletedResourceForeground": "#ad0707",
