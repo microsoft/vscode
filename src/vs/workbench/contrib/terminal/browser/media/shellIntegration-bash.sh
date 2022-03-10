@@ -83,12 +83,18 @@ preexec() {
 update_prompt
 prompt_cmd_original() {
 	STATUS="$?"
-	IFS='; '
-	read -ra ADDR <<<"$ORIGINAL_PROMPT_COMMAND"
-	for ((i = 0; i < ${#ADDR[@]}; i++)); do
-		eval ${ADDR[i]}
-	done
-	IFS=''
+	if [[ "$ORIGINAL_PROMPT_COMMAND" =~ .+\;.+ ]]; then
+		IFS=';'
+		read -ra ADDR <<<"$ORIGINAL_PROMPT_COMMAND"
+		for ((i = 0; i < ${#ADDR[@]}; i++)); do
+			eval ${ADDR[i]}
+		done
+		IFS=''
+	else
+		for i in "${ORIGINAL_PROMPT_COMMAND[@]}"; do
+			eval $i
+		done
+	fi
 	precmd
 }
 
@@ -96,7 +102,15 @@ prompt_cmd() {
 	STATUS="$?"
 	precmd
 }
-ORIGINAL_PROMPT_COMMAND=${PROMPT_COMMAND[@]}
+
+if [[ "$PROMPT_COMMAND" =~ (.+\;.+) ]]; then
+	# item1;item2...
+	ORIGINAL_PROMPT_COMMAND="$PROMPT_COMMAND"
+else
+	# (item1, item2...)
+	ORIGINAL_PROMPT_COMMAND=${PROMPT_COMMAND[@]}
+fi
+
 if [[ -n "$ORIGINAL_PROMPT_COMMAND" && "$ORIGINAL_PROMPT_COMMAND" != "prompt_cmd" ]]; then
 	PROMPT_COMMAND=prompt_cmd_original
 else
