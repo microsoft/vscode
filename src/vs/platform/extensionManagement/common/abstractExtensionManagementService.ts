@@ -17,7 +17,7 @@ import {
 	DidUninstallExtensionEvent, ExtensionManagementError, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementParticipant, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, InstallOperation, InstallOptions,
 	InstallVSIXOptions, IExtensionsControlManifest, StatisticType, UninstallOptions, TargetPlatform, isTargetPlatformCompatible, TargetPlatformToString, ExtensionManagementErrorCode
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, ExtensionKey, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -138,7 +138,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 	protected async installExtension(manifest: IExtensionManifest, extension: URI | IGalleryExtension, options: InstallOptions & InstallVSIXOptions): Promise<ILocalExtension> {
 		// only cache gallery extensions tasks
 		if (!URI.isUri(extension)) {
-			let installExtensionTask = this.installingExtensions.get(new ExtensionIdentifierWithVersion(extension.identifier, extension.version).key());
+			let installExtensionTask = this.installingExtensions.get(ExtensionKey.create(extension).toString());
 			if (installExtensionTask) {
 				this.logService.info('Extensions is already requested to install', extension.identifier.id);
 				return installExtensionTask.waitUntilTaskIsFinished();
@@ -150,7 +150,7 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		const installResults: (InstallExtensionResult & { local: ILocalExtension })[] = [];
 		const installExtensionTask = this.createInstallExtensionTask(manifest, extension, options);
 		if (!URI.isUri(extension)) {
-			this.installingExtensions.set(new ExtensionIdentifierWithVersion(installExtensionTask.identifier, manifest.version).key(), installExtensionTask);
+			this.installingExtensions.set(ExtensionKey.create(extension).toString(), installExtensionTask);
 		}
 		this._onInstallExtension.fire({ identifier: installExtensionTask.identifier, source: extension });
 		this.logService.info('Installing extension:', installExtensionTask.identifier.id);
@@ -165,11 +165,12 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 					const allDepsAndPackExtensionsToInstall = await this.getAllDepsAndPackExtensionsToInstall(installExtensionTask.identifier, manifest, !!options.installOnlyNewlyAddedFromExtensionPack, !!options.installPreReleaseVersion);
 					for (const { gallery, manifest } of allDepsAndPackExtensionsToInstall) {
 						installExtensionHasDependents = installExtensionHasDependents || !!manifest.extensionDependencies?.some(id => areSameExtensions({ id }, installExtensionTask.identifier));
-						if (this.installingExtensions.has(new ExtensionIdentifierWithVersion(gallery.identifier, gallery.version).key())) {
+						const key = ExtensionKey.create(gallery).toString();
+						if (this.installingExtensions.has(key)) {
 							this.logService.info('Extension is already requested to install', gallery.identifier.id);
 						} else {
 							const task = this.createInstallExtensionTask(manifest, gallery, { ...options, donotIncludePackAndDependencies: true });
-							this.installingExtensions.set(new ExtensionIdentifierWithVersion(task.identifier, manifest.version).key(), task);
+							this.installingExtensions.set(key, task);
 							this._onInstallExtension.fire({ identifier: task.identifier, source: gallery });
 							this.logService.info('Installing extension:', task.identifier.id);
 							allInstallExtensionTasks.push({ task, manifest });
@@ -268,9 +269,9 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 			throw error;
 		} finally {
 			/* Remove the gallery tasks from the cache */
-			for (const { task, manifest } of allInstallExtensionTasks) {
+			for (const { task } of allInstallExtensionTasks) {
 				if (!URI.isUri(task.source)) {
-					const key = new ExtensionIdentifierWithVersion(task.identifier, manifest.version).key();
+					const key = ExtensionKey.create(task.source).toString();
 					if (!this.installingExtensions.delete(key)) {
 						this.logService.warn('Installation task is not found in the cache', key);
 					}
