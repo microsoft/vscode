@@ -85,8 +85,8 @@ prompt_cmd_original() {
 	STATUS="$?"
 	IFS='; '
 	read -ra ADDR <<<"$ORIGINAL_PROMPT_COMMAND"
-	for i in "${ADDR[@]}"; do
-		$i
+	for ((i = 0; i < ${#ADDR[@]}; i++)); do
+		eval ${ADDR[i]}
 	done
 	IFS=''
 	precmd
