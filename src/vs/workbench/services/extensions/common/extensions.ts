@@ -36,22 +36,27 @@ export interface IMessage {
 	extensionPointId: string;
 }
 
-export const enum ExtensionRunningLocation {
-	None,
-	LocalProcess,
-	LocalWebWorker,
-	Remote
+export class LocalProcessRunningLocation {
+	public readonly type = ExtensionHostKind.LocalProcess;
 }
+export class LocalWebWorkerRunningLocation {
+	public readonly type = ExtensionHostKind.LocalWebWorker;
+}
+export class RemoteRunningLocation {
+	public readonly type = ExtensionHostKind.Remote;
+}
+export type ExtensionRunningLocation = LocalProcessRunningLocation | LocalWebWorkerRunningLocation | RemoteRunningLocation;
 
-export function extensionRunningLocationToString(location: ExtensionRunningLocation) {
-	switch (location) {
-		case ExtensionRunningLocation.None:
-			return 'None';
-		case ExtensionRunningLocation.LocalProcess:
+export function extensionRunningLocationToString(location: ExtensionRunningLocation | null) {
+	if (!location) {
+		return 'None';
+	}
+	switch (location.type) {
+		case ExtensionHostKind.LocalProcess:
 			return 'LocalProcess';
-		case ExtensionRunningLocation.LocalWebWorker:
+		case ExtensionHostKind.LocalWebWorker:
 			return 'LocalWebWorker';
-		case ExtensionRunningLocation.Remote:
+		case ExtensionHostKind.Remote:
 			return 'Remote';
 	}
 }
@@ -60,7 +65,7 @@ export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
-	runningLocation: ExtensionRunningLocation;
+	runningLocation: ExtensionRunningLocation | null;
 }
 
 export class MissingExtensionDependency {

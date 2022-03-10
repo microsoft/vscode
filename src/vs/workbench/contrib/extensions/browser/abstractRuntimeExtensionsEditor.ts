@@ -11,7 +11,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IExtensionService, IExtensionsStatus, IExtensionHostProfile, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionsStatus, IExtensionHostProfile, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
@@ -370,7 +370,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				let extraLabel: string | null = null;
-				if (element.status.runningLocation === ExtensionRunningLocation.LocalWebWorker) {
+				if (element.status.runningLocation && element.status.runningLocation.type === ExtensionHostKind.LocalWebWorker) {
 					extraLabel = `$(globe) web worker`;
 				} else if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
 					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);

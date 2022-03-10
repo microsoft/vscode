@@ -9,11 +9,11 @@ import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } fr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService, IExtensionHost, toExtensionDescription, ExtensionRunningLocation, extensionRunningLocationToString } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost, toExtensionDescription, ExtensionRunningLocation, extensionRunningLocationToString, ExtensionHostKind, RemoteRunningLocation, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString, filterByRunningLocation } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
@@ -72,7 +72,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			logService
 		);
 
-		this._runningLocation = new Map<string, ExtensionRunningLocation>();
+		this._runningLocation = new Map<string, ExtensionRunningLocation | null>();
 
 		// Initialize installed extensions first and do it only after workbench is ready
 		this._lifecycleService.when(LifecyclePhase.Ready).then(async () => {
@@ -111,7 +111,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return {
 			getInitData: async () => {
 				const allExtensions = await this.getExtensions();
-				const localWebWorkerExtensions = filterByRunningLocation(allExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
+				const localWebWorkerExtensions = filterByRunningLocation(allExtensions, this._runningLocation, ExtensionHostKind.LocalWebWorker);
 				return {
 					autoStart: true,
 					extensions: localWebWorkerExtensions
@@ -130,20 +130,20 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		};
 	}
 
-	protected _pickRunningLocation(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation {
+	protected _pickRunningLocation(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation | null {
 		const result = ExtensionService.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference);
 		this._logService.trace(`pickRunningLocation for ${extensionId.value}, extension kinds: [${extensionKinds.join(', ')}], isInstalledLocally: ${isInstalledLocally}, isInstalledRemotely: ${isInstalledRemotely}, preference: ${extensionRunningPreferenceToString(preference)} => ${extensionRunningLocationToString(result)}`);
 		return result;
 	}
 
-	public static pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation {
+	public static pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation | null {
 		const result: ExtensionRunningLocation[] = [];
 		let canRunRemotely = false;
 		for (const extensionKind of extensionKinds) {
 			if (extensionKind === 'ui' && isInstalledRemotely) {
 				// ui extensions run remotely if possible (but only as a last resort)
 				if (preference === ExtensionRunningPreference.Remote) {
-					return ExtensionRunningLocation.Remote;
+					return new RemoteRunningLocation();
 				} else {
 					canRunRemotely = true;
 				}
@@ -151,24 +151,24 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			if (extensionKind === 'workspace' && isInstalledRemotely) {
 				// workspace extensions run remotely if possible
 				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Remote) {
-					return ExtensionRunningLocation.Remote;
+					return new RemoteRunningLocation();
 				} else {
-					result.push(ExtensionRunningLocation.Remote);
+					result.push(new RemoteRunningLocation());
 				}
 			}
 			if (extensionKind === 'web' && (isInstalledLocally || isInstalledRemotely)) {
 				// web worker extensions run in the local web worker if possible
 				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
-					return ExtensionRunningLocation.LocalWebWorker;
+					return new LocalWebWorkerRunningLocation();
 				} else {
-					result.push(ExtensionRunningLocation.LocalWebWorker);
+					result.push(new LocalWebWorkerRunningLocation());
 				}
 			}
 		}
 		if (canRunRemotely) {
-			result.push(ExtensionRunningLocation.Remote);
+			result.push(new RemoteRunningLocation());
 		}
-		return (result.length > 0 ? result[0] : ExtensionRunningLocation.None);
+		return (result.length > 0 ? result[0] : null);
 	}
 
 	protected _createExtensionHosts(_isInitialStart: boolean): IExtensionHost[] {
@@ -202,9 +202,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
 
 		// Some remote extensions could run locally in the web worker, so store them
-		const remoteExtensionsThatNeedToRunLocally = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
-		localExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
-		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
+		const remoteExtensionsThatNeedToRunLocally = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionHostKind.LocalWebWorker);
+		localExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionHostKind.LocalWebWorker);
+		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionHostKind.Remote);
 
 		// Add locally the remote extensions that need to run locally in the web worker
 		for (const ext of remoteExtensionsThatNeedToRunLocally) {
@@ -244,10 +244,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			automatedWindow.codeAutomationExit(code);
 		}
 	}
-}
-
-function filterByRunningLocation(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation>, desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {
-	return extensions.filter(ext => runningLocation.get(ExtensionIdentifier.toKey(ext.identifier)) === desiredRunningLocation);
 }
 
 function includes(extensions: IExtensionDescription[], identifier: ExtensionIdentifier): boolean {
