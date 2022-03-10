@@ -2,21 +2,6 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light High Contrast",
 	"colors": {
-		"window.activeBorder": "#0F4A85",
-		"window.inactiveBorder": "#0F4A85",
-
-		"searchEditor.textInputBorder": "#0F4A85",
-
-		"peekView.border": "#007ACC",
-		"peekViewEditor.background": "#ffffff",
-		"peekViewResult.background": "#ffffff",
-		"peekViewResult.selectionBackground": "#ffffff",
-		"peekViewResult.selectionForeground": "#292929",
-		"peekViewTitleLabel.foreground": "#292929",
-		"peekViewTitleDescription.foreground": "#292929",
-		"peekViewResult.fileForeground": "#292929",
-		"peekViewResult.lineForeground": "#292929",
-
 		"extensionIcon.verifiedForeground": "#0F4A85",
 		"extensionIcon.starForeground": "#0F4A85",
 		"extensionIcon.preReleaseForeground": "#0F4A85",
