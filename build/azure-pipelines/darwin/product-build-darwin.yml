@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -79,10 +79,6 @@ steps:
       set -e
       export npm_config_arch=$(VSCODE_ARCH)
       export npm_config_node_gyp=$(which node-gyp)
-      # Electron <= 13 does not ship with correct config.gypi headers,
-      # remove this once we update to newer versions.
-      # Refs https://github.com/nodejs/node-gyp/pull/2497
-      export npm_config_force_process_config=true
 
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
