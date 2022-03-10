@@ -14,9 +14,32 @@ export const IWorkingCopyHistoryService = createDecorator<IWorkingCopyHistorySer
 export interface IWorkingCopyHistoryEvent {
 
 	/**
-	 * The associated working copy with the event.
+	 * The entry this event is about.
 	 */
-	workingCopy: IWorkingCopy;
+	entry: IWorkingCopyHistoryEntry;
+}
+
+export interface IWorkingCopyHistoryEntry {
+
+	/**
+	 * The associated working copy resource of this history entry.
+	 */
+	resource: URI;
+
+	/**
+	 * The location on disk of this history entry.
+	 */
+	location: URI;
+
+	/**
+	 * The time when this history entry was created.
+	 */
+	timestamp: number;
+
+	/**
+	 * Optional associated label with the history entry.
+	 */
+	label?: string;
 }
 
 export interface IWorkingCopyHistoryService {
@@ -31,5 +54,10 @@ export interface IWorkingCopyHistoryService {
 	/**
 	 * Adds a new entry to the history for the given working copy.
 	 */
-	addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<URI | undefined>;
+	addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined>;
+
+	/**
+	 * Gets all history entries for the provided resource.
+	 */
+	getEntries(resource: URI): Promise<readonly IWorkingCopyHistoryEntry[]>;
 }

@@ -23,6 +23,7 @@ import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common
 import { readFileSync } from 'fs';
 import { IWorkingCopyHistoryEvent } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IFileService } from 'vs/platform/files/common/files';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -45,7 +46,9 @@ export class TestWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
 		const remoteAgentService = new TestRemoteAgentService();
 
-		super(fileService, remoteAgentService, environmentService);
+		const uriIdentityService = new UriIdentityService(fileService);
+
+		super(fileService, remoteAgentService, environmentService, uriIdentityService);
 
 		this._fileService = fileService;
 	}
@@ -104,12 +107,12 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.ok(entry1A);
 		assert.ok(entry2A);
 
-		assert.strictEqual(readFileSync(entry1A.fsPath).toString(), testFile1PathContents);
-		assert.strictEqual(readFileSync(entry2A.fsPath).toString(), testFile2PathContents);
+		assert.strictEqual(readFileSync(entry1A.location.fsPath).toString(), testFile1PathContents);
+		assert.strictEqual(readFileSync(entry2A.location.fsPath).toString(), testFile2PathContents);
 
 		assert.strictEqual(addEvents.length, 2);
-		assert.strictEqual(addEvents[0].workingCopy, workingCopy1);
-		assert.strictEqual(addEvents[1].workingCopy, workingCopy2);
+		assert.strictEqual(addEvents[0].entry.resource.toString(), workingCopy1.resource.toString());
+		assert.strictEqual(addEvents[1].entry.resource.toString(), workingCopy2.resource.toString());
 
 		const entry1B = await service.addEntry(workingCopy1, CancellationToken.None);
 		const entry2B = await service.addEntry(workingCopy2, CancellationToken.None);
@@ -117,12 +120,12 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.ok(entry1B);
 		assert.ok(entry2B);
 
-		assert.strictEqual(readFileSync(entry1B.fsPath).toString(), testFile1PathContents);
-		assert.strictEqual(readFileSync(entry2B.fsPath).toString(), testFile2PathContents);
+		assert.strictEqual(readFileSync(entry1B.location.fsPath).toString(), testFile1PathContents);
+		assert.strictEqual(readFileSync(entry2B.location.fsPath).toString(), testFile2PathContents);
 
 		assert.strictEqual(addEvents.length, 4);
-		assert.strictEqual(addEvents[2].workingCopy, workingCopy1);
-		assert.strictEqual(addEvents[3].workingCopy, workingCopy2);
+		assert.strictEqual(addEvents[2].entry.resource.toString(), workingCopy1.resource.toString());
+		assert.strictEqual(addEvents[3].entry.resource.toString(), workingCopy2.resource.toString());
 
 		// Cancellation works
 
@@ -142,5 +145,31 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.ok(!entry3A);
 
 		assert.strictEqual(addEvents.length, 4);
+	});
+
+	test('getEntries', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+
+		let entries = await service.getEntries(workingCopy1.resource);
+		assert.strictEqual(entries.length, 0);
+
+		await service.addEntry(workingCopy1, CancellationToken.None);
+
+		entries = await service.getEntries(workingCopy1.resource);
+		assert.strictEqual(entries.length, 1);
+
+		await service.addEntry(workingCopy1, CancellationToken.None);
+
+		entries = await service.getEntries(workingCopy1.resource);
+		assert.strictEqual(entries.length, 2);
+
+		entries = await service.getEntries(workingCopy2.resource);
+		assert.strictEqual(entries.length, 0);
+
+		await service.addEntry(workingCopy2, CancellationToken.None);
+
+		entries = await service.getEntries(workingCopy2.resource);
+		assert.strictEqual(entries.length, 1);
 	});
 });

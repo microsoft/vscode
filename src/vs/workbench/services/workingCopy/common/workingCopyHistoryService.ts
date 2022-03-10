@@ -10,7 +10,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyHistoryEvent, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -21,6 +21,29 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { hash } from 'vs/base/common/hash';
 import { randomPath } from 'vs/base/common/extpath';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ResourceMap } from 'vs/base/common/map';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+
+class WorkingCopyHistoryModel {
+
+	private readonly entries: IWorkingCopyHistoryEntry[] = [];
+
+	addEntry(workingCopy: IWorkingCopy, location: URI, label?: string): IWorkingCopyHistoryEntry {
+		const entry: IWorkingCopyHistoryEntry = {
+			resource: workingCopy.resource,
+			location,
+			label,
+			timestamp: Date.now()
+		};
+		this.entries.push(entry);
+
+		return entry;
+	}
+
+	getEntries(): readonly IWorkingCopyHistoryEntry[] {
+		return this.entries;
+	}
+}
 
 export class WorkingCopyHistoryService extends Disposable implements IWorkingCopyHistoryService {
 
@@ -31,10 +54,13 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 
 	private readonly localHistoryHome = new DeferredPromise<URI>();
 
+	private readonly models = new ResourceMap<WorkingCopyHistoryModel>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -68,7 +94,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		return joinPath(historyHome, hash(workingCopy.resource.toString()).toString(16));
 	}
 
-	async addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<URI | undefined> {
+	async addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
 		if (!this.fileService.hasProvider(workingCopy.resource)) {
 			return undefined; // we require the working copy resource to be file service accessible
 		}
@@ -83,10 +109,24 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		const target = joinPath(workingCopyHistoryHome, `${randomPath(undefined, undefined, 4)}${extname(workingCopy.resource)}`);
 		await this.fileService.cloneFile(workingCopy.resource, target);
 
-		// Events
-		this._onDidAddEntry.fire({ workingCopy });
+		// Add to model
+		let model = this.models.get(workingCopy.resource);
+		if (!model) {
+			model = new WorkingCopyHistoryModel();
+			this.models.set(workingCopy.resource, model);
+		}
+		const entry = model.addEntry(workingCopy, target);
 
-		return target;
+		// Events
+		this._onDidAddEntry.fire({ entry });
+
+		return entry;
+	}
+
+	async getEntries(resource: URI): Promise<readonly IWorkingCopyHistoryEntry[]> {
+		const model = this.models.get(resource);
+
+		return model?.getEntries() ?? [];
 	}
 }
 
