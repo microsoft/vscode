@@ -53,6 +53,21 @@ const CORE_TYPES = [
     'trimLeft',
     'trimRight',
     'queueMicrotask',
+    'Array',
+    'Uint8Array',
+    'Uint16Array',
+    'Uint32Array',
+    'Int8Array',
+    'Int16Array',
+    'Int32Array',
+    'Float32Array',
+    'Float64Array',
+    'Uint8ClampedArray',
+    'BigUint64Array',
+    'BigInt64Array',
+    'btoa',
+    'atob',
+    'AbortSignal',
     'MessageChannel',
     'MessagePort'
 ];
@@ -145,6 +160,9 @@ const RULES = [
         target: '**/vs/**/browser/**',
         allowedTypes: CORE_TYPES,
         disallowedTypes: NATIVE_TYPES,
+        allowedDefinitions: [
+            '@types/node/stream/consumers.d.ts' // node.js started to duplicate types from lib.dom.d.ts so we have to account for that
+        ],
         disallowedDefinitions: [
             '@types/node' // no node.js
         ]

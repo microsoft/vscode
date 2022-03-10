@@ -10,8 +10,8 @@
 		"tas-client-umd": "0.1.4",
 		"vscode-oniguruma": "1.6.1",
 		"vscode-textmate": "6.0.0",
-		"xterm": "4.18.0-beta.15",
-		"xterm-addon-search": "0.9.0-beta.10",
+		"xterm": "4.19.0-beta.2",
+		"xterm-addon-search": "0.9.0-beta.11",
 		"xterm-addon-unicode11": "0.4.0-beta.3",
 		"xterm-addon-webgl": "0.12.0-beta.24"
 	}

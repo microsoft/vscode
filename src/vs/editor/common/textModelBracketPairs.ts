@@ -75,6 +75,7 @@ export class BracketInfo {
 		public readonly range: Range,
 		/** 0-based level */
 		public readonly nestingLevel: number,
+		public readonly nestingLevelOfEqualBracketType: number,
 		public readonly isInvalid: boolean,
 	) { }
 }

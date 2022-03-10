@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -48,6 +48,8 @@ steps:
         echo "Yarn failed $i, trying again..."
       done
     displayName: Install dependencies
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - script: |
