@@ -97,16 +97,18 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 					}
 				}
 
+				const hasDocumentMetadataChangeEvent = event.rawEvents.find(e => e.kind === NotebookCellsChangeType.ChangeDocumentMetadata);
+
 				// using the model resolver service to know if the model is dirty or not.
 				// assuming this is the first listener it can mean that at first the model
 				// is marked as dirty and that another event is fired
 				this._proxy.$acceptModelChanged(
 					textModel.uri,
 					new SerializableObjectWithBuffers(eventDto),
-					this._notebookEditorModelResolverService.isDirty(textModel.uri)
+					this._notebookEditorModelResolverService.isDirty(textModel.uri),
+					hasDocumentMetadataChangeEvent ? textModel.metadata : undefined
 				);
 
-				const hasDocumentMetadataChangeEvent = event.rawEvents.find(e => e.kind === NotebookCellsChangeType.ChangeDocumentMetadata);
 				if (hasDocumentMetadataChangeEvent) {
 					this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
 				}

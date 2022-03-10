@@ -266,6 +266,7 @@ export interface IGalleryMetadata {
 	publisherId: string;
 	publisherDisplayName: string;
 	isPreReleaseVersion: boolean;
+	targetPlatform?: TargetPlatform;
 }
 
 export type Metadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; isBuiltin: boolean; preRelease: boolean; installedTimestamp: number }>;
@@ -277,6 +278,7 @@ export interface ILocalExtension extends IExtension {
 	installedTimestamp?: number;
 	isPreReleaseVersion: boolean;
 	preRelease: boolean;
+	targetPlatform: TargetPlatform;
 }
 
 export const enum SortBy {

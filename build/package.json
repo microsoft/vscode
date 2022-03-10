@@ -29,7 +29,7 @@
     "@types/minimist": "^1.2.1",
     "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^8.2.0",
-    "@types/node": "14.x",
+    "@types/node": "16.x",
     "@types/p-limit": "^2.2.0",
     "@types/plist": "^3.0.2",
     "@types/pump": "^1.0.1",

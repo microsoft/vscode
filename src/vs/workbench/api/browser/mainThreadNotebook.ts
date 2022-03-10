@@ -15,6 +15,8 @@ import { INotebookCellStatusBarItemProvider, INotebookContributionData, Notebook
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
+import { ILogService } from 'vs/platform/log/common/log';
+import { StopWatch } from 'vs/base/common/stopwatch';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -30,6 +32,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		extHostContext: IExtHostContext,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookCellStatusBarService private readonly _cellStatusBarService: INotebookCellStatusBarService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
 	}
@@ -107,11 +110,17 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 		const registration = this._notebookService.registerNotebookSerializer(viewType, extension, {
 			options,
 			dataToNotebook: async (data: VSBuffer): Promise<NotebookData> => {
+				const sw = new StopWatch(true);
 				const dto = await this._proxy.$dataToNotebook(handle, data, CancellationToken.None);
-				return NotebookDto.fromNotebookDataDto(dto.value);
+				const result = NotebookDto.fromNotebookDataDto(dto.value);
+				this._logService.trace('[NotebookSerializer] dataToNotebook DONE', extension.id, sw.elapsed());
+				return result;
 			},
 			notebookToData: (data: NotebookData): Promise<VSBuffer> => {
-				return this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), CancellationToken.None);
+				const sw = new StopWatch(true);
+				const result = this._proxy.$notebookToData(handle, new SerializableObjectWithBuffers(NotebookDto.toNotebookDataDto(data)), CancellationToken.None);
+				this._logService.trace('[NotebookSerializer] notebookToData DONE', extension.id, sw.elapsed());
+				return result;
 			}
 		});
 		const disposables = new DisposableStore();

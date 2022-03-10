@@ -42,8 +42,7 @@ export const enum CellToolbarOrder {
 export const enum CellOverflowToolbarGroups {
 	Copy = '1_copy',
 	Insert = '2_insert',
-	Edit = '3_edit',
-	Collapse = '4_collapse',
+	Edit = '3_edit'
 }
 
 export interface INotebookActionContext {
