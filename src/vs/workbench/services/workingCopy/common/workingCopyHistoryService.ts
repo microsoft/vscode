@@ -38,13 +38,20 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 	}
 
 	private async resolveLocalHistoryHome(): Promise<void> {
-		let historyHome: URI;
+		let historyHome: URI | undefined = undefined;
 
 		// Prefer history to be stored in the remote if we are connected to a remote
-		const remoteEnv = await this.remoteAgentService.getEnvironment();
-		if (remoteEnv) {
-			historyHome = remoteEnv.localHistoryHome;
-		} else {
+		try {
+			const remoteEnv = await this.remoteAgentService.getEnvironment();
+			if (remoteEnv) {
+				historyHome = remoteEnv.localHistoryHome;
+			}
+		} catch (error) {
+			// ignore and fallback to local
+		}
+
+		// But fallback to local if there is no remote
+		if (!historyHome) {
 			historyHome = this.environmentService.localHistoryHome;
 		}
 
@@ -57,19 +64,21 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		return joinPath(historyHome, hash(workingCopy.resource.toString()).toString(16));
 	}
 
-	async addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<void> {
+	async addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<URI | undefined> {
 		if (!this.fileService.hasProvider(workingCopy.resource)) {
-			return; // we require the working copy resource to be file service accessible
+			return undefined; // we require the working copy resource to be file service accessible
 		}
 
 		const workingCopyHistoryHome = await this.resolveWorkingCopyLocalHistoryHome(workingCopy);
 
 		if (token.isCancellationRequested) {
-			return;
+			return undefined;
 		}
 
 		const target = joinPath(workingCopyHistoryHome, `${randomPath(undefined, undefined, 4)}${extname(workingCopy.resource)}`);
 		await this.fileService.cloneFile(workingCopy.resource, target);
+
+		return target;
 	}
 }
 

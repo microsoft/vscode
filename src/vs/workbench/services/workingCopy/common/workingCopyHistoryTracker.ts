@@ -89,12 +89,12 @@ export class WorkingCopyHistoryTracker extends Disposable {
 			// Add entry
 			await this.workingCopyHistoryService.addEntry(e.workingCopy, cts.token);
 
+			// Remember content version as being added to history
+			this.historyEntryContentVersion.set(e.workingCopy.resource, contentVersion);
+
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
-
-			// Remember content version as being added to history
-			this.historyEntryContentVersion.set(e.workingCopy.resource, contentVersion);
 
 			// Finally remove from pending operations
 			this.pendingAddHistoryEntryOperations.delete(e.workingCopy.resource);

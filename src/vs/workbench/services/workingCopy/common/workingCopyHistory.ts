@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
@@ -16,5 +17,5 @@ export interface IWorkingCopyHistoryService {
 	/**
 	 * Adds a new entry to the history for the given working copy.
 	 */
-	addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<void>;
+	addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<URI | undefined>;
 }
