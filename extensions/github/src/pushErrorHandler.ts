@@ -144,13 +144,10 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 	})();
 }
 
-const PR_TEMPLATE_FILE_NAMES = [
-	'pull_request_template.md',
-	'PULL_REQUEST_TEMPLATE.md',
-	'docs/pull_request_template.md',
-	'docs/PULL_REQUEST_TEMPLATE.md',
-	'.github/PULL_REQUEST_TEMPLATE.md',
-	'.github/PULL_REQUEST_TEMPLATE.md',
+const PR_TEMPLATE_FILES = [
+	{ dir: '.', files: ['pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md'] },
+	{ dir: 'docs', files: ['pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md'] },
+	{ dir: '.github', files: ['PULL_REQUEST_TEMPLATE.md', 'PULL_REQUEST_TEMPLATE.md'] }
 ];
 
 const PR_TEMPLATE_DIRECTORY_NAMES = [
@@ -159,9 +156,11 @@ const PR_TEMPLATE_DIRECTORY_NAMES = [
 	'.github/PULL_REQUEST_TEMPLATE'
 ];
 
-async function assertMarkdownFile(uri: Uri): Promise<Uri[]> {
-	const stat = await workspace.fs.stat(uri);
-	return Boolean(stat.type & FileType.File) ? [uri] : [];
+async function assertMarkdownFiles(dir: Uri, files: string[]): Promise<Uri[]> {
+	const dirFiles = await workspace.fs.readDirectory(dir);
+	return dirFiles
+		.filter(([name, type]) => Boolean(type & FileType.File) && files.indexOf(name) !== -1)
+		.map(([name]) => Uri.joinPath(dir, name));
 }
 
 async function findMarkdownFilesInDir(uri: Uri): Promise<Uri[]> {
@@ -182,7 +181,7 @@ async function findMarkdownFilesInDir(uri: Uri): Promise<Uri[]> {
  */
 export async function findPullRequestTemplates(repositoryRootUri: Uri): Promise<Uri[]> {
 	const results = await Promise.allSettled([
-		...PR_TEMPLATE_FILE_NAMES.map(x => assertMarkdownFile(Uri.joinPath(repositoryRootUri, x))),
+		...PR_TEMPLATE_FILES.map(x => assertMarkdownFiles(Uri.joinPath(repositoryRootUri, x.dir), x.files)),
 		...PR_TEMPLATE_DIRECTORY_NAMES.map(x => findMarkdownFilesInDir(Uri.joinPath(repositoryRootUri, x)))
 	]);
 
