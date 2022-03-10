@@ -42,9 +42,14 @@ export interface IWorkingCopyHistoryEntry {
 	timestamp: number;
 
 	/**
-	 * Optional associated label with the history entry.
+	 * Associated label with the history entry.
 	 */
-	label?: string;
+	label: string;
+
+	/**
+	 * Associated description with the history entry.
+	 */
+	description: string;
 }
 
 export interface IWorkingCopyHistoryService {

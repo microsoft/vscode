@@ -15,7 +15,6 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Codicon } from 'vs/base/common/codicons';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { toLocalISOString } from 'vs/base/common/date';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
@@ -77,7 +76,8 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 	private toTimelineItem(entry: IWorkingCopyHistoryEntry, previousEntry: IWorkingCopyHistoryEntry | undefined): TimelineItem {
 		return {
 			handle: entry.id,
-			label: entry.label ?? localize('fileSaved', "File Saved"),
+			label: entry.label,
+			description: entry.description,
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp,
 			themeIcon: Codicon.file,
@@ -90,9 +90,9 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 					localize(
 						'localHistoryCompareEditorLabel', "{0} ({1}) ↔ {2} ({3})",
 						this.labelService.getUriBasenameLabel(previousEntry.resource),
-						toLocalISOString(new Date(previousEntry.timestamp)),
+						previousEntry.label,
 						this.labelService.getUriBasenameLabel(entry.resource),
-						toLocalISOString(new Date(entry.timestamp))
+						entry.label
 					),
 					undefined
 				]
@@ -105,7 +105,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 					localize(
 						'localHistoryEditorLabel', "{0} ({1})",
 						this.labelService.getUriBasenameLabel(entry.resource),
-						toLocalISOString(new Date(entry.timestamp))
+						entry.label
 					)
 				]
 			}

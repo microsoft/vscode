@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -40,7 +41,7 @@ class WorkingCopyHistoryModel {
 		this.historyEntriesFolder = joinPath(historyHome, hash(associatedResource.toString(true)).toString(16));
 	}
 
-	async addEntry(label?: string): Promise<IWorkingCopyHistoryEntry> {
+	async addEntry(): Promise<IWorkingCopyHistoryEntry> {
 
 		// Clone to a potentially unique location within
 		// the history entries folder. The idea is to
@@ -55,8 +56,9 @@ class WorkingCopyHistoryModel {
 			id,
 			resource: this.associatedResource,
 			location,
-			label,
-			timestamp: Date.now()
+			timestamp: Date.now(),
+			label: this.toEntryLabel(Date.now()),
+			description: localize('historyEntryDescription', "File Saved")
 		};
 		this.entries.push(entry);
 
@@ -97,8 +99,16 @@ class WorkingCopyHistoryModel {
 				id: entry.name,
 				resource: this.associatedResource,
 				location: entry.resource,
-				timestamp: entry.mtime
+				timestamp: entry.mtime,
+				label: this.toEntryLabel(entry.mtime),
+				description: localize('historyEntryDescription', "File Saved")
 			}));
+	}
+
+	private toEntryLabel(timestamp: number): string {
+		const date = new Date(timestamp);
+
+		return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
 	}
 }
 
