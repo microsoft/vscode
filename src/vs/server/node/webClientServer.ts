@@ -278,7 +278,7 @@ export class WebClientServer {
 				_wrapWebWorkerExtHostInIframe,
 				developmentOptions: { enableSmokeTestDriver: this._environmentService.driverHandle === 'web' ? true : undefined },
 				settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
-				disableWorkspaceTrust: !!this._environmentService.args['disable-workspace-trust'],
+				enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 				productConfiguration: <Partial<IProductConfiguration>>{
 					embedderIdentifier: 'server-distro',
 					extensionsGallery: this._webExtensionResourceUrlTemplate ? {

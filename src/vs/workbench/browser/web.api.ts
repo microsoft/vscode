@@ -171,9 +171,9 @@ export interface IWorkbenchConstructionOptions {
 	readonly additionalTrustedDomains?: string[];
 
 	/**
-	 * Disable workspace trust feature for the current window
+	 * Enable workspace trust feature for the current window
 	 */
-	readonly disableWorkspaceTrust?: boolean;
+	readonly enableWorkspaceTrust?: boolean;
 
 	/**
 	 * Urls that will be opened externally that are allowed access
