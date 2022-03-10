@@ -9,19 +9,28 @@ const child_process_1 = require("child_process");
 const rpmDependencyScripts_1 = require("./linux-installer/rpm/rpmDependencyScripts");
 const path_1 = require("path");
 const fs_1 = require("fs");
-function getRpmDependencies() {
+function getRpmDependencies(buildDir) {
     // Get the files for which we want to find dependencies.
-    const findResult = (0, child_process_1.spawnSync)('find', ['.', '-name', '*.node']);
+    const findResult = (0, child_process_1.spawnSync)('find', [buildDir, '-name', '*.node']);
     if (findResult.status) {
         console.error('Error finding files:');
         console.error(findResult.stderr.toString());
         return [];
     }
     // Filter the files and add on the Code binary.
-    const files = findResult.stdout.toString().split('\n').filter((file) => {
-        return !file.includes('obj.target') && file.includes('build/Release');
-    });
-    files.push('.build/electron/code-oss');
+    // const files: string[] = findResult.stdout.toString().split('\n').filter((file) => {
+    // 	return !file.includes('obj.target') && file.includes('build/Release');
+    // });
+    const files = findResult.stdout.toString().split('\n');
+    const getAppNameProc = (0, child_process_1.spawnSync)('node', ['-p', 'require(\"$APP_ROOT/resources/app/product.json\").applicationName']);
+    if (getAppNameProc.status) {
+        console.error('Error getting app name:');
+        console.error(getAppNameProc.stderr.toString());
+        return [];
+    }
+    const appName = getAppNameProc.stdout.toString();
+    const appPath = `${buildDir}/${appName}`;
+    files.push(appPath);
     // Generate the dependencies.
     const dependencies = files.map((file) => (0, rpmDependencyScripts_1.calculatePackageDeps)(file));
     // Fetch additional dependencies file.
