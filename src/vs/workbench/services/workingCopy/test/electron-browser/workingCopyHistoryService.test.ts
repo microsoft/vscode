@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { TestProductService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestNativePathService, TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestContextService, TestProductService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { WorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -24,6 +24,7 @@ import { readFileSync } from 'fs';
 import { IWorkingCopyHistoryEvent } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IFileService } from 'vs/platform/files/common/files';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { LabelService } from 'vs/workbench/services/label/common/labelService';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -48,7 +49,9 @@ export class TestWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
 		const uriIdentityService = new UriIdentityService(fileService);
 
-		super(fileService, remoteAgentService, environmentService, uriIdentityService);
+		const labelService = new LabelService(environmentService, new TestContextService(), new TestNativePathService());
+
+		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService);
 
 		this._fileService = fileService;
 	}
@@ -111,8 +114,8 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(readFileSync(entry2A.location.fsPath).toString(), testFile2PathContents);
 
 		assert.strictEqual(addEvents.length, 2);
-		assert.strictEqual(addEvents[0].entry.resource.toString(), workingCopy1.resource.toString());
-		assert.strictEqual(addEvents[1].entry.resource.toString(), workingCopy2.resource.toString());
+		assert.strictEqual(addEvents[0].entry.workingCopy.resource.toString(), workingCopy1.resource.toString());
+		assert.strictEqual(addEvents[1].entry.workingCopy.resource.toString(), workingCopy2.resource.toString());
 
 		const entry1B = await service.addEntry(workingCopy1, CancellationToken.None);
 		const entry2B = await service.addEntry(workingCopy2, CancellationToken.None);
@@ -124,8 +127,8 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(readFileSync(entry2B.location.fsPath).toString(), testFile2PathContents);
 
 		assert.strictEqual(addEvents.length, 4);
-		assert.strictEqual(addEvents[2].entry.resource.toString(), workingCopy1.resource.toString());
-		assert.strictEqual(addEvents[3].entry.resource.toString(), workingCopy2.resource.toString());
+		assert.strictEqual(addEvents[2].entry.workingCopy.resource.toString(), workingCopy1.resource.toString());
+		assert.strictEqual(addEvents[3].entry.workingCopy.resource.toString(), workingCopy2.resource.toString());
 
 		// Cancellation works
 

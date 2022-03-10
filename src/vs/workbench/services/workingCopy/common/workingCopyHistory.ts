@@ -27,9 +27,12 @@ export interface IWorkingCopyHistoryEntry {
 	id: string;
 
 	/**
-	 * The associated working copy resource of this history entry.
+	 * The associated working copy of this entry.
 	 */
-	resource: URI;
+	workingCopy: {
+		resource: URI;
+		name: string;
+	};
 
 	/**
 	 * The location on disk of this history entry.

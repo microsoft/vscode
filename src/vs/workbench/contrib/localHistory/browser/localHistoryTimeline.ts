@@ -14,7 +14,6 @@ import { URI } from 'vs/base/common/uri';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { Codicon } from 'vs/base/common/codicons';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { ILabelService } from 'vs/platform/label/common/label';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
@@ -32,8 +31,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 	constructor(
 		@ITimelineService private readonly timelineService: ITimelineService,
 		@IWorkingCopyHistoryService private readonly workingCopyHistoryService: IWorkingCopyHistoryService,
-		@IPathService private readonly pathService: IPathService,
-		@ILabelService private readonly labelService: ILabelService
+		@IPathService private readonly pathService: IPathService
 	) {
 		super();
 
@@ -89,9 +87,9 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 					entry.location,
 					localize(
 						'localHistoryCompareEditorLabel', "{0} ({1}) ↔ {2} ({3})",
-						this.labelService.getUriBasenameLabel(previousEntry.resource),
+						previousEntry.workingCopy.name,
 						previousEntry.label,
-						this.labelService.getUriBasenameLabel(entry.resource),
+						entry.workingCopy.name,
 						entry.label
 					),
 					undefined
@@ -104,7 +102,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 					undefined,
 					localize(
 						'localHistoryEditorLabel', "{0} ({1})",
-						this.labelService.getUriBasenameLabel(entry.resource),
+						entry.workingCopy.name,
 						entry.label
 					)
 				]

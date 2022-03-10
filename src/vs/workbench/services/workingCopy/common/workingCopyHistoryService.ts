@@ -24,6 +24,7 @@ import { randomPath } from 'vs/base/common/extpath';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 class WorkingCopyHistoryModel {
 
@@ -33,12 +34,19 @@ class WorkingCopyHistoryModel {
 
 	private historyEntriesFolder: URI;
 
+	private workingCopyResource: URI;
+	private workingCopyName: string;
+
 	constructor(
-		private readonly associatedResource: URI,
+		workingCopyResource: URI,
 		historyHome: URI,
-		@IFileService private readonly fileService: IFileService
+		private readonly fileService: IFileService,
+		labelService: ILabelService
 	) {
-		this.historyEntriesFolder = joinPath(historyHome, hash(associatedResource.toString(true)).toString(16));
+		this.workingCopyResource = workingCopyResource;
+		this.workingCopyName = labelService.getUriBasenameLabel(workingCopyResource);
+
+		this.historyEntriesFolder = joinPath(historyHome, hash(workingCopyResource.toString(true)).toString(16));
 	}
 
 	async addEntry(): Promise<IWorkingCopyHistoryEntry> {
@@ -47,14 +55,17 @@ class WorkingCopyHistoryModel {
 		// the history entries folder. The idea is to
 		// execute this as fast as possible, tolerating
 		// naming collisions, even though unlikely.
-		const id = `${randomPath(undefined, undefined, 4)}${extname(this.associatedResource)}`;
+		const id = `${randomPath(undefined, undefined, 4)}${extname(this.workingCopyResource)}`;
 		const location = joinPath(this.historyEntriesFolder, id);
-		await this.fileService.cloneFile(this.associatedResource, location);
+		await this.fileService.cloneFile(this.workingCopyResource, location);
 
 		// Add to list of entries
 		const entry: IWorkingCopyHistoryEntry = {
 			id,
-			resource: this.associatedResource,
+			workingCopy: {
+				resource: this.workingCopyResource,
+				name: this.workingCopyName
+			},
 			location,
 			timestamp: Date.now(),
 			label: this.toEntryLabel(Date.now()),
@@ -97,7 +108,10 @@ class WorkingCopyHistoryModel {
 			.sort((entryA, entryB) => entryA.mtime - entryB.mtime)
 			.map(entry => ({
 				id: entry.name,
-				resource: this.associatedResource,
+				workingCopy: {
+					resource: this.workingCopyResource,
+					name: this.workingCopyName
+				},
 				location: entry.resource,
 				timestamp: entry.mtime,
 				label: this.toEntryLabel(entry.mtime),
@@ -127,7 +141,8 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		@IFileService private readonly fileService: IFileService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super();
 
@@ -190,7 +205,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 
 		let model = this.models.get(resource);
 		if (!model) {
-			model = new WorkingCopyHistoryModel(resource, historyHome, this.fileService);
+			model = new WorkingCopyHistoryModel(resource, historyHome, this.fileService, this.labelService);
 			this.models.set(resource, model);
 		}
 
