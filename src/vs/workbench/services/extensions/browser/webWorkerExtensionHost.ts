@@ -30,6 +30,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { FileAccess } from 'vs/base/common/network';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { parentOriginHash } from 'vs/workbench/browser/webview';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -45,6 +46,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
 	public readonly remoteAuthority = null;
 	public readonly lazyStart: boolean;
+	public readonly extensions = new ExtensionDescriptionRegistry([]);
 
 	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
@@ -265,6 +267,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
 		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
+		this.extensions.deltaExtensions(initData.extensions, []);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
@@ -288,7 +291,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			},
 			resolvedExtensions: [],
 			hostExtensions: [],
-			extensions: initData.extensions,
+			extensions: this.extensions.getAllExtensionDescriptions(),
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._extensionHostLogsLocation,

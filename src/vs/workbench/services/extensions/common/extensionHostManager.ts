@@ -19,7 +19,7 @@ import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostKind, ActivationKind, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
@@ -37,6 +37,7 @@ export interface IExtensionHostManager {
 	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
 	dispose(): void;
 	ready(): Promise<void>;
+	representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean;
 	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
 	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
@@ -190,7 +191,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	private async measure(): Promise<ExtHostLatencyResult | null> {
-		const proxy = await this._getProxy();
+		const proxy = await this._proxy;
 		if (!proxy) {
 			return null;
 		}
@@ -205,12 +206,8 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		};
 	}
 
-	private async _getProxy(): Promise<IExtensionHostProxy | null> {
-		return this._proxy;
-	}
-
 	public async ready(): Promise<void> {
-		await this._getProxy();
+		await this._proxy;
 	}
 
 	private async _measureLatency(proxy: IExtensionHostProxy): Promise<number> {
@@ -310,7 +307,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
-		const proxy = await this._getProxy();
+		const proxy = await this._proxy;
 		if (!proxy) {
 			return false;
 		}
@@ -373,7 +370,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				}
 			});
 		}
-		const proxy = await this._getProxy();
+		const proxy = await this._proxy;
 		if (!proxy) {
 			throw new Error(`Cannot resolve authority`);
 		}
@@ -392,7 +389,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 			// This authority does not use a resolver
 			return uri;
 		}
-		const proxy = await this._getProxy();
+		const proxy = await this._proxy;
 		if (!proxy) {
 			throw new Error(`Cannot resolve canonical URI`);
 		}
@@ -401,15 +398,16 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
-		const proxy = await this._getProxy();
+		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
+		this._extensionHost.extensions.keepOnly(enabledExtensionIds);
 		return proxy.startExtensionHost(enabledExtensionIds);
 	}
 
 	public async extensionTestsExecute(): Promise<number> {
-		const proxy = await this._getProxy();
+		const proxy = await this._proxy;
 		if (!proxy) {
 			throw new Error('Could not obtain Extension Host Proxy');
 		}
@@ -417,7 +415,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	public async extensionTestsSendExit(exitCode: number): Promise<void> {
-		const proxy = await this._getProxy();
+		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
@@ -430,16 +428,21 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		}
 	}
 
+	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
+		return (this.kind === runningLocation.type);
+	}
+
 	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		const proxy = await this._getProxy();
+		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
+		this._extensionHost.extensions.deltaExtensions(toAdd, toRemove);
 		return proxy.deltaExtensions(toAdd, toRemove);
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
-		const proxy = await this._getProxy();
+		const proxy = await this._proxy;
 		if (!proxy) {
 			return;
 		}
@@ -497,6 +500,9 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		if (this._actual) {
 			await this._actual.ready();
 		}
+	}
+	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
+		return (this.kind === runningLocation.type);
 	}
 	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
 		await this._startCalled.wait();

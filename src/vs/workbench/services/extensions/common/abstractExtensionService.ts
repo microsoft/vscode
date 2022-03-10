@@ -15,7 +15,7 @@ import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } fr
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind, toExtensionDescription, ExtensionRunningLocation, extensionHostKindToString, ExtensionActivationReason, IInternalExtensionService, RemoteRunningLocation, LocalProcessRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -275,6 +275,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return null;
 	}
 
+	protected _getExtensionHostManagerByRunningLocation(runningLocation: ExtensionRunningLocation): IExtensionHostManager | null {
+		for (const extensionHostManager of this._extensionHostManagers) {
+			if (extensionHostManager.representsRunningLocation(runningLocation)) {
+				return extensionHostManager;
+			}
+		}
+		return null;
+	}
+
 	//#region deltaExtensions
 
 	private async _handleDeltaExtensions(item: DeltaExtensionsQueueItem): Promise<void> {
@@ -374,45 +383,35 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _updateExtensionsOnExtHosts(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		const groupedToRemove: ExtensionIdentifier[][] = [];
-		const groupRemove = (extensionHostKind: ExtensionHostKind) => {
-			groupedToRemove[extensionHostKind] = _filterByRunningLocation(toRemove, extId => extId, this._runningLocation, extensionHostKind);
-		};
-		groupRemove(ExtensionHostKind.LocalProcess);
-		groupRemove(ExtensionHostKind.LocalWebWorker);
-		groupRemove(ExtensionHostKind.Remote);
+
+		// Remove old running location
+		const removedRunningLocation = new Map<string, ExtensionRunningLocation | null>();
 		for (const extensionId of toRemove) {
-			this._runningLocation.delete(ExtensionIdentifier.toKey(extensionId));
+			const extensionKey = ExtensionIdentifier.toKey(extensionId);
+			removedRunningLocation.set(extensionKey, this._runningLocation.get(extensionKey) || null);
+			this._runningLocation.delete(extensionKey);
 		}
 
-		const groupedToAdd: IExtensionDescription[][] = [];
-		const groupAdd = (extensionHostKind: ExtensionHostKind) => {
-			groupedToAdd[extensionHostKind] = filterByRunningLocation(toAdd, this._runningLocation, extensionHostKind);
-		};
+		// Determine new running location
 		for (const extension of toAdd) {
 			const extensionKind = this._getExtensionKind(extension);
 			const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
 			const runningLocation = this._pickRunningLocation(extension.identifier, extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
 			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), runningLocation);
 		}
-		groupAdd(ExtensionHostKind.LocalProcess);
-		groupAdd(ExtensionHostKind.LocalWebWorker);
-		groupAdd(ExtensionHostKind.Remote);
 
-		const promises: Promise<void>[] = [];
-
-		for (const extensionHostKind of [ExtensionHostKind.LocalProcess, ExtensionHostKind.LocalWebWorker, ExtensionHostKind.Remote]) {
-			const toAdd = groupedToAdd[extensionHostKind];
-			const toRemove = groupedToRemove[extensionHostKind];
-			if (toAdd.length > 0 || toRemove.length > 0) {
-				const extensionHostManager = this._getExtensionHostManager(extensionHostKind);
-				if (extensionHostManager) {
-					promises.push(extensionHostManager.deltaExtensions(toAdd, toRemove));
-				}
-			}
-		}
-
+		const promises = this._extensionHostManagers.map(
+			extHostManager => this._updateExtensionsOnExtHost(extHostManager, toAdd, toRemove, removedRunningLocation)
+		);
 		await Promise.all(promises);
+	}
+
+	private async _updateExtensionsOnExtHost(extensionHostManager: IExtensionHostManager, toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[], removedRunningLocation: Map<string, ExtensionRunningLocation | null>): Promise<void> {
+		const localToAdd = filterByExtensionHostManager(toAdd, this._runningLocation, extensionHostManager);
+		const localToRemove = _filterByExtensionHostManager(toRemove, extId => extId, removedRunningLocation, extensionHostManager);
+		if (localToRemove.length > 0 || localToAdd.length > 0) {
+			await extensionHostManager.deltaExtensions(localToAdd, localToRemove);
+		}
 	}
 
 	public canAddExtension(extension: IExtensionDescription): boolean {
@@ -558,34 +557,31 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._onExtensionHostExit(exitCode);
 	}
 
-	private findTestExtensionHost(testLocation: URI): IExtensionHostManager | undefined | null {
-		let extensionHostKind: ExtensionHostKind | undefined;
+	private findTestExtensionHost(testLocation: URI): IExtensionHostManager | null {
+		let runningLocation: ExtensionRunningLocation | null = null;
 
 		for (const extension of this._registry.getAllExtensionDescriptions()) {
 			if (isEqualOrParent(testLocation, extension.extensionLocation)) {
-				const runningLocation = this._runningLocation.get(ExtensionIdentifier.toKey(extension.identifier));
-				if (runningLocation) {
-					extensionHostKind = runningLocation.type;
-				}
+				runningLocation = this._runningLocation.get(ExtensionIdentifier.toKey(extension.identifier)) || null;
 				break;
 			}
 		}
-		if (extensionHostKind === undefined) {
+		if (runningLocation === null) {
 			// not sure if we should support that, but it was possible to have an test outside an extension
 
 			if (testLocation.scheme === Schemas.vscodeRemote) {
-				extensionHostKind = ExtensionHostKind.Remote;
+				runningLocation = new RemoteRunningLocation();
 			} else {
 				// When a debugger attaches to the extension host, it will surface all console.log messages from the extension host,
 				// but not necessarily from the window. So it would be best if any errors get printed to the console of the extension host.
 				// That is why here we use the local process extension host even for non-file URIs
-				extensionHostKind = ExtensionHostKind.LocalProcess;
+				runningLocation = new LocalProcessRunningLocation();
 			}
 		}
-		if (extensionHostKind !== undefined) {
-			return this._getExtensionHostManager(extensionHostKind);
+		if (runningLocation !== null) {
+			return this._getExtensionHostManagerByRunningLocation(runningLocation);
 		}
-		return undefined;
+		return null;
 	}
 
 	private _releaseBarrier(): void {
@@ -1248,5 +1244,15 @@ function _filterByRunningLocation<T>(extensions: T[], extId: (item: T) => Extens
 	return extensions.filter((ext) => {
 		const extRunningLocation = runningLocation.get(ExtensionIdentifier.toKey(extId(ext)));
 		return (extRunningLocation && extRunningLocation.type === desiredExtensionHostKind);
+	});
+}
+
+function filterByExtensionHostManager(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, extensionHostManager: IExtensionHostManager): IExtensionDescription[] {
+	return _filterByExtensionHostManager(extensions, ext => ext.identifier, runningLocation, extensionHostManager);
+}
+function _filterByExtensionHostManager<T>(extensions: T[], extId: (item: T) => ExtensionIdentifier, runningLocation: Map<string, ExtensionRunningLocation | null>, extensionHostManager: IExtensionHostManager): T[] {
+	return extensions.filter((ext) => {
+		const extRunningLocation = runningLocation.get(ExtensionIdentifier.toKey(extId(ext)));
+		return (extRunningLocation && extensionHostManager.representsRunningLocation(extRunningLocation));
 	});
 }

@@ -13,6 +13,7 @@ import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionMana
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -130,6 +131,11 @@ export interface IExtensionHost {
 	readonly kind: ExtensionHostKind;
 	readonly remoteAuthority: string | null;
 	readonly lazyStart: boolean;
+	/**
+	 * A collection of extensions that will execute or are executing on this extension host.
+	 * **NOTE**: this will reflect extensions correctly only after `start()` resolves.
+	 */
+	readonly extensions: ExtensionDescriptionRegistry;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;
