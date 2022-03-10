@@ -9,6 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { isStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -19,6 +20,10 @@ export class WorkingCopyHistoryTracker extends Disposable {
 	// an operation that should be unbounded and as such we
 	// limit the write operations up to a maximum degree.
 	private static readonly MAX_PARALLEL_HISTORY_WRITES = 10;
+
+	// Maximum size of files that are tracked for being considered
+	// as history entries.
+	private static readonly MAX_TRACKED_FILE_SIZE = 1024 * 256;
 
 	private readonly limiter = this._register(new Limiter(WorkingCopyHistoryTracker.MAX_PARALLEL_HISTORY_WRITES));
 
@@ -57,7 +62,7 @@ export class WorkingCopyHistoryTracker extends Disposable {
 	}
 
 	private onDidSave(e: IWorkingCopySaveEvent): void {
-		if (!this.shouldTrackHistory(e.workingCopy)) {
+		if (!this.shouldTrackHistory(e)) {
 			return; // return early for working copies we are not interested in
 		}
 
@@ -96,9 +101,17 @@ export class WorkingCopyHistoryTracker extends Disposable {
 		});
 	}
 
-	private shouldTrackHistory(workingCopy: IWorkingCopy): boolean {
-		if (workingCopy.resource.scheme !== this.pathService.defaultUriScheme) {
+	private shouldTrackHistory(e: IWorkingCopySaveEvent): boolean {
+		if (e.workingCopy.resource.scheme !== this.pathService.defaultUriScheme) {
 			return false; // drop schemes such as `vscode-userdata` (settings)
+		}
+
+		if (!isStoredFileWorkingCopySaveEvent(e)) {
+			return false; // only support working copies that are backed by stored files
+		}
+
+		if (e.stat.size > WorkingCopyHistoryTracker.MAX_TRACKED_FILE_SIZE) {
+			return false; // only track files that are not too large
 		}
 
 		return true;

@@ -99,7 +99,7 @@ export interface IStoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> e
 	/**
 	 * An event for when a stored file working copy was saved successfully.
 	 */
-	readonly onDidSave: Event<IWorkingCopySaveEvent>;
+	readonly onDidSave: Event<IStoredFileWorkingCopySaveEvent>;
 
 	/**
 	 * An event indicating that a stored file working copy save operation failed.
@@ -255,6 +255,20 @@ interface IStoredFileWorkingCopyBackupMetaData extends IWorkingCopyBackupMeta {
 	readonly orphaned: boolean;
 }
 
+export interface IStoredFileWorkingCopySaveEvent extends IWorkingCopySaveEvent {
+
+	/**
+	 * The resolved stat from the save operation.
+	 */
+	readonly stat: IFileStatWithMetadata;
+}
+
+export function isStoredFileWorkingCopySaveEvent(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent {
+	const candidate = e as IStoredFileWorkingCopySaveEvent;
+
+	return !!candidate.stat;
+}
+
 export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extends ResourceWorkingCopy implements IStoredFileWorkingCopy<M>  {
 
 	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.None;
@@ -276,7 +290,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	private readonly _onDidSaveError = this._register(new Emitter<void>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
-	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	private readonly _onDidSave = this._register(new Emitter<IStoredFileWorkingCopySaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidRevert = this._register(new Emitter<void>());
@@ -958,7 +972,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		this.setOrphaned(false);
 
 		// Emit Save Event
-		this._onDidSave.fire({ reason: options.reason });
+		this._onDidSave.fire({ reason: options.reason, stat });
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: IStoredFileWorkingCopySaveOptions): void {

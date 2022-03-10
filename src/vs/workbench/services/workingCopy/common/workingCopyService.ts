@@ -170,7 +170,7 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 		const disposables = new DisposableStore();
 		disposables.add(workingCopy.onDidChangeContent(() => this._onDidChangeContent.fire(workingCopy)));
 		disposables.add(workingCopy.onDidChangeDirty(() => this._onDidChangeDirty.fire(workingCopy)));
-		disposables.add(workingCopy.onDidSave(({ reason }) => this._onDidSave.fire({ workingCopy, reason })));
+		disposables.add(workingCopy.onDidSave(e => this._onDidSave.fire({ workingCopy, ...e })));
 
 		// Send some initial events
 		this._onDidRegister.fire(workingCopy);

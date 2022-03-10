@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory, isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, newWriteableBufferStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -423,10 +423,10 @@ suite('StoredFileWorkingCopy', function () {
 
 	test('save (no errors)', async () => {
 		let savedCounter = 0;
-		let lastSavedReason: SaveReason | undefined = undefined;
-		workingCopy.onDidSave(({ reason }) => {
+		let lastSaveEvent: IStoredFileWorkingCopySaveEvent | undefined = undefined;
+		workingCopy.onDidSave(e => {
 			savedCounter++;
-			lastSavedReason = reason;
+			lastSaveEvent = e;
 		});
 
 		let saveErrorCounter = 0;
@@ -447,7 +447,9 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(savedCounter, 1);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(lastSavedReason, SaveReason.EXPLICIT);
+		assert.strictEqual(lastSaveEvent!.reason, SaveReason.EXPLICIT);
+		assert.ok(lastSaveEvent!.stat);
+		assert.ok(isStoredFileWorkingCopySaveEvent(lastSaveEvent!));
 		assert.strictEqual(workingCopy.model?.pushedStackElement, true);
 
 		// save reason
@@ -457,7 +459,7 @@ suite('StoredFileWorkingCopy', function () {
 		assert.strictEqual(savedCounter, 2);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
-		assert.strictEqual(lastSavedReason, SaveReason.AUTO);
+		assert.strictEqual((lastSaveEvent as IStoredFileWorkingCopySaveEvent).reason, SaveReason.AUTO);
 
 		// multiple saves in parallel are fine and result
 		// in a single save when content does not change
