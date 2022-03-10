@@ -78,7 +78,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			description: entry.description,
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp,
-			themeIcon: Codicon.file,
+			themeIcon: Codicon.save,
 			command: previousEntry ? {
 				id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
 				title: localize('compareLocalHistory', "Compare with Previous"),
