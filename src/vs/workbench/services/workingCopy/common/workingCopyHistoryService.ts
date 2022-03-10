@@ -11,7 +11,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { URI } from 'vs/base/common/uri';
@@ -26,12 +26,34 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 
 class WorkingCopyHistoryModel {
 
-	private readonly entries: IWorkingCopyHistoryEntry[] = [];
+	private entries: IWorkingCopyHistoryEntry[] = [];
 
-	addEntry(id: string, workingCopy: IWorkingCopy, location: URI, label?: string): IWorkingCopyHistoryEntry {
+	private whenResolved: Promise<void> | undefined = undefined;
+
+	private historyEntriesFolder: URI;
+
+	constructor(
+		private readonly associatedResource: URI,
+		historyHome: URI,
+		@IFileService private readonly fileService: IFileService
+	) {
+		this.historyEntriesFolder = joinPath(historyHome, hash(associatedResource.toString(true)).toString(16));
+	}
+
+	async addEntry(label?: string): Promise<IWorkingCopyHistoryEntry> {
+
+		// Clone to a potentially unique location within
+		// the history entries folder. The idea is to
+		// execute this as fast as possible, tolerating
+		// naming collisions, even though unlikely.
+		const id = `${randomPath(undefined, undefined, 4)}${extname(this.associatedResource)}`;
+		const location = joinPath(this.historyEntriesFolder, id);
+		await this.fileService.cloneFile(this.associatedResource, location);
+
+		// Add to list of entries
 		const entry: IWorkingCopyHistoryEntry = {
 			id,
-			resource: workingCopy.resource,
+			resource: this.associatedResource,
 			location,
 			label,
 			timestamp: Date.now()
@@ -41,8 +63,42 @@ class WorkingCopyHistoryModel {
 		return entry;
 	}
 
-	getEntries(): readonly IWorkingCopyHistoryEntry[] {
+	async getEntries(): Promise<readonly IWorkingCopyHistoryEntry[]> {
+
+		// Make sure to await resolving when
+		// all entries are asked for
+		if (!this.whenResolved) {
+			this.whenResolved = this.resolveEntries();
+		}
+		await this.whenResolved;
+
 		return this.entries;
+	}
+
+	private async resolveEntries(): Promise<void> {
+		let rawEntries: IFileStatWithMetadata[] | undefined = undefined;
+
+		// Resolve children of folder on disk
+		try {
+			rawEntries = (await this.fileService.resolve(this.historyEntriesFolder, { resolveMetadata: true })).children;
+		} catch (error) {
+			// ignore - folder might not exist
+		}
+
+		if (!Array.isArray(rawEntries)) {
+			return;
+		}
+
+		// Convert each child to history entry
+		// sorted by modification time
+		this.entries = rawEntries
+			.sort((entryA, entryB) => entryA.mtime - entryB.mtime)
+			.map(entry => ({
+				id: entry.name,
+				resource: this.associatedResource,
+				location: entry.resource,
+				timestamp: entry.mtime
+			}));
 	}
 }
 
@@ -89,35 +145,19 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		this.localHistoryHome.complete(historyHome);
 	}
 
-	private async resolveWorkingCopyLocalHistoryHome(workingCopy: IWorkingCopy): Promise<URI> {
-		const historyHome = await this.localHistoryHome.p;
-
-		return joinPath(historyHome, hash(workingCopy.resource.toString(true)).toString(16));
-	}
-
 	async addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
 		if (!this.fileService.hasProvider(workingCopy.resource)) {
 			return undefined; // we require the working copy resource to be file service accessible
 		}
 
-		const workingCopyHistoryHome = await this.resolveWorkingCopyLocalHistoryHome(workingCopy);
-
+		// Resolve history model for working copy
+		const model = await this.getModel(workingCopy.resource);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
 
-		// Clone to a potentially unique location
-		const entryId = `${randomPath(undefined, undefined, 4)}${extname(workingCopy.resource)}`;
-		const target = joinPath(workingCopyHistoryHome, entryId);
-		await this.fileService.cloneFile(workingCopy.resource, target);
-
 		// Add to model
-		let model = this.models.get(workingCopy.resource);
-		if (!model) {
-			model = new WorkingCopyHistoryModel();
-			this.models.set(workingCopy.resource, model);
-		}
-		const entry = model.addEntry(entryId, workingCopy, target);
+		const entry = await model.addEntry();
 
 		// Events
 		this._onDidAddEntry.fire({ entry });
@@ -126,9 +166,25 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 	}
 
 	async getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]> {
-		const model = this.models.get(resource);
+		const model = await this.getModel(resource);
+		if (token.isCancellationRequested) {
+			return [];
+		}
 
-		return model?.getEntries() ?? [];
+		const entries = await model.getEntries();
+		return entries ?? [];
+	}
+
+	private async getModel(resource: URI): Promise<WorkingCopyHistoryModel> {
+		const historyHome = await this.localHistoryHome.p;
+
+		let model = this.models.get(resource);
+		if (!model) {
+			model = new WorkingCopyHistoryModel(resource, historyHome, this.fileService);
+			this.models.set(resource, model);
+		}
+
+		return model;
 	}
 }
 

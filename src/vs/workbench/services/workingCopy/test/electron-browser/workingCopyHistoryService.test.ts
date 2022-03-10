@@ -151,6 +151,8 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
 
+		// Initially empty without entries added
+
 		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);
 
@@ -168,6 +170,17 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries.length, 0);
 
 		await service.addEntry(workingCopy2, CancellationToken.None);
+
+		entries = await service.getEntries(workingCopy2.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 1);
+
+		// Now filled with entries given contents on disk
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 2);
 
 		entries = await service.getEntries(workingCopy2.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);
