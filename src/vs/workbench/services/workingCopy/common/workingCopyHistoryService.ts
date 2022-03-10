@@ -28,8 +28,9 @@ class WorkingCopyHistoryModel {
 
 	private readonly entries: IWorkingCopyHistoryEntry[] = [];
 
-	addEntry(workingCopy: IWorkingCopy, location: URI, label?: string): IWorkingCopyHistoryEntry {
+	addEntry(id: string, workingCopy: IWorkingCopy, location: URI, label?: string): IWorkingCopyHistoryEntry {
 		const entry: IWorkingCopyHistoryEntry = {
+			id,
 			resource: workingCopy.resource,
 			location,
 			label,
@@ -91,7 +92,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 	private async resolveWorkingCopyLocalHistoryHome(workingCopy: IWorkingCopy): Promise<URI> {
 		const historyHome = await this.localHistoryHome.p;
 
-		return joinPath(historyHome, hash(workingCopy.resource.toString()).toString(16));
+		return joinPath(historyHome, hash(workingCopy.resource.toString(true)).toString(16));
 	}
 
 	async addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
@@ -106,7 +107,8 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		}
 
 		// Clone to a potentially unique location
-		const target = joinPath(workingCopyHistoryHome, `${randomPath(undefined, undefined, 4)}${extname(workingCopy.resource)}`);
+		const entryId = `${randomPath(undefined, undefined, 4)}${extname(workingCopy.resource)}`;
+		const target = joinPath(workingCopyHistoryHome, entryId);
 		await this.fileService.cloneFile(workingCopy.resource, target);
 
 		// Add to model
@@ -115,7 +117,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 			model = new WorkingCopyHistoryModel();
 			this.models.set(workingCopy.resource, model);
 		}
-		const entry = model.addEntry(workingCopy, target);
+		const entry = model.addEntry(entryId, workingCopy, target);
 
 		// Events
 		this._onDidAddEntry.fire({ entry });
@@ -123,7 +125,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		return entry;
 	}
 
-	async getEntries(resource: URI): Promise<readonly IWorkingCopyHistoryEntry[]> {
+	async getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]> {
 		const model = this.models.get(resource);
 
 		return model?.getEntries() ?? [];

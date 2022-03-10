@@ -22,6 +22,11 @@ export interface IWorkingCopyHistoryEvent {
 export interface IWorkingCopyHistoryEntry {
 
 	/**
+	 * Unique identifier of this entry for the working copy.
+	 */
+	id: string;
+
+	/**
 	 * The associated working copy resource of this history entry.
 	 */
 	resource: URI;
@@ -59,5 +64,5 @@ export interface IWorkingCopyHistoryService {
 	/**
 	 * Gets all history entries for the provided resource.
 	 */
-	getEntries(resource: URI): Promise<readonly IWorkingCopyHistoryEntry[]>;
+	getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]>;
 }

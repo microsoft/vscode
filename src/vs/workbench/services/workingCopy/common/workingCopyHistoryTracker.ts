@@ -8,13 +8,14 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export class WorkingCopyHistoryTracker extends Disposable {
+export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchContribution {
 
 	// Adding history entries from the tracker should not be
 	// an operation that should be unbounded and as such we

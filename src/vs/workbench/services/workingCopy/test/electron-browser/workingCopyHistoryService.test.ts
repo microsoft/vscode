@@ -151,25 +151,25 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
 
-		let entries = await service.getEntries(workingCopy1.resource);
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);
 
 		await service.addEntry(workingCopy1, CancellationToken.None);
 
-		entries = await service.getEntries(workingCopy1.resource);
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);
 
 		await service.addEntry(workingCopy1, CancellationToken.None);
 
-		entries = await service.getEntries(workingCopy1.resource);
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 2);
 
-		entries = await service.getEntries(workingCopy2.resource);
+		entries = await service.getEntries(workingCopy2.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);
 
 		await service.addEntry(workingCopy2, CancellationToken.None);
 
-		entries = await service.getEntries(workingCopy2.resource);
+		entries = await service.getEntries(workingCopy2.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);
 	});
 });
