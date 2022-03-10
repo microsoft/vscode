@@ -275,6 +275,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return null;
 	}
 
+	protected _getExtensionHostManagers(kind: ExtensionHostKind): IExtensionHostManager[] {
+		return this._extensionHostManagers.filter(extHostManager => extHostManager.kind === kind);
+	}
+
 	protected _getExtensionHostManagerByRunningLocation(runningLocation: ExtensionRunningLocation): IExtensionHostManager | null {
 		for (const extensionHostManager of this._extensionHostManagers) {
 			if (extensionHostManager.representsRunningLocation(runningLocation)) {

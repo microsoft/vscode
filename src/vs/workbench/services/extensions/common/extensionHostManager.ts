@@ -12,7 +12,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ExtHostCustomersRegistry, IInternalExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { Proxied, ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as nls from 'vs/nls';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -25,7 +25,7 @@ import { Barrier, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionHostProxy } from 'vs/workbench/services/extensions/common/extensionHostProxy';
+import { IExtensionHostProxy, IResolveAuthorityResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -43,7 +43,7 @@ export interface IExtensionHostManager {
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	activationEventIsDone(activationEvent: string): boolean;
 	getInspectPort(tryEnableInspector: boolean): Promise<number>;
-	resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
+	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
 	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI>;
 	start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	extensionTestsExecute(): Promise<number>;
@@ -93,7 +93,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	private readonly _customers: IDisposable[];
 	private readonly _extensionHost: IExtensionHost;
 	private _proxy: Promise<IExtensionHostProxy | null> | null;
-	private _resolveAuthorityAttempt: number;
 	private _hasStarted = false;
 
 	constructor(
@@ -167,7 +166,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 				measure: () => this.measure()
 			}));
 		});
-		this._resolveAuthorityAttempt = 0;
 	}
 
 	public override dispose(): void {
@@ -356,30 +354,30 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return 0;
 	}
 
-	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
-		const authorityPlusIndex = remoteAuthority.indexOf('+');
-		if (authorityPlusIndex === -1) {
-			// This authority does not need to be resolved, simply parse the port number
-			const lastColon = remoteAuthority.lastIndexOf(':');
-			return Promise.resolve({
-				authority: {
-					authority: remoteAuthority,
-					host: remoteAuthority.substring(0, lastColon),
-					port: parseInt(remoteAuthority.substring(lastColon + 1), 10),
-					connectionToken: undefined
-				}
-			});
-		}
+	public async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
 		const proxy = await this._proxy;
 		if (!proxy) {
-			throw new Error(`Cannot resolve authority`);
+			return {
+				type: 'error',
+				error: {
+					message: `Cannot resolve authority`,
+					code: RemoteAuthorityResolverErrorCode.Unknown,
+					detail: undefined
+				}
+			};
 		}
-		this._resolveAuthorityAttempt++;
-		const result = await proxy.resolveAuthority(remoteAuthority, this._resolveAuthorityAttempt);
-		if (result.type === 'ok') {
-			return result.value;
-		} else {
-			throw new RemoteAuthorityResolverError(result.error.message, result.error.code, result.error.detail);
+
+		try {
+			return proxy.resolveAuthority(remoteAuthority, resolveAttempt);
+		} catch (err) {
+			return {
+				type: 'error',
+				error: {
+					message: err.message,
+					code: RemoteAuthorityResolverErrorCode.Unknown,
+					detail: err
+				}
+			};
 		}
 	}
 
@@ -549,12 +547,19 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		}
 		return 0;
 	}
-	public async resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
+	public async resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
 		await this._startCalled.wait();
 		if (this._actual) {
-			return this._actual.resolveAuthority(remoteAuthority);
+			return this._actual.resolveAuthority(remoteAuthority, resolveAttempt);
 		}
-		throw new Error(`Cannot resolve authority`);
+		return {
+			type: 'error',
+			error: {
+				message: `Cannot resolve authority`,
+				code: RemoteAuthorityResolverErrorCode.Unknown,
+				detail: undefined
+			}
+		};
 	}
 	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
 		await this._startCalled.wait();

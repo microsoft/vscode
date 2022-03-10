@@ -16,7 +16,7 @@ import { IWorkbenchExtensionEnablementService, EnablementState, IWebExtensionsSc
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -48,6 +48,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCI } from 'vs/base/common/platform';
+import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -56,6 +57,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	private readonly _remoteInitData: Map<string, IRemoteExtensionHostInitData>;
 	private readonly _extensionScanner: CachedExtensionScanner;
 	private readonly _crashTracker = new ExtensionHostCrashTracker();
+	private _resolveAuthorityAttempt: number = 0;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -340,18 +342,62 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	// --- impl
 
+	private async _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
+
+		const authorityPlusIndex = remoteAuthority.indexOf('+');
+		if (authorityPlusIndex === -1) {
+			// This authority does not need to be resolved, simply parse the port number
+			const lastColon = remoteAuthority.lastIndexOf(':');
+			return {
+				authority: {
+					authority: remoteAuthority,
+					host: remoteAuthority.substring(0, lastColon),
+					port: parseInt(remoteAuthority.substring(lastColon + 1), 10),
+					connectionToken: undefined
+				}
+			};
+		}
+
+		const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
+		if (localProcessExtensionHosts.length === 0) {
+			// no local process extension hosts
+			throw new Error(`Cannot resolve authority`);
+		}
+
+		this._resolveAuthorityAttempt++;
+		const results = await Promise.all(localProcessExtensionHosts.map(extHost => extHost.resolveAuthority(remoteAuthority, this._resolveAuthorityAttempt)));
+
+		let bestErrorResult: IResolveAuthorityErrorResult | null = null;
+		for (const result of results) {
+			if (result.type === 'ok') {
+				return result.value;
+			}
+			if (!bestErrorResult) {
+				bestErrorResult = result;
+				continue;
+			}
+			const bestErrorIsUnknown = (bestErrorResult.error.code === RemoteAuthorityResolverErrorCode.Unknown);
+			const errorIsUnknown = (result.error.code === RemoteAuthorityResolverErrorCode.Unknown);
+			if (bestErrorIsUnknown && !errorIsUnknown) {
+				bestErrorResult = result;
+			}
+		}
+
+		// we can only reach this if there is an error
+		throw new RemoteAuthorityResolverError(bestErrorResult!.error.message, bestErrorResult!.error.code, bestErrorResult!.error.detail);
+	}
+
 	private async _resolveAuthorityAgain(): Promise<void> {
 		const remoteAuthority = this._environmentService.remoteAuthority;
 		if (!remoteAuthority) {
 			return;
 		}
 
-		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 		this._remoteAuthorityResolverService._clearResolvedAuthority(remoteAuthority);
 		const sw = StopWatch.create(false);
 		this._logService.info(`Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 		try {
-			const result = await localProcessExtensionHost.resolveAuthority(remoteAuthority);
+			const result = await this._resolveAuthority(remoteAuthority);
 			this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${result.authority.host}:${result.authority.port}' after ${sw.elapsed()} ms`);
 			this._remoteAuthorityResolverService._setResolvedAuthority(result.authority, result.options);
 		} catch (err) {
@@ -364,7 +410,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._extensionScanner.startScanningExtensions(this.createLogger());
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
-		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 
 		let remoteEnv: IRemoteAgentEnvironment | null = null;
 		let remoteExtensions: IExtensionDescription[] = [];
@@ -407,7 +452,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			const sw = StopWatch.create(false);
 			this._logService.info(`Invoking resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)})`);
 			try {
-				resolverResult = await localProcessExtensionHost.resolveAuthority(remoteAuthority);
+				resolverResult = await this._resolveAuthority(remoteAuthority);
 				this._logService.info(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned '${resolverResult.authority.host}:${resolverResult.authority.port}' after ${sw.elapsed()} ms`);
 			} catch (err) {
 				this._logService.error(`resolveAuthority(${getRemoteAuthorityPrefix(remoteAuthority)}) returned an error after ${sw.elapsed()} ms`, err);
