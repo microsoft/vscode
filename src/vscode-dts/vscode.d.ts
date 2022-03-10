@@ -2046,6 +2046,26 @@ declare module 'vscode' {
 	 */
 	export type GlobPattern = string | RelativePattern;
 
+	// TODO@jrieken DOC!
+	export interface NotebookFilter {
+		/**
+		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter`. This allows
+		 * to narrow down on the type of a notebook that a {@link NotebookCell.document cell document} belongs to.
+		 */
+		readonly notebookType?: string;
+
+		/**
+		 * A Uri {@link Uri.scheme scheme}, like `file` or `untitled`.
+		 */
+		readonly scheme?: string;
+
+		/**
+		 * A {@link GlobPattern glob pattern} that is matched on the absolute path of the document. Use a {@link RelativePattern relative pattern}
+		 * to filter documents to a {@link WorkspaceFolder workspace folder}.
+		 */
+		readonly pattern?: GlobPattern;
+	}
+
 	/**
 	 * A document filter denotes a document by different properties like
 	 * the {@link TextDocument.languageId language}, the {@link Uri.scheme scheme} of
@@ -2065,14 +2085,15 @@ declare module 'vscode' {
 		readonly language?: string;
 
 		/**
-		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter`. This allows
+		 * TODO@jrieken better doc
+		 * The {@link NotebookDocument notebook document} containing a text document. This allows
 		 * to narrow down on the type of a notebook that a {@link NotebookCell.document cell document} belongs to.
 		 *
-		 * *Note* that combining `notebookType` and {@link DocumentFilter.scheme `scheme`} with a value
+		 * *Note* that combining `notebook` and {@link DocumentFilter.scheme `scheme`} with a value
 		 * different than `"vscode-notebook-cell"` or `undefined` is invalid and will not match
 		 * any document.
 		 */
-		readonly notebookType?: string;
+		readonly notebook?: string | NotebookFilter;
 
 		/**
 		 * A Uri {@link Uri.scheme scheme}, like `file` or `untitled`.

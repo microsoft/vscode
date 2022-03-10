@@ -48,7 +48,7 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 		this._notebookTypeResolver = resolver;
 	}
 
-	private _score(uri: URI): string | undefined {
+	private _score(uri: URI): { notebookType: string; notebookUri: URI } | undefined {
 		return this._notebookTypeResolver?.(uri);
 	}
 

@@ -620,7 +620,7 @@ class NotebookLanguageSelectorScoreRefine {
 		languageFeaturesService.setNotebookTypeResolver(this._getNotebookType.bind(this));
 	}
 
-	private _getNotebookType(uri: URI): string | undefined {
+	private _getNotebookType(uri: URI) {
 		const cellUri = CellUri.parse(uri);
 		if (!cellUri) {
 			return undefined;
@@ -629,7 +629,7 @@ class NotebookLanguageSelectorScoreRefine {
 		if (!notebook) {
 			return undefined;
 		}
-		return notebook.viewType;
+		return { notebookType: notebook.viewType, notebookUri: notebook.uri };
 	}
 }
 

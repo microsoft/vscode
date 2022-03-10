@@ -143,13 +143,25 @@ export namespace DocumentSelector {
 		}
 
 		if (selector) {
+
+			let notebook: languageSelector.NotebookFilter | string | undefined;
+			if (typeof selector.notebook === 'string') {
+				notebook = selector.notebook;
+			} else if (selector.notebook) {
+				notebook = {
+					notebookType: selector.notebook.notebookType,
+					scheme: _transformScheme(selector.notebook.scheme, uriTransformer),
+					pattern: GlobPattern.from(selector.notebook.pattern) ?? undefined,
+				};
+			}
+
 			return {
 				$serialized: true,
 				language: selector.language,
 				scheme: _transformScheme(selector.scheme, uriTransformer),
 				pattern: GlobPattern.from(selector.pattern) ?? undefined,
 				exclusive: selector.exclusive,
-				notebookType: selector.notebookType
+				notebook
 			};
 		}
 

@@ -99,15 +99,27 @@ suite('LanguageSelector', function () {
 		let obj = {
 			uri: URI.parse('file:/my/file.js'),
 			langId: 'javascript',
+		};
+
+		let notebookInfo = {
+			notebookUri: URI.parse('nb:/my/file.js'),
 			notebookType: 'fooBook'
 		};
 
 		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, undefined), 10);
-		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, obj.notebookType), 10);
-		assert.strictEqual(score({ notebookType: 'fooBook' }, obj.uri, obj.langId, true, obj.notebookType), 10);
-		assert.strictEqual(score({ notebookType: 'fooBook', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 10);
-		assert.strictEqual(score({ notebookType: '*', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 5);
-		assert.strictEqual(score({ notebookType: '*', language: 'javascript' }, obj.uri, obj.langId, true, obj.notebookType), 10);
+		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, notebookInfo), 10);
+		assert.strictEqual(score({ notebook: 'fooBook' }, obj.uri, obj.langId, true, notebookInfo), 10);
+		assert.strictEqual(score({ notebook: 'fooBook', language: '*' }, obj.uri, obj.langId, true, notebookInfo), 10);
+		assert.strictEqual(score({ notebook: { notebookType: 'fooBook' }, language: '*' }, obj.uri, obj.langId, true, notebookInfo), 10);
+		assert.strictEqual(score({ notebook: '*', language: '*' }, obj.uri, obj.langId, true, notebookInfo), 5);
+		assert.strictEqual(score({ notebook: { notebookType: '*' }, language: '*' }, obj.uri, obj.langId, true, notebookInfo), 5);
+		assert.strictEqual(score({ notebook: { notebookType: 'ZZZ' }, language: '*' }, obj.uri, obj.langId, true, notebookInfo), 0);
+		assert.strictEqual(score({ notebook: { scheme: 'nb' }, language: '*' }, obj.uri, obj.langId, true, notebookInfo), 10);
+		assert.strictEqual(score({ notebook: { scheme: 'nb' }, language: '*' }, obj.uri, obj.langId, true, notebookInfo), 10);
+		assert.strictEqual(score({ notebook: { pattern: '**/*.js' }, language: '*' }, obj.uri, obj.langId, true, notebookInfo), 10);
+		assert.strictEqual(score({ notebook: { pattern: '**/*.js' }, language: 'ZZZ' }, obj.uri, obj.langId, true, notebookInfo), 0);
+		assert.strictEqual(score({ notebook: '*', language: '*' }, obj.uri, obj.langId, true, notebookInfo), 5);
+		assert.strictEqual(score({ notebook: '*', language: 'javascript' }, obj.uri, obj.langId, true, notebookInfo), 10);
 	});
 
 	test('Document selector match - unexpected result value #60232', function () {

@@ -27,7 +27,7 @@ function isExclusive(selector: LanguageSelector): boolean {
 }
 
 export interface NotebookTypeResolver {
-	(uri: URI): string | undefined;
+	(uri: URI): { notebookType: string; notebookUri: URI } | undefined;
 }
 
 export class LanguageFeatureRegistry<T> {
@@ -123,22 +123,23 @@ export class LanguageFeatureRegistry<T> {
 		}
 	}
 
-	private _lastCandidate: { uri: string; language: string; notebookType?: string } | undefined;
+	private _lastCandidate: { uri: string; language: string; notebookInfo?: { notebookType: string; notebookUri: URI } } | undefined;
 
 	private _updateScores(model: ITextModel): void {
 
-		const notebookType = this._notebookTypeResolver?.(model.uri);
+		const notebookInfo = this._notebookTypeResolver?.(model.uri);
 
 		const candidate = {
 			uri: model.uri.toString(),
 			language: model.getLanguageId(),
-			notebookType
+			notebookInfo: notebookInfo
 		};
 
 		if (this._lastCandidate
 			&& this._lastCandidate.language === candidate.language
-			&& this._lastCandidate.uri === candidate.uri
-			&& this._lastCandidate.notebookType === candidate.notebookType
+			&& this._lastCandidate.uri.toString() === candidate.uri.toString()
+			&& this._lastCandidate.notebookInfo?.notebookType === candidate.notebookInfo?.notebookType
+			&& this._lastCandidate.notebookInfo?.notebookUri.toString() === candidate.notebookInfo?.notebookUri.toString()
 		) {
 
 			// nothing has changed
@@ -148,7 +149,7 @@ export class LanguageFeatureRegistry<T> {
 		this._lastCandidate = candidate;
 
 		for (let entry of this._entries) {
-			entry._score = score(entry.selector, model.uri, model.getLanguageId(), shouldSynchronizeModel(model), notebookType);
+			entry._score = score(entry.selector, model.uri, model.getLanguageId(), shouldSynchronizeModel(model), notebookInfo);
 
 			if (isExclusive(entry.selector) && entry._score > 0) {
 				// support for one exclusive selector that overwrites
