@@ -1561,12 +1561,12 @@
   resolved "https://registry.yarnpkg.com/@vscode/iconv-lite-umd/-/iconv-lite-umd-0.7.0.tgz#d2f1e0664ee6036408f9743fee264ea0699b0e48"
   integrity sha512-bRRFxLfg5dtAyl5XyiVWz/ZBPahpOpPrNYnnHpOpUZvam4tKH35wdhP4Kj6PbM0+KdliOsPzbGWpkxcdpNB/sg==
 
-"@vscode/ripgrep@^1.14.1":
-  version "1.14.1"
-  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.14.1.tgz#66b104a6c7283d17672eb01c02b1c1294d4bb2ae"
-  integrity sha512-f2N/iPZhxP9bho7iK0DibJDprU+spE8hTIvQg1fi8v82oWIWU9IB4a92444GyxSaFgb+hWpQe46QkFDh5W1VpQ==
+"@vscode/ripgrep@^1.14.2":
+  version "1.14.2"
+  resolved "https://registry.yarnpkg.com/@vscode/ripgrep/-/ripgrep-1.14.2.tgz#47c0eec2b64f53d8f7e1b5ffd22a62e229191c34"
+  integrity sha512-KDaehS8Jfdg1dqStaIPDKYh66jzKd5jy5aYEPzIv0JYFLADPsCSQPBUdsJVXnr0t72OlDcj96W05xt/rSnNFFQ==
   dependencies:
-    https-proxy-agent "^4.0.0"
+    https-proxy-agent "^5.0.0"
     proxy-from-env "^1.1.0"
 
 "@vscode/sqlite3@4.0.12":
