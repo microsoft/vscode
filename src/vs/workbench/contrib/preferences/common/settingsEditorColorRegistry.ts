@@ -13,7 +13,8 @@ export const settingsHeaderForeground = registerColor('settings.headerForeground
 export const modifiedItemIndicator = registerColor('settings.modifiedItemIndicator', {
 	light: new Color(new RGBA(102, 175, 224)),
 	dark: new Color(new RGBA(12, 125, 157)),
-	hcDark: new Color(new RGBA(0, 73, 122))
+	hcDark: new Color(new RGBA(0, 73, 122)),
+	hcLight: new Color(new RGBA(102, 175, 224)),
 }, localize('modifiedItemForeground', "The color of the modified setting indicator."));
 export const settingsHeaderBorder = registerColor('settings.headerBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('settingsHeaderBorder', "The color of the header container border."));
 export const settingsSashBorder = registerColor('settings.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('settingsSashBorder', "The color of the Settings editor splitview sash border."));
@@ -42,17 +43,20 @@ export const settingsNumberInputBorder = registerColor('settings.numberInputBord
 export const focusedRowBackground = registerColor('settings.focusedRowBackground', {
 	dark: transparent(listHoverBackground, .6),
 	light: transparent(listHoverBackground, .6),
-	hcDark: null
+	hcDark: null,
+	hcLight: null,
 }, localize('focusedRowBackground', "The background color of a settings row when focused."));
 
 export const rowHoverBackground = registerColor('settings.rowHoverBackground', {
 	dark: transparent(listHoverBackground, .3),
 	light: transparent(listHoverBackground, .3),
-	hcDark: null
+	hcDark: null,
+	hcLight: null
 }, localize('settings.rowHoverBackground', "The background color of a settings row when hovered."));
 
 export const focusedRowBorder = registerColor('settings.focusedRowBorder', {
 	dark: Color.white.transparent(0.12),
 	light: Color.black.transparent(0.12),
-	hcDark: focusBorder
+	hcDark: focusBorder,
+	hcLight: focusBorder
 }, localize('settings.focusedRowBorder', "The color of the row's top and bottom border when the row is focused."));

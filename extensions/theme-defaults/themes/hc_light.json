@@ -2,9 +2,6 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light High Contrast",
 	"colors": {
-		"settings.focusedRowBorder": "#0F4A85",
-		"settings.headerForeground": "#292929",
-
 		"testing.iconFailed":"#B5200D",
 		"testing.iconPassed": "#007100",
 
