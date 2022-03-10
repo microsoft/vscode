@@ -155,10 +155,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// is driven by the ability to resolve a workspace configuration file (*.code-workspace)
 		// with a built-in file system provider.
 		// This condition is met:
-		// - desktop: always
+		// - desktop: when not in a virtual workspace
 		// -     web: only when connected to a remote
 		this.enterMultiRootWorkspaceSupportContext = EnterMultiRootWorkspaceSupportContext.bindTo(this.contextKeyService);
-		this.enterMultiRootWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
+		this.enterMultiRootWorkspaceSupportContext.set(isNative && this.virtualWorkspaceContext.get() === '' || typeof this.environmentService.remoteAuthority === 'string');
 
 		// Editor Layout
 		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
