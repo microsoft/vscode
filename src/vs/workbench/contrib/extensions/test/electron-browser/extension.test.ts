@@ -6,19 +6,19 @@
 import * as assert from 'assert';
 import { ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Extension } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
-import { ITestInstantiationService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IGalleryExtension, IGalleryExtensionProperties, ILocalExtension, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { generateUuid } from 'vs/base/common/uuid';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('Extension Test', () => {
 
-	let instantiationService: ITestInstantiationService;
+	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		instantiationService = new TestInstantiationService();
 	});
 
 	test('extension is not outdated when there is no local and gallery', () => {
