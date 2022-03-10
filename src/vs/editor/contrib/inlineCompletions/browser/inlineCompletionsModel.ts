@@ -31,9 +31,7 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { assertNever } from 'vs/base/common/types';
 
-export class InlineCompletionsModel
-	extends Disposable
-	implements GhostTextWidgetModel {
+export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
@@ -53,12 +51,9 @@ export class InlineCompletionsModel
 		private readonly editor: IActiveCodeEditor,
 		private readonly cache: SharedInlineCompletionCache,
 		@ICommandService private readonly commandService: ICommandService,
-		@ILanguageConfigurationService
-		private readonly languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeaturesService
-		private readonly languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService
-		private readonly debounceService: ILanguageFeatureDebounceService
+		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageFeatureDebounceService private readonly debounceService: ILanguageFeatureDebounceService
 	) {
 		super();
 
@@ -449,7 +444,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
-					EditOperation.replaceMove(completion.range, completion.text)
+					EditOperation.replaceMove(completion.range, completion.insertText)
 				]
 			);
 		}
@@ -532,7 +527,7 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 
 class CachedInlineCompletion {
 	public readonly semanticId: string = JSON.stringify({
-		text: this.inlineCompletion.text,
+		text: this.inlineCompletion.insertText,
 		startLine: this.inlineCompletion.range.startLineNumber,
 		startColumn: this.inlineCompletion.range.startColumn,
 		command: this.inlineCompletion.command
@@ -552,7 +547,7 @@ class CachedInlineCompletion {
 
 	public toLiveInlineCompletion(): TrackedInlineCompletion | undefined {
 		return {
-			text: this.inlineCompletion.text,
+			insertText: this.inlineCompletion.insertText,
 			range: this.synchronizedRange,
 			command: this.inlineCompletion.command,
 			sourceProvider: this.inlineCompletion.sourceProvider,
@@ -562,42 +557,6 @@ class CachedInlineCompletion {
 			snippetInfo: this.inlineCompletion.snippetInfo,
 		};
 	}
-}
-
-/**
- * A normalized inline completion that tracks which inline completion it has been constructed from.
-*/
-export interface TrackedInlineCompletion extends NormalizedInlineCompletion {
-	sourceProvider: InlineCompletionsProvider;
-
-	/**
-	 * A reference to the original inline completion this inline completion has been constructed from.
-	 * Used for event data to ensure referential equality.
-	*/
-	sourceInlineCompletion: InlineCompletion;
-
-	/**
-	 * A reference to the original inline completion list this inline completion has been constructed from.
-	 * Used for event data to ensure referential equality.
-	*/
-	sourceInlineCompletions: InlineCompletions;
-}
-
-/**
- * Contains no duplicated items.
-*/
-export interface TrackedInlineCompletions extends InlineCompletions<TrackedInlineCompletion> {
-	dispose(): void;
-}
-
-function getDefaultRange(position: Position, model: ITextModel): Range {
-	const word = model.getWordAtPosition(position);
-	const maxColumn = model.getLineMaxColumn(position.lineNumber);
-	// By default, always replace up until the end of the current line.
-	// This default might be subject to change!
-	return word
-		? new Range(position.lineNumber, word.startColumn, position.lineNumber, maxColumn)
-		: Range.fromPositions(position, position.with(undefined, maxColumn));
 }
 
 export async function provideInlineCompletions(
@@ -631,60 +590,63 @@ export async function provideInlineCompletions(
 	const itemsByHash = new Map<string, TrackedInlineCompletion>();
 	for (const result of results) {
 		const completions = result.completions;
-		if (completions) {
-			for (const item of completions.items) {
-				const range = item.range ? Range.lift(item.range) : defaultReplaceRange;
-
-				if (range.startLineNumber !== range.endLineNumber) {
-					// Ignore invalid ranges.
-					continue;
-				}
-
-				const textOrSnippet =
-					languageConfigurationService && item.completeBracketPairs && typeof item.text === 'string'
-						? closeBrackets(
-							item.text,
-							range.getStartPosition(),
-							model,
-							languageConfigurationService
-						)
-						: item.text;
-
-				let text: string;
-				let snippetInfo: {
-					snippet: string;
-					/* Could be different than the main range */
-					range: Range;
-				}
-					| undefined;
-
-				if (typeof textOrSnippet === 'string') {
-					text = textOrSnippet;
-					snippetInfo = undefined;
-				} else if ('snippet' in textOrSnippet) {
-					const snippet = new SnippetParser().parse(textOrSnippet.snippet);
-					text = snippet.toString();
-					snippetInfo = {
-						snippet: textOrSnippet.snippet,
-						range: range
-					};
-				} else {
-					assertNever(textOrSnippet);
-				}
-
-				const trackedItem: TrackedInlineCompletion = ({
-					text,
-					snippetInfo,
-					range,
-					command: item.command,
-					sourceProvider: result.provider,
-					sourceInlineCompletions: completions,
-					sourceInlineCompletion: item
-				});
-
-				itemsByHash.set(JSON.stringify({ text, range: item.range }), trackedItem);
-			}
+		if (!completions) {
+			continue;
 		}
+
+		for (const item of completions.items) {
+			const range = item.range ? Range.lift(item.range) : defaultReplaceRange;
+
+			if (range.startLineNumber !== range.endLineNumber) {
+				// Ignore invalid ranges.
+				continue;
+			}
+
+			const textOrSnippet =
+				languageConfigurationService && item.completeBracketPairs && typeof item.insertText === 'string'
+					? closeBrackets(
+						item.insertText,
+						range.getStartPosition(),
+						model,
+						languageConfigurationService
+					)
+					: item.insertText;
+
+			let insertText: string;
+			let snippetInfo: {
+				snippet: string;
+				/* Could be different than the main range */
+				range: Range;
+			}
+				| undefined;
+
+			if (typeof textOrSnippet === 'string') {
+				insertText = textOrSnippet;
+				snippetInfo = undefined;
+			} else if ('snippet' in textOrSnippet) {
+				const snippet = new SnippetParser().parse(textOrSnippet.snippet);
+				insertText = snippet.toString();
+				snippetInfo = {
+					snippet: textOrSnippet.snippet,
+					range: range
+				};
+			} else {
+				assertNever(textOrSnippet);
+			}
+
+			const trackedItem: TrackedInlineCompletion = ({
+				insertText,
+				snippetInfo,
+				range,
+				command: item.command,
+				sourceProvider: result.provider,
+				sourceInlineCompletions: completions,
+				sourceInlineCompletion: item
+			});
+
+			itemsByHash.set(JSON.stringify({ insertText, range: item.range }), trackedItem);
+		}
+
 	}
 
 	return {
@@ -695,6 +657,42 @@ export async function provideInlineCompletions(
 			}
 		},
 	};
+}
+
+/**
+ * A normalized inline completion that tracks which inline completion it has been constructed from.
+*/
+export interface TrackedInlineCompletion extends NormalizedInlineCompletion {
+	sourceProvider: InlineCompletionsProvider;
+
+	/**
+	 * A reference to the original inline completion this inline completion has been constructed from.
+	 * Used for event data to ensure referential equality.
+	*/
+	sourceInlineCompletion: InlineCompletion;
+
+	/**
+	 * A reference to the original inline completion list this inline completion has been constructed from.
+	 * Used for event data to ensure referential equality.
+	*/
+	sourceInlineCompletions: InlineCompletions;
+}
+
+/**
+ * Contains no duplicated items and can be disposed.
+*/
+export interface TrackedInlineCompletions extends InlineCompletions<TrackedInlineCompletion> {
+	dispose(): void;
+}
+
+function getDefaultRange(position: Position, model: ITextModel): Range {
+	const word = model.getWordAtPosition(position);
+	const maxColumn = model.getLineMaxColumn(position.lineNumber);
+	// By default, always replace up until the end of the current line.
+	// This default might be subject to change!
+	return word
+		? new Range(position.lineNumber, word.startColumn, position.lineNumber, maxColumn)
+		: Range.fromPositions(position, position.with(undefined, maxColumn));
 }
 
 function closeBrackets(text: string, position: Position, model: ITextModel, languageConfigurationService: ILanguageConfigurationService): string {
@@ -710,31 +708,4 @@ function closeBrackets(text: string, position: Position, model: ITextModel, lang
 	const newText = fixBracketsInLine(slicedTokens, languageConfigurationService);
 
 	return newText;
-}
-
-/**
- * Shrinks the range if the text has a suffix/prefix that agrees with the text buffer.
- * E.g. text buffer: `ab[cdef]ghi`, [...] is the replace range, `cxyzf` is the new text.
- * Then the minimized inline completion has range `abc[de]fghi` and text `xyz`.
- */
-export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion): NormalizedInlineCompletion;
-export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined;
-export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {
-	if (!inlineCompletion) {
-		return inlineCompletion;
-	}
-	const valueToReplace = model.getValueInRange(inlineCompletion.range);
-	const commonPrefixLen = commonPrefixLength(valueToReplace, inlineCompletion.text);
-	const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLen;
-	const start = model.getPositionAt(startOffset);
-
-	const remainingValueToReplace = valueToReplace.substr(commonPrefixLen);
-	const commonSuffixLen = commonSuffixLength(remainingValueToReplace, inlineCompletion.text);
-	const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLen));
-
-	return {
-		range: Range.fromPositions(start, end),
-		text: inlineCompletion.text.substr(commonPrefixLen, inlineCompletion.text.length - commonPrefixLen - commonSuffixLen),
-		snippetInfo: inlineCompletion.snippetInfo
-	};
 }

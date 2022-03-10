@@ -16,7 +16,7 @@ import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/br
 */
 export interface NormalizedInlineCompletion extends InlineCompletion {
 	readonly range: Range;
-	readonly text: string;
+	readonly insertText: string;
 
 	readonly snippetInfo:
 	| {
@@ -27,6 +27,33 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	| undefined;
 }
 
+/**
+ * Shrinks the range if the text has a suffix/prefix that agrees with the text buffer.
+ * E.g. text buffer: `ab[cdef]ghi`, [...] is the replace range, `cxyzf` is the new text.
+ * Then the minimized inline completion has range `abc[de]fghi` and text `xyz`.
+ */
+export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion): NormalizedInlineCompletion;
+export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined;
+export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: NormalizedInlineCompletion | undefined): NormalizedInlineCompletion | undefined {
+	if (!inlineCompletion) {
+		return inlineCompletion;
+	}
+	const valueToReplace = model.getValueInRange(inlineCompletion.range);
+	const commonPrefixLen = strings.commonPrefixLength(valueToReplace, inlineCompletion.insertText);
+	const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLen;
+	const start = model.getPositionAt(startOffset);
+
+	const remainingValueToReplace = valueToReplace.substr(commonPrefixLen);
+	const commonSuffixLen = strings.commonSuffixLength(remainingValueToReplace, inlineCompletion.insertText);
+	const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLen));
+
+	return {
+		range: Range.fromPositions(start, end),
+		insertText: inlineCompletion.insertText.substr(commonPrefixLen, inlineCompletion.insertText.length - commonPrefixLen - commonSuffixLen),
+		snippetInfo: inlineCompletion.snippetInfo
+	};
+}
+
 export function normalizedInlineCompletionsEquals(a: NormalizedInlineCompletion | undefined, b: NormalizedInlineCompletion | undefined): boolean {
 	if (a === b) {
 		return true;
@@ -34,7 +61,7 @@ export function normalizedInlineCompletionsEquals(a: NormalizedInlineCompletion 
 	if (!a || !b) {
 		return false;
 	}
-	return a.range.equalsRange(b.range) && a.text === b.text && a.command === b.command;
+	return a.range.equalsRange(b.range) && a.insertText === b.insertText && a.command === b.command;
 }
 
 /**
@@ -67,7 +94,7 @@ export function inlineCompletionToGhostText(
 		// inlineCompletion.text: '··foo'
 		//                         ^^ suggestionAddedIndentationLength
 
-		const suggestionAddedIndentationLength = strings.getLeadingWhitespace(inlineCompletion.text).length;
+		const suggestionAddedIndentationLength = strings.getLeadingWhitespace(inlineCompletion.insertText).length;
 
 		const replacedIndentation = sourceLine.substring(inlineCompletion.range.startColumn - 1, sourceIndentationLength);
 		const rangeThatDoesNotReplaceIndentation = Range.fromPositions(
@@ -76,15 +103,15 @@ export function inlineCompletionToGhostText(
 		);
 
 		const suggestionWithoutIndentationChange =
-			inlineCompletion.text.startsWith(replacedIndentation)
+			inlineCompletion.insertText.startsWith(replacedIndentation)
 				// Adds more indentation without changing existing indentation: We can add ghost text for this
-				? inlineCompletion.text.substring(replacedIndentation.length)
+				? inlineCompletion.insertText.substring(replacedIndentation.length)
 				// Changes or removes existing indentation. Only add ghost text for the non-indentation part.
-				: inlineCompletion.text.substring(suggestionAddedIndentationLength);
+				: inlineCompletion.insertText.substring(suggestionAddedIndentationLength);
 
 		inlineCompletion = {
 			range: rangeThatDoesNotReplaceIndentation,
-			text: suggestionWithoutIndentationChange,
+			insertText: suggestionWithoutIndentationChange,
 			command: inlineCompletion.command,
 			snippetInfo: undefined,
 		};
@@ -93,7 +120,7 @@ export function inlineCompletionToGhostText(
 	// This is a single line string
 	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
 
-	const changes = cachingDiff(valueToBeReplaced, inlineCompletion.text);
+	const changes = cachingDiff(valueToBeReplaced, inlineCompletion.insertText);
 
 	if (!changes) {
 		// No ghost text in case the diff would be too slow to compute
@@ -112,7 +139,7 @@ export function inlineCompletionToGhostText(
 		}
 	}
 
-	const previewStartInCompletionText = inlineCompletion.text.length - previewSuffixLength;
+	const previewStartInCompletionText = inlineCompletion.insertText.length - previewSuffixLength;
 
 	for (const c of changes) {
 		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
@@ -132,8 +159,8 @@ export function inlineCompletionToGhostText(
 
 		const modifiedEnd = c.modifiedStart + c.modifiedLength;
 		const nonPreviewTextEnd = Math.max(c.modifiedStart, Math.min(modifiedEnd, previewStartInCompletionText));
-		const nonPreviewText = inlineCompletion.text.substring(c.modifiedStart, nonPreviewTextEnd);
-		const italicText = inlineCompletion.text.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
+		const nonPreviewText = inlineCompletion.insertText.substring(c.modifiedStart, nonPreviewTextEnd);
+		const italicText = inlineCompletion.insertText.substring(nonPreviewTextEnd, Math.max(c.modifiedStart, modifiedEnd));
 
 		if (nonPreviewText.length > 0) {
 			const lines = strings.splitLines(nonPreviewText);

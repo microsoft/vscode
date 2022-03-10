@@ -6271,7 +6271,7 @@ declare namespace monaco.languages {
 		 * The text can also be a snippet. In that case, a preview with default parameters is shown.
 		 * When accepting the suggestion, the full snippet is inserted.
 		*/
-		readonly text: string | {
+		readonly insertText: string | {
 			snippet: string;
 		};
 		/**

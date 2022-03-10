@@ -35,7 +35,7 @@ suite('Inline Completions', () => {
 			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
-				result[option] = inlineCompletionToGhostText({ text: suggestion, snippetInfo: undefined, range }, tempModel, option)?.render(cleanedText, true);
+				result[option] = inlineCompletionToGhostText({ insertText: suggestion, snippetInfo: undefined, range }, tempModel, option)?.render(cleanedText, true);
 			}
 
 			tempModel.dispose();
@@ -124,7 +124,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('foo');
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
@@ -144,7 +144,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 				context.keyboardType('foo');
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				await timeout(1000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
@@ -162,12 +162,12 @@ suite('Inline Completions', () => {
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				context.keyboardType('foo');
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
-				provider.setReturnValue({ text: 'foobizz', range: new Range(1, 1, 1, 6) });
+				provider.setReturnValue({ insertText: 'foobizz', range: new Range(1, 1, 1, 6) });
 				context.keyboardType('b');
 				context.keyboardType('i');
 				await timeout(1000);
@@ -192,7 +192,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('  ');
-				provider.setReturnValue({ text: 'foo', range: new Range(1, 2, 1, 3) });
+				provider.setReturnValue({ insertText: 'foo', range: new Range(1, 2, 1, 3) });
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
@@ -217,7 +217,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('\t\t');
-				provider.setReturnValue({ text: 'foo', range: new Range(1, 2, 1, 3) });
+				provider.setReturnValue({ insertText: 'foo', range: new Range(1, 2, 1, 3) });
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
@@ -242,7 +242,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('buzz  ');
-				provider.setReturnValue({ text: 'foo', range: new Range(1, 6, 1, 7) });
+				provider.setReturnValue({ insertText: 'foo', range: new Range(1, 6, 1, 7) });
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
 
@@ -267,7 +267,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 
 				context.keyboardType('foo');
-				provider.setReturnValue({ text: 'foobar1', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar1', range: new Range(1, 1, 1, 4) });
 				model.trigger(InlineCompletionTriggerKind.Automatic);
 				await timeout(1000);
 
@@ -277,9 +277,9 @@ suite('Inline Completions', () => {
 				);
 
 				provider.setReturnValues([
-					{ text: 'foobar1', range: new Range(1, 1, 1, 4) },
-					{ text: 'foobizz2', range: new Range(1, 1, 1, 4) },
-					{ text: 'foobuzz3', range: new Range(1, 1, 1, 4) }
+					{ insertText: 'foobar1', range: new Range(1, 1, 1, 4) },
+					{ insertText: 'foobizz2', range: new Range(1, 1, 1, 4) },
+					{ insertText: 'foobuzz3', range: new Range(1, 1, 1, 4) }
 				]);
 
 				model.showNext();
@@ -351,7 +351,7 @@ suite('Inline Completions', () => {
 
 				context.keyboardType('foo');
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				await timeout(1000);
 
 				for (let j = 0; j < 2; j++) {
@@ -378,7 +378,7 @@ suite('Inline Completions', () => {
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				context.keyboardType('foo');
 				model.trigger(InlineCompletionTriggerKind.Automatic);
 				await timeout(1000);
@@ -387,7 +387,7 @@ suite('Inline Completions', () => {
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 5) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 5) });
 				context.keyboardType('b');
 				assert.deepStrictEqual(context.currentPrettyViewState, 'foob[ar]');
 				await timeout(1000);
@@ -396,7 +396,7 @@ suite('Inline Completions', () => {
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foob[ar]']);
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 6) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 6) });
 				context.keyboardType('a');
 				assert.deepStrictEqual(context.currentPrettyViewState, 'fooba[r]');
 				await timeout(1000);
@@ -416,7 +416,7 @@ suite('Inline Completions', () => {
 			{ fakeClock: true, provider },
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
 				context.keyboardType('foo');
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(100);
@@ -425,7 +425,7 @@ suite('Inline Completions', () => {
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 
-				provider.setReturnValue({ text: 'foobaz', range: new Range(1, 1, 1, 5) });
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 5) });
 				context.keyboardType('b');
 				assert.deepStrictEqual(context.currentPrettyViewState, 'foob[ar]');
 				await timeout(100);
@@ -448,7 +448,7 @@ suite('Inline Completions', () => {
 
 				context.keyboardType('fooba');
 
-				provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 6) });
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 6) });
 
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 				await timeout(1000);
@@ -457,7 +457,7 @@ suite('Inline Completions', () => {
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'fooba[r]']);
 
-				provider.setReturnValue({ text: 'foobaz', range: new Range(1, 1, 1, 5) });
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 5) });
 				context.leftDelete();
 				await timeout(1000);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
@@ -478,13 +478,13 @@ suite('Inline Completions', () => {
 			async ({ editor, editorViewModel, model, context }) => {
 				model.setActive(true);
 				context.keyboardType('h');
-				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 2) }, 1000);
+				provider.setReturnValue({ insertText: 'helloworld', range: new Range(1, 1, 1, 2) }, 1000);
 
 				model.trigger(InlineCompletionTriggerKind.Explicit);
 
 				await timeout(1030);
 				context.keyboardType('ello');
-				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
+				provider.setReturnValue({ insertText: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
 
 				// after 20ms: Inline completion provider answers back
 				// after 50ms: Debounce is triggered
@@ -505,7 +505,7 @@ suite('Inline Completions', () => {
 				model.setActive(true);
 				context.keyboardType('hello\n');
 				context.cursorLeft();
-				provider.setReturnValue({ text: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
+				provider.setReturnValue({ insertText: 'helloworld', range: new Range(1, 1, 1, 6) }, 1000);
 				await timeout(2000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
@@ -516,7 +516,7 @@ suite('Inline Completions', () => {
 					}
 				]);
 
-				provider.setReturnValue({ text: 'helloworld', range: new Range(2, 1, 2, 6) }, 1000);
+				provider.setReturnValue({ insertText: 'helloworld', range: new Range(2, 1, 2, 6) }, 1000);
 
 				context.cursorDown();
 				context.keyboardType('hello');
