@@ -2046,11 +2046,14 @@ declare module 'vscode' {
 	 */
 	export type GlobPattern = string | RelativePattern;
 
-	// TODO@jrieken DOC!
+	/**
+	 * A notebook filter denotes a notebook by its {@link NotebookDocument.type type}, the {@link Uri.scheme scheme} of
+	 * its resource, or a glob-pattern that is applied to the {@link NotebookDocument.uri uri-path}.
+	 */
 	export interface NotebookFilter {
+
 		/**
-		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter`. This allows
-		 * to narrow down on the type of a notebook that a {@link NotebookCell.document cell document} belongs to.
+		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter`.
 		 */
 		readonly notebookType?: string;
 
@@ -2076,6 +2079,9 @@ declare module 'vscode' {
 	 *
 	 * @example <caption>A language filter that applies to all package.json paths</caption>
 	 * { language: 'json', pattern: '**​/package.json' }
+	 *
+	 * @example <caption>A language filter that applies to all python files on jupyter notebooks</caption>
+	 * { language: 'python', notebook: 'jupyter-notebook' }
 	 */
 	export interface DocumentFilter {
 
@@ -2085,9 +2091,8 @@ declare module 'vscode' {
 		readonly language?: string;
 
 		/**
-		 * TODO@jrieken better doc
-		 * The {@link NotebookDocument notebook document} containing a text document. This allows
-		 * to narrow down on the type of a notebook that a {@link NotebookCell.document cell document} belongs to.
+		 * The notebook-type or {@link NotebookFilter filter} that a {@link NotebookCell.document cell document}
+		 * belongs to.
 		 *
 		 * *Note* that combining `notebook` and {@link DocumentFilter.scheme `scheme`} with a value
 		 * different than `"vscode-notebook-cell"` or `undefined` is invalid and will not match
