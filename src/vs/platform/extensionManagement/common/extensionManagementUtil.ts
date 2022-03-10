@@ -29,7 +29,7 @@ export class ExtensionKey {
 
 	static parse(key: string): ExtensionKey | null {
 		const matches = ExtensionKeyRegex.exec(key);
-		return matches && matches[1] && matches[2] ? new ExtensionKey({ id: matches[1] }, matches[2], matches[3] as TargetPlatform || undefined) : null;
+		return matches && matches[1] && matches[2] ? new ExtensionKey({ id: matches[1] }, matches[2], matches[4] as TargetPlatform || undefined) : null;
 	}
 
 	readonly id: string;

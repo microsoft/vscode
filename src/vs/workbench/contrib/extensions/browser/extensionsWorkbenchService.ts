@@ -50,7 +50,7 @@ interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
 }
 
-class Extension implements IExtension {
+export class Extension implements IExtension {
 
 	public enablementState: EnablementState = EnablementState.EnabledGlobally;
 
