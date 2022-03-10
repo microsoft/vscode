@@ -15,13 +15,19 @@ import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/com
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { TestFileService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { DeferredPromise } from 'vs/base/common/async';
+import { IFileService } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
 
 flakySuite('WorkingCopyHistoryTracker', () => {
 
 	let testDir: string;
 	let historyHome: string;
+
 	let workingCopyHistoryService: TestWorkingCopyHistoryService;
 	let workingCopyService: WorkingCopyService;
+	let fileService: IFileService;
+
 	let tracker: WorkingCopyHistoryTracker;
 
 	let testFile1Path: string;
@@ -41,8 +47,9 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 
 		workingCopyHistoryService = new TestWorkingCopyHistoryService(testDir);
 		workingCopyService = new WorkingCopyService();
+		fileService = workingCopyHistoryService._fileService;
 
-		tracker = new WorkingCopyHistoryTracker(workingCopyService, workingCopyHistoryService, new UriIdentityService(new TestFileService()), new TestPathService());
+		tracker = new WorkingCopyHistoryTracker(workingCopyService, workingCopyHistoryService, new UriIdentityService(new TestFileService()), new TestPathService(undefined, Schemas.file));
 
 		await Promises.mkdir(historyHome, { recursive: true });
 
@@ -65,10 +72,25 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
 
+		const stat1 = await fileService.resolve(workingCopy1.resource, { resolveMetadata: true });
+		const stat2 = await fileService.resolve(workingCopy2.resource, { resolveMetadata: true });
+
 		workingCopyService.registerWorkingCopy(workingCopy1);
 		workingCopyService.registerWorkingCopy(workingCopy2);
 
-		await workingCopy1.save();
-		await workingCopy2.save();
+		const saveResult = new DeferredPromise<void>();
+		let addedCounter = 0;
+		workingCopyHistoryService.onDidAddEntry(e => {
+			addedCounter++;
+
+			if (addedCounter === 2) {
+				saveResult.complete();
+			}
+		});
+
+		await workingCopy1.save(undefined, stat1);
+		await workingCopy2.save(undefined, stat2);
+
+		await saveResult.p;
 	});
 });

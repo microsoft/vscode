@@ -13,7 +13,7 @@ import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { InMemoryStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent, IDeleteOperation, ICopyOperation, IMoveOperation, IFileOperationUndoRedoInfo, ICreateFileOperation, ICreateOperation, IStoredFileWorkingCopySaveParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -22,6 +22,7 @@ import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/ed
 import { CancellationToken } from 'vs/base/common/cancellation';
 import product from 'vs/platform/product/common/product';
 import { IActivity, IActivityService } from 'vs/workbench/services/activity/common/activity';
+import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -139,7 +140,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	private readonly _onDidSave = this._register(new Emitter<IStoredFileWorkingCopySaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
 	readonly capabilities = WorkingCopyCapabilities.None;
@@ -169,8 +170,8 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 		return this.dirty;
 	}
 
-	async save(options?: ISaveOptions): Promise<boolean> {
-		this._onDidSave.fire({ reason: options?.reason ?? SaveReason.EXPLICIT });
+	async save(options?: ISaveOptions, stat?: IFileStatWithMetadata): Promise<boolean> {
+		this._onDidSave.fire({ reason: options?.reason ?? SaveReason.EXPLICIT, stat: stat ?? createFileStat(this.resource) });
 
 		return true;
 	}
@@ -182,6 +183,22 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
 		return {};
 	}
+}
+
+export function createFileStat(resource: URI, readonly = false): IFileStatWithMetadata {
+	return {
+		resource,
+		etag: Date.now().toString(),
+		mtime: Date.now(),
+		ctime: Date.now(),
+		size: 42,
+		isFile: true,
+		isDirectory: false,
+		isSymbolicLink: false,
+		readonly,
+		name: basename(resource),
+		children: undefined
+	};
 }
 
 export class TestWorkingCopyFileService implements IWorkingCopyFileService {

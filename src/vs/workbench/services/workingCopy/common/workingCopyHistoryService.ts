@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { IWorkingCopyHistoryEvent, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -24,6 +25,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 export class WorkingCopyHistoryService extends Disposable implements IWorkingCopyHistoryService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidAddEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
+	readonly onDidAddEntry = this._onDidAddEntry.event;
 
 	private readonly localHistoryHome = new DeferredPromise<URI>();
 
@@ -75,8 +79,12 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 			return undefined;
 		}
 
+		// Clone to a potentially unique location
 		const target = joinPath(workingCopyHistoryHome, `${randomPath(undefined, undefined, 4)}${extname(workingCopy.resource)}`);
 		await this.fileService.cloneFile(workingCopy.resource, target);
+
+		// Events
+		this._onDidAddEntry.fire({ workingCopy });
 
 		return target;
 	}

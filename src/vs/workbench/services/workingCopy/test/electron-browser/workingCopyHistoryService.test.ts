@@ -21,6 +21,8 @@ import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
 import { readFileSync } from 'fs';
+import { IWorkingCopyHistoryEvent } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { IFileService } from 'vs/platform/files/common/files';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -30,6 +32,8 @@ class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService 
 }
 
 export class TestWorkingCopyHistoryService extends WorkingCopyHistoryService {
+
+	readonly _fileService: IFileService;
 
 	constructor(testDir: string) {
 		const environmentService = new TestWorkbenchEnvironmentService(testDir);
@@ -42,6 +46,8 @@ export class TestWorkingCopyHistoryService extends WorkingCopyHistoryService {
 		const remoteAgentService = new TestRemoteAgentService();
 
 		super(fileService, remoteAgentService, environmentService);
+
+		this._fileService = fileService;
 	}
 }
 
@@ -84,6 +90,9 @@ flakySuite('WorkingCopyHistoryService', () => {
 	});
 
 	test('addEntry', async () => {
+		let addEvents: IWorkingCopyHistoryEvent[] = [];
+		service.onDidAddEntry(e => addEvents.push(e));
+
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
 
@@ -98,6 +107,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(readFileSync(entry1A.fsPath).toString(), testFile1PathContents);
 		assert.strictEqual(readFileSync(entry2A.fsPath).toString(), testFile2PathContents);
 
+		assert.strictEqual(addEvents.length, 2);
+		assert.strictEqual(addEvents[0].workingCopy, workingCopy1);
+		assert.strictEqual(addEvents[1].workingCopy, workingCopy2);
+
 		const entry1B = await service.addEntry(workingCopy1, CancellationToken.None);
 		const entry2B = await service.addEntry(workingCopy2, CancellationToken.None);
 
@@ -106,6 +119,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		assert.strictEqual(readFileSync(entry1B.fsPath).toString(), testFile1PathContents);
 		assert.strictEqual(readFileSync(entry2B.fsPath).toString(), testFile2PathContents);
+
+		assert.strictEqual(addEvents.length, 4);
+		assert.strictEqual(addEvents[2].workingCopy, workingCopy1);
+		assert.strictEqual(addEvents[3].workingCopy, workingCopy2);
 
 		// Cancellation works
 
@@ -116,10 +133,14 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const entry1C = await entry1CPromise;
 		assert.ok(!entry1C);
 
+		assert.strictEqual(addEvents.length, 4);
+
 		// Invalid working copies are ignored
 
 		const workingCopy3 = new TestWorkingCopy(URI.file(testFile2Path).with({ scheme: 'unsupported' }));
 		const entry3A = await service.addEntry(workingCopy3, CancellationToken.None);
 		assert.ok(!entry3A);
+
+		assert.strictEqual(addEvents.length, 4);
 	});
 });
