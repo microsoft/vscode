@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
@@ -17,28 +17,40 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 	return compareIgnoreCase(a.id, b.id) === 0;
 }
 
-export class ExtensionIdentifierWithVersion {
+const ExtensionKeyRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)(-(.+))?$/;
+
+export class ExtensionKey {
+
+	static create(extension: ILocalExtension | IGalleryExtension): ExtensionKey {
+		const version = (extension as ILocalExtension).manifest ? (extension as ILocalExtension).manifest.version : (extension as IGalleryExtension).version;
+		const targetPlatform = (extension as ILocalExtension).targetPlatform ? (extension as ILocalExtension).targetPlatform : (extension as IGalleryExtension).properties.targetPlatform;
+		return new ExtensionKey(extension.identifier, version, targetPlatform);
+	}
+
+	static parse(key: string): ExtensionKey | null {
+		const matches = ExtensionKeyRegex.exec(key);
+		return matches && matches[1] && matches[2] ? new ExtensionKey({ id: matches[1] }, matches[2], matches[4] as TargetPlatform || undefined) : null;
+	}
 
 	readonly id: string;
-	readonly uuid?: string;
 
 	constructor(
 		identifier: IExtensionIdentifier,
-		readonly version: string
+		readonly version: string,
+		readonly targetPlatform: TargetPlatform = TargetPlatform.UNDEFINED,
 	) {
 		this.id = identifier.id;
-		this.uuid = identifier.uuid;
 	}
 
-	key(): string {
-		return `${this.id}-${this.version}`;
+	toString(): string {
+		return `${this.id}-${this.version}${this.targetPlatform !== TargetPlatform.UNDEFINED ? `-${this.targetPlatform}` : ''}`;
 	}
 
 	equals(o: any): boolean {
-		if (!(o instanceof ExtensionIdentifierWithVersion)) {
+		if (!(o instanceof ExtensionKey)) {
 			return false;
 		}
-		return areSameExtensions(this, o) && this.version === o.version;
+		return areSameExtensions(this, o) && this.version === o.version && this.targetPlatform === o.targetPlatform;
 	}
 }
 

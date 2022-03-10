@@ -231,27 +231,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return (result.length > 0 ? result[0] : ExtensionRunningLocation.None);
 	}
 
-	/**
-	 * FYI.
-	 * This is an experiment for running notebook extensions in a dedicated extension host to prevent it from being affected
-	 * by starving extension host, or slowing down / blocking other extensions as it performs heavy compution when converting
-	 * notebook output data from nbformat to vsbuffer (or vise versa).
-	 * It's not an attempt to introduce a generic solution for running abitrary extensions in a dedicated extension host.
-	 */
-	private _isDedicatedNotebookExtensionHostExperimentEnabled() {
-		return this._configurationService.getValue<boolean>('extensions.experimental.dedicatedNotebookProcess');
-	}
-
 	protected _createExtensionHosts(isInitialStart: boolean): IExtensionHost[] {
 		const result: IExtensionHost[] = [];
 
-		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, ExtensionHostKind.LocalProcess, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalProcess));
+		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalProcess));
 		result.push(localProcessExtHost);
-
-		if (this._isDedicatedNotebookExtensionHostExperimentEnabled()) {
-			const notebookProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, ExtensionHostKind.LocalNotebook, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalNotebookProcess));
-			result.push(notebookProcessExtHost);
-		}
 
 		if (this._enableLocalWebWorker) {
 			const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, this._lazyLocalWebWorker, this._createLocalExtensionHostDataProvider(isInitialStart, ExtensionRunningLocation.LocalWebWorker));
@@ -491,11 +475,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		// remove non-UI extensions from the local extensions
 		const localProcessExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalProcess);
-		const loaclNotebookProcessExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalNotebookProcess);
 		const localWebWorkerExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionRunningLocation.LocalWebWorker);
 		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionRunningLocation.Remote);
 
-		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(loaclNotebookProcessExtensions).concat(localWebWorkerExtensions), []);
+		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
 			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
 		}
@@ -518,11 +501,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
 		if (localProcessExtensionHost) {
 			localProcessExtensionHost.start(localProcessExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
-		}
-
-		const localNotebookExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalNotebook);
-		if (localNotebookExtensionHost) {
-			localNotebookExtensionHost.start(loaclNotebookProcessExtensions.map(extension => extension.identifier).filter(id => this._registry.containsExtension(id)));
 		}
 
 		const localWebWorkerExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalWebWorker);

@@ -164,6 +164,31 @@ suite('ExtensionsActivator', () => {
 		assert.deepStrictEqual(host.errors[1][0], idA);
 	});
 
+	test('issue #144518: Problem with git extension and vscode-icons', async () => {
+		const extActivationA = new ExtensionActivationPromiseSource();
+		const extActivationB = new ExtensionActivationPromiseSource();
+		const extActivationC = new ExtensionActivationPromiseSource();
+		const host = new PromiseExtensionsActivatorHost([
+			[idA, extActivationA],
+			[idB, extActivationB],
+			[idC, extActivationC]
+		]);
+		const activator = createActivator(host, [
+			desc(idA, [idB]),
+			desc(idB),
+			desc(idC),
+		]);
+
+		activator.activateByEvent('*', false);
+		assert.deepStrictEqual(host.activateCalls, [idB, idC]);
+
+		extActivationB.resolve();
+		await timeout(0);
+
+		assert.deepStrictEqual(host.activateCalls, [idB, idC, idA]);
+		extActivationA.resolve();
+	});
+
 	class SimpleExtensionsActivatorHost implements IExtensionsActivatorHost {
 		public readonly activateCalls: ExtensionIdentifier[] = [];
 		public readonly errors: [ExtensionIdentifier, Error | null, MissingExtensionDependency | null][] = [];

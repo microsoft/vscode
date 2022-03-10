@@ -10,8 +10,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-
-const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
+import { Barrier } from 'vs/base/common/async';
 
 /**
  * Represents the source code (module) of an extension.
@@ -166,14 +165,11 @@ type ActivationIdAndReason = { id: ExtensionIdentifier; reason: ExtensionActivat
 
 export class ExtensionsActivator implements IDisposable {
 
-	private _isDisposed: boolean;
-
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _resolvedExtensionsSet: Set<string>;
 	private readonly _externalExtensionsMap: Map<string, ExtensionIdentifier>;
 	private readonly _host: IExtensionsActivatorHost;
-	private readonly _activatingExtensions: Map<string, Promise<void>>;
-	private readonly _activatedExtensions: Map<string, ActivatedExtension>;
+	private readonly _operations: Map<string, ActivationOperation>;
 	/**
 	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
 	 */
@@ -186,126 +182,111 @@ export class ExtensionsActivator implements IDisposable {
 		host: IExtensionsActivatorHost,
 		@ILogService private readonly _logService: ILogService
 	) {
-		this._isDisposed = false;
 		this._registry = registry;
 		this._resolvedExtensionsSet = new Set<string>();
 		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
 		this._externalExtensionsMap = new Map<string, ExtensionIdentifier>();
 		externalExtensions.forEach((extensionId) => this._externalExtensionsMap.set(ExtensionIdentifier.toKey(extensionId), extensionId));
 		this._host = host;
-		this._activatingExtensions = new Map<string, Promise<void>>();
-		this._activatedExtensions = new Map<string, ActivatedExtension>();
+		this._operations = new Map<string, ActivationOperation>();
 		this._alreadyActivatedEvents = Object.create(null);
 	}
 
 	public dispose(): void {
-		this._isDisposed = true;
+		for (const [_, op] of this._operations) {
+			op.dispose();
+		}
 	}
 
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
-		const extensionKey = ExtensionIdentifier.toKey(extensionId);
-
-		return this._activatedExtensions.has(extensionKey);
+		const op = this._operations.get(ExtensionIdentifier.toKey(extensionId));
+		return Boolean(op && op.value);
 	}
 
 	public getActivatedExtension(extensionId: ExtensionIdentifier): ActivatedExtension {
-		const extensionKey = ExtensionIdentifier.toKey(extensionId);
-
-		const activatedExtension = this._activatedExtensions.get(extensionKey);
-		if (!activatedExtension) {
-			throw new Error('Extension `' + extensionId.value + '` is not known or not activated');
+		const op = this._operations.get(ExtensionIdentifier.toKey(extensionId));
+		if (!op || !op.value) {
+			throw new Error(`Extension '${extensionId.value}' is not known or not activated`);
 		}
-		return activatedExtension;
+		return op.value;
 	}
 
-	public activateByEvent(activationEvent: string, startup: boolean): Promise<void> {
+	public async activateByEvent(activationEvent: string, startup: boolean): Promise<void> {
 		if (this._alreadyActivatedEvents[activationEvent]) {
-			return NO_OP_VOID_PROMISE;
+			return;
 		}
+
 		const activateExtensions = this._registry.getExtensionDescriptionsForActivationEvent(activationEvent);
-		return this._activateExtensions(activateExtensions.map(e => ({
+		await this._activateExtensions(activateExtensions.map(e => ({
 			id: e.identifier,
 			reason: { startup, extensionId: e.identifier, activationEvent }
-		}))).then(() => {
-			this._alreadyActivatedEvents[activationEvent] = true;
-		});
+		})));
+
+		this._alreadyActivatedEvents[activationEvent] = true;
 	}
 
 	public activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		const desc = this._registry.getExtensionDescription(extensionId);
 		if (!desc) {
-			throw new Error('Extension `' + extensionId + '` is not known');
+			throw new Error(`Extension '${extensionId}' is not known`);
 		}
+		return this._activateExtensions([{ id: desc.identifier, reason }]);
+	}
 
-		return this._activateExtensions([{
-			id: desc.identifier,
-			reason
-		}]);
+	private async _activateExtensions(extensions: ActivationIdAndReason[]): Promise<void> {
+		const operations = extensions
+			.filter((p) => !this.isActivated(p.id))
+			.map(ext => this._handleActivationRequest(ext));
+		await Promise.all(operations.map(op => op.wait()));
 	}
 
 	/**
 	 * Handle semantics related to dependencies for `currentExtension`.
-	 * semantics: `redExtensions` must wait for `greenExtensions`.
+	 * We don't need to worry about dependency loops because they are handled by the registry.
 	 */
-	private _handleActivateRequest(currentActivation: ActivationIdAndReason, greenExtensions: { [id: string]: ActivationIdAndReason }, redExtensions: ActivationIdAndReason[]): void {
+	private _handleActivationRequest(currentActivation: ActivationIdAndReason): ActivationOperation {
+		if (this._operations.has(ExtensionIdentifier.toKey(currentActivation.id))) {
+			return this._operations.get(ExtensionIdentifier.toKey(currentActivation.id))!;
+		}
+
 		if (this._externalExtensionsMap.has(ExtensionIdentifier.toKey(currentActivation.id))) {
-			greenExtensions[ExtensionIdentifier.toKey(currentActivation.id)] = currentActivation;
-			return;
+			return this._createAndSaveOperation(currentActivation, null, [], null);
 		}
 
 		const currentExtension = this._registry.getExtensionDescription(currentActivation.id);
 		if (!currentExtension) {
 			// Error condition 0: unknown extension
 			const error = new Error(`Cannot activate unknown extension '${currentActivation.id.value}'`);
+			const result = this._createAndSaveOperation(currentActivation, null, [], new FailedExtension(error));
 			this._host.onExtensionActivationError(
 				currentActivation.id,
 				error,
 				new MissingExtensionDependency(currentActivation.id.value)
 			);
-			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentActivation.id), new FailedExtension(error));
-			return;
+			return result;
 		}
 
+		const deps: ActivationOperation[] = [];
 		const depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
-		let currentExtensionGetsGreenLight = true;
-
-		for (let j = 0, lenJ = depIds.length; j < lenJ; j++) {
-			const depId = depIds[j];
+		for (const depId of depIds) {
 
 			if (this._resolvedExtensionsSet.has(ExtensionIdentifier.toKey(depId))) {
 				// This dependency is already resolved
 				continue;
 			}
 
-			const dep = this._activatedExtensions.get(ExtensionIdentifier.toKey(depId));
-			if (dep && !dep.activationFailed) {
-				// the dependency is already activated OK
+			const dep = this._operations.get(ExtensionIdentifier.toKey(depId));
+			if (dep) {
+				deps.push(dep);
 				continue;
-			}
-
-			if (dep && dep.activationFailed) {
-				// Error condition 2: a dependency has already failed activation
-				const currentExtensionFriendlyName = currentExtension.displayName || currentExtension.identifier.value;
-				const depDesc = this._registry.getExtensionDescription(depId);
-				const depFriendlyName = (depDesc ? depDesc.displayName || depId : depId);
-				const error = new Error(`Cannot activate the '${currentExtensionFriendlyName}' extension because its dependency '${depFriendlyName}' failed to activate`);
-				(<any>error).detail = dep.activationFailedError;
-				this._host.onExtensionActivationError(
-					currentExtension.identifier,
-					error,
-					null
-				);
-				this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
-				return;
 			}
 
 			if (this._externalExtensionsMap.has(ExtensionIdentifier.toKey(depId))) {
 				// must first wait for the dependency to activate
-				currentExtensionGetsGreenLight = false;
-				greenExtensions[ExtensionIdentifier.toKey(depId)] = {
+				deps.push(this._handleActivationRequest({
 					id: this._externalExtensionsMap.get(ExtensionIdentifier.toKey(depId))!,
 					reason: currentActivation.reason
-				};
+				}));
 				continue;
 			}
 
@@ -317,118 +298,140 @@ export class ExtensionsActivator implements IDisposable {
 				}
 
 				// must first wait for the dependency to activate
-				currentExtensionGetsGreenLight = false;
-				greenExtensions[ExtensionIdentifier.toKey(depId)] = {
+				deps.push(this._handleActivationRequest({
 					id: depDesc.identifier,
 					reason: currentActivation.reason
-				};
+				}));
 				continue;
 			}
 
 			// Error condition 1: unknown dependency
 			const currentExtensionFriendlyName = currentExtension.displayName || currentExtension.identifier.value;
 			const error = new Error(`Cannot activate the '${currentExtensionFriendlyName}' extension because it depends on unknown extension '${depId}'`);
+			const result = this._createAndSaveOperation(currentActivation, currentExtension.displayName, [], new FailedExtension(error));
 			this._host.onExtensionActivationError(
 				currentExtension.identifier,
 				error,
 				new MissingExtensionDependency(depId)
 			);
-			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentExtension.identifier), new FailedExtension(error));
+			return result;
+		}
+
+		return this._createAndSaveOperation(currentActivation, currentExtension.displayName, deps, null);
+	}
+
+	private _createAndSaveOperation(activation: ActivationIdAndReason, displayName: string | null | undefined, deps: ActivationOperation[], value: ActivatedExtension | null): ActivationOperation {
+		const operation = new ActivationOperation(activation.id, displayName, activation.reason, deps, value, this._host, this._logService);
+		this._operations.set(ExtensionIdentifier.toKey(activation.id), operation);
+		return operation;
+	}
+}
+
+class ActivationOperation {
+
+	private readonly _barrier = new Barrier();
+	private _isDisposed = false;
+
+	public get value(): ActivatedExtension | null {
+		return this._value;
+	}
+
+	public get friendlyName(): string {
+		return this._displayName || this._id.value;
+	}
+
+	constructor(
+		private readonly _id: ExtensionIdentifier,
+		private readonly _displayName: string | null | undefined,
+		private readonly _reason: ExtensionActivationReason,
+		private readonly _deps: ActivationOperation[],
+		private _value: ActivatedExtension | null,
+		private readonly _host: IExtensionsActivatorHost,
+		@ILogService private readonly _logService: ILogService
+	) {
+		this._initialize();
+	}
+
+	public dispose(): void {
+		this._isDisposed = true;
+	}
+
+	public wait() {
+		return this._barrier.wait();
+	}
+
+	private async _initialize(): Promise<void> {
+		await this._waitForDepsThenActivate();
+		this._barrier.open();
+	}
+
+	private async _waitForDepsThenActivate(): Promise<void> {
+		if (this._value) {
+			// this operation is already finished
 			return;
 		}
 
-		if (currentExtensionGetsGreenLight) {
-			greenExtensions[ExtensionIdentifier.toKey(currentExtension.identifier)] = currentActivation;
-		} else {
-			redExtensions.push(currentActivation);
-		}
-	}
+		while (this._deps.length > 0) {
+			// remove completed deps
+			for (let i = 0; i < this._deps.length; i++) {
+				const dep = this._deps[i];
 
-	private _activateExtensions(extensions: ActivationIdAndReason[]): Promise<void> {
-		if (extensions.length === 0) {
-			return Promise.resolve(undefined);
-		}
+				if (dep.value && !dep.value.activationFailed) {
+					// the dependency is already activated OK
+					this._deps.splice(i, 1);
+					i--;
+					continue;
+				}
 
-		extensions = extensions.filter((p) => !this._activatedExtensions.has(ExtensionIdentifier.toKey(p.id)));
-		if (extensions.length === 0) {
-			return Promise.resolve(undefined);
-		}
+				if (dep.value && dep.value.activationFailed) {
+					// Error condition 2: a dependency has already failed activation
+					const error = new Error(`Cannot activate the '${this.friendlyName}' extension because its dependency '${dep.friendlyName}' failed to activate`);
+					(<any>error).detail = dep.value.activationFailedError;
+					this._value = new FailedExtension(error);
+					this._host.onExtensionActivationError(this._id, error, null);
+					return;
+				}
+			}
 
-		const greenMap: { [id: string]: ActivationIdAndReason } = Object.create(null),
-			red: ActivationIdAndReason[] = [];
-
-		for (let i = 0, len = extensions.length; i < len; i++) {
-			this._handleActivateRequest(extensions[i], greenMap, red);
-		}
-
-		// Make sure no red is also green
-		for (let i = 0, len = red.length; i < len; i++) {
-			const redExtensionKey = ExtensionIdentifier.toKey(red[i].id);
-			if (greenMap[redExtensionKey]) {
-				delete greenMap[redExtensionKey];
+			if (this._deps.length > 0) {
+				// wait for one dependency
+				await Promise.race(this._deps.map(dep => dep.wait()));
 			}
 		}
 
-		const green = Object.keys(greenMap).map(id => greenMap[id]);
-
-		if (red.length === 0) {
-			// Finally reached only leafs!
-			return Promise.all(green.map((p) => this._activateExtension(p.id, p.reason))).then(_ => undefined);
-		}
-
-		return this._activateExtensions(green).then(_ => {
-			return this._activateExtensions(red);
-		});
+		await this._activate();
 	}
 
-	private _activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
-		const extensionKey = ExtensionIdentifier.toKey(extensionId);
-
-		if (this._activatedExtensions.has(extensionKey)) {
-			return Promise.resolve(undefined);
-		}
-
-		const currentlyActivatingExtension = this._activatingExtensions.get(extensionKey);
-		if (currentlyActivatingExtension) {
-			return currentlyActivatingExtension;
-		}
-
-		const newlyActivatingExtension = this._host.actualActivateExtension(extensionId, reason).then(undefined, (err) => {
+	private async _activate(): Promise<void> {
+		try {
+			this._value = await this._host.actualActivateExtension(this._id, this._reason);
+		} catch (err) {
 
 			const error = new Error();
 			if (err && err.name) {
 				error.name = err.name;
 			}
 			if (err && err.message) {
-				error.message = `Activating extension '${extensionId.value}' failed: ${err.message}.`;
+				error.message = `Activating extension '${this._id.value}' failed: ${err.message}.`;
 			} else {
-				error.message = `Activating extension '${extensionId.value}' failed: ${err}.`;
+				error.message = `Activating extension '${this._id.value}' failed: ${err}.`;
 			}
 			if (err && err.stack) {
 				error.stack = err.stack;
 			}
 
+			// Treat the extension as being empty
+			this._value = new FailedExtension(error);
+
 			if (this._isDisposed && errors.isCancellationError(err)) {
 				// It is expected for ongoing activations to fail if the extension host is going down
 				// So simply ignore and don't log canceled errors in this case
-				return new FailedExtension(err);
+				return;
 			}
 
-			this._host.onExtensionActivationError(
-				extensionId,
-				error,
-				null
-			);
-			this._logService.error(`Activating extension ${extensionId.value} failed due to an error:`);
+			this._host.onExtensionActivationError(this._id, error, null);
+			this._logService.error(`Activating extension ${this._id.value} failed due to an error:`);
 			this._logService.error(err);
-			// Treat the extension as being empty
-			return new FailedExtension(err);
-		}).then((x: ActivatedExtension) => {
-			this._activatedExtensions.set(extensionKey, x);
-			this._activatingExtensions.delete(extensionKey);
-		});
-
-		this._activatingExtensions.set(extensionKey, newlyActivatingExtension);
-		return newlyActivatingExtension;
+		}
 	}
 }
