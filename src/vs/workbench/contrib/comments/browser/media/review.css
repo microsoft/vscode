@@ -388,6 +388,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 }
 
 .monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-diff-added.line-hover:before,
 .monaco-editor .comment-range-glyph.comment-thread:before {
 	position: absolute;
 	height: 100%;
@@ -402,7 +403,8 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	justify-content: center;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before {
+.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
+.monaco-editor .margin-view-overlays .comment-range-glyph.comment-diff-added.line-hover:before {
 	content: "+";
 }
 

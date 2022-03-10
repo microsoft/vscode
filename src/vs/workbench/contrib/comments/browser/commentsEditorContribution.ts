@@ -9,7 +9,7 @@ import { coalesce, findFirstInSorted } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/review';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent, isCodeEditor, isDiffEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -40,6 +40,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import { Emitter } from 'vs/base/common/event';
 
 export const ID = 'editor.contrib.review';
 
@@ -67,7 +68,7 @@ class CommentingRangeDecoration {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, commentingOptions: ModelDecorationOptions, private commentingRangesInfo: languages.CommentingRanges) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, commentingOptions: ModelDecorationOptions, private commentingRangesInfo: languages.CommentingRanges, public readonly isHover: boolean = false) {
 		const startLineNumber = _range.startLineNumber;
 		const endLineNumber = _range.endLineNumber;
 		let commentingRangeDecorations = [{
@@ -100,8 +101,14 @@ class CommentingRangeDecoration {
 }
 class CommentingRangeDecorator {
 
-	private decorationOptions: ModelDecorationOptions;
+	private decorationOptions!: ModelDecorationOptions;
+	private hoverDecorationOptions!: ModelDecorationOptions;
 	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
+	private _editor: ICodeEditor | undefined;
+	private _infos: ICommentInfo[] | undefined;
+	private _lastHover: number = -1;
+	private _onDidChangeDecorationsCount: Emitter<number> = new Emitter();
+	public readonly onDidChangeDecorationsCount = this._onDidChangeDecorationsCount.event;
 
 	constructor() {
 		const decorationOptions: IModelDecorationOptions = {
@@ -111,9 +118,30 @@ class CommentingRangeDecorator {
 		};
 
 		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
+
+		const hoverDecorationOptions: IModelDecorationOptions = {
+			description: 'commenting-range-decorator',
+			isWholeLine: true,
+			linesDecorationsClassName: `comment-range-glyph comment-diff-added line-hover`
+		};
+
+		this.hoverDecorationOptions = ModelDecorationOptions.createDynamic(hoverDecorationOptions);
+	}
+
+	public updateHover(hoverLine?: number) {
+		if (this._editor && this._infos && (hoverLine !== this._lastHover)) {
+			this._doUpdate(this._editor, this._infos, hoverLine);
+		}
+		this._lastHover = hoverLine ?? -1;
 	}
 
 	public update(editor: ICodeEditor, commentInfos: ICommentInfo[]) {
+		this._editor = editor;
+		this._infos = commentInfos;
+		this._doUpdate(editor, commentInfos);
+	}
+
+	private _doUpdate(editor: ICodeEditor, commentInfos: ICommentInfo[], hoverLine: number = -1) {
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -122,22 +150,47 @@ class CommentingRangeDecorator {
 		let commentingRangeDecorations: CommentingRangeDecoration[] = [];
 		for (const info of commentInfos) {
 			info.commentingRanges.ranges.forEach(range => {
-				commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, this.decorationOptions, info.commentingRanges));
+				if ((range.startLineNumber <= hoverLine) && (range.endLineNumber >= hoverLine)) {
+					const beforeRange = new Range(range.startLineNumber, 1, hoverLine, 1);
+					const hoverRange = new Range(hoverLine, 1, hoverLine, 1);
+					const afterRange = new Range(hoverLine, 1, range.endLineNumber, 1);
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, beforeRange, this.decorationOptions, info.commentingRanges, true));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, hoverRange, this.hoverDecorationOptions, info.commentingRanges, true));
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, afterRange, this.decorationOptions, info.commentingRanges, true));
+				} else {
+					commentingRangeDecorations.push(new CommentingRangeDecoration(editor, info.owner, info.extensionId, info.label, range, this.decorationOptions, info.commentingRanges));
+				}
 			});
 		}
 
 		let oldDecorations = this.commentingRangeDecorations.map(decoration => decoration.id);
 		editor.deltaDecorations(oldDecorations, []);
 
+		const rangesDifference = this.commentingRangeDecorations.length - commentingRangeDecorations.length;
 		this.commentingRangeDecorations = commentingRangeDecorations;
+		if (rangesDifference) {
+			this._onDidChangeDecorationsCount.fire(this.commentingRangeDecorations.length);
+		}
 	}
 
 	public getMatchedCommentAction(line: number) {
+		// keys is ownerId
+		const foundHoverActions = new Map<string, languages.CommentingRanges>();
 		let result = [];
 		for (const decoration of this.commentingRangeDecorations) {
 			const range = decoration.getActiveRange();
 			if (range && range.startLineNumber <= line && line <= range.endLineNumber) {
-				result.push(decoration.getCommentAction());
+				// We can have 3 commenting ranges that match from the same owner because of how
+				// the line hover decoration is done. We only want to use the action from 1 of them.
+				const action = decoration.getCommentAction();
+				if (decoration.isHover) {
+					if (foundHoverActions.get(action.ownerId) === action.commentingRangesInfo) {
+						continue;
+					} else {
+						foundHoverActions.set(action.ownerId, action.commentingRangesInfo);
+					}
+				}
+				result.push(action);
 			}
 		}
 
@@ -164,6 +217,7 @@ export class CommentController implements IEditorContribution {
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
+	private _editorMouseDisposable: IDisposable | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -187,6 +241,13 @@ export class CommentController implements IEditorContribution {
 		this.editor = editor;
 
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
+		this.globalToDispose.add(this._commentingRangeDecorator.onDidChangeDecorationsCount(count => {
+			if (count === 0) {
+				this.clearMouseMoveListener();
+			} else if (!this._editorMouseDisposable) {
+				this.registerMouseMoveListener();
+			}
+		}));
 
 		this.globalToDispose.add(this.commentService.onDidDeleteDataProvider(ownerId => {
 			delete this._pendingCommentCache[ownerId];
@@ -205,6 +266,19 @@ export class CommentController implements IEditorContribution {
 		this.globalToDispose.add(this.editor.onDidChangeModel(e => this.onModelChanged(e)));
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 		this.beginCompute();
+	}
+
+	private registerMouseMoveListener() {
+		this._editorMouseDisposable = this.editor.onMouseMove(e => this.onEditorMouseMove(e));
+	}
+
+	private clearMouseMoveListener() {
+		this._editorMouseDisposable?.dispose();
+		this._editorMouseDisposable = undefined;
+	}
+
+	private onEditorMouseMove(e: IEditorMouseEvent): void {
+		this._commentingRangeDecorator.updateHover(e.target.position?.lineNumber);
 	}
 
 	private beginCompute(): Promise<void> {
@@ -323,6 +397,7 @@ export class CommentController implements IEditorContribution {
 	public dispose(): void {
 		this.globalToDispose.dispose();
 		this.localToDispose.dispose();
+		this._editorMouseDisposable?.dispose();
 
 		this._commentWidgets.forEach(widget => widget.dispose());
 
@@ -336,6 +411,10 @@ export class CommentController implements IEditorContribution {
 
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
+		if (this._editorMouseDisposable) {
+			this.clearMouseMoveListener();
+			this.registerMouseMoveListener();
+		}
 
 		this._computeCommentingRangeScheduler = new Delayer<ICommentInfo[]>(200);
 		this.localToDispose.add({
