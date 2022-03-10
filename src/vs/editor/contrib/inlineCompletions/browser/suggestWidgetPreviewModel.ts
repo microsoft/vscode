@@ -12,7 +12,7 @@ import { InlineCompletionTriggerKind, SelectedSuggestionInfo } from 'vs/editor/c
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { BaseGhostTextWidgetModel, GhostText } from './ghostText';
-import { provideInlineCompletions, UpdateOperation } from './inlineCompletionsModel';
+import { provideInlineCompletions, TrackedInlineCompletions, UpdateOperation } from './inlineCompletionsModel';
 import { inlineCompletionToGhostText, minimizeInlineCompletion, NormalizedInlineCompletion } from './inlineCompletionToGhostText';
 import { SuggestWidgetInlineCompletionProvider } from './suggestWidgetInlineCompletionProvider';
 
@@ -95,7 +95,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		const position = this.editor.getPosition();
 
 		const promise = createCancelablePromise(async token => {
-			let result;
+			let result: TrackedInlineCompletions;
 			try {
 				result = await provideInlineCompletions(this.languageFeaturesService.inlineCompletionsProvider, position,
 					this.editor.getModel(),
@@ -107,6 +107,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 				return;
 			}
 			if (token.isCancellationRequested) {
+				result.dispose();
 				return;
 			}
 			this.cache.setValue(
