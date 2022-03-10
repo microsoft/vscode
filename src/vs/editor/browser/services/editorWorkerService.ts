@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
@@ -106,7 +106,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[] | null | undefined): Promise<modes.TextEdit[] | undefined> {
+	public computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
 		if (isNonEmptyArray(edits)) {
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
@@ -125,7 +125,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		return (canSyncModel(this._modelService, resource));
 	}
 
-	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<modes.IInplaceReplaceSupportResult | null> {
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<languages.IInplaceReplaceSupportResult | null> {
 		return this._workerManager.withWorker().then(client => client.navigateValueSet(resource, range, up));
 	}
 
@@ -138,7 +138,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	}
 }
 
-class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
+class WordBasedCompletionItemProvider implements languages.CompletionItemProvider {
 
 	private readonly _workerManager: WorkerManager;
 	private readonly _configurationService: ITextResourceConfigurationService;
@@ -157,7 +157,7 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 		this._modelService = modelService;
 	}
 
-	async provideCompletionItems(model: ITextModel, position: Position): Promise<modes.CompletionList | undefined> {
+	async provideCompletionItems(model: ITextModel, position: Position): Promise<languages.CompletionList | undefined> {
 		type WordBasedSuggestionsConfig = {
 			wordBasedSuggestions?: boolean;
 			wordBasedSuggestionsMode?: 'currentDocument' | 'matchingDocuments' | 'allDocuments';
@@ -205,9 +205,9 @@ class WordBasedCompletionItemProvider implements modes.CompletionItemProvider {
 
 		return {
 			duration: data.duration,
-			suggestions: data.words.map((word): modes.CompletionItem => {
+			suggestions: data.words.map((word): languages.CompletionItem => {
 				return {
-					kind: modes.CompletionItemKind.Text,
+					kind: languages.CompletionItemKind.Text,
 					label: word,
 					insertText: word,
 					range: { insert, replace }
@@ -503,13 +503,13 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): Promise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: languages.TextEdit[]): Promise<languages.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeMoreMinimalEdits(resource.toString(), edits);
 		});
 	}
 
-	public computeLinks(resource: URI): Promise<modes.ILink[] | null> {
+	public computeLinks(resource: URI): Promise<languages.ILink[] | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			return proxy.computeLinks(resource.toString());
 		});
@@ -535,7 +535,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		});
 	}
 
-	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<modes.IInplaceReplaceSupportResult | null> {
+	public navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<languages.IInplaceReplaceSupportResult | null> {
 		return this._withSyncedResources([resource]).then(proxy => {
 			const model = this._modelService.getModel(resource);
 			if (!model) {

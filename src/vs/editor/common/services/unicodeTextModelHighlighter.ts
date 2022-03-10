@@ -8,6 +8,7 @@ import { Searcher } from 'vs/editor/common/model/textModelSearch';
 import * as strings from 'vs/base/common/strings';
 import { IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { assertNever } from 'vs/base/common/types';
+import { DEFAULT_WORD_REGEXP, getWordAtText } from 'vs/editor/common/core/wordHelper';
 
 export class UnicodeTextModelHighlighter {
 	public static computeUnicodeHighlights(model: IUnicodeCharacterSearcherTarget, options: UnicodeHighlighterOptions, range?: IRange): IUnicodeHighlightsResult {
@@ -60,7 +61,8 @@ export class UnicodeTextModelHighlighter {
 						}
 					}
 					const str = lineContent.substring(startIndex, endIndex);
-					const highlightReason = codePointHighlighter.shouldHighlightNonBasicASCII(str);
+					const word = getWordAtText(startIndex + 1, DEFAULT_WORD_REGEXP, lineContent, 0);
+					const highlightReason = codePointHighlighter.shouldHighlightNonBasicASCII(str, word ? word.word : null);
 
 					if (highlightReason !== SimpleHighlightReason.None) {
 						if (highlightReason === SimpleHighlightReason.Ambiguous) {
@@ -96,7 +98,7 @@ export class UnicodeTextModelHighlighter {
 	public static computeUnicodeHighlightReason(char: string, options: UnicodeHighlighterOptions): UnicodeHighlighterReason | null {
 		const codePointHighlighter = new CodePointHighlighter(options);
 
-		const reason = codePointHighlighter.shouldHighlightNonBasicASCII(char);
+		const reason = codePointHighlighter.shouldHighlightNonBasicASCII(char, null);
 		switch (reason) {
 			case SimpleHighlightReason.None:
 				return null;
@@ -159,7 +161,9 @@ class CodePointHighlighter {
 
 		if (this.options.invisibleCharacters) {
 			for (const cp of strings.InvisibleCharacters.codePoints) {
-				set.add(cp);
+				if (!isAllowedInvisibleCharacter(String.fromCodePoint(cp))) {
+					set.add(cp);
+				}
 			}
 		}
 
@@ -176,7 +180,7 @@ class CodePointHighlighter {
 		return set;
 	}
 
-	public shouldHighlightNonBasicASCII(character: string): SimpleHighlightReason {
+	public shouldHighlightNonBasicASCII(character: string, wordContext: string | null): SimpleHighlightReason {
 		const codePoint = character.codePointAt(0)!;
 
 		if (this.allowedCodePoints.has(codePoint)) {
@@ -187,10 +191,34 @@ class CodePointHighlighter {
 			return SimpleHighlightReason.NonBasicASCII;
 		}
 
+		let hasBasicASCIICharacters = false;
+		let hasNonConfusableNonBasicAsciiCharacter = false;
+		if (wordContext) {
+			for (let char of wordContext) {
+				const codePoint = char.codePointAt(0)!;
+				const isBasicASCII = strings.isBasicASCII(char);
+				hasBasicASCIICharacters = hasBasicASCIICharacters || isBasicASCII;
+
+				if (
+					!isBasicASCII &&
+					!this.ambiguousCharacters.isAmbiguous(codePoint) &&
+					!strings.InvisibleCharacters.isInvisibleCharacter(codePoint)
+				) {
+					hasNonConfusableNonBasicAsciiCharacter = true;
+				}
+			}
+		}
+
+		if (
+			/* Don't allow mixing weird looking characters with ASCII */ !hasBasicASCIICharacters &&
+			/* Is there an obviously weird looking character? */ hasNonConfusableNonBasicAsciiCharacter
+		) {
+			return SimpleHighlightReason.None;
+		}
+
 		if (this.options.invisibleCharacters) {
-			const isAllowedInvisibleCharacter = character === ' ' || character === '\n' || character === '\t';
 			// TODO check for emojis
-			if (!isAllowedInvisibleCharacter && strings.InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+			if (!isAllowedInvisibleCharacter(character) && strings.InvisibleCharacters.isInvisibleCharacter(codePoint)) {
 				return SimpleHighlightReason.Invisible;
 			}
 		}
@@ -203,6 +231,10 @@ class CodePointHighlighter {
 
 		return SimpleHighlightReason.None;
 	}
+}
+
+function isAllowedInvisibleCharacter(character: string): boolean {
+	return character === ' ' || character === '\n' || character === '\t';
 }
 
 const enum SimpleHighlightReason {

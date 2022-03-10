@@ -19,7 +19,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
@@ -47,7 +47,7 @@ export interface SuggestResultsProvider {
 	 *
 	 * @param query the full text of the input.
 	 */
-	provideResults: (query: string) => (Partial<modes.CompletionItem> & ({ label: string }) | string)[];
+	provideResults: (query: string) => (Partial<languages.CompletionItem> & ({ label: string }) | string)[];
 
 	/**
 	 * Trigger characters for this input. Suggestions will appear when one of these is typed,
@@ -199,7 +199,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
-			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
+			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
 				let query = model.getValue();
 
 				const zeroIndexedColumn = position.column - 1;
@@ -213,9 +213,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				}
 
 				return {
-					suggestions: suggestionProvider.provideResults(query).map((result): modes.CompletionItem => {
+					suggestions: suggestionProvider.provideResults(query).map((result): languages.CompletionItem => {
 						let label: string;
-						let rest: Partial<modes.CompletionItem> | undefined;
+						let rest: Partial<languages.CompletionItem> | undefined;
 						if (typeof result === 'string') {
 							label = result;
 						} else {
@@ -228,7 +228,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 							insertText: label,
 							range: Range.fromPositions(position.delta(0, -alreadyTypedCount), position),
 							sortText: validatedSuggestProvider.sortKey(label),
-							kind: modes.CompletionItemKind.Keyword,
+							kind: languages.CompletionItemKind.Keyword,
 							...rest
 						};
 					})

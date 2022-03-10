@@ -7,6 +7,13 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
+	export enum TabKind {
+		Singular = 0,
+		Diff = 1,
+		SidebySide = 2,
+		Other = 3
+	}
+
 	/**
 	 * Represents a tab within the window
 	 */
@@ -15,11 +22,6 @@ declare module 'vscode' {
 		 * The text displayed on the tab
 		 */
 		readonly label: string;
-
-		/**
-		 * The index of the tab within the column
-		 */
-		readonly index: number;
 
 		/**
 		 * The column which the tab belongs to
@@ -33,27 +35,42 @@ declare module 'vscode' {
 		readonly resource: Uri | undefined;
 
 		/**
-		 * The identifier of the view contained in the tab
+		 * The type of view contained in the tab
 		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
-		readonly viewId: string | undefined;
+		readonly viewType: string | undefined;
 
 		/**
 		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
+		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
 		 * always be at index 0.
 		 */
-		readonly additionalResourcesAndViewIds: readonly {
+		readonly additionalResourcesAndViewTypes: readonly {
 			readonly resource: Uri | undefined;
-			readonly viewId: string | undefined;
+			readonly viewType: string | undefined;
 		}[];
 
 		/**
 		 * Whether or not the tab is currently active
-		 * Dictated by being the selected tab in the active group
+		 * Dictated by being the selected tab in the group
 		 */
 		readonly isActive: boolean;
+
+		/**
+		 * Whether or not the dirty indicator is present on the tab
+		 */
+		readonly isDirty: boolean;
+
+		/**
+		 * Whether or not the tab is pinned
+		 */
+		readonly isPinned: boolean;
+
+		/**
+		 * Indicates the type of tab it is.
+		 */
+		readonly kind: TabKind;
 
 		/**
 		 * Moves a tab to the given index within the column.
@@ -73,28 +90,54 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * A list of all opened tabs
-		 * Ordered from left to right
+		 * Represents the grid widget within the main editor area
 		 */
-		export const tabs: readonly Tab[];
+		export const tabGroups: TabGroups;
+	}
+
+	interface TabGroups {
+		/**
+		 * All the groups within the group container
+		 */
+		// TODO@API rename to groups
+		readonly all: TabGroup[];
 
 		/**
-		 * The currently active tab
-		 * Undefined if no tabs are currently opened
+		 * The currently active group
 		 */
-		export const activeTab: Tab | undefined;
+		readonly activeTabGroup: TabGroup | undefined;
 
 		/**
-		 * An {@link Event} which fires when the array of {@link window.tabs tabs}
-		 * has changed.
+		 * An {@link Event} which fires when a group changes.
 		 */
-		export const onDidChangeTabs: Event<readonly Tab[]>;
+		onDidChangeTabGroup: Event<void>;
 
 		/**
-		 * An {@link Event} which fires when the {@link window.activeTab activeTab}
-		 * has changed.
+		 * An {@link Event} which fires when the active group changes.
+		 * Whether it be which group is active or its properties.
 		 */
-		export const onDidChangeActiveTab: Event<Tab | undefined>;
+		onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
+	}
 
+	interface TabGroup {
+		/**
+		 * Whether or not the group is currently active
+		 */
+		readonly isActive: boolean;
+
+		/**
+		 * The view column of the groups
+		 */
+		readonly viewColumn: ViewColumn;
+
+		/**
+		 * The active tab within the group
+		 */
+		readonly activeTab: Tab | undefined;
+
+		/**
+		 * The list of tabs contained within the group
+		 */
+		readonly tabs: Tab[];
 	}
 }

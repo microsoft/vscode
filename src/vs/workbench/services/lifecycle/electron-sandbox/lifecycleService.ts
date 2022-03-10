@@ -11,8 +11,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { Promises, disposableTimeout } from 'vs/base/common/async';
+import { Promises, disposableTimeout, raceCancellation } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
@@ -42,6 +43,9 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 			// veto: cancel unload
 			if (veto) {
 				this.logService.trace('[lifecycle] onBeforeUnload prevented via veto');
+
+				// Indicate as event
+				this._onShutdownVeto.fire();
 
 				ipcRenderer.send(reply.cancelChannel, windowId);
 			}
@@ -81,6 +85,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 		// before-shutdown event with veto support
 		this._onBeforeShutdown.fire({
+			reason,
 			veto(value, id) {
 				vetos.push(value);
 
@@ -106,8 +111,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 				} else {
 					throw new Error(`[lifecycle]: Final veto is already defined (id: ${id})`);
 				}
-			},
-			reason
+			}
 		});
 
 		const longRunningBeforeShutdownWarning = disposableTimeout(() => {
@@ -152,8 +156,10 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	protected async handleWillShutdown(reason: ShutdownReason): Promise<void> {
 		const joiners: Promise<void>[] = [];
 		const pendingJoiners = new Set<string>();
+		const cts = new CancellationTokenSource();
 
 		this._onWillShutdown.fire({
+			reason,
 			join(promise, id) {
 				joiners.push(promise);
 
@@ -161,7 +167,9 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 				pendingJoiners.add(id);
 				promise.finally(() => pendingJoiners.delete(id));
 			},
-			reason
+			force: () => {
+				cts.dispose(true);
+			}
 		});
 
 		const longRunningWillShutdownWarning = disposableTimeout(() => {
@@ -169,7 +177,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		}, NativeLifecycleService.WILL_SHUTDOWN_WARNING_DELAY);
 
 		try {
-			await Promises.settled(joiners);
+			await raceCancellation(Promises.settled(joiners), cts.token);
 		} catch (error) {
 			this.logService.error(`[lifecycle]: Error during will-shutdown phase (error: ${toErrorMessage(error)})`); // this error will not prevent the shutdown
 		} finally {

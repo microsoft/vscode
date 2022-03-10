@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { registerLanguageAssociation, clearLanguageAssociations } from 'vs/editor/common/services/languagesAssociations';
+import { clearConfiguredLanguageAssociations, registerConfiguredLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageExtensionPoint, ILanguageService } from 'vs/editor/common/languages/language';
@@ -178,7 +178,7 @@ export class WorkbenchLanguageService extends LanguageService {
 		const configuration = this._configurationService.getValue<IFilesConfiguration>();
 
 		// Clear user configured mime associations
-		clearLanguageAssociations(true /* user configured */);
+		clearConfiguredLanguageAssociations();
 
 		// Register based on settings
 		if (configuration.files?.associations) {
@@ -186,7 +186,7 @@ export class WorkbenchLanguageService extends LanguageService {
 				const langId = configuration.files.associations[pattern];
 				const mimeType = this.getMimeType(langId) || `text/x-${langId}`;
 
-				registerLanguageAssociation({ id: langId, mime: mimeType, filepattern: pattern, userConfigured: true });
+				registerConfiguredLanguageAssociation({ id: langId, mime: mimeType, filepattern: pattern });
 			});
 		}
 

@@ -32,6 +32,8 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 
 class TestTextModel extends TextModel {
 	public registerDisposable(disposable: IDisposable): void {
@@ -104,9 +106,10 @@ export function createModelServices(disposables: DisposableStore, services: Serv
 	define(IThemeService, TestThemeService);
 	define(ILogService, NullLogService);
 	define(ILanguageFeatureDebounceService, LanguageFeatureDebounceService);
+	define(ILanguageFeaturesService, LanguageFeaturesService);
 	define(IModelService, ModelService);
 
-	const instantiationService = new TestInstantiationService(services);
+	const instantiationService = new TestInstantiationService(services, true);
 	disposables.add(toDisposable(() => {
 		for (const id of serviceIdentifiers) {
 			const instanceOrDescriptor = services.get(id);

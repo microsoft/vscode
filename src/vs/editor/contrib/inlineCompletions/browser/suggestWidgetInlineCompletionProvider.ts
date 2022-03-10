@@ -228,7 +228,8 @@ function suggestionToSuggestItemInfo(suggestController: SuggestController, posit
 			normalizedInlineCompletion: {
 				// Dummy element, so that space is reserved, but no text is shown
 				range: Range.fromPositions(position, position),
-				text: ''
+				text: '',
+				snippetInfo: undefined,
 			},
 		};
 	}
@@ -260,6 +261,7 @@ function suggestionToSuggestItemInfo(suggestController: SuggestController, posit
 				position.delta(0, -info.overwriteBefore),
 				position.delta(0, Math.max(info.overwriteAfter, 0))
 			),
+			snippetInfo: undefined,
 		}
 	};
 }

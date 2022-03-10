@@ -13,7 +13,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { request } from 'vs/base/parts/request/browser/request';
 import product from 'vs/platform/product/common/product';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
 import { create, ICredentialsProvider, IURLCallbackProvider, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.main';
 import { posix } from 'vs/base/common/path';
 import { ltrim } from 'vs/base/common/strings';
@@ -282,8 +282,6 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
-	private static readonly LAST_WORKSPACE_STORAGE_KEY = 'workspaces.lastOpened';
-
 	private static QUERY_PARAM_EMPTY_WINDOW = 'ew';
 	private static QUERY_PARAM_FOLDER = 'folder';
 	private static QUERY_PARAM_WORKSPACE = 'workspace';
@@ -350,27 +348,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				workspace = { folderUri: URI.revive(config.folderUri) };
 			} else if (config.workspaceUri) {
 				workspace = { workspaceUri: URI.revive(config.workspaceUri) };
-			} else {
-				workspace = (() => {
-					const lastWorkspaceRaw = window.localStorage.getItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY);
-					if (lastWorkspaceRaw) {
-						try {
-							return parse(lastWorkspaceRaw); // use marshalling#parse() to revive potential URIs
-						} catch (error) {
-							// Ignore
-						}
-					}
-
-					return undefined;
-				})();
 			}
-		}
-
-		// Keep this as last opened workspace in storage
-		if (workspace) {
-			window.localStorage.setItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
-		} else {
-			window.localStorage.removeItem(WorkspaceProvider.LAST_WORKSPACE_STORAGE_KEY);
 		}
 
 		return new WorkspaceProvider(workspace, payload, config);
@@ -397,7 +375,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 				return true;
 			} else {
 				let result;
-				if (isStandalone) {
+				if (isStandalone()) {
 					result = window.open(targetHref, '_blank', 'toolbar=no'); // ensures to open another 'standalone' window!
 				} else {
 					result = window.open(targetHref);

@@ -128,7 +128,12 @@ export class ExplorerService implements IExplorerService {
 			}
 		}));
 		// Refresh explorer when window gets focus to compensate for missing file events #126817
-		this.disposables.add(hostService.onDidChangeFocus(hasFocus => hasFocus ? this.refresh(false) : undefined));
+		const skipRefreshExplorerOnWindowFocus = this.configurationService.getValue('skipRefreshExplorerOnWindowFocus');
+		this.disposables.add(hostService.onDidChangeFocus(hasFocus => {
+			if (!skipRefreshExplorerOnWindowFocus && hasFocus) {
+				this.refresh(false);
+			}
+		}));
 	}
 
 	get roots(): ExplorerItem[] {

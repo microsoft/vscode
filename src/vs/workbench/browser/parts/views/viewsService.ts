@@ -11,7 +11,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isString } from 'vs/base/common/types';
-import { MenuId, registerAction2, Action2, MenuRegistry, ICommandActionTitle, ILocalizedString } from 'vs/platform/actions/common/actions';
+import { MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -31,6 +31,7 @@ import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { ICommandActionTitle, ILocalizedString } from 'vs/platform/action/common/action';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -351,7 +352,7 @@ export class ViewsService extends Disposable implements IViewsService {
 								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
 							}
 						},
-						category: CATEGORIES.View.value,
+						category: CATEGORIES.View,
 						precondition: ContextKeyExpr.has(getEnabledViewContainerContextKey(viewContainer.id)),
 						keybinding: keybindings ? { ...keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
 						f1: true
@@ -417,7 +418,7 @@ export class ViewsService extends Disposable implements IViewsService {
 								return { value: localize('toggle view', "Toggle {0}", title), original: `Toggle ${title}` };
 							}
 						},
-						category: CATEGORIES.View.value,
+						category: CATEGORIES.View,
 						precondition: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
 						keybinding: viewDescriptor.openCommandActionDescriptor!.keybindings ? { ...viewDescriptor.openCommandActionDescriptor!.keybindings, weight: KeybindingWeight.WorkbenchContrib } : undefined,
 						f1: true
@@ -631,7 +632,7 @@ function getPaneCompositeExtension(viewContainerLocation: ViewContainerLocation)
 	}
 }
 
-function getPartByLocation(viewContainerLocation: ViewContainerLocation): Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.PANEL_PART {
+export function getPartByLocation(viewContainerLocation: ViewContainerLocation): Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART | Parts.PANEL_PART {
 	switch (viewContainerLocation) {
 		case ViewContainerLocation.AuxiliaryBar:
 			return Parts.AUXILIARYBAR_PART;

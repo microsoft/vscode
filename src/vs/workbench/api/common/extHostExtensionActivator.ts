@@ -170,7 +170,7 @@ export class ExtensionsActivator implements IDisposable {
 
 	private readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _resolvedExtensionsSet: Set<string>;
-	private readonly _hostExtensionsMap: Map<string, ExtensionIdentifier>;
+	private readonly _externalExtensionsMap: Map<string, ExtensionIdentifier>;
 	private readonly _host: IExtensionsActivatorHost;
 	private readonly _activatingExtensions: Map<string, Promise<void>>;
 	private readonly _activatedExtensions: Map<string, ActivatedExtension>;
@@ -182,7 +182,7 @@ export class ExtensionsActivator implements IDisposable {
 	constructor(
 		registry: ExtensionDescriptionRegistry,
 		resolvedExtensions: ExtensionIdentifier[],
-		hostExtensions: ExtensionIdentifier[],
+		externalExtensions: ExtensionIdentifier[],
 		host: IExtensionsActivatorHost,
 		@ILogService private readonly _logService: ILogService
 	) {
@@ -190,8 +190,8 @@ export class ExtensionsActivator implements IDisposable {
 		this._registry = registry;
 		this._resolvedExtensionsSet = new Set<string>();
 		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
-		this._hostExtensionsMap = new Map<string, ExtensionIdentifier>();
-		hostExtensions.forEach((extensionId) => this._hostExtensionsMap.set(ExtensionIdentifier.toKey(extensionId), extensionId));
+		this._externalExtensionsMap = new Map<string, ExtensionIdentifier>();
+		externalExtensions.forEach((extensionId) => this._externalExtensionsMap.set(ExtensionIdentifier.toKey(extensionId), extensionId));
 		this._host = host;
 		this._activatingExtensions = new Map<string, Promise<void>>();
 		this._activatedExtensions = new Map<string, ActivatedExtension>();
@@ -248,7 +248,7 @@ export class ExtensionsActivator implements IDisposable {
 	 * semantics: `redExtensions` must wait for `greenExtensions`.
 	 */
 	private _handleActivateRequest(currentActivation: ActivationIdAndReason, greenExtensions: { [id: string]: ActivationIdAndReason }, redExtensions: ActivationIdAndReason[]): void {
-		if (this._hostExtensionsMap.has(ExtensionIdentifier.toKey(currentActivation.id))) {
+		if (this._externalExtensionsMap.has(ExtensionIdentifier.toKey(currentActivation.id))) {
 			greenExtensions[ExtensionIdentifier.toKey(currentActivation.id)] = currentActivation;
 			return;
 		}
@@ -299,11 +299,11 @@ export class ExtensionsActivator implements IDisposable {
 				return;
 			}
 
-			if (this._hostExtensionsMap.has(ExtensionIdentifier.toKey(depId))) {
+			if (this._externalExtensionsMap.has(ExtensionIdentifier.toKey(depId))) {
 				// must first wait for the dependency to activate
 				currentExtensionGetsGreenLight = false;
 				greenExtensions[ExtensionIdentifier.toKey(depId)] = {
-					id: this._hostExtensionsMap.get(ExtensionIdentifier.toKey(depId))!,
+					id: this._externalExtensionsMap.get(ExtensionIdentifier.toKey(depId))!,
 					reason: currentActivation.reason
 				};
 				continue;

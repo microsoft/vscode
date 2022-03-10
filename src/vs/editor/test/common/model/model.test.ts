@@ -9,10 +9,10 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
+import { ModelInjectedTextChangedEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/textModelEvents';
 import { EncodedTokenizationResult, IState, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/languages';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState } from 'vs/editor/common/languages/nullMode';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { createModelServices, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -96,15 +96,15 @@ suite('Editor Model - Model', () => {
 	// --------- insert text eventing
 
 	test('model insert empty text does not trigger eventing', () => {
-		thisModel.onDidChangeRawContent((e) => {
+		thisModel.onDidChangeContentOrInjectedText((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), '')]);
 	});
 
 	test('model insert text without newline eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
+		let e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent | null = null;
+		thisModel.onDidChangeContentOrInjectedText((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -122,8 +122,8 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model insert text with one newline eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
+		let e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent | null = null;
+		thisModel.onDidChangeContentOrInjectedText((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -192,15 +192,15 @@ suite('Editor Model - Model', () => {
 	// --------- delete text eventing
 
 	test('model delete empty text does not trigger eventing', () => {
-		thisModel.onDidChangeRawContent((e) => {
+		thisModel.onDidChangeContentOrInjectedText((e) => {
 			assert.ok(false, 'was not expecting event');
 		});
 		thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
 	});
 
 	test('model delete text from one line eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
+		let e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent | null = null;
+		thisModel.onDidChangeContentOrInjectedText((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -218,8 +218,8 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete all text from a line eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
+		let e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent | null = null;
+		thisModel.onDidChangeContentOrInjectedText((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -237,8 +237,8 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from two lines eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
+		let e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent | null = null;
+		thisModel.onDidChangeContentOrInjectedText((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -257,8 +257,8 @@ suite('Editor Model - Model', () => {
 	});
 
 	test('model delete text from many lines eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
+		let e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent | null = null;
+		thisModel.onDidChangeContentOrInjectedText((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
 			}
@@ -308,8 +308,8 @@ suite('Editor Model - Model', () => {
 
 	// --------- setValue
 	test('setValue eventing', () => {
-		let e: ModelRawContentChangedEvent | null = null;
-		thisModel.onDidChangeRawContent((_e) => {
+		let e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent | null = null;
+		thisModel.onDidChangeContentOrInjectedText((_e) => {
 			if (e !== null) {
 				assert.fail('Unexpected assertion error');
 			}

@@ -21,7 +21,7 @@
 
 .monaco-workbench .terminal-hover-target {
 	position: absolute;
-	z-index: 30;
+	z-index: 33;
 }
 
 .monaco-workbench .terminal-env-var-info {

@@ -20,6 +20,11 @@ export const ILifecycleService = createDecorator<ILifecycleService>('lifecycleSe
 export interface BeforeShutdownEvent {
 
 	/**
+	 * The reason why the application will be shutting down.
+	 */
+	readonly reason: ShutdownReason;
+
+	/**
 	 * Allows to veto the shutdown. The veto can be a long running operation but it
 	 * will block the application from closing.
 	 *
@@ -27,11 +32,6 @@ export interface BeforeShutdownEvent {
 	 * completes.
 	 */
 	veto(value: boolean | Promise<boolean>, id: string): void;
-
-	/**
-	 * The reason why the application will be shutting down.
-	 */
-	readonly reason: ShutdownReason;
 }
 
 export interface InternalBeforeShutdownEvent extends BeforeShutdownEvent {
@@ -75,6 +75,11 @@ export interface BeforeShutdownErrorEvent {
 export interface WillShutdownEvent {
 
 	/**
+	 * The reason why the application is shutting down.
+	 */
+	readonly reason: ShutdownReason;
+
+	/**
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 *
@@ -84,24 +89,33 @@ export interface WillShutdownEvent {
 	join(promise: Promise<void>, id: string): void;
 
 	/**
-	 * The reason why the application is shutting down.
+	 * Allows to enforce the shutdown, even when there are
+	 * pending `join` operations to complete.
 	 */
-	readonly reason: ShutdownReason;
+	force(): void;
 }
 
 export const enum ShutdownReason {
 
-	/** Window is closed */
+	/**
+	 * The window is closed.
+	 */
 	CLOSE = 1,
 
-	/** Application is quit */
-	QUIT = 2,
+	/**
+	 * The window closes because the application quits.
+	 */
+	QUIT,
 
-	/** Window is reloaded */
-	RELOAD = 3,
+	/**
+	 * The window is reloaded.
+	 */
+	RELOAD,
 
-	/** Other configuration loaded into window */
-	LOAD = 4
+	/**
+	 * The window is loaded into a different workspace context.
+	 */
+	LOAD
 }
 
 export const enum StartupKind {
@@ -185,6 +199,11 @@ export interface ILifecycleService {
 	readonly onBeforeShutdown: Event<BeforeShutdownEvent>;
 
 	/**
+	 * Fired when the shutdown was prevented by a component giving veto.
+	 */
+	readonly onShutdownVeto: Event<void>;
+
+	/**
 	 * Fired when an error happened during `onBeforeShutdown` veto handling.
 	 * In this case the shutdown operation will not proceed because this is
 	 * an unexpected condition that is treated like a veto.
@@ -233,6 +252,7 @@ export const NullLifecycleService: ILifecycleService = {
 
 	onBeforeShutdown: Event.None,
 	onBeforeShutdownError: Event.None,
+	onShutdownVeto: Event.None,
 	onWillShutdown: Event.None,
 	onDidShutdown: Event.None,
 

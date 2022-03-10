@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import * as modes from 'vs/editor/common/languages';
+import * as languages from 'vs/editor/common/languages';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -35,7 +35,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
@@ -74,8 +74,8 @@ export class CommentNode extends Disposable {
 	public isEditing: boolean = false;
 
 	constructor(
-		private commentThread: modes.CommentThread,
-		public comment: modes.Comment,
+		private commentThread: languages.CommentThread,
+		public comment: languages.Comment,
 		private owner: string,
 		private resource: URI,
 		private parentEditor: ICodeEditor,
@@ -142,11 +142,12 @@ export class CommentNode extends Disposable {
 		this.updateTimestamp(this.comment.timestamp);
 	}
 
-	private updateTimestamp(timestamp?: Date) {
+	private updateTimestamp(raw?: string) {
 		if (!this._timestamp) {
 			return;
 		}
 
+		const timestamp = raw !== undefined ? new Date(raw) : undefined;
 		if (!timestamp) {
 			this._timestampWidget?.dispose();
 		} else {
@@ -268,7 +269,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	private createReactionPicker(reactionGroup: modes.CommentReaction[]): ToggleReactionsAction {
+	private createReactionPicker(reactionGroup: languages.CommentReaction[]): ToggleReactionsAction {
 		let toggleReactionActionViewItem: DropdownMenuActionViewItem;
 		let toggleReactionAction = this._register(new ToggleReactionsAction(() => {
 			if (toggleReactionActionViewItem) {
@@ -491,7 +492,7 @@ export class CommentNode extends Disposable {
 			this._actionsToolbarContainer.classList.remove('hidden');
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
-			if (this.comment.mode === modes.CommentMode.Editing) {
+			if (this.comment.mode === languages.CommentMode.Editing) {
 				this._commentEditor?.focus();
 			}
 		} else {
@@ -516,14 +517,14 @@ export class CommentNode extends Disposable {
 		}));
 	}
 
-	update(newComment: modes.Comment) {
+	update(newComment: languages.Comment) {
 
 		if (newComment.body !== this.comment.body) {
 			this.updateCommentBody(newComment.body);
 		}
 
 		if (newComment.mode !== undefined && newComment.mode !== this.comment.mode) {
-			if (newComment.mode === modes.CommentMode.Editing) {
+			if (newComment.mode === languages.CommentMode.Editing) {
 				this.switchToEditMode();
 			} else {
 				this.removeCommentEditor();

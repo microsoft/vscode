@@ -8,7 +8,7 @@ import { basename, dirname, join, posix } from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { Utils } from 'vscode-uri';
-import { coalesce, flatten } from '../utils/arrays';
+import { coalesce } from '../utils/arrays';
 import { exists } from '../utils/fs';
 
 function mapChildren<R>(node: jsonc.Node | undefined, f: (x: jsonc.Node) => R): R[] {
@@ -58,10 +58,12 @@ class TsconfigLinkProvider implements vscode.DocumentLinkProvider {
 			resourceUri: document.uri,
 			extendsValue: extendsValue
 		};
-		return new vscode.DocumentLink(
+
+		const link = new vscode.DocumentLink(
 			this.getRange(document, extendsNode),
-			vscode.Uri.parse(`command:${openExtendsLinkCommandId}?${JSON.stringify(args)}`)
-		);
+			vscode.Uri.parse(`command:${openExtendsLinkCommandId}?${JSON.stringify(args)}`));
+		link.tooltip = localize('documentLink.tooltip', 'Follow link');
+		return link;
 	}
 
 	private getFilesLinks(document: vscode.TextDocument, root: jsonc.Node) {
@@ -193,9 +195,9 @@ export function register() {
 
 	const languages = ['json', 'jsonc'];
 
-	const selector: vscode.DocumentSelector = flatten(
-		languages.map(language =>
-			patterns.map((pattern): vscode.DocumentFilter => ({ language, pattern }))));
+	const selector: vscode.DocumentSelector =
+		languages.map(language => patterns.map((pattern): vscode.DocumentFilter => ({ language, pattern })))
+			.flat();
 
 	return vscode.Disposable.from(
 		vscode.commands.registerCommand(openExtendsLinkCommandId, async ({ resourceUri, extendsValue, }: OpenExtendsLinkCommandArgs) => {

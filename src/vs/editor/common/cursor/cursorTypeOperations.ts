@@ -788,7 +788,7 @@ export class TypeOperations {
 			const match = model.bracketPairs.findMatchingBracketUp(electricAction.matchOpenBracket, {
 				lineNumber: position.lineNumber,
 				column: endColumn
-			});
+			}, 500 /* give at most 500ms to compute */);
 
 			if (match) {
 				if (match.startLineNumber === position.lineNumber) {

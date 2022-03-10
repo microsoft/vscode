@@ -11,6 +11,7 @@ export namespace Mimes {
 	export const unknown = 'application/unknown';
 	export const markdown = 'text/markdown';
 	export const latex = 'text/latex';
+	export const uriList = 'text/uri-list';
 }
 
 interface MapExtToMediaMimes {

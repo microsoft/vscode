@@ -379,11 +379,12 @@ function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 			const match = link.url.toString().match(/^command:([^?#]+)/);
 			if (match) {
 				const commandId = match[1];
-				const nativeLabelText = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
-				nativeLabel = ` "${nativeLabelText}"`;
+				nativeLabel = nls.localize('tooltip.explanation', "Execute command {0}", commandId);
 			}
 		}
-		const hoverMessage = new MarkdownString('', true).appendMarkdown(`[${label}](${link.url.toString(true).replace(/ /g, '%20')}${nativeLabel}) (${kb})`);
+		const hoverMessage = new MarkdownString('', true)
+			.appendLink(link.url.toString(true).replace(/ /g, '%20'), label, nativeLabel)
+			.appendMarkdown(` (${kb})`);
 		return hoverMessage;
 	} else {
 		return new MarkdownString().appendText(`${label} (${kb})`);

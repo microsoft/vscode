@@ -170,7 +170,7 @@ export class KeyboardLayoutPickerAction extends Action {
 		if (pick === configureKeyboardLayout) {
 			const file = this.environmentService.keyboardLayoutResource;
 
-			await this.fileService.resolve(file).then(undefined, (error) => {
+			await this.fileService.stat(file).then(undefined, () => {
 				return this.fileService.createFile(file, VSBuffer.fromString(KeyboardLayoutPickerAction.DEFAULT_CONTENT));
 			}).then((stat): Promise<IEditorPane | undefined> | undefined => {
 				if (!stat) {

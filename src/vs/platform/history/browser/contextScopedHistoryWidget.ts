@@ -11,9 +11,9 @@ import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputb
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr, IContextKey, IContextKeyService, IContextKeyServiceTarget, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { localize } from 'vs/nls';
 
-// TODO@Connor: this constant is duplicated here to avoid a layer breaker import
-const suggestWidgetVisibleContext = 'suggestWidgetVisible';
+export const historyNavigationVisible = new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible"));
 
 export const HistoryNavigationWidgetContext = 'historyNavigationWidget';
 const HistoryNavigationForwardsEnablementContext = 'historyNavigationForwardsEnabled';
@@ -95,7 +95,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has(HistoryNavigationWidgetContext),
 		ContextKeyExpr.equals(HistoryNavigationBackwardsEnablementContext, true),
-		ContextKeyExpr.equals(suggestWidgetVisibleContext, false),
+		historyNavigationVisible.isEqualTo(false),
 	),
 	primary: KeyCode.UpArrow,
 	secondary: [KeyMod.Alt | KeyCode.UpArrow],
@@ -114,7 +114,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has(HistoryNavigationWidgetContext),
 		ContextKeyExpr.equals(HistoryNavigationForwardsEnablementContext, true),
-		ContextKeyExpr.equals(suggestWidgetVisibleContext, false),
+		historyNavigationVisible.isEqualTo(false),
 	),
 	primary: KeyCode.DownArrow,
 	secondary: [KeyMod.Alt | KeyCode.DownArrow],

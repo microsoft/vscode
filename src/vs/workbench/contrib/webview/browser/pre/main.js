@@ -22,7 +22,6 @@ const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
 const onElectron = searchParams.get('platform') === 'electron';
 const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
-const parentOrigin = searchParams.get('parentOrigin');
 
 /**
  * Use polling to track focus of main webview and iframes within the webview
@@ -210,8 +209,7 @@ const workerReady = new Promise((resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
 	}
 
-	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}`;
-
+	const swPath = `service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`;
 	navigator.serviceWorker.register(swPath)
 		.then(() => navigator.serviceWorker.ready)
 		.then(async registration => {
@@ -310,8 +308,43 @@ const hostMessaging = new class HostMessaging {
 		handlers.push(handler);
 	}
 
-	signalReady() {
-		window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
+	async signalReady() {
+		const start = (/** @type {string} */ parentOrigin) => {
+			window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
+		};
+
+		const parentOrigin = searchParams.get('parentOrigin');
+		const id = searchParams.get('id');
+
+		const hostname = location.hostname;
+
+		if (!crypto.subtle) {
+			// cannot validate, not running in a secure context
+			throw new Error(`Cannot validate in current context!`);
+		}
+
+		// Here the `parentOriginHash()` function from `src/vs/workbench/common/webview.ts` is inlined
+		// compute a sha-256 composed of `parentOrigin` and `salt` converted to base 32
+		let parentOriginHash;
+		try {
+			const strData = JSON.stringify({ parentOrigin, salt: id });
+			const encoder = new TextEncoder();
+			const arrData = encoder.encode(strData);
+			const hash = await crypto.subtle.digest('sha-256', arrData);
+			const hashArray = Array.from(new Uint8Array(hash));
+			const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+			// sha256 has 256 bits, so we need at most ceil(lg(2^256-1)/lg(32)) = 52 chars to represent it in base 32
+			parentOriginHash = BigInt(`0x${hashHex}`).toString(32).padStart(52, '0');
+		} catch (err) {
+			throw err instanceof Error ? err : new Error(String(err));
+		}
+
+		if (hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {
+			// validation succeeded!
+			return start(parentOrigin);
+		}
+
+		throw new Error(`Expected '${parentOriginHash}' as hostname or subdomain!`);
 	}
 }();
 
@@ -869,7 +902,7 @@ onDomReady(() => {
 		}
 
 		if (!options.allowScripts && isSafari) {
-			// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
+			// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired: https://bugs.webkit.org/show_bug.cgi?id=33604
 			// Use polling instead.
 			const interval = setInterval(() => {
 				// If the frame is no longer mounted, loading has stopped
@@ -879,7 +912,7 @@ onDomReady(() => {
 				}
 
 				const contentDocument = assertIsDefined(newFrame.contentDocument);
-				if (contentDocument.readyState !== 'loading') {
+				if (contentDocument.location.pathname.endsWith('/fake.html') && contentDocument.readyState !== 'loading') {
 					clearInterval(interval);
 					onFrameLoaded(contentDocument);
 				}

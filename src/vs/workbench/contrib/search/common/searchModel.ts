@@ -29,7 +29,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
-import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
@@ -202,7 +202,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private _resource: URI;
-	private _fileStat?: IFileStatWithMetadata;
+	private _fileStat?: IFileStatWithPartialMetadata;
 	private _model: ITextModel | null = null;
 	private _modelListener: IDisposable | null = null;
 	private _matches: Map<string, Match>;
@@ -430,14 +430,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	async resolveFileStat(fileService: IFileService): Promise<void> {
-		this._fileStat = await fileService.resolve(this.resource, { resolveMetadata: true }).catch(() => undefined);
+		this._fileStat = await fileService.stat(this.resource).catch(() => undefined);
 	}
 
-	public get fileStat(): IFileStatWithMetadata | undefined {
+	public get fileStat(): IFileStatWithPartialMetadata | undefined {
 		return this._fileStat;
 	}
 
-	public set fileStat(stat: IFileStatWithMetadata | undefined) {
+	public set fileStat(stat: IFileStatWithPartialMetadata | undefined) {
 		this._fileStat = stat;
 	}
 
@@ -714,7 +714,6 @@ export class SearchResult extends Disposable {
 	constructor(
 		private _searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
@@ -850,17 +849,7 @@ export class SearchResult extends Disposable {
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any> {
 		this.replacingAll = true;
 
-		const start = Date.now();
 		const promise = this.replaceService.replace(this.matches(), progress);
-
-		promise.finally(() => {
-			/* __GDPR__
-				"replaceAll.started" : {
-					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
-				}
-			*/
-			this.telemetryService.publicLog('replaceAll.started', { duration: Date.now() - start });
-		});
 
 		return promise.then(() => {
 			this.replacingAll = false;

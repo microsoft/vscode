@@ -159,7 +159,14 @@ export class CredentialsMainService extends Disposable implements ICredentialsMa
 			// Try using keytar to see if it throws or not.
 			await this._keytarCache.findCredentials('test-keytar-loads');
 		} catch (e) {
-			this.logService.warn(`Switching to using in-memory credential store instead because Keytar failed to load: ${e.message}`);
+			// We should still throw errors on desktop so that the user is prompted with the
+			// troubleshooting steps.
+			if (!this.isRunningOnServer) {
+				throw e;
+			}
+
+			this.logService.warn(
+				`Using the in-memory credential store as the operating system's credential store could not be accessed. Please see https://aka.ms/vscode-server-keyring on how to set this up. Details: ${e.message}`);
 			this._keytarCache = new InMemoryCredentialsProvider();
 		}
 		return this._keytarCache;

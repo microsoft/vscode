@@ -115,7 +115,10 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName) {
                     result.emit('error', compilation.warnings.join('\n'));
                 }
             };
-            const webpackConfig = Object.assign(Object.assign({}, require(webpackConfigPath)), { mode: 'production' });
+            const webpackConfig = {
+                ...require(webpackConfigPath),
+                ...{ mode: 'production' }
+            };
             const relativeOutputPath = path.relative(extensionPath, webpackConfig.output.path);
             return webpackGulp(webpackConfig, webpack, webpackDone)
                 .pipe(es.through(function (data) {
@@ -350,15 +353,13 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
 }
 exports.translatePackageJSON = translatePackageJSON;
 const extensionsPath = path.join(root, 'extensions');
-// Additional projects to webpack. These typically build code for webviews
-const webpackMediaConfigFiles = [
-    'markdown-language-features/webpack.config.js',
-    'simple-browser/webpack.config.js',
-];
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
-    'markdown-language-features/esbuild.js',
+    'markdown-language-features/esbuild-notebook.js',
+    'markdown-language-features/esbuild-preview.js',
     'markdown-math/esbuild.js',
+    'notebook-renderers/esbuild.js',
+    'simple-browser/esbuild-preview.js',
 ];
 async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpack = require('webpack');
@@ -410,7 +411,7 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
                     reject();
                 }
                 else {
-                    reporter(stats === null || stats === void 0 ? void 0 : stats.toJson());
+                    reporter(stats?.toJson());
                 }
             });
         }
@@ -421,7 +422,7 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
                     reject();
                 }
                 else {
-                    reporter(stats === null || stats === void 0 ? void 0 : stats.toJson());
+                    reporter(stats?.toJson());
                     resolve();
                 }
             });
@@ -464,17 +465,9 @@ async function esbuildExtensions(taskName, isWatch, scripts) {
     return Promise.all(tasks);
 }
 async function buildExtensionMedia(isWatch, outputRoot) {
-    return Promise.all([
-        webpackExtensions('webpacking extension media', isWatch, webpackMediaConfigFiles.map(p => {
-            return {
-                configPath: path.join(extensionsPath, p),
-                outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
-            };
-        })),
-        esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
-            script: path.join(extensionsPath, p),
-            outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
-        }))),
-    ]);
+    return esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
+        script: path.join(extensionsPath, p),
+        outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+    })));
 }
 exports.buildExtensionMedia = buildExtensionMedia;

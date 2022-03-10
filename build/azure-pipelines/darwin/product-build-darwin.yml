@@ -79,6 +79,10 @@ steps:
       set -e
       export npm_config_arch=$(VSCODE_ARCH)
       export npm_config_node_gyp=$(which node-gyp)
+      # Electron <= 13 does not ship with correct config.gypi headers,
+      # remove this once we update to newer versions.
+      # Refs https://github.com/nodejs/node-gyp/pull/2497
+      export npm_config_force_process_config=true
 
       for i in {1..3}; do # try 3 times, for Terrapin
         yarn --frozen-lockfile && break
@@ -340,3 +344,27 @@ steps:
     displayName: Upload configuration (for Bing settings search)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
     continueOnError: true
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (client)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+
+  - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM (client)
+    artifact: vscode_client_darwin_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM (server)
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-server-darwin
+      PackageName: Visual Studio Code Server
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(agent.builddirectory)/vscode-server-darwin/_manifest
+    displayName: Publish SBOM (server)
+    artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))

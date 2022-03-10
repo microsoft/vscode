@@ -5,6 +5,7 @@
 
 import { IBufferLine, IBufferRange, Terminal } from 'xterm';
 import { URI } from 'vs/base/common/uri';
+import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 
 /**
  * A link detector can search for and return links within the xterm.js buffer. A single link
@@ -35,6 +36,16 @@ export interface ITerminalSimpleLink {
 	text: string;
 
 	/**
+	 * The buffer range of the link.
+	 */
+	readonly bufferRange: IBufferRange;
+
+	/**
+	 * The type of link, which determines how it is handled when activated.
+	 */
+	readonly type: TerminalLinkType;
+
+	/**
 	 * The URI of the link if it has been resolved.
 	 */
 	uri?: URI;
@@ -45,14 +56,15 @@ export interface ITerminalSimpleLink {
 	label?: string;
 
 	/**
-	 * The buffer range of the link.
+	 * An optional set of actions to show in the hover's status bar.
 	 */
-	readonly bufferRange: IBufferRange;
+	actions?: IHoverAction[];
 
 	/**
-	 * The type of link, which determines how it is handled when activated.
+	 * An optional method to call when the link is activated. This should be used when there is are
+	 * no registered opener for this link type.
 	 */
-	readonly type: TerminalLinkType;
+	activate?(text: string): void;
 }
 
 export type TerminalLinkType = TerminalBuiltinLinkType | ITerminalExternalLinkType;
@@ -93,6 +105,14 @@ export interface ITerminalExternalLinkType {
 
 export interface ITerminalLinkOpener {
 	open(link: ITerminalSimpleLink): Promise<void>;
+}
+
+export type ResolvedLink = IResolvedValidLink | null;
+
+export interface IResolvedValidLink {
+	uri: URI;
+	link: string;
+	isDirectory: boolean;
 }
 
 export type OmitFirstArg<F> = F extends (x: any, ...args: infer P) => infer R ? (...args: P) => R : never;

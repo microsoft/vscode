@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { IPath, posix, win32 } from 'vs/base/common/path';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -15,6 +14,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITerminalLinkOpener, ITerminalSimpleLink } from 'vs/workbench/contrib/terminal/browser/links/links';
+import { osPathModule, updateLinkWithRelativeCwd } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { ILineColumnInfo } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { getLocalLinkRegex, lineAndColumnClause, lineAndColumnClauseGroupCount, unixLineAndColumnMatchIndex, winLineAndColumnMatchIndex } from 'vs/workbench/contrib/terminal/browser/links/terminalLocalLinkDetector';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
@@ -140,7 +140,7 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		});
 		let matchLink = text;
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-			matchLink = this._updateLinkWithRelativeCwd(link.bufferRange.start.y, text, pathSeparator) || text;
+			matchLink = updateLinkWithRelativeCwd(this._capabilities, link.bufferRange.start.y, text, pathSeparator) || text;
 		}
 		const sanitizedLink = matchLink.replace(/:\d+(:\d+)?$/, '');
 		try {
@@ -165,40 +165,13 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		return this._quickInputService.quickAccess.show(text);
 	}
 
-	/*
-	* For shells with the CwdDetection capability, the cwd relative to the line
-	* of the particular link is used to narrow down the result for an exact file match, if possible.
-	*/
-	private _updateLinkWithRelativeCwd(y: number, text: string, pathSeparator: string): string | undefined {
-		const cwd = this._capabilities.get(TerminalCapability.CommandDetection)?.getCwdForLine(y);
-		if (!cwd) {
-			return undefined;
-		}
-		if (!text.includes(pathSeparator)) {
-			text = cwd + pathSeparator + text;
-		} else {
-			let commonDirs = 0;
-			let i = 0;
-			const cwdPath = cwd.split(pathSeparator).reverse();
-			const linkPath = text.split(pathSeparator);
-			while (i < cwdPath.length) {
-				if (cwdPath[i] === linkPath[i]) {
-					commonDirs++;
-				}
-				i++;
-			}
-			text = cwd + pathSeparator + linkPath.slice(commonDirs).join(pathSeparator);
-		}
-		return text;
-	}
-
 	private async _getExactMatch(sanitizedLink: string): Promise<IResourceMatch | undefined> {
 		let resourceMatch: IResourceMatch | undefined;
 		if (osPathModule(this._os).isAbsolute(sanitizedLink)) {
 			const scheme = this._workbenchEnvironmentService.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
 			const uri = URI.from({ scheme, path: sanitizedLink });
 			try {
-				const fileStat = await this._fileService.resolve(uri);
+				const fileStat = await this._fileService.stat(uri);
 				resourceMatch = { uri, isDirectory: fileStat.isDirectory };
 			} catch {
 				// File or dir doesn't exist, continue on
@@ -241,8 +214,4 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 			allowContributedOpeners: true,
 		});
 	}
-}
-
-function osPathModule(os: OperatingSystem): IPath {
-	return os === OperatingSystem.Windows ? win32 : posix;
 }

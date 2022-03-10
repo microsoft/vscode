@@ -23,7 +23,6 @@ import { localize } from 'vs/nls';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Event } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorOptions as ICodeEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -363,39 +362,6 @@ export class WalkThroughPart extends EditorPane {
 						if (snippet.textEditorModel) {
 							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getLanguageId()));
 						}
-					}));
-
-					type WalkThroughSnippetInteractionClassification = {
-						from?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-						type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-						snippet: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-					};
-					type WalkThroughSnippetInteractionEvent = {
-						from?: string;
-						type: string;
-						snippet: number;
-					};
-
-					this.contentDisposables.push(Event.once(editor.onMouseDown)(() => {
-						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
-							type: 'mouseDown',
-							snippet: i
-						});
-					}));
-					this.contentDisposables.push(Event.once(editor.onKeyDown)(() => {
-						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
-							type: 'keyDown',
-							snippet: i
-						});
-					}));
-					this.contentDisposables.push(Event.once(editor.onDidChangeModelContent)(() => {
-						this.telemetryService.publicLog2<WalkThroughSnippetInteractionEvent, WalkThroughSnippetInteractionClassification>('walkThroughSnippetInteraction', {
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
-							type: 'changeModelContent',
-							snippet: i
-						});
 					}));
 				});
 				this.updateSizeClasses();

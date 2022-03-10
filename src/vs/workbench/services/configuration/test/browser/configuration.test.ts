@@ -12,7 +12,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { DefaultConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
 import { ConfigurationKey, IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
-import { TestEnvironmentService, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export class ConfigurationCache implements IConfigurationCache {
 	private readonly cache = new Map<string, string>();

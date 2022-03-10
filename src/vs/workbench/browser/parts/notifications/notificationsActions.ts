@@ -154,10 +154,10 @@ interface NotificationActionMetrics {
 }
 
 type NotificationActionMetricsClassification = {
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	actionLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'bpasero'; comment: 'The identifier of the action that was run from a notification.' };
+	actionLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'bpasero'; comment: 'The label of the action that was run from a notification.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'bpasero'; comment: 'The source of the notification where an action was run.' };
+	silent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'bpasero'; comment: 'Whether the notification where an action was run is silent or not.' };
 };
 
 export class NotificationActionRunner extends ActionRunner {

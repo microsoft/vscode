@@ -993,7 +993,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			let isFirstTime = true;
-			model.onDidChangeRawContent(() => {
+			model.onDidChangeContent(() => {
 				if (!isFirstTime) {
 					return;
 				}

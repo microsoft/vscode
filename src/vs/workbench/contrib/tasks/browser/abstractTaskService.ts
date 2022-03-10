@@ -22,7 +22,7 @@ import { LRUCache, Touch } from 'vs/base/common/map';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFileService, IFileStat } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
@@ -133,10 +133,6 @@ export interface WorkspaceFolderConfigurationResult {
 	hasErrors: boolean;
 }
 
-interface TaskCustomizationTelemetryEvent {
-	properties: string[];
-}
-
 interface CommandUpgrade {
 	command?: string;
 	args?: string[];
@@ -187,13 +183,6 @@ class TaskMap {
 	}
 }
 
-interface ProblemMatcherDisableMetrics {
-	type: string;
-}
-type ProblemMatcherDisableMetricsClassification = {
-	type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-};
-
 export abstract class AbstractTaskService extends Disposable implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
@@ -201,7 +190,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private static readonly RecentlyUsedTasks_KeyV2 = 'workbench.tasks.recentlyUsedTasks2';
 	private static readonly IgnoreTask010DonotShowAgain_key = 'workbench.tasks.ignoreTask010Shown';
 
-	private static CustomizationTelemetryEventName: string = 'taskService.customize';
 	public _serviceBrand: undefined;
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
@@ -1138,7 +1126,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async updateNeverProblemMatcherSetting(type: string): Promise<void> {
-		this.telemetryService.publicLog2<ProblemMatcherDisableMetrics, ProblemMatcherDisableMetricsClassification>('problemMatcherDisabled', { type });
 		const current = this.configurationService.getValue(PROBLEM_MATCHER_NEVER_CONFIG);
 		if (current === true) {
 			return;
@@ -1445,15 +1432,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			return Promise.resolve(undefined);
 		}
 		return promise.then(() => {
-			let event: TaskCustomizationTelemetryEvent = {
-				properties: properties ? Object.getOwnPropertyNames(properties) : []
-			};
-			/* __GDPR__
-				"taskService.customize" : {
-					"properties" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog(AbstractTaskService.CustomizationTelemetryEventName, event);
 			if (openConfig) {
 				this.openEditorAtTask(this.getResourceForTask(task), toCustomize);
 			}
@@ -1607,37 +1585,73 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		let resolverData: Map<string, ResolverData> | undefined;
 
+		async function quickResolve(that: AbstractTaskService, identifier: string | TaskIdentifier) {
+			const foundTasks = await that._findWorkspaceTasks((task: Task | ConfiguringTask): boolean => {
+				if (Types.isString(identifier)) {
+					return ((task._label === identifier) || (task.configurationProperties.identifier === identifier));
+				} else {
+					const keyedIdentifier = task.getDefinition(true);
+					const searchIdentifier = TaskDefinition.createTaskIdentifier(identifier, console);
+					return (searchIdentifier && keyedIdentifier) ? (searchIdentifier._key === keyedIdentifier._key) : false;
+				}
+			});
+			if (foundTasks.length === 0) {
+				return undefined;
+			}
+			const task = foundTasks[0];
+			if (ConfiguringTask.is(task)) {
+				return that.tryResolveTask(task);
+			}
+			return task;
+		}
+
+		async function getResolverData(that: AbstractTaskService) {
+			if (resolverData === undefined) {
+				resolverData = new Map();
+				(grouped || await that.getGroupedTasks()).forEach((tasks, folder) => {
+					let data = resolverData!.get(folder);
+					if (!data) {
+						data = { label: new Map<string, Task>(), identifier: new Map<string, Task>(), taskIdentifier: new Map<string, Task>() };
+						resolverData!.set(folder, data);
+					}
+					for (let task of tasks) {
+						data.label.set(task._label, task);
+						if (task.configurationProperties.identifier) {
+							data.identifier.set(task.configurationProperties.identifier, task);
+						}
+						let keyedIdentifier = task.getDefinition(true);
+						if (keyedIdentifier !== undefined) {
+							data.taskIdentifier.set(keyedIdentifier._key, task);
+						}
+					}
+				});
+			}
+			return resolverData;
+		}
+
+		async function fullResolve(that: AbstractTaskService, uri: URI | string, identifier: string | TaskIdentifier) {
+			const allResolverData = await getResolverData(that);
+			let data = allResolverData.get(typeof uri === 'string' ? uri : uri.toString());
+			if (!data) {
+				return undefined;
+			}
+			if (Types.isString(identifier)) {
+				return data.label.get(identifier) || data.identifier.get(identifier);
+			} else {
+				let key = TaskDefinition.createTaskIdentifier(identifier, console);
+				return key !== undefined ? data.taskIdentifier.get(key._key) : undefined;
+			}
+		}
+
 		return {
 			resolve: async (uri: URI | string, identifier: string | TaskIdentifier | undefined) => {
-				if (resolverData === undefined) {
-					resolverData = new Map();
-					(grouped || await this.getGroupedTasks()).forEach((tasks, folder) => {
-						let data = resolverData!.get(folder);
-						if (!data) {
-							data = { label: new Map<string, Task>(), identifier: new Map<string, Task>(), taskIdentifier: new Map<string, Task>() };
-							resolverData!.set(folder, data);
-						}
-						for (let task of tasks) {
-							data.label.set(task._label, task);
-							if (task.configurationProperties.identifier) {
-								data.identifier.set(task.configurationProperties.identifier, task);
-							}
-							let keyedIdentifier = task.getDefinition(true);
-							if (keyedIdentifier !== undefined) {
-								data.taskIdentifier.set(keyedIdentifier._key, task);
-							}
-						}
-					});
-				}
-				let data = resolverData.get(typeof uri === 'string' ? uri : uri.toString());
-				if (!data || !identifier) {
+				if (!identifier) {
 					return undefined;
 				}
-				if (Types.isString(identifier)) {
-					return data.label.get(identifier) || data.identifier.get(identifier);
+				if ((resolverData === undefined) && (grouped === undefined)) {
+					return (await quickResolve(this, identifier)) ?? fullResolve(this, uri, identifier);
 				} else {
-					let key = TaskDefinition.createTaskIdentifier(identifier, console);
-					return key !== undefined ? data.taskIdentifier.get(key._key) : undefined;
+					return fullResolve(this, uri, identifier);
 				}
 			}
 		};
@@ -1689,13 +1703,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async handleExecuteResult(executeResult: ITaskExecuteResult, runSource?: TaskRunSource): Promise<ITaskSummary> {
-		if (executeResult.task.taskLoadMessages && executeResult.task.taskLoadMessages.length > 0) {
-			executeResult.task.taskLoadMessages.forEach(loadMessage => {
-				this._outputChannel.append(loadMessage + '\n');
-			});
-			this.showOutput();
-		}
-
 		if (runSource === TaskRunSource.User) {
 			await this.setRecentlyUsedTask(executeResult.task);
 		}
@@ -1766,7 +1773,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
-			this.pathService, this.viewDescriptorService, this.logService, this.configurationService,
+			this.pathService, this.viewDescriptorService, this.logService, this.configurationService, this.notificationService,
 			this,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
@@ -2775,13 +2782,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (buildTasks.length === 1) {
 				const buildTask = buildTasks[0];
 				if (ConfiguringTask.is(buildTask)) {
-					this.tryResolveTask(buildTask).then(resolvedTask => {
+					return this.tryResolveTask(buildTask).then(resolvedTask => {
 						runSingleBuildTask(resolvedTask, undefined, this);
 					});
 				} else {
 					runSingleBuildTask(buildTask, undefined, this);
+					return;
 				}
-				return;
 			}
 
 			return this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
@@ -3001,7 +3008,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private openTaskFile(resource: URI, taskSource: string) {
 		let configFileCreated = false;
-		this.fileService.resolve(resource).then((stat) => stat, () => undefined).then(async (stat) => {
+		this.fileService.stat(resource).then((stat) => stat, () => undefined).then(async (stat) => {
 			const fileExists: boolean = !!stat;
 			const configValue = this.configurationService.inspect<TaskConfig.ExternalTaskRunnerConfiguration>('tasks');
 			let tasksExistInFile: boolean;
@@ -3023,18 +3030,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					content = content.replace(/(\n)(\t+)/g, (_, s1, s2) => s1 + ' '.repeat(s2.length * editorConfig.editor.tabSize));
 				}
 				configFileCreated = true;
-				type TaskServiceTemplateClassification = {
-					templateId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-					autoDetect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-				};
-				type TaskServiceEvent = {
-					templateId?: string;
-					autoDetect: boolean;
-				};
-				this.telemetryService.publicLog2<TaskServiceEvent, TaskServiceTemplateClassification>('taskService.template', {
-					templateId: pickTemplateResult.id,
-					autoDetect: pickTemplateResult.autoDetect
-				});
 			}
 
 			if (!fileExists && content) {
@@ -3130,8 +3125,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			taskPromise = Promise.resolve(new TaskMap());
 		}
 
-		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStat | undefined>>((folder) => {
-			return this.fileService.resolve(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
+		let stats = this.contextService.getWorkspace().folders.map<Promise<IFileStatWithPartialMetadata | undefined>>((folder) => {
+			return this.fileService.stat(folder.toResource('.vscode/tasks.json')).then(stat => stat, () => undefined);
 		});
 
 		let createLabel = nls.localize('TaskService.createJsonFile', 'Create tasks.json file from template');

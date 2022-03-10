@@ -12,7 +12,7 @@ export function setup(logger: Logger) {
 		// Shared before/after handling
 		installAllHandlers(logger);
 
-		it.skip('turns off editor line numbers and verifies the live change', async function () { // TODO@sandy081 https://github.com/microsoft/vscode/issues/141054
+		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.settingsEditor.openUserSettingsFile();
@@ -22,7 +22,7 @@ export function setup(logger: Logger) {
 			await app.code.waitForElements('.line-numbers', false, result => !result || result.length === 0);
 		});
 
-		it.skip('changes "workbench.action.toggleSidebarPosition" command key binding and verifies it', async function () { // TODO@sandy081 https://github.com/microsoft/vscode/issues/142020
+		it('changes "workbench.action.toggleSidebarPosition" command key binding and verifies it', async function () {
 			const app = this.app as Application;
 
 			await app.workbench.activitybar.waitForActivityBar(ActivityBarPosition.LEFT);

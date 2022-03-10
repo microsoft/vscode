@@ -10,27 +10,15 @@ import * as jsonEdit from 'vs/base/common/jsonEdit';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { extname, isAbsolute } from 'vs/base/common/path';
+import { isAbsolute } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { extname as resourceExtname, extUriBiasedIgnorePathCase, IExtUri, isEqualAuthority } from 'vs/base/common/resources';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtUri, isEqualAuthority } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { IWorkspaceBackupInfo, IFolderBackupInfo } from 'vs/platform/backup/common/backup';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
-import { IWorkspace, IWorkspaceFolder, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
-export const WORKSPACE_EXTENSION = 'code-workspace';
-const WORKSPACE_SUFFIX = `.${WORKSPACE_EXTENSION}`;
-export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
-export const UNTITLED_WORKSPACE_NAME = 'workspace.json';
-
-export function hasWorkspaceFileExtension(path: string | URI) {
-	const ext = (typeof path === 'string') ? extname(path) : resourceExtname(path);
-
-	return ext === WORKSPACE_SUFFIX;
-}
+import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
@@ -39,10 +27,10 @@ export interface IWorkspacesService {
 	readonly _serviceBrand: undefined;
 
 	// Workspaces Management
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
+	enterWorkspace(workspaceUri: URI): Promise<IEnterWorkspaceResult | undefined>;
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
-	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
+	getWorkspaceIdentifier(workspaceUri: URI): Promise<IWorkspaceIdentifier>;
 
 	// Workspaces History
 	readonly onDidChangeRecentlyOpened: Event<void>;
@@ -65,21 +53,21 @@ export interface IRecentlyOpened {
 export type IRecent = IRecentWorkspace | IRecentFolder | IRecentFile;
 
 export interface IRecentWorkspace {
-	workspace: IWorkspaceIdentifier;
+	readonly workspace: IWorkspaceIdentifier;
 	label?: string;
-	remoteAuthority?: string;
+	readonly remoteAuthority?: string;
 }
 
 export interface IRecentFolder {
-	folderUri: URI;
+	readonly folderUri: URI;
 	label?: string;
-	remoteAuthority?: string;
+	readonly remoteAuthority?: string;
 }
 
 export interface IRecentFile {
-	fileUri: URI;
+	readonly fileUri: URI;
 	label?: string;
-	remoteAuthority?: string;
+	readonly remoteAuthority?: string;
 }
 
 export function isRecentWorkspace(curr: IRecent): curr is IRecentWorkspace {
@@ -96,211 +84,43 @@ export function isRecentFile(curr: IRecent): curr is IRecentFile {
 
 //#endregion
 
-//#region Backups
-
-export interface IWorkspaceBackupInfo {
-	workspace: IWorkspaceIdentifier;
-	remoteAuthority?: string;
-}
-
-export interface IFolderBackupInfo {
-	folderUri: URI;
-	remoteAuthority?: string;
-}
-
-export function isFolderBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IFolderBackupInfo {
-	return curr && curr.hasOwnProperty('folderUri');
-}
-
-export function isWorkspaceBackupInfo(curr: IWorkspaceBackupInfo | IFolderBackupInfo): curr is IWorkspaceBackupInfo {
-	return curr && curr.hasOwnProperty('workspace');
-}
-
-
-//#endregion
-
-//#region Identifiers / Payload
-
-export interface IBaseWorkspaceIdentifier {
-
-	/**
-	 * Every workspace (multi-root, single folder or empty)
-	 * has a unique identifier. It is not possible to open
-	 * a workspace with the same `id` in multiple windows
-	 */
-	id: string;
-}
-
-/**
- * A single folder workspace identifier is a path to a folder + id.
- */
-export interface ISingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-
-	/**
-	 * Folder path as `URI`.
-	 */
-	uri: URI;
-}
-
-export interface ISerializedSingleFolderWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-	uri: UriComponents;
-}
-
-export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
-	const singleFolderIdentifier = obj as ISingleFolderWorkspaceIdentifier | undefined;
-
-	return typeof singleFolderIdentifier?.id === 'string' && URI.isUri(singleFolderIdentifier.uri);
-}
-
-/**
- * A multi-root workspace identifier is a path to a workspace file + id.
- */
-export interface IWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-
-	/**
-	 * Workspace config file path as `URI`.
-	 */
-	configPath: URI;
-}
-
-export interface ISerializedWorkspaceIdentifier extends IBaseWorkspaceIdentifier {
-	configPath: UriComponents;
-}
-
-export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined {
-
-	// Multi root
-	if (workspace.configuration) {
-		return {
-			id: workspace.id,
-			configPath: workspace.configuration
-		};
-	}
-
-	// Single folder
-	if (workspace.folders.length === 1) {
-		return {
-			id: workspace.id,
-			uri: workspace.folders[0].uri
-		};
-	}
-
-	// Empty workspace
-	return undefined;
-}
-
-export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
-	const workspaceIdentifier = obj as IWorkspaceIdentifier | undefined;
-
-	return typeof workspaceIdentifier?.id === 'string' && URI.isUri(workspaceIdentifier.configPath);
-}
-
-export function reviveIdentifier(identifier: undefined): undefined;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier): IWorkspaceIdentifier;
-export function reviveIdentifier(identifier: ISerializedSingleFolderWorkspaceIdentifier): ISingleFolderWorkspaceIdentifier;
-export function reviveIdentifier(identifier: IEmptyWorkspaceIdentifier): IEmptyWorkspaceIdentifier;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined;
-export function reviveIdentifier(identifier: ISerializedWorkspaceIdentifier | ISerializedSingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined): IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier | undefined {
-
-	// Single Folder
-	const singleFolderIdentifierCandidate = identifier as ISerializedSingleFolderWorkspaceIdentifier | undefined;
-	if (singleFolderIdentifierCandidate?.uri) {
-		return { id: singleFolderIdentifierCandidate.id, uri: URI.revive(singleFolderIdentifierCandidate.uri) };
-	}
-
-	// Multi folder
-	const workspaceIdentifierCandidate = identifier as ISerializedWorkspaceIdentifier | undefined;
-	if (workspaceIdentifierCandidate?.configPath) {
-		return { id: workspaceIdentifierCandidate.id, configPath: URI.revive(workspaceIdentifierCandidate.configPath) };
-	}
-
-	// Empty
-	if (identifier?.id) {
-		return { id: identifier.id };
-	}
-
-	return undefined;
-}
-
-export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
-	return extUriBiasedIgnorePathCase.isEqualOrParent(path, environmentService.untitledWorkspacesHome);
-}
-
-export interface IEmptyWorkspaceIdentifier extends IBaseWorkspaceIdentifier { }
-
-export type IWorkspaceInitializationPayload = IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | IEmptyWorkspaceIdentifier;
-
-//#endregion
-
 //#region Workspace File Utilities
 
 export function isStoredWorkspaceFolder(obj: unknown): obj is IStoredWorkspaceFolder {
 	return isRawFileWorkspaceFolder(obj) || isRawUriWorkspaceFolder(obj);
 }
 
-export function isRawFileWorkspaceFolder(obj: unknown): obj is IRawFileWorkspaceFolder {
+function isRawFileWorkspaceFolder(obj: unknown): obj is IRawFileWorkspaceFolder {
 	const candidate = obj as IRawFileWorkspaceFolder | undefined;
 
 	return typeof candidate?.path === 'string' && (!candidate.name || typeof candidate.name === 'string');
 }
 
-export function isRawUriWorkspaceFolder(obj: unknown): obj is IRawUriWorkspaceFolder {
+function isRawUriWorkspaceFolder(obj: unknown): obj is IRawUriWorkspaceFolder {
 	const candidate = obj as IRawUriWorkspaceFolder | undefined;
 
 	return typeof candidate?.uri === 'string' && (!candidate.name || typeof candidate.name === 'string');
 }
 
-export interface IRawFileWorkspaceFolder {
-	path: string;
-	name?: string;
-}
-
-export interface IRawUriWorkspaceFolder {
-	uri: string;
-	name?: string;
-}
-
 export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
-
-interface IBaseWorkspace {
-
-	/**
-	 * If present, marks the window that opens the workspace
-	 * as a remote window with the given authority.
-	 */
-	remoteAuthority?: string;
-
-	/**
-	 * Transient workspaces are meant to go away after being used
-	 * once, e.g. a window reload of a transient workspace will
-	 * open an empty window.
-	 *
-	 * See: https://github.com/microsoft/vscode/issues/119695
-	 */
-	transient?: boolean;
-}
-
-export interface IResolvedWorkspace extends IWorkspaceIdentifier, IBaseWorkspace {
-	folders: IWorkspaceFolder[];
-}
 
 export interface IStoredWorkspace extends IBaseWorkspace {
 	folders: IStoredWorkspaceFolder[];
 }
 
 export interface IWorkspaceFolderCreationData {
-	uri: URI;
-	name?: string;
+	readonly uri: URI;
+	readonly name?: string;
 }
 
 export interface IUntitledWorkspaceInfo {
-	workspace: IWorkspaceIdentifier;
-	remoteAuthority?: string;
+	readonly workspace: IWorkspaceIdentifier;
+	readonly remoteAuthority?: string;
 }
 
 export interface IEnterWorkspaceResult {
-	workspace: IWorkspaceIdentifier;
-	backupPath?: string;
+	readonly workspace: IWorkspaceIdentifier;
+	readonly backupPath?: string;
 }
 
 /**
@@ -457,35 +277,35 @@ export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolea
 //#region Workspace Storage
 
 interface ISerializedRecentWorkspace {
-	workspace: {
+	readonly workspace: {
 		id: string;
 		configPath: string;
 	};
-	label?: string;
-	remoteAuthority?: string;
+	readonly label?: string;
+	readonly remoteAuthority?: string;
 }
 
 interface ISerializedRecentFolder {
-	folderUri: string;
-	label?: string;
-	remoteAuthority?: string;
+	readonly folderUri: string;
+	readonly label?: string;
+	readonly remoteAuthority?: string;
 }
 
 interface ISerializedRecentFile {
-	fileUri: string;
-	label?: string;
-	remoteAuthority?: string;
+	readonly fileUri: string;
+	readonly label?: string;
+	readonly remoteAuthority?: string;
 }
 
 interface ISerializedRecentlyOpenedLegacy {
-	workspaces3: Array<{ id: string; configURIPath: string } | string>; // workspace or URI.toString() // added in 1.32
-	workspaceLabels?: Array<string | null>; // added in 1.33
-	files2: string[]; // files as URI.toString() // added in 1.32
-	fileLabels?: Array<string | null>; // added in 1.33
+	readonly workspaces3: Array<{ id: string; configURIPath: string } | string>; // workspace or URI.toString() // added in 1.32
+	readonly workspaceLabels?: Array<string | null>; // added in 1.33
+	readonly files2: string[]; // files as URI.toString() // added in 1.32
+	readonly fileLabels?: Array<string | null>; // added in 1.33
 }
 
 interface ISerializedRecentlyOpened {
-	entries: Array<ISerializedRecentWorkspace | ISerializedRecentFolder | ISerializedRecentFile>; // since 1.55
+	readonly entries: Array<ISerializedRecentWorkspace | ISerializedRecentFolder | ISerializedRecentFile>; // since 1.55
 }
 
 export type RecentlyOpenedStorageData = object;
@@ -501,7 +321,6 @@ function isSerializedRecentFolder(data: any): data is ISerializedRecentFolder {
 function isSerializedRecentFile(data: any): data is ISerializedRecentFile {
 	return typeof data.fileUri === 'string';
 }
-
 
 export function restoreRecentlyOpened(data: RecentlyOpenedStorageData | undefined, logService: ILogService): IRecentlyOpened {
 	const result: IRecentlyOpened = { workspaces: [], files: [] };

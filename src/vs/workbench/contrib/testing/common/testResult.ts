@@ -14,7 +14,7 @@ import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contr
 import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
+import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**
@@ -379,6 +379,17 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		const index = this.mustGetTaskIndex(taskId);
+
+		const oldTerminalStatePrio = terminalStatePriorities[entry.tasks[index].state];
+		const newTerminalStatePrio = terminalStatePriorities[state];
+
+		// Ignore requests to set the state from one terminal state back to a
+		// "lower" one, e.g. from failed back to passed:
+		if (oldTerminalStatePrio !== undefined &&
+			(newTerminalStatePrio === undefined || newTerminalStatePrio < oldTerminalStatePrio)) {
+			return;
+		}
+
 		this.fireUpdateAndRefresh(entry, index, state, duration);
 	}
 
@@ -554,12 +565,7 @@ export class LiveTestResult implements ITestResult {
 		tasks: this.tasks.map(t => ({ id: t.id, name: t.name, messages: t.otherMessages })),
 		name: this.name,
 		request: this.request,
-		items: [...this.testById.values()].map(entry => ({
-			...entry,
-			retired: undefined,
-			src: undefined,
-			children: [...entry.children.map(c => c.item.extId)],
-		})),
+		items: [...this.testById.values()].map(e => TestResultItem.serialize(e, [...e.children.map(c => c.item.extId)])),
 	}));
 }
 
@@ -632,7 +638,7 @@ export class HydratedTestResult implements ITestResult {
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const cast: TestResultItem = { ...item, retired: true };
+			const cast: TestResultItem = { ...item, retired: true } as any;
 			cast.item.uri = URI.revive(cast.item.uri);
 
 			for (const task of cast.tasks) {

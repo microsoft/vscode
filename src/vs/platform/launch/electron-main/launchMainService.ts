@@ -16,9 +16,10 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
-import { IWindowSettings } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
-import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ICodeWindow } from 'vs/platform/window/electron-main/window';
+import { IWindowSettings } from 'vs/platform/window/common/window';
+import { IOpenConfiguration, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export const ID = 'launchMainService';

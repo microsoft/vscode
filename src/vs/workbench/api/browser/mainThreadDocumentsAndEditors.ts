@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, isCodeEditor, isDiffEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -279,17 +279,8 @@ export class MainThreadDocumentsAndEditors {
 	private readonly _toDispose = new DisposableStore();
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;
 	private readonly _mainThreadDocuments: MainThreadDocuments;
+	private readonly _mainThreadEditors: MainThreadTextEditors;
 	private readonly _textEditors = new Map<string, MainThreadTextEditor>();
-
-	private readonly _onTextEditorAdd = new Emitter<MainThreadTextEditor[]>();
-	private readonly _onTextEditorRemove = new Emitter<string[]>();
-	private readonly _onDocumentAdd = new Emitter<ITextModel[]>();
-	private readonly _onDocumentRemove = new Emitter<URI[]>();
-
-	readonly onTextEditorAdd: Event<MainThreadTextEditor[]> = this._onTextEditorAdd.event;
-	readonly onTextEditorRemove: Event<string[]> = this._onTextEditorRemove.event;
-	readonly onDocumentAdd: Event<ITextModel[]> = this._onDocumentAdd.event;
-	readonly onDocumentRemove: Event<URI[]> = this._onDocumentRemove.event;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -310,19 +301,14 @@ export class MainThreadDocumentsAndEditors {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
-		this._mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(this, extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
+		this._mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
 		extHostContext.set(MainContext.MainThreadDocuments, this._mainThreadDocuments);
 
-		const mainThreadTextEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));
-		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
+		this._mainThreadEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));
+		extHostContext.set(MainContext.MainThreadTextEditors, this._mainThreadEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
 		this._toDispose.add(new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService, paneCompositeService));
-
-		this._toDispose.add(this._onTextEditorAdd);
-		this._toDispose.add(this._onTextEditorRemove);
-		this._toDispose.add(this._onDocumentAdd);
-		this._toDispose.add(this._onDocumentRemove);
 	}
 
 	dispose(): void {
@@ -383,11 +369,13 @@ export class MainThreadDocumentsAndEditors {
 		if (!empty) {
 			// first update ext host
 			this._proxy.$acceptDocumentsAndEditorsDelta(extHostDelta);
-			// second update dependent state listener
-			this._onDocumentRemove.fire(removedDocuments);
-			this._onDocumentAdd.fire(delta.addedDocuments);
-			this._onTextEditorRemove.fire(removedEditors);
-			this._onTextEditorAdd.fire(addedEditors);
+
+			// second update dependent document/editor states
+			removedDocuments.forEach(this._mainThreadDocuments.handleModelRemoved, this._mainThreadDocuments);
+			delta.addedDocuments.forEach(this._mainThreadDocuments.handleModelAdded, this._mainThreadDocuments);
+
+			removedEditors.forEach(this._mainThreadEditors.handleTextEditorRemoved, this._mainThreadEditors);
+			addedEditors.forEach(this._mainThreadEditors.handleTextEditorAdded, this._mainThreadEditors);
 		}
 	}
 

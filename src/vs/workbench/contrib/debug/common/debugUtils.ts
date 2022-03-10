@@ -257,9 +257,9 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 					case 'setBreakpoints':
 						(<DebugProtocol.SetBreakpointsResponse>response).body.breakpoints.forEach(bp => fixSourcePath(false, bp.source));
 						break;
- 					case 'disassemble':
+					case 'disassemble':
 						{
-							const di = <DebugProtocol.DisassembleResponse> response;
+							const di = <DebugProtocol.DisassembleResponse>response;
 							if (di.body) {
 								di.body.instructions.forEach(di => fixSourcePath(false, di.location));
 							}

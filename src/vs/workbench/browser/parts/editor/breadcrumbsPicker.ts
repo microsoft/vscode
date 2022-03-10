@@ -30,7 +30,6 @@ import { localize } from 'vs/nls';
 import { IOutline, IOutlineComparator } from 'vs/workbench/services/outline/browser/outline';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 
 interface ILayoutInfo {
@@ -69,7 +68,6 @@ export abstract class BreadcrumbsPicker {
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IThemeService protected readonly _themeService: IThemeService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs-picker show-file-icons';
@@ -109,10 +107,6 @@ export abstract class BreadcrumbsPicker {
 			if (!didReveal) {
 				return;
 			}
-			// send telemetry
-			interface OpenEvent { type: string }
-			interface OpenEventGDPR { type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' } }
-			this._telemetryService.publicLog2<OpenEvent, OpenEventGDPR>('breadcrumbs/open', { type: element instanceof OutlineElement2 ? 'symbol' : 'file' });
 		}));
 		this._disposables.add(this._tree.onDidChangeFocus(e => {
 			this._previewDispoables.value = this._previewElement(e.elements[0]);
@@ -354,9 +348,8 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		@IConfigurationService configService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(parent, resource, instantiationService, themeService, configService, telemetryService);
+		super(parent, resource, instantiationService, themeService, configService);
 	}
 
 	_createTree(container: HTMLElement) {

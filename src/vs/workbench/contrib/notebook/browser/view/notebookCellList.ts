@@ -89,6 +89,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	get rowsContainer(): HTMLElement {
 		return this.view.containerDomNode;
 	}
+
+	get scrollableElement(): HTMLElement {
+		return this.view.scrollableElementDomNode;
+	}
 	private _previousFocusedElements: CellViewModel[] = [];
 	private readonly _localDisposableStore = new DisposableStore();
 	private readonly _viewModelStore = new DisposableStore();
@@ -699,6 +703,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (!indexes.length) {
 			if (this._viewModel) {
+				if (this.length) {
+					// Don't allow clearing focus, #121129
+					return;
+				}
+
 				this._viewModel.updateSelectionsState({
 					kind: SelectionStateType.Handle,
 					primary: null,
@@ -1403,6 +1412,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	getRenderHeight() {
 		return this.view.renderHeight;
+	}
+
+	getScrollHeight() {
+		return this.view.scrollHeight;
 	}
 
 	override layout(height?: number, width?: number): void {
