@@ -2,10 +2,6 @@
 	"$schema": "vscode://schemas/color-theme",
 	"name": "Light High Contrast",
 	"colors": {
-		"extensionIcon.verifiedForeground": "#0F4A85",
-		"extensionIcon.starForeground": "#0F4A85",
-		"extensionIcon.preReleaseForeground": "#0F4A85",
-
 		"welcomePage.tileBackground": "#ffffff",
 		"welcomePage.tileHoverBackground": "#0000",
 
