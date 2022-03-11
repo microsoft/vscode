@@ -223,7 +223,7 @@ MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
 	title: localize('configureLayout', "Configure Layout"),
 	icon: configureLayoutIcon,
 	group: '1_workbench_layout',
-	when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'menu'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both'))
+	when: ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'menu')
 });
 
 
@@ -1170,10 +1170,16 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			id: 'workbench.action.customizeLayout',
 			title: localize('customizeLayout', "Customize Layout..."),
 			f1: true,
+			icon: configureLayoutIcon,
 			menu: [
 				{
 					id: MenuId.LayoutControlMenuSubmenu,
 					group: 'z_end',
+				},
+				{
+					id: MenuId.LayoutControlMenu,
+					when: ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both'),
+					group: 'z_end'
 				}
 			]
 		});

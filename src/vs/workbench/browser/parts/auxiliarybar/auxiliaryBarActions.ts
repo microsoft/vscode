@@ -77,7 +77,7 @@ MenuRegistry.appendMenuItems([
 				title: localize('miShowAuxiliaryBarNoMnemonic', "Show Secondary Side Bar"),
 				toggled: AuxiliaryBarVisibleContext
 			},
-			order: 4
+			order: 2
 		}
 	},
 	{
