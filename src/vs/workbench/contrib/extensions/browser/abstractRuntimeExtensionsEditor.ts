@@ -381,6 +381,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					} else {
 						extraLabel = `$(remote) ${element.description.extensionLocation.authority}`;
 					}
+				} else if (element.status.runningLocation && element.status.runningLocation.affinity > 0) {
+					extraLabel = `$(server-process) local process ${element.status.runningLocation.affinity + 1}`;
 				}
 
 				if (extraLabel) {
