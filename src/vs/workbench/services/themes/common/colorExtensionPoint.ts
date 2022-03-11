@@ -114,9 +114,9 @@ export class ColorExtensionPoint {
 						collector.error(nls.localize('invalid.defaults', "'configuration.colors.defaults' must be defined and must contain 'light', 'dark' and 'highContrast'"));
 						return;
 					}
-					if (!Object.hasOwnProperty('highContrastLight')) {
+					if (defaults.highContrastLight === undefined) {
 						collector.warn(nls.localize('missing.defaults.highContrastLight', "color contribution {0} does not provide color 'defaults.highContrastLight'. Using color for `light` instead ({1}).", colorContribution.id, defaults.light));
-					} else if (typeof defaults.highContrast !== 'string') {
+					} else if (typeof defaults.highContrastLight !== 'string') {
 						collector.error(nls.localize('invalid.defaults.highContrastLight', "'configuration.colors.defaults.highContrastLight' must a string."));
 						return;
 					}
