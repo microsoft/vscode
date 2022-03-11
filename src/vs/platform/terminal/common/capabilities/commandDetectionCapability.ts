@@ -143,7 +143,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 
 		// Sanity check optional props
-		if (!this._currentCommand.commandStartMarker || !this._currentCommand.commandExecutedMarker || !this._currentCommand.commandStartX) {
+		if (!this._currentCommand.commandStartMarker || !this._currentCommand.commandExecutedMarker || this._currentCommand.commandStartX === undefined) {
 			return;
 		}
 
@@ -251,10 +251,19 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		const buffer = this._terminal.buffer.normal;
 		for (const e of serialized) {
 			const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			// Check for invalid command
 			if (!marker) {
 				continue;
 			}
-			this._onCommandStarted.fire({ marker } as ITerminalCommand);
+			// Partial command
+			if (!e.endLine) {
+				this._currentCommand.commandStartMarker = marker;
+				// TODO: Get real value if needed
+				this._currentCommand.commandStartX = 0;
+				this._onCommandStarted.fire({ marker } as ITerminalCommand);
+				continue;
+			}
+			// Full command
 			const newCommand = {
 				command: '',
 				marker,
