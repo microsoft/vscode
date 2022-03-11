@@ -67,7 +67,7 @@ import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/xterm/navigationModeAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalCapabilityStoreMultiplexer } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { TerminalCapabilityStoreMultiplexer } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { getCommandHistory, getDirectoryHistory } from 'vs/workbench/contrib/terminal/common/history';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL, INavigationMode, ITerminalBackend, ITerminalProcessManager, ITerminalProfileResolverService, ProcessState, ShellIntegrationExitCode, TerminalCommandId, TERMINAL_CREATION_COMMANDS, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
