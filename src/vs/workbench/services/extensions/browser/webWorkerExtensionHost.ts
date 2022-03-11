@@ -16,7 +16,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import * as platform from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
-import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { joinPath } from 'vs/base/common/resources';
@@ -43,7 +43,6 @@ export interface IWebWorkerExtensionHostDataProvider {
 
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
-	public readonly kind = ExtensionHostKind.LocalWebWorker;
 	public readonly remoteAuthority = null;
 	public readonly lazyStart: boolean;
 	public readonly extensions = new ExtensionDescriptionRegistry([]);
@@ -59,6 +58,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	private readonly _extensionHostLogFile: URI;
 
 	constructor(
+		public readonly runningLocation: LocalWebWorkerRunningLocation,
 		lazyStart: boolean,
 		private readonly _initDataProvider: IWebWorkerExtensionHostDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,

@@ -28,7 +28,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { createMessageOfType, isMessageOfType, MessageType, IExtensionHostInitData, UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostKind, ExtensionHostLogFileName, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionHostLogFileName, IExtensionHost, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Extensions, IOutputChannelRegistry } from 'vs/workbench/services/output/common/output';
 
@@ -50,7 +50,6 @@ export interface IRemoteExtensionHostDataProvider {
 
 export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
-	public readonly kind = ExtensionHostKind.Remote;
 	public readonly remoteAuthority: string;
 	public readonly lazyStart = false;
 	public readonly extensions = new ExtensionDescriptionRegistry([]);
@@ -64,6 +63,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 	private readonly _isExtensionDevHost: boolean;
 
 	constructor(
+		public readonly runningLocation: RemoteRunningLocation,
 		private readonly _initDataProvider: IRemoteExtensionHostDataProvider,
 		private readonly _socketFactory: ISocketFactory,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,

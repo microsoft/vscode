@@ -1259,7 +1259,7 @@ function _filterByRunningLocation<T>(extensions: T[], extId: (item: T) => Extens
 }
 
 export function filterByExtensionHostKind(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, desiredExtensionHostKind: ExtensionHostKind): IExtensionDescription[] {
-	return _filterExtensions(extensions, ext => ext.identifier, runningLocation, extRunningLocation => extRunningLocation.type === desiredExtensionHostKind);
+	return _filterExtensions(extensions, ext => ext.identifier, runningLocation, extRunningLocation => extRunningLocation.kind === desiredExtensionHostKind);
 }
 
 export function filterByExtensionHostManager(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, extensionHostManager: IExtensionHostManager): IExtensionDescription[] {

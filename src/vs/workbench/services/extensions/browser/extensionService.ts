@@ -174,12 +174,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHosts(_isInitialStart: boolean): IExtensionHost[] {
 		const result: IExtensionHost[] = [];
 
-		const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, false, this._createLocalExtensionHostDataProvider(new LocalWebWorkerRunningLocation()));
+		const localWebWorkerRunningLocation = new LocalWebWorkerRunningLocation();
+		const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, localWebWorkerRunningLocation, false, this._createLocalExtensionHostDataProvider(localWebWorkerRunningLocation));
 		result.push(webWorkerExtHost);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, this._createRemoteExtensionHostDataProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+			const remoteRunningLocation = new RemoteRunningLocation();
+			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, remoteRunningLocation, this._createRemoteExtensionHostDataProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
 			result.push(remoteExtHost);
 		}
 

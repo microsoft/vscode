@@ -34,7 +34,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, LocalProcessRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -106,7 +106,6 @@ class ExtensionHostProcess {
 
 export class LocalProcessExtensionHost implements IExtensionHost {
 
-	public readonly kind = ExtensionHostKind.LocalProcess;
 	public readonly remoteAuthority = null;
 	public readonly lazyStart = false;
 	public readonly extensions = new ExtensionDescriptionRegistry([]);
@@ -137,6 +136,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	private readonly _extensionHostLogFile: URI;
 
 	constructor(
+		public readonly runningLocation: LocalProcessRunningLocation,
 		private readonly _initDataProvider: ILocalProcessExtensionHostDataProvider,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,

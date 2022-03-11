@@ -82,7 +82,6 @@ export type ExtensionHostStartupEvent = {
 
 class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
-	public readonly kind: ExtensionHostKind;
 	public readonly onDidExit: Event<[number, string | null]>;
 
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
@@ -98,6 +97,10 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	private readonly _extensionHost: IExtensionHost;
 	private _proxy: Promise<IExtensionHostProxy | null> | null;
 	private _hasStarted = false;
+
+	public get kind(): ExtensionHostKind {
+		return this._extensionHost.runningLocation.kind;
+	}
 
 	constructor(
 		public readonly extensionHostId: string,
@@ -116,7 +119,6 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		this._customers = [];
 
 		this._extensionHost = extensionHost;
-		this.kind = this._extensionHost.kind;
 		this.onDidExit = this._extensionHost.onExit;
 
 		const startingTelemetryEvent: ExtensionHostStartupEvent = {
@@ -426,7 +428,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	}
 
 	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
-		return (this.kind === runningLocation.type);
+		return this._extensionHost.runningLocation.equals(runningLocation);
 	}
 
 	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
@@ -452,7 +454,7 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
  * Waits until `start()` and only if it has extensions proceeds to really start.
  */
 class LazyStartExtensionHostManager extends Disposable implements IExtensionHostManager {
-	public readonly kind: ExtensionHostKind;
+
 	public readonly onDidExit: Event<[number, string | null]>;
 	private readonly _onDidChangeResponsiveState: Emitter<ResponsiveState> = this._register(new Emitter<ResponsiveState>());
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
@@ -460,6 +462,10 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 	private readonly _extensionHost: IExtensionHost;
 	private _startCalled: Barrier;
 	private _actual: ExtensionHostManager | null;
+
+	public get kind(): ExtensionHostKind {
+		return this._extensionHost.runningLocation.kind;
+	}
 
 	constructor(
 		public readonly extensionHostId: string,
@@ -470,7 +476,6 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 	) {
 		super();
 		this._extensionHost = extensionHost;
-		this.kind = extensionHost.kind;
 		this.onDidExit = extensionHost.onExit;
 		this._startCalled = new Barrier();
 		this._actual = null;
@@ -500,7 +505,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 		}
 	}
 	public representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean {
-		return (this.kind === runningLocation.type);
+		return this._extensionHost.runningLocation.equals(runningLocation);
 	}
 	public async deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
 		await this._startCalled.wait();

@@ -38,21 +38,30 @@ export interface IMessage {
 }
 
 export class LocalProcessRunningLocation {
-	public readonly type = ExtensionHostKind.LocalProcess;
+	public readonly kind = ExtensionHostKind.LocalProcess;
 	public equals(other: ExtensionRunningLocation) {
-		return this.type === other.type;
+		return this.kind === other.kind;
+	}
+	public asString(): string {
+		return 'LocalProcess';
 	}
 }
 export class LocalWebWorkerRunningLocation {
-	public readonly type = ExtensionHostKind.LocalWebWorker;
+	public readonly kind = ExtensionHostKind.LocalWebWorker;
 	public equals(other: ExtensionRunningLocation) {
-		return this.type === other.type;
+		return this.kind === other.kind;
+	}
+	public asString(): string {
+		return 'LocalWebWorker';
 	}
 }
 export class RemoteRunningLocation {
-	public readonly type = ExtensionHostKind.Remote;
+	public readonly kind = ExtensionHostKind.Remote;
 	public equals(other: ExtensionRunningLocation) {
-		return this.type === other.type;
+		return this.kind === other.kind;
+	}
+	public asString(): string {
+		return 'Remote';
 	}
 }
 export type ExtensionRunningLocation = LocalProcessRunningLocation | LocalWebWorkerRunningLocation | RemoteRunningLocation;
@@ -61,14 +70,7 @@ export function extensionRunningLocationToString(location: ExtensionRunningLocat
 	if (!location) {
 		return 'None';
 	}
-	switch (location.type) {
-		case ExtensionHostKind.LocalProcess:
-			return 'LocalProcess';
-		case ExtensionHostKind.LocalWebWorker:
-			return 'LocalWebWorker';
-		case ExtensionHostKind.Remote:
-			return 'Remote';
-	}
+	return location.asString();
 }
 
 export interface IExtensionsStatus {
@@ -137,7 +139,7 @@ export function extensionHostKindToString(kind: ExtensionHostKind): string {
 }
 
 export interface IExtensionHost {
-	readonly kind: ExtensionHostKind;
+	readonly runningLocation: ExtensionRunningLocation;
 	readonly remoteAuthority: string | null;
 	readonly lazyStart: boolean;
 	/**

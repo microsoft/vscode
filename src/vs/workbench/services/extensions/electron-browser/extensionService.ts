@@ -237,17 +237,20 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHosts(isInitialStart: boolean): IExtensionHost[] {
 		const result: IExtensionHost[] = [];
 
-		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, this._createLocalExtensionHostDataProvider(isInitialStart, new LocalProcessRunningLocation()));
+		const localProcessRunningLocation = new LocalProcessRunningLocation();
+		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, localProcessRunningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, localProcessRunningLocation));
 		result.push(localProcessExtHost);
 
 		if (this._enableLocalWebWorker) {
-			const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, this._lazyLocalWebWorker, this._createLocalExtensionHostDataProvider(isInitialStart, new LocalWebWorkerRunningLocation()));
+			const localWebWorkerRunningLocation = new LocalWebWorkerRunningLocation();
+			const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, localWebWorkerRunningLocation, this._lazyLocalWebWorker, this._createLocalExtensionHostDataProvider(isInitialStart, localWebWorkerRunningLocation));
 			result.push(webWorkerExtHost);
 		}
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, this._createRemoteExtensionHostDataProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
+			const remoteRunningLocation = new RemoteRunningLocation();
+			const remoteExtHost = this._instantiationService.createInstance(RemoteExtensionHost, remoteRunningLocation, this._createRemoteExtensionHostDataProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
 			result.push(remoteExtHost);
 		}
 
