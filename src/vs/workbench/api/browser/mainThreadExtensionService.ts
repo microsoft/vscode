@@ -197,9 +197,9 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
 		return this._actual.$resolveAuthority(remoteAuthority, resolveAttempt);
 	}
-	async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+	async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null> {
 		const uriComponents = await this._actual.$getCanonicalURI(remoteAuthority, uri);
-		return URI.revive(uriComponents);
+		return (uriComponents ? URI.revive(uriComponents) : uriComponents);
 	}
 	startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
 		return this._actual.$startExtensionHost(enabledExtensionIds);

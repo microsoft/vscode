@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionIdentifier, IExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -23,7 +23,7 @@ export class ExtensionKey {
 
 	static create(extension: ILocalExtension | IGalleryExtension): ExtensionKey {
 		const version = (extension as ILocalExtension).manifest ? (extension as ILocalExtension).manifest.version : (extension as IGalleryExtension).version;
-		const targetPlatform = (extension as ILocalExtension).targetPlatform ? (extension as ILocalExtension).targetPlatform : (extension as IGalleryExtension).properties.targetPlatform;
+		const targetPlatform = (extension as ILocalExtension).manifest ? (extension as ILocalExtension).targetPlatform : (extension as IGalleryExtension).properties.targetPlatform;
 		return new ExtensionKey(extension.identifier, version, targetPlatform);
 	}
 

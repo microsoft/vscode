@@ -20,17 +20,17 @@ import * as pfs from 'vs/base/node/pfs';
 import { extract, ExtractError } from 'vs/base/node/zip';
 import { localize } from 'vs/nls';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionManagementError, ExtensionManagementErrorCode, Metadata, ILocalExtension, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionManagementError, ExtensionManagementErrorCode, Metadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { ExtensionType, IExtensionIdentifier, IExtensionManifest, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionIdentifier, IExtensionManifest, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 
 export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: Metadata };
-type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
+type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean; targetPlatform: TargetPlatform };
 
 export class ExtensionsScanner extends Disposable {
 
