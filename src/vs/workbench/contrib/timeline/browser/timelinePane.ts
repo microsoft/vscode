@@ -15,7 +15,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -257,6 +257,7 @@ export class TimelinePane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ILabelService private readonly labelService: ILabelService
 	) {
 		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -323,7 +324,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this.uri = uri;
-		this.updateFilename(uri ? basename(uri.fsPath) : undefined);
+		this.updateFilename(uri ? this.labelService.getUriBasenameLabel(uri) : undefined);
 		this.treeRenderer?.setUri(uri);
 		this.loadTimeline(true);
 	}
@@ -786,11 +787,11 @@ export class TimelinePane extends ViewPane {
 			if (this.pendingRequests.size !== 0) {
 				this.setLoadingUriMessage();
 			} else {
-				this.updateFilename(basename(this.uri.fsPath));
+				this.updateFilename(this.labelService.getUriBasenameLabel(this.uri));
 				this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
 			}
 		} else {
-			this.updateFilename(basename(this.uri.fsPath));
+			this.updateFilename(this.labelService.getUriBasenameLabel(this.uri));
 			this.message = undefined;
 		}
 
@@ -966,7 +967,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	setLoadingUriMessage() {
-		const file = this.uri && basename(this.uri.fsPath);
+		const file = this.uri && this.labelService.getUriBasenameLabel(this.uri);
 		this.updateFilename(file);
 		this.message = file ? localize('timeline.loading', "Loading timeline for {0}...", file) : '';
 	}

@@ -28,6 +28,8 @@ import { ILabelService } from 'vs/platform/label/common/label';
 
 class WorkingCopyHistoryModel {
 
+	private static readonly sepRegexp = /\//g;
+
 	private entries: IWorkingCopyHistoryEntry[] = [];
 
 	private whenResolved: Promise<void> | undefined = undefined;
@@ -122,7 +124,7 @@ class WorkingCopyHistoryModel {
 	private toEntryLabel(timestamp: number): string {
 		const date = new Date(timestamp);
 
-		return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+		return `${date.toLocaleDateString().replace(WorkingCopyHistoryModel.sepRegexp, '-')} ${date.toLocaleTimeString().replace(WorkingCopyHistoryModel.sepRegexp, '-')}`;
 	}
 }
 
