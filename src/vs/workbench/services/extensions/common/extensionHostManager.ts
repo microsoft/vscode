@@ -45,7 +45,10 @@ export interface IExtensionHostManager {
 	activationEventIsDone(activationEvent: string): boolean;
 	getInspectPort(tryEnableInspector: boolean): Promise<number>;
 	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
-	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI>;
+	/**
+	 * Returns `null` if no resolver for `remoteAuthority` is found.
+	 */
+	getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null>;
 	start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	extensionTestsExecute(): Promise<number>;
 	extensionTestsSendExit(exitCode: number): Promise<void>;
@@ -383,18 +386,12 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		}
 	}
 
-	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
-		const authorityPlusIndex = remoteAuthority.indexOf('+');
-		if (authorityPlusIndex === -1) {
-			// This authority does not use a resolver
-			return uri;
-		}
+	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null> {
 		const proxy = await this._proxy;
 		if (!proxy) {
 			throw new Error(`Cannot resolve canonical URI`);
 		}
-		const result = await proxy.getCanonicalURI(remoteAuthority, uri);
-		return URI.revive(result);
+		return proxy.getCanonicalURI(remoteAuthority, uri);
 	}
 
 	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
@@ -564,7 +561,7 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 			}
 		};
 	}
-	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null> {
 		await this._startCalled.wait();
 		if (this._actual) {
 			return this._actual.getCanonicalURI(remoteAuthority, uri);

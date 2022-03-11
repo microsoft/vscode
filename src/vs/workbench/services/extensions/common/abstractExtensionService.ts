@@ -267,15 +267,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected abstract _pickRunningLocation(extensionId: ExtensionIdentifier, extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation | null;
 
-	protected _getExtensionHostManager(kind: ExtensionHostKind): IExtensionHostManager | null {
-		for (const extensionHostManager of this._extensionHostManagers) {
-			if (extensionHostManager.kind === kind) {
-				return extensionHostManager;
-			}
-		}
-		return null;
-	}
-
 	protected _getExtensionHostManagers(kind: ExtensionHostKind): IExtensionHostManager[] {
 		return this._extensionHostManagers.filter(extHostManager => extHostManager.kind === kind);
 	}

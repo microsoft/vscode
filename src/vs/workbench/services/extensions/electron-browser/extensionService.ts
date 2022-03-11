@@ -49,6 +49,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { isCI } from 'vs/base/common/platform';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
+import { URI } from 'vs/base/common/uri';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -387,6 +388,32 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		throw new RemoteAuthorityResolverError(bestErrorResult!.error.message, bestErrorResult!.error.code, bestErrorResult!.error.detail);
 	}
 
+	private async _getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+
+		const authorityPlusIndex = remoteAuthority.indexOf('+');
+		if (authorityPlusIndex === -1) {
+			// This authority does not use a resolver
+			return uri;
+		}
+
+		const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
+		if (localProcessExtensionHosts.length === 0) {
+			// no local process extension hosts
+			throw new Error(`Cannot resolve canonical URI`);
+		}
+
+		const results = await Promise.all(localProcessExtensionHosts.map(extHost => extHost.getCanonicalURI(remoteAuthority, uri)));
+
+		for (const result of results) {
+			if (result) {
+				return result;
+			}
+		}
+
+		// we can only reach this if there was no resolver extension that can return the cannonical uri
+		throw new Error(`Cannot get canonical URI because no extension is installed to resolve ${getRemoteAuthorityPrefix(remoteAuthority)}`);
+	}
+
 	private async _resolveAuthorityAgain(): Promise<void> {
 		const remoteAuthority = this._environmentService.remoteAuthority;
 		if (!remoteAuthority) {
@@ -421,12 +448,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					// The current remote authority resolver cannot give the canonical URI for this URI
 					return uri;
 				}
-				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 				if (isCI) {
 					this._logService.info(`Invoking getCanonicalURI for authority ${getRemoteAuthorityPrefix(remoteAuthority)}...`);
 				}
 				try {
-					return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+					return this._getCanonicalURI(remoteAuthority, uri);
 				} finally {
 					if (isCI) {
 						this._logService.info(`getCanonicalURI returned for authority ${getRemoteAuthorityPrefix(remoteAuthority)}.`);
