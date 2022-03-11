@@ -6,14 +6,13 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { stringify, parse } from 'vs/base/common/marshalling';
 import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, hasReadWriteCapability, IFileService, IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { sep } from 'vs/base/common/path';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 
-export interface ILocalHistoryResource {
+interface ILocalHistoryResource {
 
 	/**
 	 * The label to use for the local history entry.
@@ -31,6 +30,12 @@ export interface ILocalHistoryResource {
 	associatedResource: URI;
 }
 
+interface ISerializedLocalHistoryResource {
+	label: string;
+	location: string;
+	associatedResource: string;
+}
+
 /**
  * A wrapper around a standard file system provider
  * that is entirely readonly.
@@ -40,15 +45,27 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 	static readonly SCHEMA = 'vscode-local-history';
 
 	static toLocalHistoryFileSystem(resource: ILocalHistoryResource): URI {
+		const serializedLocalHistoryResource: ISerializedLocalHistoryResource = {
+			label: resource.label,
+			location: resource.location.toString(true),
+			associatedResource: resource.associatedResource.toString(true)
+		};
+
 		return URI.from({
 			scheme: LocalHistoryFileSystemProvider.SCHEMA,
 			path: `/${basename(resource.location)}`,
-			query: stringify(resource)
+			query: JSON.stringify(serializedLocalHistoryResource)
 		});
 	}
 
 	static fromLocalHistoryFileSystem(resource: URI): ILocalHistoryResource {
-		return parse(resource.query);
+		const serializedLocalHistoryResource: ISerializedLocalHistoryResource = JSON.parse(resource.query);
+
+		return {
+			label: serializedLocalHistoryResource.label,
+			location: URI.parse(serializedLocalHistoryResource.location),
+			associatedResource: URI.parse(serializedLocalHistoryResource.associatedResource)
+		};
 	}
 
 	private static readonly EMPTY_RESOURCE = URI.from({ scheme: LocalHistoryFileSystemProvider.SCHEMA, path: '/empty' });
