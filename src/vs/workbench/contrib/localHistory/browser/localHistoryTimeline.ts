@@ -124,7 +124,8 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		});
 	}
 
-	async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined> {
+	async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline> {
+		const items: TimelineItem[] = [];
 
 		// Try to convert the provided `uri` into a form that is likely
 		// for the provider to find entries for:
@@ -138,20 +139,20 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			resource = uri;
 		} else if (this.fileService.hasProvider(uri)) {
 			resource = URI.from({ scheme: this.pathService.defaultUriScheme, authority: this.environmentService.remoteAuthority, path: uri.path });
-		} else {
-			return undefined;
 		}
 
-		// Retrieve from working copy history
-		const entries = await this.workingCopyHistoryService.getEntries(resource, token);
+		if (resource) {
 
-		// Convert to timeline items
-		const items: TimelineItem[] = [];
-		for (let i = 0; i < entries.length; i++) {
-			const entry = entries[i];
-			const previousEntry: IWorkingCopyHistoryEntry | undefined = entries[i - 1];
+			// Retrieve from working copy history
+			const entries = await this.workingCopyHistoryService.getEntries(resource, token);
 
-			items.push(this.toTimelineItem(entry, previousEntry));
+			// Convert to timeline items
+			for (let i = 0; i < entries.length; i++) {
+				const entry = entries[i];
+				const previousEntry: IWorkingCopyHistoryEntry | undefined = entries[i - 1];
+
+				items.push(this.toTimelineItem(entry, previousEntry));
+			}
 		}
 
 		return {
