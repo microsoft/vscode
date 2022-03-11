@@ -256,7 +256,6 @@ export interface ILocalExtension extends IExtension {
 	installedTimestamp?: number;
 	isPreReleaseVersion: boolean;
 	preRelease: boolean;
-	targetPlatform: TargetPlatform;
 }
 
 export const enum SortBy {

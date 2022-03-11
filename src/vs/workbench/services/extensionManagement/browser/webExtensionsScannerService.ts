@@ -465,7 +465,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			isBuiltin,
 			readmeUrl: webExtension.readmeUri,
 			changelogUrl: webExtension.changelogUri,
-			metadata: webExtension.metadata
+			metadata: webExtension.metadata,
+			targetPlatform: TargetPlatform.WEB
 		};
 	}
 

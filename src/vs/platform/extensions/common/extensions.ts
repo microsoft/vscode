@@ -315,6 +315,7 @@ export interface IExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
+	readonly targetPlatform: TargetPlatform;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 }
@@ -377,7 +378,7 @@ export class ExtensionIdentifier {
 export interface IExtensionDescription extends IExtensionManifest {
 	readonly identifier: ExtensionIdentifier;
 	readonly uuid?: string;
-	readonly targetPlatform?: TargetPlatform;
+	readonly targetPlatform: TargetPlatform;
 	readonly isBuiltin: boolean;
 	readonly isUserBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;

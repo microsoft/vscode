@@ -30,7 +30,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 
 
 export type ILocalExtensionManifest = IExtensionManifest & { __metadata?: Metadata };
-type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean };
+type IRelaxedLocalExtension = Omit<ILocalExtension, 'isBuiltin'> & { isBuiltin: boolean; targetPlatform: TargetPlatform };
 
 export class ExtensionsScanner extends Disposable {
 

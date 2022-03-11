@@ -340,6 +340,7 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
 		manifest: extensionDescription,
 		location: extensionDescription.extensionLocation,
+		targetPlatform: extensionDescription.targetPlatform,
 	};
 }
 
@@ -351,7 +352,8 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		isUnderDevelopment: !!isUnderDevelopment,
 		extensionLocation: extension.location,
 		...extension.manifest,
-		uuid: extension.identifier.uuid
+		uuid: extension.identifier.uuid,
+		targetPlatform: extension.targetPlatform
 	};
 }
 
