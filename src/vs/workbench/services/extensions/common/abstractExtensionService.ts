@@ -163,6 +163,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _inHandleDeltaExtensions: boolean;
 
 	protected _runningLocation: Map<string, ExtensionRunningLocation | null>;
+	private _lastExtensionHostId: number = 0;
 
 	// --- Members used per extension host process
 	protected _extensionHostManagers: IExtensionHostManager[];
@@ -618,9 +619,16 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _startExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): void {
 		const extensionHosts = this._createExtensionHosts(isInitialStart);
 		extensionHosts.forEach((extensionHost) => {
-			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHost, isInitialStart, initialActivationEvents, this._acquireInternalAPI());
+			const extensionHostId = String(++this._lastExtensionHostId);
+			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHostId, extensionHost, isInitialStart, initialActivationEvents, this._acquireInternalAPI());
 			processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
-			processManager.onDidChangeResponsiveState((responsiveState) => { this._onDidChangeResponsiveChange.fire({ isResponsive: responsiveState === ResponsiveState.Responsive }); });
+			processManager.onDidChangeResponsiveState((responsiveState) => {
+				this._onDidChangeResponsiveChange.fire({
+					extensionHostId: extensionHostId,
+					extensionHostKind: processManager.kind,
+					isResponsive: responsiveState === ResponsiveState.Responsive
+				});
+			});
 			this._extensionHostManagers.push(processManager);
 		});
 	}
@@ -772,8 +780,21 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
-	public getInspectPort(_tryEnableInspector: boolean): Promise<number> {
-		return Promise.resolve(0);
+	public async getInspectPort(extensionHostId: string, tryEnableInspector: boolean): Promise<number> {
+		for (const extHostManager of this._extensionHostManagers) {
+			if (extHostManager.extensionHostId === extensionHostId) {
+				return extHostManager.getInspectPort(tryEnableInspector);
+			}
+		}
+		return 0;
+	}
+
+	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<number[]> {
+		const result = await Promise.all(
+			this._getExtensionHostManagers(extensionHostKind).map(extHost => extHost.getInspectPort(tryEnableInspector))
+		);
+		// remove 0s:
+		return result.filter(element => Boolean(element));
 	}
 
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {

@@ -561,14 +561,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		extensionHostManager.start(extensions.map(extension => extension.identifier));
 	}
 
-	public override async getInspectPort(tryEnableInspector: boolean): Promise<number> {
-		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
-		if (localProcessExtensionHost) {
-			return localProcessExtensionHost.getInspectPort(tryEnableInspector);
-		}
-		return 0;
-	}
-
 	public _onExtensionHostExit(code: number): void {
 		// Dispose everything associated with the extension host
 		this.stopExtensionHosts();
