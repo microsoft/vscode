@@ -6,7 +6,7 @@
 import { deepStrictEqual, ok } from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { Terminal } from 'xterm';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/commandDetectionCapability';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 

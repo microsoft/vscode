@@ -5,7 +5,7 @@
 
 import { deepStrictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
-import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
+import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/partialCommandDetectionCapability';
 import { IMarker, Terminal } from 'xterm';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 

@@ -25,6 +25,7 @@ import { localize } from 'vs/nls';
 import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonitor';
 import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/common/xterm/shellIntegrationAddon';
 
 type WorkspaceId = string;
 
@@ -500,7 +501,8 @@ export class PersistentTerminalProcess extends Disposable {
 			rows,
 			reconnectConstants.scrollback,
 			unicodeVersion,
-			reviveBuffer
+			reviveBuffer,
+			this._logService
 		);
 		this._fixedDimensions = fixedDimensions;
 		this._orphanQuestionBarrier = null;
@@ -732,7 +734,8 @@ class XtermSerializer implements ITerminalSerializer {
 		rows: number,
 		scrollback: number,
 		unicodeVersion: '6' | '11',
-		reviveBuffer: string | undefined
+		reviveBuffer: string | undefined,
+		logService: ILogService
 	) {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
 		if (reviveBuffer) {
@@ -743,6 +746,7 @@ class XtermSerializer implements ITerminalSerializer {
 		}
 		this._xterm.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
 		this.setUnicodeVersion(unicodeVersion);
+		this._xterm.loadAddon(new ShellIntegrationAddon(logService));
 	}
 
 	private _handleShellIntegration(data: string): boolean {

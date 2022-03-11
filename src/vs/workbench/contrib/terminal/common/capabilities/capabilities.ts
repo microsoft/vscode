@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
-import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -69,10 +67,18 @@ export interface ITerminalCapabilityStore {
  * implementations.
  */
 export interface ITerminalCapabilityImplMap {
-	[TerminalCapability.CwdDetection]: InstanceType<typeof CwdDetectionCapability>;
+	[TerminalCapability.CwdDetection]: ICwdDetectionCapability;
 	[TerminalCapability.CommandDetection]: ICommandDetectionCapability;
-	[TerminalCapability.NaiveCwdDetection]: InstanceType<typeof NaiveCwdDetectionCapability>;
+	[TerminalCapability.NaiveCwdDetection]: INaiveCwdDetectionCapability;
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
+}
+
+export interface ICwdDetectionCapability {
+	readonly type: TerminalCapability.CwdDetection;
+	readonly onDidChangeCwd: Event<string>;
+	readonly cwds: string[];
+	getCwd(): string;
+	updateCwd(cwd: string): void;
 }
 
 export interface ICommandDetectionCapability {
@@ -97,6 +103,12 @@ export interface ICommandDetectionCapability {
 	 * Set the command line explicitly.
 	 */
 	setCommandLine(commandLine: string): void;
+}
+
+export interface INaiveCwdDetectionCapability {
+	readonly type: TerminalCapability.NaiveCwdDetection;
+	readonly onDidChangeCwd: Event<string>;
+	getCwd(): Promise<string>;
 }
 
 export interface IPartialCommandDetectionCapability {

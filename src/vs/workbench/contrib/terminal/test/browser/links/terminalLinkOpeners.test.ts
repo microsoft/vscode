@@ -14,7 +14,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
 import { TerminalCapability, ITerminalCommand, IXtermMarker } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';

@@ -7,7 +7,9 @@ import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IBuffer, IDisposable, IMarker, Terminal } from 'xterm';
+// Importing types is safe in any layer
+// eslint-disable-next-line code-import-patterns
+import type { IBuffer, IDisposable, IMarker, Terminal } from 'xterm-headless';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;

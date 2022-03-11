@@ -28,7 +28,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
-import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/shellIntegrationAddon';
+import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/common/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
