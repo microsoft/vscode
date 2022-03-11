@@ -164,8 +164,8 @@ class MoveSidebarRightAction extends MoveSidebarPositionAction {
 
 	constructor() {
 		super(MoveSidebarRightAction.ID, {
-			value: localize('moveSidebarRight', "Move Activity Bar Right"),
-			original: 'Move Activity Bar Right'
+			value: localize('moveSidebarRight', "Move Primary Side Bar Right"),
+			original: 'Move Primary Side Bar Right'
 		}, Position.RIGHT);
 	}
 }
@@ -175,8 +175,8 @@ class MoveSidebarLeftAction extends MoveSidebarPositionAction {
 
 	constructor() {
 		super(MoveSidebarLeftAction.ID, {
-			value: localize('moveSidebarLeft', "Move Activity Bar Left"),
-			original: 'Move Activity Bar Left'
+			value: localize('moveSidebarLeft', "Move Primary Side Bar Left"),
+			original: 'Move Primary Side Bar Left'
 		}, Position.LEFT);
 	}
 }
@@ -189,16 +189,16 @@ registerAction2(MoveSidebarLeftAction);
 export class ToggleSidebarPositionAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleSidebarPosition';
-	static readonly LABEL = localize('toggleActivityBarPosition', "Toggle Activity Bar Position");
+	static readonly LABEL = localize('toggleSidebarPosition', "Toggle Primary Side Bar Position");
 
 	static getLabel(layoutService: IWorkbenchLayoutService): string {
-		return layoutService.getSideBarPosition() === Position.LEFT ? localize('moveSidebarRight', "Move Activity Bar Right") : localize('moveSidebarLeft', "Move Activity Bar Left");
+		return layoutService.getSideBarPosition() === Position.LEFT ? localize('moveSidebarRight', "Move Primary Side Bar Right") : localize('moveSidebarLeft', "Move Primary Side Bar Left");
 	}
 
 	constructor() {
 		super({
 			id: ToggleSidebarPositionAction.ID,
-			title: { value: localize('toggleActivityBarPosition', "Toggle Activity Bar Position"), original: 'Toggle Activity Bar Position' },
+			title: { value: localize('toggleSidebarPosition', "Toggle Primary Side Bar Position"), original: 'Toggle Primary Side Bar Position' },
 			category: CATEGORIES.View,
 			f1: true
 		});
@@ -233,7 +233,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
-			title: localize('move activity bar right', "Move Activity Bar Right")
+			title: localize('move side bar right', "Move Primary Side Bar Right")
 		},
 		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
@@ -244,7 +244,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar right', "Move Activity Bar Right")
+			title: localize('move sidebar right', "Move Primary Side Bar Right")
 		},
 		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
@@ -255,7 +255,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar left', "Move Activity Bar Left")
+			title: localize('move sidebar left', "Move Primary Side Bar Left")
 		},
 		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
@@ -266,7 +266,7 @@ MenuRegistry.appendMenuItems([{
 		group: '3_workbench_layout_move',
 		command: {
 			id: ToggleSidebarPositionAction.ID,
-			title: localize('move sidebar left', "Move Activity Bar Left")
+			title: localize('move sidebar left', "Move Primary Side Bar Left")
 		},
 		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
@@ -277,7 +277,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
-		title: localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Activity Bar Right")
+		title: localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Primary Side Bar Right")
 	},
 	when: ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'),
 	order: 2
@@ -287,7 +287,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	group: '3_workbench_layout_move',
 	command: {
 		id: ToggleSidebarPositionAction.ID,
-		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Activity Bar Left")
+		title: localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Primary Side Bar Left")
 	},
 	when: ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'),
 	order: 2
@@ -386,7 +386,7 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Side Bar (Primary)"),
+				title: localize({ key: 'miShowSidebar', comment: ['&& denotes a mnemonic'] }, "Show &&Primary Side Bar"),
 				toggled: SideBarVisibleContext
 			},
 			order: 1
@@ -397,7 +397,7 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_layout',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('miShowSidebarNoMnnemonic', "Show Side Bar (Primary)"),
+				title: localize('miShowSidebarNoMnnemonic', "Show Primary Side Bar"),
 				toggled: SideBarVisibleContext
 			},
 			order: 0
@@ -857,7 +857,7 @@ class MoveFocusedViewAction extends Action2 {
 
 		items.push({
 			type: 'separator',
-			label: localize('secondarySideBar', "Side Bar (Secondary)")
+			label: localize('secondarySideBar', "Secondary Side Bar")
 		});
 
 		const pinnedAuxPanels = paneCompositePartService.getPinnedPaneCompositeIds(ViewContainerLocation.AuxiliaryBar);
@@ -1133,9 +1133,9 @@ if (!isMacintosh || !isNative) {
 
 ToggleVisibilityActions.push(...[
 	CreateToggleLayoutItem(ToggleActivityBarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.activityBar.visible', true), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
-	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Side Bar (Primary)"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelLeftIcon, iconB: panelRightIcon }),
+	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Primary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelLeftIcon, iconB: panelRightIcon }),
 	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
-	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('secondarySideBar', "Side Bar (Secondary)"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
+	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('secondarySideBar', "Secondary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
 	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar"), statusBarIcon),
 ]);
 
@@ -1220,7 +1220,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			...ToggleVisibilityActions.map(toQuickPickItem),
 			{
 				type: 'separator',
-				label: localize('sideBarPosition', "Activity Bar Position")
+				label: localize('sideBarPosition', "Primary Side Bar Position")
 			},
 			...MoveSideBarActions.map(toQuickPickItem),
 			{

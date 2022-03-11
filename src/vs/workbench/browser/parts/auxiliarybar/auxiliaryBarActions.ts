@@ -74,7 +74,7 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_layout',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: localize('miShowAuxiliaryBarNoMnemonic', "Show Side Bar (Secondary)"),
+				title: localize('miShowAuxiliaryBarNoMnemonic', "Show Secondary Side Bar"),
 				toggled: AuxiliaryBarVisibleContext
 			},
 			order: 4
@@ -114,10 +114,10 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Si&&de Bar (Secondary)"),
+				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Secondary Si&&de Bar"),
 				toggled: AuxiliaryBarVisibleContext
 			},
-			order: 5
+			order: 2
 		}
 	}, {
 		id: MenuId.ViewTitleContext,
