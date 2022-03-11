@@ -11,11 +11,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { move } from 'vs/base/common/arrays';
+import { coalesce, move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { groupBy, IStringDictionary } from 'vs/base/common/collections';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }
 
@@ -404,61 +404,61 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		return this.isViewDescriptorVisible(viewDescriptorItem);
 	}
 
-	setVisible(id: string, visible: boolean, size?: number): void {
-		this.updateVisibility([{ id, visible, size }]);
+	setVisible(id: string, visible: boolean): void {
+		this.updateVisibility([{ id, visible }]);
 	}
 
-	private updateVisibility(viewDescriptors: { id: string; visible: boolean; size?: number }[]): void {
-		const { toBeAdded, toBeRemoved } = groupBy(viewDescriptors, viewDescriptor => viewDescriptor.visible ? 'toBeAdded' : 'toBeRemoved');
-
-		const updateVisibility = (viewDescriptors: { id: string; visible: boolean; size?: number }[]): { viewDescriptorItem: IViewDescriptorItem; visibleIndex: number }[] => {
-			const result: { viewDescriptorItem: IViewDescriptorItem; visibleIndex: number }[] = [];
-			for (const { id, visible, size } of viewDescriptors) {
-				const foundViewDescriptor = this.findAndIgnoreIfNotFound(id);
-				if (!foundViewDescriptor) {
-					continue;
-				}
-
-				const { viewDescriptorItem, visibleIndex } = foundViewDescriptor;
-				const viewDescriptor = viewDescriptorItem.viewDescriptor;
-
-				if (!viewDescriptor.canToggleVisibility) {
-					continue;
-				}
-
-				if (this.isViewDescriptorVisibleWhenActive(viewDescriptorItem) === visible) {
-					continue;
-				}
-
-				if (viewDescriptor.workspace) {
-					viewDescriptorItem.state.visibleWorkspace = visible;
-				} else {
-					viewDescriptorItem.state.visibleGlobal = visible;
-				}
-
-				if (typeof viewDescriptorItem.state.size === 'number') {
-					viewDescriptorItem.state.size = size;
-				}
-
-				if (this.isViewDescriptorVisible(viewDescriptorItem) !== visible) {
-					// do not add events if visibility is not changed
-					continue;
-				}
-
-				result.push({ viewDescriptorItem, visibleIndex });
+	private updateVisibility(viewDescriptors: { id: string; visible: boolean }[]): void {
+		// First: Update and remove the view descriptors which are asked to be hidden
+		const viewDescriptorItemsToHide = coalesce(viewDescriptors.filter(({ visible }) => !visible)
+			.map(({ id }) => this.findAndIgnoreIfNotFound(id)));
+		const removed: IViewDescriptorRef[] = [];
+		for (const { viewDescriptorItem, visibleIndex } of viewDescriptorItemsToHide) {
+			if (this.updateViewDescriptorItemVisibility(viewDescriptorItem, false)) {
+				removed.push({ viewDescriptor: viewDescriptorItem.viewDescriptor, index: visibleIndex });
 			}
-			return result;
-		};
-
-		if (toBeRemoved?.length) {
-			const removedVisibleDescriptors = updateVisibility(toBeRemoved).map(({ viewDescriptorItem, visibleIndex }) => ({ viewDescriptor: viewDescriptorItem.viewDescriptor, index: visibleIndex }));
-			this.broadCastRemovedVisibleViewDescriptors(removedVisibleDescriptors);
+		}
+		if (removed.length) {
+			this.broadCastRemovedVisibleViewDescriptors(removed);
 		}
 
-		if (toBeAdded?.length) {
-			const addedVisibleDescriptors = updateVisibility(toBeAdded).map(({ viewDescriptorItem, visibleIndex }) => ({ index: visibleIndex, viewDescriptor: viewDescriptorItem.viewDescriptor, size: viewDescriptorItem.state.size, collapsed: !!viewDescriptorItem.state.collapsed }));
-			this.broadCastAddedVisibleViewDescriptors(addedVisibleDescriptors);
+		// Second: Update and add the view descriptors which are asked to be shown
+		const added: IAddedViewDescriptorRef[] = [];
+		for (const { id, visible } of viewDescriptors) {
+			if (!visible) {
+				continue;
+			}
+			const foundViewDescriptor = this.findAndIgnoreIfNotFound(id);
+			if (!foundViewDescriptor) {
+				continue;
+			}
+			const { viewDescriptorItem, visibleIndex } = foundViewDescriptor;
+			if (this.updateViewDescriptorItemVisibility(viewDescriptorItem, true)) {
+				added.push({ index: visibleIndex, viewDescriptor: viewDescriptorItem.viewDescriptor, size: viewDescriptorItem.state.size, collapsed: !!viewDescriptorItem.state.collapsed });
+			}
 		}
+		if (added.length) {
+			this.broadCastAddedVisibleViewDescriptors(added);
+		}
+	}
+
+	private updateViewDescriptorItemVisibility(viewDescriptorItem: IViewDescriptorItem, visible: boolean): boolean {
+		if (!viewDescriptorItem.viewDescriptor.canToggleVisibility) {
+			return false;
+		}
+		if (this.isViewDescriptorVisibleWhenActive(viewDescriptorItem) === visible) {
+			return false;
+		}
+
+		// update visibility
+		if (viewDescriptorItem.viewDescriptor.workspace) {
+			viewDescriptorItem.state.visibleWorkspace = visible;
+		} else {
+			viewDescriptorItem.state.visibleGlobal = visible;
+		}
+
+		// return `true` only if visibility is changed
+		return this.isViewDescriptorVisible(viewDescriptorItem) === visible;
 	}
 
 	isCollapsed(id: string): boolean {
