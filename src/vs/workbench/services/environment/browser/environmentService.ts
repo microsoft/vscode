@@ -205,7 +205,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get skipWelcome(): boolean { return this.payload?.get('skipWelcome') === 'true'; }
 
 	@memoize
-	get disableWorkspaceTrust(): boolean { return true; }
+	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
 	private payload: Map<string, string> | undefined;
 

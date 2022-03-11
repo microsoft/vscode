@@ -41,6 +41,8 @@ export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze(
 	'TM_FILENAME_BASE': true,
 	'TM_DIRECTORY': true,
 	'TM_FILEPATH': true,
+	'CURSOR_INDEX': true, // 0-offset
+	'CURSOR_NUMBER': true, // 1-offset
 	'RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
@@ -140,6 +142,12 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		} else if (name === 'TM_LINE_NUMBER') {
 			return String(this._selection.positionLineNumber);
+
+		} else if (name === 'CURSOR_INDEX') {
+			return String(this._selectionIdx);
+
+		} else if (name === 'CURSOR_NUMBER') {
+			return String(this._selectionIdx + 1);
 		}
 		return undefined;
 	}
