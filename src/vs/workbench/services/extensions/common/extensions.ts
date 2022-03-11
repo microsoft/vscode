@@ -66,13 +66,6 @@ export class RemoteRunningLocation {
 }
 export type ExtensionRunningLocation = LocalProcessRunningLocation | LocalWebWorkerRunningLocation | RemoteRunningLocation;
 
-export function extensionRunningLocationToString(location: ExtensionRunningLocation | null) {
-	if (!location) {
-		return 'None';
-	}
-	return location.asString();
-}
-
 export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;
@@ -125,12 +118,15 @@ export interface IExtensionHostProfile {
 }
 
 export const enum ExtensionHostKind {
-	LocalProcess,
-	LocalWebWorker,
-	Remote
+	LocalProcess = 1,
+	LocalWebWorker = 2,
+	Remote = 3
 }
 
-export function extensionHostKindToString(kind: ExtensionHostKind): string {
+export function extensionHostKindToString(kind: ExtensionHostKind | null): string {
+	if (kind === null) {
+		return 'None';
+	}
 	switch (kind) {
 		case ExtensionHostKind.LocalProcess: return 'LocalProcess';
 		case ExtensionHostKind.LocalWebWorker: return 'LocalWebWorker';
