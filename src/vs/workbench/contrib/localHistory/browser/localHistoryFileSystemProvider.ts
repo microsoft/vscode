@@ -103,29 +103,26 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 	async stat(resource: URI): Promise<IStat> {
 		const location = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(resource).location;
 
+		// Special case: empty resource
 		if (isEqual(LocalHistoryFileSystemProvider.EMPTY_RESOURCE, location)) {
-			return {
-				type: FileType.File,
-				ctime: 0,
-				mtime: 0,
-				size: 0
-			};
+			return { type: FileType.File, ctime: 0, mtime: 0, size: 0 };
 		}
 
-		const provider = await this.withProvider(location);
-
-		return provider.stat(location);
+		// Otherwise delegate to provider
+		return (await this.withProvider(location)).stat(location);
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const location = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(resource).location;
+
+		// Special case: empty resource
+		if (isEqual(LocalHistoryFileSystemProvider.EMPTY_RESOURCE, location)) {
+			return VSBuffer.fromString('').buffer;
+		}
+
+		// Otherwise delegate to provider
 		const provider = await this.withProvider(location);
-
 		if (hasReadWriteCapability(provider)) {
-			if (isEqual(LocalHistoryFileSystemProvider.EMPTY_RESOURCE, location)) {
-				return VSBuffer.fromString('').buffer;
-			}
-
 			return provider.readFile(location);
 		}
 

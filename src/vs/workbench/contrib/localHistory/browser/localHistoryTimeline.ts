@@ -17,10 +17,20 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/edit
 import { IFileService } from 'vs/platform/files/common/files';
 import { LocalHistoryFileLabelFormatter, LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { isEqual } from 'vs/base/common/resources';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
-	static readonly ID = 'timeline.localHistory';
+	private static readonly ID = 'timeline.localHistory';
+
+	private static readonly MENU_CONTEXT_VALUE = 'localHistory:item';
+	private static readonly MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LocalHistoryTimeline.MENU_CONTEXT_VALUE);
+
+	private static readonly COMPARE_WITH_PREVIOUS_LABEL = { value: localize('localHistory.compareWithPrevious', "Compare with Previous"), original: 'Compare with Previous' };
 
 	readonly id = LocalHistoryTimeline.ID;
 
@@ -41,6 +51,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		super();
 
 		this.registerComponents();
+		this.registerActions();
 		this.registerListeners();
 	}
 
@@ -58,6 +69,47 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 	private registerListeners(): void {
 		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidAddWorkingCopyHistoryEntry(e.entry)));
+	}
+
+	private registerActions(): void {
+		const that = this;
+
+		// Compare with previous
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.localHistory.compareWithPrevious',
+					title: LocalHistoryTimeline.COMPARE_WITH_PREVIOUS_LABEL,
+					menu: {
+						id: MenuId.TimelineItemContext,
+						when: LocalHistoryTimeline.MENU_CONTEXT_KEY
+					}
+				});
+			}
+			async run(accessor: ServicesAccessor, arg1: unknown, uri: URI): Promise<void> {
+				const commandService = accessor.get(ICommandService);
+
+				const { location, associatedResource } = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri);
+
+				const entries = await that.workingCopyHistoryService.getEntries(associatedResource, CancellationToken.None);
+
+				let currentEntry: IWorkingCopyHistoryEntry | undefined = undefined;
+				let previousEntry: IWorkingCopyHistoryEntry | undefined = undefined;
+				for (let i = 0; i < entries.length; i++) {
+					const entry = entries[i];
+
+					if (isEqual(entry.location, location)) {
+						currentEntry = entry;
+						previousEntry = entries[i - 1];
+						break;
+					}
+				}
+
+				if (currentEntry) {
+					return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...that.toCompareCommandArguments(currentEntry, previousEntry));
+				}
+			}
+		}));
 	}
 
 	private onDidAddWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry): void {
@@ -107,26 +159,34 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp,
 			themeIcon: Codicon.save,
+			contextValue: LocalHistoryTimeline.MENU_CONTEXT_VALUE,
 			command: {
 				id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
-				title: localize('compareLocalHistory', "Compare with Previous"),
-				arguments: [
-					LocalHistoryFileSystemProvider.toLocalHistoryFileSystem(previousEntry ? { location: previousEntry.location, associatedResource: previousEntry.workingCopy.resource, label: previousEntry.workingCopy.name } : LocalHistoryFileSystemProvider.EMPTY),
-					LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
-					previousEntry ? localize(
-						'localHistoryCompareEditorLabel', "{0} ({1}) ↔ {2} ({3})",
-						previousEntry.workingCopy.name,
-						previousEntry.label,
-						entry.workingCopy.name,
-						entry.label
-					) : localize(
-						'localHistoryCompareEditorLabelWithoutPrevious', "{0} ({1})",
-						entry.workingCopy.name,
-						entry.label
-					),
-					undefined // important to keep order of arguments in command proper
-				]
+				title: LocalHistoryTimeline.COMPARE_WITH_PREVIOUS_LABEL.value,
+				arguments: this.toCompareCommandArguments(entry, previousEntry)
 			}
 		};
+	}
+
+	private toCompareCommandArguments(entry: IWorkingCopyHistoryEntry, previousEntry: IWorkingCopyHistoryEntry | undefined): unknown[] {
+		return [
+			LocalHistoryFileSystemProvider.toLocalHistoryFileSystem(previousEntry ?
+				{ location: previousEntry.location, associatedResource: previousEntry.workingCopy.resource, label: previousEntry.workingCopy.name } :
+				LocalHistoryFileSystemProvider.EMPTY
+			),
+			LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
+			previousEntry ? localize(
+				'localHistoryCompareEditorLabel', "{0} ({1}) ↔ {2} ({3})",
+				previousEntry.workingCopy.name,
+				previousEntry.label,
+				entry.workingCopy.name,
+				entry.label
+			) : localize(
+				'localHistoryCompareEditorLabelWithoutPrevious', "{0} ({1})",
+				entry.workingCopy.name,
+				entry.label
+			),
+			undefined // important to keep order of arguments in command proper
+		];
 	}
 }
