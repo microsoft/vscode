@@ -8,7 +8,7 @@ import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { stringify, parse } from 'vs/base/common/marshalling';
-import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, hasReadWriteCapability, IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, hasReadWriteCapability, IFileService, IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { sep } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
@@ -64,7 +64,40 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 		return FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.Readonly;
 	}
 
-	constructor(private readonly defaultFileSystemProvider: IFileSystemProvider) { }
+	constructor(private readonly fileService: IFileService) { }
+
+	private readonly mapSchemeToProvider = new Map<string, Promise<IFileSystemProvider>>();
+
+	private async withProvider(resource: URI): Promise<IFileSystemProvider> {
+		const scheme = resource.scheme;
+
+		let providerPromise = this.mapSchemeToProvider.get(scheme);
+		if (!providerPromise) {
+
+			// Resolve early when provider already exists
+			const provider = this.fileService.getProvider(scheme);
+			if (provider) {
+				providerPromise = Promise.resolve(provider);
+			}
+
+			// Otherwise wait for registration
+			else {
+				providerPromise = new Promise<IFileSystemProvider>(resolve => {
+					const disposable = this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
+						if (e.added && e.provider && e.scheme === scheme) {
+							disposable.dispose();
+
+							resolve(e.provider);
+						}
+					});
+				});
+			}
+
+			this.mapSchemeToProvider.set(scheme, providerPromise);
+		}
+
+		return providerPromise;
+	}
 
 	//#region Supported File Operations
 
@@ -80,18 +113,21 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 			};
 		}
 
-		return this.defaultFileSystemProvider.stat(location);
+		const provider = await this.withProvider(location);
+
+		return provider.stat(location);
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		if (hasReadWriteCapability(this.defaultFileSystemProvider)) {
-			const location = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(resource).location;
+		const location = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(resource).location;
+		const provider = await this.withProvider(location);
 
+		if (hasReadWriteCapability(provider)) {
 			if (isEqual(LocalHistoryFileSystemProvider.EMPTY_RESOURCE, location)) {
 				return VSBuffer.fromString('').buffer;
 			}
 
-			return this.defaultFileSystemProvider.readFile(location);
+			return provider.readFile(location);
 		}
 
 		throw new Error('Unsupported');

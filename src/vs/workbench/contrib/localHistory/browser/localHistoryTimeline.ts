@@ -50,10 +50,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		this._register(this.timelineService.registerTimelineProvider(this));
 
 		// File Service Provider
-		const defaultFileSystemProvider = this.fileService.getProvider(this.pathService.defaultUriScheme);
-		if (defaultFileSystemProvider) {
-			this._register(this.fileService.registerProvider(LocalHistoryFileSystemProvider.SCHEMA, new LocalHistoryFileSystemProvider(defaultFileSystemProvider)));
-		}
+		this._register(this.fileService.registerProvider(LocalHistoryFileSystemProvider.SCHEMA, new LocalHistoryFileSystemProvider(this.fileService)));
 
 		// Formatter
 		this._register(this.labelService.registerFormatter(new LocalHistoryFileLabelFormatter()));
