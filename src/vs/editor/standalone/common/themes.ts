@@ -215,7 +215,7 @@ export const hc_light: IStandaloneThemeData = {
 	base: 'hc-light',
 	inherit: false,
 	rules: [
-		{ token: '', foreground: '292929', background: 'FFFFFF' },
+		{ token: '', foreground: '000000', background: 'FFFFFF' },
 		{ token: 'invalid', foreground: 'cd3131' },
 		{ token: 'emphasis', fontStyle: 'italic' },
 		{ token: 'strong', fontStyle: 'bold' },
