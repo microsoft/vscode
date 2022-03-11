@@ -318,7 +318,7 @@ export const PANEL_INACTIVE_TITLE_FOREGROUND = registerColor('panelTitle.inactiv
 	dark: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.6),
 	light: transparent(PANEL_ACTIVE_TITLE_FOREGROUND, 0.75),
 	hcDark: Color.white,
-	hcLight: editorBackground
+	hcLight: editorForeground
 }, localize('panelInactiveTitleForeground', "Title color for the inactive panel. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder', {
@@ -564,7 +564,7 @@ export const ACTIVITY_BAR_ACTIVE_BORDER = registerColor('activityBar.activeBorde
 	dark: ACTIVITY_BAR_FOREGROUND,
 	light: ACTIVITY_BAR_FOREGROUND,
 	hcDark: null,
-	hcLight: '#B5200D',
+	hcLight: contrastBorder
 }, localize('activityBarActiveBorder', "Activity bar border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_ACTIVE_FOCUS_BORDER = registerColor('activityBar.activeFocusBorder', {
