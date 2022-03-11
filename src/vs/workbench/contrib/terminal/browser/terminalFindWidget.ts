@@ -9,11 +9,13 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { IDecoration } from 'xterm';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
+	private _findDecorations: IDecoration[] | undefined;
 
 	constructor(
 		findState: FindReplaceState,
@@ -30,16 +32,21 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(_contextKeyService);
 	}
 
-	find(previous: boolean) {
+	async find(previous: boolean): Promise<void> {
 		const instance = this._terminalService.activeInstance;
 		if (!instance) {
 			return;
 		}
-		if (previous) {
-			instance.xterm?.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
-		} else {
-			instance.xterm?.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
-		}
+		this._findDecorations = await instance.xterm?.find(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		this._findDecorations?.forEach(d => {
+			d.onRender((e) => {
+			});
+		});
+		// if (previous) {
+		// 	instance.xterm?.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		// } else {
+		// 	instance.xterm?.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		// }
 	}
 	override reveal(initialInput?: string): void {
 		super.reveal(initialInput);
@@ -58,6 +65,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (instance) {
 			instance.focus();
 		}
+		this._findDecorations?.forEach(f => f.dispose());
+		this._findDecorations = [];
 	}
 
 	protected _onInputChanged() {

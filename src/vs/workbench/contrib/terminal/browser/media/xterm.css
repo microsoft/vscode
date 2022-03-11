@@ -182,3 +182,8 @@
 	z-index: 6;
 	position: absolute;
 }
+
+.xterm-find-result-decoration {
+	background-color: blue;
+	opacity: 60%;
+ }

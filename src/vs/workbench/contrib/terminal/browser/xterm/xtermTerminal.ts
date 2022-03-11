@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, IDecoration, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
@@ -236,6 +236,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			// This can probably be removed when the above hack is fixed in Chromium.
 			this.raw.refresh(0, this.raw.rows - 1);
 		}
+	}
+
+	async find(term: string, searchOptions: ISearchOptions): Promise<IDecoration[]> {
+		return (await this._getSearchAddon()).find(term, searchOptions);
 	}
 
 	async findNext(term: string, searchOptions: ISearchOptions): Promise<boolean> {

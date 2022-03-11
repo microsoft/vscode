@@ -18,6 +18,7 @@ import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IDecoration } from 'xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -864,6 +865,10 @@ export interface IXtermTerminal {
 	 */
 	target?: TerminalLocation;
 
+	/**
+	 * Find all instances of the term and select the next one
+	*/
+	find(term: string, searchOptions: ISearchOptions): Promise<IDecoration[]>;
 	/**
 	 * Find the next instance of the term
 	*/
