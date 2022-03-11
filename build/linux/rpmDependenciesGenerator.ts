@@ -7,11 +7,9 @@
 
 import { spawnSync } from 'child_process';
 import { calculatePackageDeps, mergePackageDeps } from './linux-installer/rpm/rpmDependencyScripts';
-import { resolve } from 'path';
-import { readFileSync } from 'fs';
 import { additionalDeps } from './linux-installer/rpm/additionalDeps';
 
-export function getRpmDependencies(buildDir: string): string[] {
+export function getRpmDependencies(buildDir: string, applicationName: string): string[] {
 	// Get the files for which we want to find dependencies.
 	const findResult = spawnSync('find', [buildDir, '-name', '*.node']);
 	if (findResult.status) {
@@ -28,14 +26,8 @@ export function getRpmDependencies(buildDir: string): string[] {
 	const files = findResult.stdout.toString().split('\n');
 	console.log('Found files:\n' + files);
 
-	const getAppNameProc = spawnSync('node', ['-p', `require("${buildDir}/resources/app/product.json").applicationName`]);
-	if (getAppNameProc.status) {
-		console.error('Error getting app name:');
-		console.error(getAppNameProc.stderr.toString());
-		return [];
-	}
-	const appName = getAppNameProc.stdout.toString();
-	const appPath = `${buildDir}/${appName}`;
+	const appPath = `${buildDir}/${applicationName}`;
+	console.log(appPath);
 	files.push(appPath);
 
 	// Generate the dependencies.
