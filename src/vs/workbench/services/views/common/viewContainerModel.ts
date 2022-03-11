@@ -15,7 +15,7 @@ import { move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { groupBy } from 'vs/base/common/collections';
+import { groupBy, IStringDictionary } from 'vs/base/common/collections';
 
 export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }
 
@@ -109,9 +109,9 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private updateWorkspaceState(viewDescriptors: ReadonlyArray<IViewDescriptor>): void {
-		const storedViewsStates: { [id: string]: IStoredWorkspaceViewState } = JSON.parse(this.storageService.get(this.workspaceViewsStateStorageId, StorageScope.WORKSPACE, '{}'));
+		const storedViewsStates = this.getStoredWorkspaceState();
 		for (const viewDescriptor of viewDescriptors) {
-			const viewState = this.state.get(viewDescriptor.id);
+			const viewState = this.get(viewDescriptor.id);
 			if (viewState) {
 				storedViewsStates[viewDescriptor.id] = {
 					collapsed: !!viewState.collapsed,
@@ -132,7 +132,7 @@ class ViewDescriptorsState extends Disposable {
 	private updateGlobalState(viewDescriptors: ReadonlyArray<IViewDescriptor>): void {
 		const storedGlobalState = this.getStoredGlobalState();
 		for (const viewDescriptor of viewDescriptors) {
-			const state = this.state.get(viewDescriptor.id);
+			const state = this.get(viewDescriptor.id);
 			storedGlobalState.set(viewDescriptor.id, {
 				id: viewDescriptor.id,
 				isHidden: state && viewDescriptor.canToggleVisibility ? !state.visibleGlobal : false,
@@ -147,13 +147,24 @@ class ViewDescriptorsState extends Disposable {
 			&& this.globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue() /* This checks if current window changed the value or not */) {
 			this._globalViewsStatesValue = undefined;
 			const storedViewsVisibilityStates = this.getStoredGlobalState();
+			const storedWorkspaceViewsStates = this.getStoredWorkspaceState();
 			const changedStates: { id: string; visible: boolean }[] = [];
 			for (const [id, storedState] of storedViewsVisibilityStates) {
-				const state = this.state.get(id);
+				const state = this.get(id);
 				if (state) {
 					if (state.visibleGlobal !== !storedState.isHidden) {
 						changedStates.push({ id, visible: !storedState.isHidden });
 					}
+				} else {
+					const workspaceViewState = <IStoredWorkspaceViewState | undefined>storedWorkspaceViewsStates[id];
+					this.set(id, {
+						active: false,
+						visibleGlobal: !storedState.isHidden,
+						visibleWorkspace: isUndefined(workspaceViewState?.isHidden) ? undefined : !workspaceViewState?.isHidden,
+						collapsed: workspaceViewState?.collapsed,
+						order: workspaceViewState?.order,
+						size: workspaceViewState?.size,
+					});
 				}
 			}
 			if (changedStates.length) {
@@ -164,7 +175,7 @@ class ViewDescriptorsState extends Disposable {
 
 	private initialize(): Map<string, IViewDescriptorState> {
 		const viewStates = new Map<string, IViewDescriptorState>();
-		const workspaceViewsStates = <{ [id: string]: IStoredWorkspaceViewState }>JSON.parse(this.storageService.get(this.workspaceViewsStateStorageId, StorageScope.WORKSPACE, '{}'));
+		const workspaceViewsStates = this.getStoredWorkspaceState();
 		for (const id of Object.keys(workspaceViewsStates)) {
 			const workspaceViewState = workspaceViewsStates[id];
 			viewStates.set(id, {
@@ -222,6 +233,10 @@ class ViewDescriptorsState extends Disposable {
 			}
 		}
 		return viewStates;
+	}
+
+	private getStoredWorkspaceState(): IStringDictionary<IStoredWorkspaceViewState> {
+		return JSON.parse(this.storageService.get(this.workspaceViewsStateStorageId, StorageScope.WORKSPACE, '{}'));
 	}
 
 	private getStoredGlobalState(): Map<string, IStoredGlobalViewState> {

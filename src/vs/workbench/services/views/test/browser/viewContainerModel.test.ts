@@ -17,6 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Event } from 'vs/base/common/event';
+import { getViewsStateStorageId } from 'vs/workbench/services/views/common/viewContainerModel';
 
 const ViewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
@@ -578,6 +579,29 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(targetEvent.callCount, 0);
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 		assert.strictEqual(target.elements.length, 0);
+	});
+
+	test('#142087: view descriptor visibility is not reset', async function () {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const viewDescriptor: IViewDescriptor = {
+			id: 'view1',
+			ctorDescriptor: null!,
+			name: 'Test View 1',
+			canToggleVisibility: true
+		};
+
+		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{
+			id: viewDescriptor.id,
+			isHidden: true,
+			order: undefined
+		}]), StorageScope.GLOBAL, StorageTarget.USER);
+
+		ViewsRegistry.registerViews([viewDescriptor], container);
+
+		assert.strictEqual(testObject.isVisible(viewDescriptor.id), false);
+		assert.strictEqual(testObject.activeViewDescriptors[0].id, viewDescriptor.id);
+		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 	});
 
 });
