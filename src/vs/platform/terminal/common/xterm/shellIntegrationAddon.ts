@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellIntegration } from 'vs/platform/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
@@ -13,7 +13,7 @@ import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/c
 import { ILogService } from 'vs/platform/log/common/log';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
-import type { ITerminalAddon, Terminal } from 'xterm';
+import type { ITerminalAddon, Terminal } from 'xterm-headless';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening

@@ -328,10 +328,6 @@ export interface IRemoteTerminalAttachTarget {
 	fixedDimensions: IFixedTerminalDimensions | undefined;
 }
 
-export interface IShellIntegration {
-	capabilities: ITerminalCapabilityStore;
-}
-
 export interface ITerminalCommand {
 	command: string;
 	timestamp: number;

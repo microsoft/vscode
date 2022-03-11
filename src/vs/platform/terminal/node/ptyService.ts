@@ -25,7 +25,7 @@ import { localize } from 'vs/nls';
 import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonitor';
 import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
-import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/common/xterm/shellIntegrationAddon';
+import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 
 type WorkspaceId = string;
 
