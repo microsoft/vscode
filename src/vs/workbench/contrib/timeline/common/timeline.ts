@@ -61,7 +61,15 @@ export interface TimelineChangeEvent {
 	 */
 	id: string;
 
+	/**
+	 * The resource that has timeline entries changed or `undefined`
+	 * if not known.
+	 */
 	uri: URI | undefined;
+
+	/**
+	 * Whether to drop all timeline entries and refresh them again.
+	 */
 	reset: boolean;
 }
 

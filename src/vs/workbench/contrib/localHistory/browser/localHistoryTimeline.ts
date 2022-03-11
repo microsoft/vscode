@@ -68,7 +68,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		// Re-emit as timeline change event
 		this._onDidChange.fire({
 			id: LocalHistoryTimeline.ID,
-			uri: undefined, // for some reason the timeline only refreshes when `uri: undefined`
+			uri: entry.workingCopy.resource,
 			reset: false
 		});
 	}

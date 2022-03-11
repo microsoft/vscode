@@ -397,7 +397,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || e.uri.toString(true) !== this.uri?.toString(true)) {
+		if (e?.uri === undefined || e.uri.toString(true) === this.uri?.toString(true)) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;
