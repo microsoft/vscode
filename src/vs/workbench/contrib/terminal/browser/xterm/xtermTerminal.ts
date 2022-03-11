@@ -31,7 +31,7 @@ import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/workbench/contrib/terminal/common/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
 
 // How long in milliseconds should an average frame take to render for a notification to appear

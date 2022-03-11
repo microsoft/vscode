@@ -30,7 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
 import { NaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/naiveCwdDetectionCapability';
-import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { URI } from 'vs/base/common/uri';
 
 /** The amount of time to consider terminal errors to be related to the launch */

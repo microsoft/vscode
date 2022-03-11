@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { ITerminalChildProcess } from 'vs/platform/terminal/common/terminal';
-import { TerminalCapability, INaiveCwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { TerminalCapability, INaiveCwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 export class NaiveCwdDetectionCapability implements INaiveCwdDetectionCapability {
 	constructor(private readonly _process: ITerminalChildProcess) { }

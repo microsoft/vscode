@@ -9,9 +9,9 @@ import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm
 import { isWindows } from 'vs/base/common/platform';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { timeout } from 'vs/base/common/async';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
-import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/partialCommandDetectionCapability';
-import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;

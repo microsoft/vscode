@@ -8,7 +8,7 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';

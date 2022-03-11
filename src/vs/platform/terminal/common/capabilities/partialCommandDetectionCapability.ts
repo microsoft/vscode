@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IPartialCommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { IPartialCommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import { IMarker, Terminal } from 'xterm-headless';

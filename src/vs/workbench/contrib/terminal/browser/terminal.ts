@@ -15,7 +15,7 @@ import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
