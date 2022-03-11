@@ -371,7 +371,7 @@ registerAction2(
 		constructor() {
 			super({
 				id: 'workbench.action.previousSideBarView',
-				title: { value: localize('previousSideBarView', "Previous Side Bar View"), original: 'Previous Side Bar View' },
+				title: { value: localize('previousSideBarView', "Previous Primary Side Bar View"), original: 'Previous Primary Side Bar View' },
 				category: CATEGORIES.View,
 				f1: true
 			}, -1);
@@ -384,7 +384,7 @@ registerAction2(
 		constructor() {
 			super({
 				id: 'workbench.action.nextSideBarView',
-				title: { value: localize('nextSideBarView', "Next Side Bar View"), original: 'Next Side Bar View' },
+				title: { value: localize('nextSideBarView', "Next Primary Side Bar View"), original: 'Next Primary Side Bar View' },
 				category: CATEGORIES.View,
 				f1: true
 			}, 1);
