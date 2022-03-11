@@ -16,7 +16,7 @@ import { EditorAction, registerEditorAction, registerEditorContribution } from '
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, IModelChangedEvent } from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDeltaDecoration } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
 import { peekViewResultsBackground, peekViewResultsSelectionBackground, peekViewTitleBackground } from 'vs/editor/contrib/peekView/browser/peekView';
@@ -61,25 +61,29 @@ export class ReviewViewZone implements IViewZone {
 	}
 }
 
-class CommentingRangeDecoration {
-	private _decorationId: string;
+class CommentingRangeDecoration implements IModelDeltaDecoration {
+	private _decorationId: string | undefined;
+	private _startLineNumber: number;
+	private _endLineNumber: number;
 
-	public get id(): string {
+	public get id(): string | undefined {
 		return this._decorationId;
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, commentingOptions: ModelDecorationOptions, private commentingRangesInfo: languages.CommentingRanges, public readonly isHover: boolean = false) {
-		const startLineNumber = _range.startLineNumber;
-		const endLineNumber = _range.endLineNumber;
-		let commentingRangeDecorations = [{
-			range: {
-				startLineNumber: startLineNumber, startColumn: 1,
-				endLineNumber: endLineNumber, endColumn: 1
-			},
-			options: commentingOptions
-		}];
+	public set id(id: string | undefined) {
+		this._decorationId = id;
+	}
 
-		this._decorationId = this._editor.deltaDecorations([], commentingRangeDecorations)[0];
+	public get range(): IRange {
+		return {
+			startLineNumber: this._startLineNumber, startColumn: 1,
+			endLineNumber: this._endLineNumber, endColumn: 1
+		};
+	}
+
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, public readonly options: ModelDecorationOptions, private commentingRangesInfo: languages.CommentingRanges, public readonly isHover: boolean = false) {
+		this._startLineNumber = _range.startLineNumber;
+		this._endLineNumber = _range.endLineNumber;
 	}
 
 	public getCommentAction(): { ownerId: string; extensionId: string | undefined; label: string | undefined; commentingRangesInfo: languages.CommentingRanges } {
@@ -96,7 +100,7 @@ class CommentingRangeDecoration {
 	}
 
 	public getActiveRange() {
-		return this._editor.getModel()!.getDecorationRange(this._decorationId);
+		return this.id ? this._editor.getModel()!.getDecorationRange(this.id) : undefined;
 	}
 }
 class CommentingRangeDecorator {
@@ -104,6 +108,7 @@ class CommentingRangeDecorator {
 	private decorationOptions!: ModelDecorationOptions;
 	private hoverDecorationOptions!: ModelDecorationOptions;
 	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
+	private decorationIds: string[] = [];
 	private _editor: ICodeEditor | undefined;
 	private _infos: ICommentInfo[] | undefined;
 	private _lastHover: number = -1;
@@ -163,8 +168,8 @@ class CommentingRangeDecorator {
 			});
 		}
 
-		let oldDecorations = this.commentingRangeDecorations.map(decoration => decoration.id);
-		editor.deltaDecorations(oldDecorations, []);
+		this.decorationIds = editor.deltaDecorations(this.decorationIds, commentingRangeDecorations);
+		commentingRangeDecorations.forEach((decoration, index) => decoration.id = this.decorationIds[index]);
 
 		const rangesDifference = this.commentingRangeDecorations.length - commentingRangeDecorations.length;
 		this.commentingRangeDecorations = commentingRangeDecorations;
