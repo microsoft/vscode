@@ -5,11 +5,10 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Action, IAction } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -24,13 +23,11 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/mar
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import * as nls from 'vs/nls';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, resolveColorValue, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
@@ -45,17 +42,11 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Codicon } from 'vs/base/common/codicons';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
-
-
-const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
+import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
 const COMMENT_SCHEME = 'comment';
-
 
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	const range = e.target.range;
@@ -106,8 +97,7 @@ export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number
 let INMEM_MODEL_ID = 0;
 
 export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget {
-	private _headElement!: HTMLElement;
-	protected _headingLabel!: HTMLElement;
+	private _header!: CommentThreadHeader;
 	protected _actionbarWidget!: ActionBar;
 	private _bodyElement!: HTMLElement;
 	private _commentsElement!: HTMLElement;
@@ -122,7 +112,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isExpanded?: boolean;
-	private _collapseAction!: Action;
 	private _commentGlyph?: CommentGlyphWidget;
 	private _submitActionsDisposables: IDisposable[];
 	private readonly _globalToDispose = new DisposableStore();
@@ -263,9 +252,16 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
-		this._headElement = <HTMLDivElement>dom.$('.head');
-		container.appendChild(this._headElement);
-		this._fillHead(this._headElement);
+		this._header = new CommentThreadHeader(
+			container,
+			{
+				collapse: this.collapse.bind(this)
+			},
+			this._commentMenus,
+			this._commentThread,
+			this._contextKeyService,
+			this.instantiationService
+		);
 
 		this._bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(this._bodyElement);
@@ -273,38 +269,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		dom.addDisposableListener(this._bodyElement, dom.EventType.FOCUS_IN, e => {
 			this.commentService.setActiveCommentThread(this._commentThread);
 		});
-	}
-
-	protected _fillHead(container: HTMLElement): void {
-		let titleElement = dom.append(this._headElement, dom.$('.review-title'));
-
-		this._headingLabel = dom.append(titleElement, dom.$('span.filename'));
-		this.createThreadLabel();
-
-		const actionsContainer = dom.append(this._headElement, dom.$('.review-actions'));
-		this._actionbarWidget = new ActionBar(actionsContainer, {
-			actionViewItemProvider: createActionViewItem.bind(undefined, this.instantiationService)
-		});
-
-		this._disposables.add(this._actionbarWidget);
-
-		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => this.collapse());
-
-		const menu = this._commentMenus.getCommentThreadTitleActions(this._commentThread, this._contextKeyService);
-		this.setActionBarActions(menu);
-
-		this._disposables.add(menu);
-		this._disposables.add(menu.onDidChange(e => {
-			this.setActionBarActions(menu);
-		}));
-
-		this._actionbarWidget.context = this._commentThread;
-	}
-
-	private setActionBarActions(menu: IMenu): void {
-		const groups = menu.getActions({ shouldForwardArgs: true }).reduce((r, [, actions]) => [...r, ...actions], <(MenuItemAction | SubmenuItemAction)[]>[]);
-		this._actionbarWidget.clear();
-		this._actionbarWidget.push([...groups, this._collapseAction], { label: false, icon: true });
 	}
 
 	private deleteCommentThread(): void {
@@ -399,7 +363,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
-		this.createThreadLabel();
+		this._header.updateCommentThread(commentThread);
 
 		// Move comment glyph widget and show position if the line has changed.
 		const lineNumber = this._commentThread.range.startLineNumber;
@@ -461,8 +425,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
 
 		let headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
-		this._headElement.style.height = `${headHeight}px`;
-		this._headElement.style.lineHeight = this._headElement.style.height;
+		this._header.updateHeight(headHeight);
 
 		this._commentsElement = dom.append(this._bodyElement, dom.$('div.comments-container'));
 		this._commentsElement.setAttribute('role', 'presentation');
@@ -638,7 +601,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeLabel(_ => {
-			this.createThreadLabel();
+			this._header.createThreadLabel();
 		}));
 	}
 
@@ -747,22 +710,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			if (this._commentFormActions) {
 				this._commentFormActions.triggerDefaultAction();
 			}
-		}
-	}
-
-	private createThreadLabel() {
-		let label: string | undefined;
-		label = this._commentThread.label;
-
-		if (label === undefined) {
-			if (!(this._commentThread.comments && this._commentThread.comments.length)) {
-				label = nls.localize('startThread', "Start discussion");
-			}
-		}
-
-		if (label) {
-			this._headingLabel.textContent = strings.escape(label);
-			this._headingLabel.setAttribute('aria-label', label);
 		}
 	}
 
