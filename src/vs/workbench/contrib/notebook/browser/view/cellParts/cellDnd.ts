@@ -44,11 +44,11 @@ export class CellDragAndDropController extends Disposable {
 
 	constructor(
 		private readonly notebookEditor: INotebookEditorDelegate,
-		insertionIndicatorContainer: HTMLElement
+		private readonly notebookListContainer: HTMLElement
 	) {
 		super();
 
-		this.listInsertionIndicator = DOM.append(insertionIndicatorContainer, $('.cell-list-insertion-indicator'));
+		this.listInsertionIndicator = DOM.append(notebookListContainer, $('.cell-list-insertion-indicator'));
 
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
@@ -110,7 +110,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private toCellDragEvent(event: DragEvent): CellDragEvent | undefined {
-		const targetTop = this.notebookEditor.getDomNode().getBoundingClientRect().top;
+		const targetTop = this.notebookListContainer.getBoundingClientRect().top;
 		const dragOffset = this.list.scrollTop + event.clientY - targetTop;
 		const draggedOverCell = this.list.elementAt(dragOffset);
 		if (!draggedOverCell) {
