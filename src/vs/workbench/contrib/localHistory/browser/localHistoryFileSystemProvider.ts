@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { hash } from 'vs/base/common/hash';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { stringify, parse } from 'vs/base/common/marshalling';
 import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, hasReadWriteCapability, IFileService, IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { sep } from 'vs/base/common/path';
-import { isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface ILocalHistoryResource {
@@ -43,7 +42,7 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 	static toLocalHistoryFileSystem(resource: ILocalHistoryResource): URI {
 		return URI.from({
 			scheme: LocalHistoryFileSystemProvider.SCHEMA,
-			path: `/${hash(resource.location.toString()).toString(16)}`,
+			path: `/${basename(resource.location)}`,
 			query: stringify(resource)
 		});
 	}
