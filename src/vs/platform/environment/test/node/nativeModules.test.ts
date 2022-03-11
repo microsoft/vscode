@@ -35,12 +35,12 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof watchDog.start === 'function', testErrorMessage('native-watchdog'));
 	});
 
-	test('node-pty', async () => {
+	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('node-pty', async () => {
 		const nodePty = await import('node-pty');
 		assert.ok(typeof nodePty.spawn === 'function', testErrorMessage('node-pty'));
 	});
 
-	test('spdlog', async () => {
+	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('spdlog', async () => {
 		const spdlog = await import('spdlog');
 		assert.ok(typeof spdlog.createRotatingLogger === 'function', testErrorMessage('spdlog'));
 		assert.ok(typeof spdlog.version === 'number', testErrorMessage('spdlog'));
@@ -109,7 +109,7 @@ flakySuite('Native Modules (all platforms)', () => {
 
 (!isWindows ? suite.skip : suite)('Native Modules (Windows)', () => {
 
-	test('windows-mutex', async () => {
+	(process.type === 'renderer' ? test.skip /* TODO@electron module is not context aware yet and thus cannot load in Electron renderer used by tests */ : test)('windows-mutex', async () => {
 		const mutex = await import('windows-mutex');
 		assert.ok(mutex && typeof mutex.isActive === 'function', testErrorMessage('windows-mutex'));
 		assert.ok(typeof mutex.isActive === 'function', testErrorMessage('windows-mutex'));

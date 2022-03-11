@@ -20,8 +20,8 @@ import * as pfs from 'vs/base/node/pfs';
 import { extract, ExtractError } from 'vs/base/node/zip';
 import { localize } from 'vs/nls';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ExtensionManagementError, ExtensionManagementErrorCode, Metadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, ExtensionIdentifierWithVersion, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { ExtensionManagementError, ExtensionManagementErrorCode, Metadata, ILocalExtension, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ExtensionType, IExtensionIdentifier, IExtensionManifest, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -80,7 +80,7 @@ export class ExtensionsScanner extends Disposable {
 	async scanUserExtensions(excludeOutdated: boolean): Promise<ILocalExtension[]> {
 		this.logService.trace('Started scanning user extensions');
 		let [uninstalled, extensions] = await Promise.all([this.getUninstalledExtensions(), this.scanAllUserExtensions()]);
-		extensions = extensions.filter(e => !uninstalled[new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version).key()]);
+		extensions = extensions.filter(e => !uninstalled[ExtensionKey.create(e).toString()]);
 		if (excludeOutdated) {
 			const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.identifier);
 			extensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
@@ -93,21 +93,18 @@ export class ExtensionsScanner extends Disposable {
 		return this.scanExtensionsInDir(this.extensionsPath, ExtensionType.User);
 	}
 
-	async extractUserExtension(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: Metadata | undefined, token: CancellationToken): Promise<ILocalExtension> {
-		const folderName = identifierWithVersion.key();
+	async extractUserExtension(extensionKey: ExtensionKey, zipPath: string, metadata: Metadata | undefined, token: CancellationToken): Promise<ILocalExtension> {
+		const folderName = extensionKey.toString();
 		const tempPath = path.join(this.extensionsPath, `.${generateUuid()}`);
 		const extensionPath = path.join(this.extensionsPath, folderName);
 
 		try {
 			await pfs.Promises.rm(extensionPath);
 		} catch (error) {
-			try {
-				await pfs.Promises.rm(extensionPath);
-			} catch (e) { /* ignore */ }
-			throw new ExtensionManagementError(localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, identifierWithVersion.id), ExtensionManagementErrorCode.Delete);
+			throw new ExtensionManagementError(localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionPath, extensionKey.id), ExtensionManagementErrorCode.Delete);
 		}
 
-		await this.extractAtLocation(identifierWithVersion, zipPath, tempPath, token);
+		await this.extractAtLocation(extensionKey, zipPath, tempPath, token);
 		let local = await this.scanExtension(URI.file(tempPath), ExtensionType.User);
 		if (!local) {
 			throw new Error(localize('cannot read', "Cannot read the extension from {0}", tempPath));
@@ -115,14 +112,14 @@ export class ExtensionsScanner extends Disposable {
 		await this.storeMetadata(local, { ...metadata, installedTimestamp: Date.now() });
 
 		try {
-			await this.rename(identifierWithVersion, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+			await this.rename(extensionKey, tempPath, extensionPath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
 			this.logService.info('Renamed to', extensionPath);
 		} catch (error) {
 			try {
 				await pfs.Promises.rm(tempPath);
 			} catch (e) { /* ignore */ }
 			if (error.code === 'ENOTEMPTY') {
-				this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, identifierWithVersion.id);
+				this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
 			} else {
 				this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempPath);
 				throw error;
@@ -163,16 +160,16 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	async setUninstalled(...extensions: ILocalExtension[]): Promise<void> {
-		const ids: ExtensionIdentifierWithVersion[] = extensions.map(e => new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version));
+		const extensionKeys: ExtensionKey[] = extensions.map(e => ExtensionKey.create(e));
 		await this.withUninstalledExtensions(uninstalled => {
-			ids.forEach(id => uninstalled[id.key()] = true);
+			extensionKeys.forEach(extensionKey => uninstalled[extensionKey.toString()] = true);
 		});
 	}
 
-	async setInstalled(identifierWithVersion: ExtensionIdentifierWithVersion): Promise<ILocalExtension | null> {
-		await this.withUninstalledExtensions(uninstalled => delete uninstalled[identifierWithVersion.key()]);
+	async setInstalled(extensionKey: ExtensionKey): Promise<ILocalExtension | null> {
+		await this.withUninstalledExtensions(uninstalled => delete uninstalled[extensionKey.toString()]);
 		const installed = await this.scanExtensions(ExtensionType.User);
-		const localExtension = installed.find(i => new ExtensionIdentifierWithVersion(i.identifier, i.manifest.version).equals(identifierWithVersion)) || null;
+		const localExtension = installed.find(i => ExtensionKey.create(i).equals(extensionKey)) || null;
 		if (!localExtension) {
 			return null;
 		}
@@ -219,7 +216,7 @@ export class ExtensionsScanner extends Disposable {
 
 	async removeUninstalledExtension(extension: ILocalExtension): Promise<void> {
 		await this.removeExtension(extension, 'uninstalled');
-		await this.withUninstalledExtensions(uninstalled => delete uninstalled[new ExtensionIdentifierWithVersion(extension.identifier, extension.manifest.version).key()]);
+		await this.withUninstalledExtensions(uninstalled => delete uninstalled[ExtensionKey.create(extension).toString()]);
 	}
 
 	private async extractAtLocation(identifier: IExtensionIdentifier, zipPath: string, location: string, token: CancellationToken): Promise<void> {
@@ -336,6 +333,7 @@ export class ExtensionsScanner extends Disposable {
 		local.preRelease = !!metadata?.preRelease;
 		local.isBuiltin = local.type === ExtensionType.System || !!metadata?.isBuiltin;
 		local.installedTimestamp = metadata?.installedTimestamp;
+		local.targetPlatform = metadata?.targetPlatform ?? TargetPlatform.UNDEFINED;
 	}
 
 	private async removeUninstalledExtensions(): Promise<void> {
@@ -343,7 +341,7 @@ export class ExtensionsScanner extends Disposable {
 		const extensions = await this.scanAllUserExtensions(); // All user extensions
 		const installed: Set<string> = new Set<string>();
 		for (const e of extensions) {
-			if (!uninstalled[new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version).key()]) {
+			if (!uninstalled[ExtensionKey.create(e).toString()]) {
 				installed.add(e.identifier.id.toLowerCase());
 			}
 		}
@@ -354,7 +352,7 @@ export class ExtensionsScanner extends Disposable {
 				await this.beforeRemovingExtension(latest);
 			}
 		}));
-		const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version).key()]);
+		const toRemove: ILocalExtension[] = extensions.filter(e => uninstalled[ExtensionKey.create(e).toString()]);
 		await Promises.settled(toRemove.map(e => this.removeUninstalledExtension(e)));
 	}
 

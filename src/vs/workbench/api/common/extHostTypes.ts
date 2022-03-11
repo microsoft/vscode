@@ -1612,6 +1612,28 @@ export class InlineSuggestions implements vscode.InlineCompletionList {
 	}
 }
 
+@es5ClassCompat
+export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
+	insertText: string;
+	range?: Range;
+	command?: vscode.Command;
+
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+		this.insertText = insertText;
+		this.range = range;
+		this.command = command;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
+	items: vscode.InlineCompletionItemNew[];
+
+	constructor(items: vscode.InlineCompletionItemNew[]) {
+		this.items = items;
+	}
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -2585,6 +2607,11 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 export enum InlineCompletionTriggerKind {
 	Automatic = 0,
 	Explicit = 1,
+}
+
+export enum InlineCompletionTriggerKindNew {
+	Invoke = 0,
+	Automatic = 1,
 }
 
 @es5ClassCompat

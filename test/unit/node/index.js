@@ -30,7 +30,6 @@ const excludeModules = [
 	'vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
 	'vs/workbench/contrib/testing/test/common/testResultStorage.test.js', // TODO@connor4312 https://github.com/microsoft/vscode/issues/137853
 	'vs/workbench/contrib/testing/test/common/testResultService.test.js', // TODO@connor4312 https://github.com/microsoft/vscode/issues/137853
-	'vs/platform/files/test/common/files.test.js' // TODO@bpasero enable once we ship Electron 16
 ];
 
 /**
