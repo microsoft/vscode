@@ -5,7 +5,7 @@
 		{
 			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
-				"foreground": "#000000"
+				"foreground": "#292929"
 			}
 		},
 		{

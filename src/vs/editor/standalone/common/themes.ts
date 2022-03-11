@@ -215,7 +215,7 @@ export const hc_light: IStandaloneThemeData = {
 	base: 'hc-light',
 	inherit: false,
 	rules: [
-		{ token: '', foreground: '000000', background: 'FFFFFF' },
+		{ token: '', foreground: '292929', background: 'FFFFFF' },
 		{ token: 'invalid', foreground: 'cd3131' },
 		{ token: 'emphasis', fontStyle: 'italic' },
 		{ token: 'strong', fontStyle: 'bold' },
@@ -247,7 +247,7 @@ export const hc_light: IStandaloneThemeData = {
 		{ token: 'string.key.json', foreground: 'A31515' },
 		{ token: 'string.value.json', foreground: '0451A5' },
 
-		{ token: 'attribute.name', foreground: 'FF0000' },
+		{ token: 'attribute.name', foreground: '264F78' },
 		{ token: 'attribute.value', foreground: '0451A5' },
 
 		{ token: 'string', foreground: 'A31515' },
