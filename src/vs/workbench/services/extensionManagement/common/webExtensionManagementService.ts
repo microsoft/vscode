@@ -111,7 +111,8 @@ function toLocalExtension(extension: IScannedExtension): ILocalExtension {
 		publisherDisplayName: metadata.publisherDisplayName || null,
 		installedTimestamp: metadata.installedTimestamp,
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
-		preRelease: !!metadata.preRelease
+		preRelease: !!metadata.preRelease,
+		targetPlatform: TargetPlatform.WEB
 	};
 }
 

@@ -902,33 +902,6 @@ const apiTestContentProvider: vscode.NotebookContentProvider = {
 
 		assert.strictEqual(executionWasCancelled, true);
 	});
-
-	test('execution cancelled when kernel changed', async () => {
-		await openRandomNotebookDocument();
-		let executionWasCancelled = false;
-		const cancelledKernel = new class extends Kernel {
-			constructor() {
-				super('cancelledKernel', '');
-			}
-
-			override async _execute(cells: vscode.NotebookCell[]) {
-				const [cell] = cells;
-				const exe = this.controller.createNotebookCellExecution(cell);
-				exe.token.onCancellationRequested(() => executionWasCancelled = true);
-			}
-		};
-
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		testDisposables.push(cancelledKernel.controller);
-		await assertKernel(cancelledKernel, notebook);
-		await vscode.commands.executeCommand('notebook.cell.execute');
-
-		const newKernel = new Kernel('newKernel', 'kernel');
-		testDisposables.push(newKernel.controller);
-		await assertKernel(newKernel, notebook);
-		assert.strictEqual(executionWasCancelled, true);
-	});
 });
 
 (vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('statusbar', () => {
