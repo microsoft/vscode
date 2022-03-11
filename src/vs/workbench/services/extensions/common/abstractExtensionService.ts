@@ -132,28 +132,28 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	public _serviceBrand: undefined;
 
-	protected readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
+	private readonly _onDidRegisterExtensions: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidRegisterExtensions = this._onDidRegisterExtensions.event;
 
-	protected readonly _onDidChangeExtensionsStatus: Emitter<ExtensionIdentifier[]> = this._register(new Emitter<ExtensionIdentifier[]>());
+	private readonly _onDidChangeExtensionsStatus: Emitter<ExtensionIdentifier[]> = this._register(new Emitter<ExtensionIdentifier[]>());
 	public readonly onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = this._onDidChangeExtensionsStatus.event;
 
-	protected readonly _onDidChangeExtensions: Emitter<void> = this._register(new Emitter<void>({ leakWarningThreshold: 400 }));
+	private readonly _onDidChangeExtensions: Emitter<void> = this._register(new Emitter<void>({ leakWarningThreshold: 400 }));
 	public readonly onDidChangeExtensions: Event<void> = this._onDidChangeExtensions.event;
 
-	protected readonly _onWillActivateByEvent = this._register(new Emitter<IWillActivateEvent>());
+	private readonly _onWillActivateByEvent = this._register(new Emitter<IWillActivateEvent>());
 	public readonly onWillActivateByEvent: Event<IWillActivateEvent> = this._onWillActivateByEvent.event;
 
-	protected readonly _onDidChangeResponsiveChange = this._register(new Emitter<IResponsiveStateChangeEvent>());
+	private readonly _onDidChangeResponsiveChange = this._register(new Emitter<IResponsiveStateChangeEvent>());
 	public readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = this._onDidChangeResponsiveChange.event;
 
 	protected readonly _registry: ExtensionDescriptionRegistry;
 	private readonly _registryLock: Lock;
 
 	private readonly _installedExtensionsReady: Barrier;
-	protected readonly _isDev: boolean;
+	private readonly _isDev: boolean;
 	private readonly _extensionsMessages: Map<string, IMessage[]>;
-	protected readonly _allRequestedActivateEvents = new Set<string>();
+	private readonly _allRequestedActivateEvents = new Set<string>();
 	private readonly _proposedApiController: ProposedApiController;
 	private readonly _isExtensionDevHost: boolean;
 	protected readonly _isExtensionDevTestFromCli: boolean;
@@ -161,11 +161,12 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 	private _inHandleDeltaExtensions: boolean;
 
-	protected _runningLocation: Map<string, ExtensionRunningLocation | null>;
+	private _runningLocation: Map<string, ExtensionRunningLocation | null>;
 	private _lastExtensionHostId: number = 0;
+	private _maxLocalProcessAffinity: number = 0;
 
 	// --- Members used per extension host process
-	protected _extensionHostManagers: IExtensionHostManager[];
+	private _extensionHostManagers: IExtensionHostManager[];
 	protected _extensionHostActiveExtensions: Map<string, ExtensionIdentifier>;
 	private _extensionHostActivationTimes: Map<string, ActivationTimes>;
 	private _extensionHostExtensionRuntimeErrors: Map<string, Error[]>;
@@ -405,7 +406,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return { affinities: result, maxAffinity: lastAffinity };
 	}
 
-	protected _computeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): Map<string, ExtensionRunningLocation | null> {
+	private _computeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): { runningLocation: Map<string, ExtensionRunningLocation | null>; maxLocalProcessAffinity: number } {
 		const extensionHostKinds = ExtensionHostKindClassifier.determineExtensionHostKinds(
 			localExtensions,
 			remoteExtensions,
@@ -438,13 +439,24 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			result.set(extensionIdKey, runningLocation);
 		}
 
-		const { affinities } = this._computeAffinity(localProcessExtensions, ExtensionHostKind.LocalProcess, isInitialAllocation);
+		const { affinities, maxAffinity } = this._computeAffinity(localProcessExtensions, ExtensionHostKind.LocalProcess, isInitialAllocation);
 		for (const extension of localProcessExtensions) {
 			const affinity = affinities.get(ExtensionIdentifier.toKey(extension.identifier)) || 0;
 			result.set(ExtensionIdentifier.toKey(extension.identifier), new LocalProcessRunningLocation(affinity));
 		}
 
-		return result;
+		return { runningLocation: result, maxLocalProcessAffinity: maxAffinity };
+	}
+
+	protected _determineRunningLocation(localExtensions: IExtensionDescription[]): Map<string, ExtensionRunningLocation | null> {
+		return this._computeRunningLocation(localExtensions, [], false).runningLocation;
+	}
+
+	protected _initializeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[]): void {
+		const { runningLocation, maxLocalProcessAffinity } = this._computeRunningLocation(localExtensions, remoteExtensions, true);
+		this._runningLocation = runningLocation;
+		this._maxLocalProcessAffinity = maxLocalProcessAffinity;
+		this._startExtensionHostsIfNecessary(true, []);
 	}
 
 	/**
@@ -473,6 +485,18 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			const affinity = affinities.get(ExtensionIdentifier.toKey(extension.identifier)) || 0;
 			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), new LocalProcessRunningLocation(affinity));
 		}
+	}
+
+	protected _filterByRunningLocation(extensions: IExtensionDescription[], desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {
+		return filterByRunningLocation(extensions, this._runningLocation, desiredRunningLocation);
+	}
+
+	protected _filterByExtensionHostKind(extensions: IExtensionDescription[], desiredExtensionHostKind: ExtensionHostKind): IExtensionDescription[] {
+		return filterByExtensionHostKind(extensions, this._runningLocation, desiredExtensionHostKind);
+	}
+
+	protected _filterByExtensionHostManager(extensions: IExtensionDescription[], extensionHostManager: IExtensionHostManager): IExtensionDescription[] {
+		return filterByExtensionHostManager(extensions, this._runningLocation, extensionHostManager);
 	}
 
 	//#endregion
@@ -705,7 +729,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected async _initialize(): Promise<void> {
 		perf.mark('code/willLoadExtensions');
-		this._startExtensionHosts(true, []);
+		this._startExtensionHostsIfNecessary(true, []);
 
 		const lock = await this._registryLock.acquire('_initialize');
 		try {
@@ -799,21 +823,42 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private _startExtensionHosts(isInitialStart: boolean, initialActivationEvents: string[]): void {
-		const extensionHosts = this._createExtensionHosts(isInitialStart);
-		extensionHosts.forEach((extensionHost) => {
-			const extensionHostId = String(++this._lastExtensionHostId);
-			const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHostId, extensionHost, isInitialStart, initialActivationEvents, this._acquireInternalAPI());
-			processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
-			processManager.onDidChangeResponsiveState((responsiveState) => {
-				this._onDidChangeResponsiveChange.fire({
-					extensionHostId: extensionHostId,
-					extensionHostKind: processManager.kind,
-					isResponsive: responsiveState === ResponsiveState.Responsive
-				});
+	private _startExtensionHostsIfNecessary(isInitialStart: boolean, initialActivationEvents: string[]): void {
+		const locations: ExtensionRunningLocation[] = [];
+		for (let affinity = 0; affinity <= this._maxLocalProcessAffinity; affinity++) {
+			locations.push(new LocalProcessRunningLocation(affinity));
+		}
+		locations.push(new LocalWebWorkerRunningLocation());
+		locations.push(new RemoteRunningLocation());
+		for (const location of locations) {
+			if (this._getExtensionHostManagerByRunningLocation(location)) {
+				// already running
+				continue;
+			}
+			const extHostManager = this._createExtensionHostManager(location, isInitialStart, initialActivationEvents);
+			if (extHostManager) {
+				this._extensionHostManagers.push(extHostManager);
+			}
+		}
+	}
+
+	private _createExtensionHostManager(runningLocation: ExtensionRunningLocation, isInitialStart: boolean, initialActivationEvents: string[]): IExtensionHostManager | null {
+		const extensionHost = this._createExtensionHost(runningLocation, isInitialStart);
+		if (!extensionHost) {
+			return null;
+		}
+
+		const extensionHostId = String(++this._lastExtensionHostId);
+		const processManager: IExtensionHostManager = createExtensionHostManager(this._instantiationService, extensionHostId, extensionHost, isInitialStart, initialActivationEvents, this._acquireInternalAPI());
+		processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
+		processManager.onDidChangeResponsiveState((responsiveState) => {
+			this._onDidChangeResponsiveChange.fire({
+				extensionHostId: extensionHostId,
+				extensionHostKind: processManager.kind,
+				isResponsive: responsiveState === ResponsiveState.Responsive
 			});
-			this._extensionHostManagers.push(processManager);
 		});
+		return processManager;
 	}
 
 	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
@@ -847,7 +892,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const lock = await this._registryLock.acquire('startExtensionHosts');
 		try {
-			this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
+			this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
 
 			const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
 			await Promise.all(localProcessExtensionHosts.map(extHost => extHost.ready()));
@@ -1238,7 +1283,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#endregion
 
-	protected abstract _createExtensionHosts(isInitialStart: boolean): IExtensionHost[];
+	protected abstract _createExtensionHost(runningLocation: ExtensionRunningLocation, isInitialStart: boolean): IExtensionHost | null;
 	protected abstract _scanAndHandleExtensions(): Promise<void>;
 	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
 	public abstract _onExtensionHostExit(code: number): void;
@@ -1453,11 +1498,11 @@ function _filterByRunningLocation<T>(extensions: T[], extId: (item: T) => Extens
 	return _filterExtensions(extensions, extId, runningLocation, extRunningLocation => desiredRunningLocation.equals(extRunningLocation));
 }
 
-export function filterByExtensionHostKind(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, desiredExtensionHostKind: ExtensionHostKind): IExtensionDescription[] {
+function filterByExtensionHostKind(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, desiredExtensionHostKind: ExtensionHostKind): IExtensionDescription[] {
 	return _filterExtensions(extensions, ext => ext.identifier, runningLocation, extRunningLocation => extRunningLocation.kind === desiredExtensionHostKind);
 }
 
-export function filterByExtensionHostManager(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, extensionHostManager: IExtensionHostManager): IExtensionDescription[] {
+function filterByExtensionHostManager(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, extensionHostManager: IExtensionHostManager): IExtensionDescription[] {
 	return _filterByExtensionHostManager(extensions, ext => ext.identifier, runningLocation, extensionHostManager);
 }
 
