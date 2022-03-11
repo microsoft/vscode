@@ -12,7 +12,7 @@ import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChi
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IProcessDetails } from 'vs/platform/terminal/common/terminalProcess';
+import { IProcessDetails, ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 
@@ -114,6 +114,7 @@ export interface ITerminalBackend {
 	onPtyHostRestart: Event<void>;
 
 	onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
+	onRestoreCommands: Event<{ id: number; commands: ISerializedCommand[] }>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;

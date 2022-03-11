@@ -131,6 +131,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
+		if (capability.commands.length > 0) {
+			const lastCommand = capability.commands[capability.commands.length - 1];
+			if (lastCommand.marker && !lastCommand.endMarker) {
+				this.registerCommandDecoration(lastCommand, true);
+			}
+		}
 		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command, true));
 	}
 
@@ -142,6 +148,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (!capability) {
 			return;
+		}
+		for (const command of capability.commands) {
+			this.registerCommandDecoration(command);
 		}
 		this._commandFinishedListener = capability.onCommandFinished(command => {
 			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {

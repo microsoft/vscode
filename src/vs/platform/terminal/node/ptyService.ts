@@ -18,7 +18,7 @@ import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnviro
 import { Terminal as XtermTerminal } from 'xterm-headless';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISerializedCommand, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { localize } from 'vs/nls';
@@ -26,6 +26,7 @@ import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonito
 import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 type WorkspaceId = string;
 
@@ -725,9 +726,9 @@ export class PersistentTerminalProcess extends Disposable {
 }
 
 class XtermSerializer implements ITerminalSerializer {
-	private _xterm: XtermTerminal;
+	private readonly _xterm: XtermTerminal;
+	private readonly _shellIntegrationAddon: ShellIntegrationAddon;
 	private _unicodeAddon?: XtermUnicode11Addon;
-	private _shellIntegrationEnabled: boolean = false;
 
 	constructor(
 		cols: number,
@@ -740,22 +741,10 @@ class XtermSerializer implements ITerminalSerializer {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
 		if (reviveBuffer) {
 			this._xterm.writeln(reviveBuffer);
-			if (this._shellIntegrationEnabled) {
-				this._xterm.write('\x1b033]133;E\x1b007');
-			}
 		}
-		this._xterm.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
 		this.setUnicodeVersion(unicodeVersion);
-		this._xterm.loadAddon(new ShellIntegrationAddon(logService));
-	}
-
-	private _handleShellIntegration(data: string): boolean {
-		const [command,] = data.split(';');
-		if (command === 'E') {
-			this._shellIntegrationEnabled = true;
-			return true;
-		}
-		return false;
+		this._shellIntegrationAddon = new ShellIntegrationAddon(logService);
+		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 
 	handleData(data: string): void {
@@ -782,7 +771,8 @@ class XtermSerializer implements ITerminalSerializer {
 					rows: this._xterm.getOption('rows'),
 					data: serialized
 				}
-			]
+			],
+			commands: this._getSerializedCommands()
 		};
 	}
 
@@ -812,6 +802,22 @@ class XtermSerializer implements ITerminalSerializer {
 			SerializeAddon = (await import('xterm-addon-serialize')).SerializeAddon;
 		}
 		return SerializeAddon;
+	}
+
+	private _getSerializedCommands(): ISerializedCommand[] {
+		const commandDetection = this._shellIntegrationAddon.capabilities.get(TerminalCapability.CommandDetection);
+		if (!commandDetection) {
+			return [];
+		}
+		return commandDetection.commands.map(e => {
+			return {
+				cwd: e.cwd,
+				startLine: e.marker?.line,
+				endLine: e.endMarker?.line,
+				exitCode: e.exitCode,
+				timestamp: e.timestamp
+			};
+		});
 	}
 }
 

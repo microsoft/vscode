@@ -7,6 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { IBuffer, IDisposable, IMarker, Terminal } from 'xterm-headless';
@@ -222,6 +223,33 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	setCommandLine(commandLine: string) {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
 		this._currentCommand.command = commandLine;
+	}
+
+	restoreCommands(serialized: ISerializedCommand[]): void {
+		console.log('restoreCommands', serialized);
+		const buffer = this._terminal.buffer.normal;
+		for (const e of serialized) {
+			const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			if (!marker) {
+				continue;
+			}
+			this._onCommandStarted.fire({ marker } as ITerminalCommand);
+			const newCommand = {
+				command: '',
+				marker,
+				endMarker: e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined,
+				timestamp: e.timestamp,
+				cwd: e.cwd,
+				exitCode: e.exitCode,
+				hasOutput: false,
+				getOutput: () => ''
+				// hasOutput: !!(this._currentCommand.commandExecutedMarker && this._currentCommand.commandFinishedMarker && this._currentCommand.commandExecutedMarker?.line < this._currentCommand.commandFinishedMarker!.line),
+				// getOutput: () => getOutputForCommand(clonedPartialCommand, buffer)
+			};
+			this._commands.push(newCommand);
+			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
+			this._onCommandFinished.fire(newCommand);
+		}
 	}
 }
 

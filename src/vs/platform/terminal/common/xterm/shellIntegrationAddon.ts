@@ -14,6 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { ITerminalAddon, Terminal } from 'xterm-headless';
+import { ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -188,6 +189,13 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 
 		// Unrecognized sequence
 		return false;
+	}
+
+	restoreCommands(serialized: ISerializedCommand[]): void {
+		if (!this._terminal) {
+			throw new Error('Cannot restore commands before addon is activated');
+		}
+		this._createOrGetCommandDetection(this._terminal).restoreCommands(serialized);
 	}
 
 	protected _createOrGetCwdDetection(): ICwdDetectionCapability {
