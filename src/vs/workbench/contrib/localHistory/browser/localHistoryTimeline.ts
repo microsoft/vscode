@@ -124,24 +124,22 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		});
 	}
 
-	async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline> {
-
-		// Make sure to support both default scheme and local history
-		// scheme, in case the user is looking at a history entry.
-
+	async provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined> {
 
 		// Try to convert the provided `uri` into a form that is likely
 		// for the provider to find entries for:
 		// - `vscode-local-history`: convert back to the associated resource
 		// - default-scheme: keep as is
-		// - anything else: convert
-		let resource: URI;
+		// - anything that is backed by a file system provider: convert
+		let resource: URI | undefined = undefined;
 		if (uri.scheme === LocalHistoryFileSystemProvider.SCHEMA) {
 			resource = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri).associatedResource;
 		} else if (uri.scheme === this.pathService.defaultUriScheme) {
 			resource = uri;
-		} else {
+		} else if (this.fileService.hasProvider(uri)) {
 			resource = URI.from({ scheme: this.pathService.defaultUriScheme, authority: this.environmentService.remoteAuthority, path: uri.path });
+		} else {
+			return undefined;
 		}
 
 		// Retrieve from working copy history
