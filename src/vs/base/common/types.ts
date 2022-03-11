@@ -43,6 +43,15 @@ export function isObject(obj: unknown): obj is Object {
 }
 
 /**
+ *
+ * @returns whether the provided parameter is of type `Buffer` or Uint8Array dervived type
+ */
+export function isBuffer(obj: unknown): obj is Object {
+	return typeof obj === 'object'
+		&& obj instanceof Uint8Array;
+}
+
+/**
  * In **contrast** to just checking `typeof` this will return `false` for `NaN`.
  * @returns whether the provided parameter is a JavaScript Number or not.
  */
