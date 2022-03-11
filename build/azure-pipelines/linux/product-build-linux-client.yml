@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "14.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -99,7 +99,7 @@ steps:
 
       if [ -z "$CC" ] || [ -z "$CXX" ]; then
         # Download clang based on chromium revision used by vscode
-        curl -s https://raw.githubusercontent.com/chromium/chromium/91.0.4472.164/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+        curl -s https://raw.githubusercontent.com/chromium/chromium/98.0.4758.109/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
         # Download libcxx headers and objects from upstream electron releases
         DEBUG=libcxx-fetcher \
         VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
@@ -109,12 +109,12 @@ steps:
         node build/linux/libcxx-fetcher.js
         # Set compiler toolchain
         # Flags for the client build are based on
-        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/91.0.4472.164:build/config/arm.gni
-        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/91.0.4472.164:build/config/compiler/BUILD.gn
-        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/91.0.4472.164:build/config/c++/BUILD.gn
+        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:build/config/arm.gni
+        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:build/config/compiler/BUILD.gn
+        # https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:build/config/c++/BUILD.gn
         export CC=$PWD/.build/CR_Clang/bin/clang
         export CXX=$PWD/.build/CR_Clang/bin/clang++
-        export CXXFLAGS="-nostdinc++ -D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
+        export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
         export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -L$PWD/.build/libcxx-objects -lc++abi -Wl,--lto-O0"
         export VSCODE_REMOTE_CC=$(which gcc)
         export VSCODE_REMOTE_CXX=$(which g++)
