@@ -410,11 +410,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		await Promise.all(promises);
 	}
 
-	private async _updateExtensionsOnExtHost(extensionHostManager: IExtensionHostManager, toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[], removedRunningLocation: Map<string, ExtensionRunningLocation | null>): Promise<void> {
-		const localToAdd = filterByExtensionHostManager(toAdd, this._runningLocation, extensionHostManager);
-		const localToRemove = _filterByExtensionHostManager(toRemove, extId => extId, removedRunningLocation, extensionHostManager);
-		if (localToRemove.length > 0 || localToAdd.length > 0) {
-			await extensionHostManager.deltaExtensions(localToAdd, localToRemove);
+	private async _updateExtensionsOnExtHost(extensionHostManager: IExtensionHostManager, _toAdd: IExtensionDescription[], _toRemove: ExtensionIdentifier[], removedRunningLocation: Map<string, ExtensionRunningLocation | null>): Promise<void> {
+		const toAdd = filterByExtensionHostManager(_toAdd, this._runningLocation, extensionHostManager);
+		const toRemove = _filterByExtensionHostManager(_toRemove, extId => extId, removedRunningLocation, extensionHostManager);
+		if (toRemove.length > 0 || toAdd.length > 0) {
+			await extensionHostManager.deltaExtensions(toAdd, toRemove);
 		}
 	}
 
@@ -658,10 +658,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		try {
 			this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
 
-			const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
-			if (localProcessExtensionHost) {
-				await localProcessExtensionHost.ready();
-			}
+			const localProcessExtensionHosts = this._getExtensionHostManagers(ExtensionHostKind.LocalProcess);
+			await Promise.all(localProcessExtensionHosts.map(extHost => extHost.ready()));
 		} finally {
 			lock.dispose();
 		}
@@ -1240,23 +1238,29 @@ class ProposedApiController {
 	}
 }
 
-export function filterByRunningLocation(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, desiredExtensionHostKind: ExtensionHostKind): IExtensionDescription[] {
-	return _filterByRunningLocation(extensions, ext => ext.identifier, runningLocation, desiredExtensionHostKind);
+export function filterByRunningLocation(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, desiredRunningLocation: ExtensionRunningLocation): IExtensionDescription[] {
+	return _filterByRunningLocation(extensions, ext => ext.identifier, runningLocation, desiredRunningLocation);
 }
 
-function _filterByRunningLocation<T>(extensions: T[], extId: (item: T) => ExtensionIdentifier, runningLocation: Map<string, ExtensionRunningLocation | null>, desiredExtensionHostKind: ExtensionHostKind): T[] {
-	return extensions.filter((ext) => {
-		const extRunningLocation = runningLocation.get(ExtensionIdentifier.toKey(extId(ext)));
-		return (extRunningLocation && extRunningLocation.type === desiredExtensionHostKind);
-	});
+function _filterByRunningLocation<T>(extensions: T[], extId: (item: T) => ExtensionIdentifier, runningLocation: Map<string, ExtensionRunningLocation | null>, desiredRunningLocation: ExtensionRunningLocation): T[] {
+	return _filterExtensions(extensions, extId, runningLocation, extRunningLocation => desiredRunningLocation.equals(extRunningLocation));
 }
 
-function filterByExtensionHostManager(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, extensionHostManager: IExtensionHostManager): IExtensionDescription[] {
+export function filterByExtensionHostKind(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, desiredExtensionHostKind: ExtensionHostKind): IExtensionDescription[] {
+	return _filterExtensions(extensions, ext => ext.identifier, runningLocation, extRunningLocation => extRunningLocation.type === desiredExtensionHostKind);
+}
+
+export function filterByExtensionHostManager(extensions: IExtensionDescription[], runningLocation: Map<string, ExtensionRunningLocation | null>, extensionHostManager: IExtensionHostManager): IExtensionDescription[] {
 	return _filterByExtensionHostManager(extensions, ext => ext.identifier, runningLocation, extensionHostManager);
 }
+
 function _filterByExtensionHostManager<T>(extensions: T[], extId: (item: T) => ExtensionIdentifier, runningLocation: Map<string, ExtensionRunningLocation | null>, extensionHostManager: IExtensionHostManager): T[] {
+	return _filterExtensions(extensions, extId, runningLocation, extRunningLocation => extensionHostManager.representsRunningLocation(extRunningLocation));
+}
+
+function _filterExtensions<T>(extensions: T[], extId: (item: T) => ExtensionIdentifier, runningLocation: Map<string, ExtensionRunningLocation | null>, predicate: (extRunningLocation: ExtensionRunningLocation) => boolean): T[] {
 	return extensions.filter((ext) => {
 		const extRunningLocation = runningLocation.get(ExtensionIdentifier.toKey(extId(ext)));
-		return (extRunningLocation && extensionHostManager.representsRunningLocation(extRunningLocation));
+		return extRunningLocation && predicate(extRunningLocation);
 	});
 }

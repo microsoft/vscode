@@ -13,10 +13,10 @@ import { IExtensionService, IExtensionHost, toExtensionDescription, ExtensionRun
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString, filterByRunningLocation } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, ExtensionRunningPreference, extensionRunningPreferenceToString, filterByExtensionHostKind, filterByRunningLocation } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
+import { IWebWorkerExtensionHostDataProvider, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier, IExtensionDescription, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
@@ -107,11 +107,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._disposables.add(this._fileService.registerProvider(Schemas.https, provider));
 	}
 
-	private _createLocalExtensionHostDataProvider() {
+	private _createLocalExtensionHostDataProvider(desiredRunningLocation: ExtensionRunningLocation): IWebWorkerExtensionHostDataProvider {
 		return {
 			getInitData: async () => {
 				const allExtensions = await this.getExtensions();
-				const localWebWorkerExtensions = filterByRunningLocation(allExtensions, this._runningLocation, ExtensionHostKind.LocalWebWorker);
+				const localWebWorkerExtensions = filterByRunningLocation(allExtensions, this._runningLocation, desiredRunningLocation);
 				return {
 					autoStart: true,
 					extensions: localWebWorkerExtensions
@@ -174,7 +174,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHosts(_isInitialStart: boolean): IExtensionHost[] {
 		const result: IExtensionHost[] = [];
 
-		const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, false, this._createLocalExtensionHostDataProvider());
+		const webWorkerExtHost = this._instantiationService.createInstance(WebWorkerExtensionHost, false, this._createLocalExtensionHostDataProvider(new LocalWebWorkerRunningLocation()));
 		result.push(webWorkerExtHost);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
@@ -202,9 +202,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
 
 		// Some remote extensions could run locally in the web worker, so store them
-		const remoteExtensionsThatNeedToRunLocally = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionHostKind.LocalWebWorker);
-		localExtensions = filterByRunningLocation(localExtensions, this._runningLocation, ExtensionHostKind.LocalWebWorker);
-		remoteExtensions = filterByRunningLocation(remoteExtensions, this._runningLocation, ExtensionHostKind.Remote);
+		const remoteExtensionsThatNeedToRunLocally = filterByExtensionHostKind(remoteExtensions, this._runningLocation, ExtensionHostKind.LocalWebWorker);
+		localExtensions = filterByExtensionHostKind(localExtensions, this._runningLocation, ExtensionHostKind.LocalWebWorker);
+		remoteExtensions = filterByExtensionHostKind(remoteExtensions, this._runningLocation, ExtensionHostKind.Remote);
 
 		// Add locally the remote extensions that need to run locally in the web worker
 		for (const ext of remoteExtensionsThatNeedToRunLocally) {

@@ -39,12 +39,21 @@ export interface IMessage {
 
 export class LocalProcessRunningLocation {
 	public readonly type = ExtensionHostKind.LocalProcess;
+	public equals(other: ExtensionRunningLocation) {
+		return this.type === other.type;
+	}
 }
 export class LocalWebWorkerRunningLocation {
 	public readonly type = ExtensionHostKind.LocalWebWorker;
+	public equals(other: ExtensionRunningLocation) {
+		return this.type === other.type;
+	}
 }
 export class RemoteRunningLocation {
 	public readonly type = ExtensionHostKind.Remote;
+	public equals(other: ExtensionRunningLocation) {
+		return this.type === other.type;
+	}
 }
 export type ExtensionRunningLocation = LocalProcessRunningLocation | LocalWebWorkerRunningLocation | RemoteRunningLocation;
 
