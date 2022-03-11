@@ -276,7 +276,136 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region running location
 
-	protected _computeInitialRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[]): Map<string, ExtensionRunningLocation | null> {
+	private _computeAffinity(inputExtensions: IExtensionDescription[], extensionHostKind: ExtensionHostKind, isInitialAllocation: boolean): { affinities: Map<string, number>; maxAffinity: number } {
+		// Only analyze extensions that can execute
+		const extensions = new Map<string, IExtensionDescription>();
+		for (const extension of inputExtensions) {
+			if (extension.main || extension.browser) {
+				extensions.set(ExtensionIdentifier.toKey(extension.identifier), extension);
+			}
+		}
+		// Also add existing extensions of the same kind that can execute
+		for (const extension of this._registry.getAllExtensionDescriptions()) {
+			if (extension.main || extension.browser) {
+				const runningLocation = this._runningLocation.get(ExtensionIdentifier.toKey(extension.identifier));
+				if (runningLocation && runningLocation.kind === extensionHostKind) {
+					extensions.set(ExtensionIdentifier.toKey(extension.identifier), extension);
+				}
+			}
+		}
+
+		// Initially, each extension belongs to its own group
+		const groups = new Map<string, number>();
+		let groupNumber = 0;
+		for (const [_, extension] of extensions) {
+			groups.set(ExtensionIdentifier.toKey(extension.identifier), ++groupNumber);
+		}
+
+		const changeGroup = (from: number, to: number) => {
+			for (const [key, group] of groups) {
+				if (group === from) {
+					groups.set(key, to);
+				}
+			}
+		};
+
+		// We will group things together when there are dependencies
+		for (const [_, extension] of extensions) {
+			if (!extension.extensionDependencies) {
+				continue;
+			}
+			const myGroup = groups.get(ExtensionIdentifier.toKey(extension.identifier))!;
+			for (const depId of extension.extensionDependencies) {
+				const depGroup = groups.get(ExtensionIdentifier.toKey(depId));
+				if (!depGroup) {
+					// probably can't execute, so it has no impact
+					continue;
+				}
+
+				if (depGroup === myGroup) {
+					// already in the same group
+					continue;
+				}
+
+				changeGroup(depGroup, myGroup);
+			}
+		}
+
+		// Initialize with existing affinities
+		const resultingAffinities = new Map<number, number>();
+		let lastAffinity = 0;
+		for (const [_, extension] of extensions) {
+			const runningLocation = this._runningLocation.get(ExtensionIdentifier.toKey(extension.identifier));
+			if (runningLocation) {
+				const group = groups.get(ExtensionIdentifier.toKey(extension.identifier))!;
+				resultingAffinities.set(group, runningLocation.affinity);
+				lastAffinity = Math.max(lastAffinity, runningLocation.affinity);
+			}
+		}
+
+		// Go through each configured affinity and try to accomodate it
+		const configuredAffinities = this._configurationService.getValue<{ [extensionId: string]: number } | undefined>('extensions.experimental.affinity') || {};
+		const configuredExtensionIds = Object.keys(configuredAffinities);
+		const configuredAffinityToResultingAffinity = new Map<number, number>();
+		for (const extensionId of configuredExtensionIds) {
+			const configuredAffinity = configuredAffinities[extensionId];
+			if (typeof configuredAffinity !== 'number' || configuredAffinity <= 0 || Math.floor(configuredAffinity) !== configuredAffinity) {
+				this._logService.info(`Ignoring configured affinity for '${extensionId}' because the value is not a positive integer.`);
+				continue;
+			}
+			const group = groups.get(ExtensionIdentifier.toKey(extensionId));
+			if (!group) {
+				this._logService.info(`Ignoring configured affinity for '${extensionId}' because the extension is unknown or cannot execute.`);
+				continue;
+			}
+
+			const affinity1 = resultingAffinities.get(group);
+			if (affinity1) {
+				// Affinity for this group is already established
+				configuredAffinityToResultingAffinity.set(configuredAffinity, affinity1);
+				continue;
+			}
+
+			const affinity2 = configuredAffinityToResultingAffinity.get(configuredAffinity);
+			if (affinity2) {
+				// Affinity for this configuration is already established
+				resultingAffinities.set(group, affinity2);
+				continue;
+			}
+
+			if (!isInitialAllocation) {
+				this._logService.info(`Ignoring configured affinity for '${extensionId}' because extension host(s) are already running. Reload window.`);
+				continue;
+			}
+
+			const affinity3 = ++lastAffinity;
+			configuredAffinityToResultingAffinity.set(configuredAffinity, affinity3);
+			resultingAffinities.set(group, affinity3);
+		}
+
+		const result = new Map<string, number>();
+		for (const extension of inputExtensions) {
+			const group = groups.get(ExtensionIdentifier.toKey(extension.identifier)) || 0;
+			const affinity = resultingAffinities.get(group) || 0;
+			result.set(ExtensionIdentifier.toKey(extension.identifier), affinity);
+		}
+
+		if (lastAffinity > 0 && isInitialAllocation) {
+			for (let affinity = 1; affinity <= lastAffinity; affinity++) {
+				const extensionIds: ExtensionIdentifier[] = [];
+				for (const extension of inputExtensions) {
+					if (result.get(ExtensionIdentifier.toKey(extension.identifier)) === affinity) {
+						extensionIds.push(extension.identifier);
+					}
+				}
+				this._logService.info(`Placing extension(s) ${extensionIds.map(e => e.value).join(', ')} on a separate extension host.`);
+			}
+		}
+
+		return { affinities: result, maxAffinity: lastAffinity };
+	}
+
+	protected _computeRunningLocation(localExtensions: IExtensionDescription[], remoteExtensions: IExtensionDescription[], isInitialAllocation: boolean): Map<string, ExtensionRunningLocation | null> {
 		const extensionHostKinds = ExtensionHostKindClassifier.determineExtensionHostKinds(
 			localExtensions,
 			remoteExtensions,
@@ -284,11 +413,23 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			(extensionId, extensionKinds, isInstalledLocally, isInstalledRemotely, preference) => this._pickExtensionHostKind(extensionId, extensionKinds, isInstalledLocally, isInstalledRemotely, preference)
 		);
 
+		const extensions = new Map<string, IExtensionDescription>();
+		for (const extension of localExtensions) {
+			extensions.set(ExtensionIdentifier.toKey(extension.identifier), extension);
+		}
+		for (const extension of remoteExtensions) {
+			extensions.set(ExtensionIdentifier.toKey(extension.identifier), extension);
+		}
+
 		const result = new Map<string, ExtensionRunningLocation | null>();
+		const localProcessExtensions: IExtensionDescription[] = [];
 		for (const [extensionIdKey, extensionHostKind] of extensionHostKinds) {
 			let runningLocation: ExtensionRunningLocation | null = null;
 			if (extensionHostKind === ExtensionHostKind.LocalProcess) {
-				runningLocation = new LocalProcessRunningLocation();
+				const extensionDescription = extensions.get(ExtensionIdentifier.toKey(extensionIdKey));
+				if (extensionDescription) {
+					localProcessExtensions.push(extensionDescription);
+				}
 			} else if (extensionHostKind === ExtensionHostKind.LocalWebWorker) {
 				runningLocation = new LocalWebWorkerRunningLocation();
 			} else if (extensionHostKind === ExtensionHostKind.Remote) {
@@ -296,6 +437,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 			result.set(extensionIdKey, runningLocation);
 		}
+
+		const { affinities } = this._computeAffinity(localProcessExtensions, ExtensionHostKind.LocalProcess, isInitialAllocation);
+		for (const extension of localProcessExtensions) {
+			const affinity = affinities.get(ExtensionIdentifier.toKey(extension.identifier)) || 0;
+			result.set(ExtensionIdentifier.toKey(extension.identifier), new LocalProcessRunningLocation(affinity));
+		}
+
 		return result;
 	}
 
@@ -304,19 +452,26 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	 */
 	private _updateRunningLocationForAddedExtensions(toAdd: IExtensionDescription[]): void {
 		// Determine new running location
+		const localProcessExtensions: IExtensionDescription[] = [];
 		for (const extension of toAdd) {
 			const extensionKind = this._getExtensionKind(extension);
 			const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
 			const extensionHostKind = this._pickExtensionHostKind(extension.identifier, extensionKind, !isRemote, isRemote, ExtensionRunningPreference.None);
 			let runningLocation: ExtensionRunningLocation | null = null;
 			if (extensionHostKind === ExtensionHostKind.LocalProcess) {
-				runningLocation = new LocalProcessRunningLocation();
+				localProcessExtensions.push(extension);
 			} else if (extensionHostKind === ExtensionHostKind.LocalWebWorker) {
 				runningLocation = new LocalWebWorkerRunningLocation();
 			} else if (extensionHostKind === ExtensionHostKind.Remote) {
 				runningLocation = new RemoteRunningLocation();
 			}
 			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), runningLocation);
+		}
+
+		const { affinities } = this._computeAffinity(localProcessExtensions, ExtensionHostKind.LocalProcess, false);
+		for (const extension of localProcessExtensions) {
+			const affinity = affinities.get(ExtensionIdentifier.toKey(extension.identifier)) || 0;
+			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), new LocalProcessRunningLocation(affinity));
 		}
 	}
 
@@ -608,7 +763,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				// When a debugger attaches to the extension host, it will surface all console.log messages from the extension host,
 				// but not necessarily from the window. So it would be best if any errors get printed to the console of the extension host.
 				// That is why here we use the local process extension host even for non-file URIs
-				runningLocation = new LocalProcessRunningLocation();
+				runningLocation = new LocalProcessRunningLocation(0);
 			}
 		}
 		if (runningLocation !== null) {

@@ -39,17 +39,24 @@ export interface IMessage {
 
 export class LocalProcessRunningLocation {
 	public readonly kind = ExtensionHostKind.LocalProcess;
+	constructor(
+		public readonly affinity: number
+	) { }
 	public equals(other: ExtensionRunningLocation) {
-		return this.kind === other.kind;
+		return (this.kind === other.kind && this.affinity === other.affinity);
 	}
 	public asString(): string {
-		return 'LocalProcess';
+		if (this.affinity === 0) {
+			return 'LocalProcess';
+		}
+		return `LocalProcess${this.affinity}`;
 	}
 }
 export class LocalWebWorkerRunningLocation {
 	public readonly kind = ExtensionHostKind.LocalWebWorker;
+	public readonly affinity = 0;
 	public equals(other: ExtensionRunningLocation) {
-		return this.kind === other.kind;
+		return (this.kind === other.kind);
 	}
 	public asString(): string {
 		return 'LocalWebWorker';
@@ -57,8 +64,9 @@ export class LocalWebWorkerRunningLocation {
 }
 export class RemoteRunningLocation {
 	public readonly kind = ExtensionHostKind.Remote;
+	public readonly affinity = 0;
 	public equals(other: ExtensionRunningLocation) {
-		return this.kind === other.kind;
+		return (this.kind === other.kind);
 	}
 	public asString(): string {
 		return 'Remote';

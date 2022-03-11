@@ -201,7 +201,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		// `determineRunningLocation` will look at the complete picture (e.g. an extension installed on both sides),
 		// takes care of duplicates and picks a running location for each extension
-		this._runningLocation = this._computeInitialRunningLocation(localExtensions, remoteExtensions);
+		this._runningLocation = this._computeRunningLocation(localExtensions, remoteExtensions, true);
 
 		// Some remote extensions could run locally in the web worker, so store them
 		const remoteExtensionsThatNeedToRunLocally = filterByExtensionHostKind(remoteExtensions, this._runningLocation, ExtensionHostKind.LocalWebWorker);

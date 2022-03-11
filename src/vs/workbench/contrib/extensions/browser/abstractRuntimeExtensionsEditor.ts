@@ -36,6 +36,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 interface IExtensionProfileInformation {
 	/**
@@ -80,6 +81,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
 		super(AbstractRuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -427,11 +429,21 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			const actions: IAction[] = [];
 
+			actions.push(new Action(
+				'runtimeExtensionsEditor.action.copyId',
+				nls.localize('copy id', "Copy id ({0})", e.element!.description.identifier.value),
+				undefined,
+				true,
+				() => {
+					this._clipboardService.writeText(e.element!.description.identifier.value);
+				}
+			));
+
 			const reportExtensionIssueAction = this._createReportExtensionIssueAction(e.element);
 			if (reportExtensionIssueAction) {
 				actions.push(reportExtensionIssueAction);
-				actions.push(new Separator());
 			}
+			actions.push(new Separator());
 
 			if (e.element!.marketplaceInfo) {
 				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));

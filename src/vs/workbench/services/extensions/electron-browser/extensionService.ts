@@ -160,7 +160,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				if (isInitialStart) {
 					// Here we load even extensions that would be disabled by workspace trust
 					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), /* ignore workspace trust */true);
-					const runningLocation = this._computeInitialRunningLocation(localExtensions, []);
+					const runningLocation = this._computeRunningLocation(localExtensions, [], false);
 					const localProcessExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
 					return {
 						autoStart: false,
@@ -237,7 +237,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHosts(isInitialStart: boolean): IExtensionHost[] {
 		const result: IExtensionHost[] = [];
 
-		const localProcessRunningLocation = new LocalProcessRunningLocation();
+		const localProcessRunningLocation = new LocalProcessRunningLocation(0);
 		const localProcessExtHost = this._instantiationService.createInstance(LocalProcessExtensionHost, localProcessRunningLocation, this._createLocalExtensionHostDataProvider(isInitialStart, localProcessRunningLocation));
 		result.push(localProcessExtHost);
 
@@ -545,7 +545,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions, false);
 		const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), false);
-		this._runningLocation = this._computeInitialRunningLocation(localExtensions, remoteExtensions);
+		this._runningLocation = this._computeRunningLocation(localExtensions, remoteExtensions, true);
 
 		// remove non-UI extensions from the local extensions
 		const localProcessExtensions = filterByExtensionHostKind(localExtensions, this._runningLocation, ExtensionHostKind.LocalProcess);
