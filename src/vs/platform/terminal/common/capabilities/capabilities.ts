@@ -104,6 +104,7 @@ export interface ICommandDetectionCapability {
 	 * Set the command line explicitly.
 	 */
 	setCommandLine(commandLine: string): void;
+	serializeCommands(): ISerializedCommand[];
 	restoreCommands(serialized: ISerializedCommand[]): void;
 }
 

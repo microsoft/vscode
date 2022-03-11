@@ -281,9 +281,6 @@ export class TerminalService implements ITerminalService {
 					}
 				}
 			});
-			backend.onRestoreCommands(e => {
-				this.getInstanceFromId(e.id)?.xterm?.shellIntegration?.restoreCommands(e.commands);
-			});
 		}
 	}
 

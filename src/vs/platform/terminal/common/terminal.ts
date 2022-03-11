@@ -598,6 +598,7 @@ export interface ITerminalChildProcess {
 	onProcessReady: Event<IProcessReadyEvent>;
 	onDidChangeProperty: Event<IProcessProperty<any>>;
 	onProcessExit: Event<number | undefined>;
+	onRestoreCommands?: Event<ISerializedCommand[]>;
 
 	/**
 	 * Starts the process.

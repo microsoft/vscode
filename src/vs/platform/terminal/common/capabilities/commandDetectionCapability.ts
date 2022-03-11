@@ -225,8 +225,29 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._currentCommand.command = commandLine;
 	}
 
+	serializeCommands(): ISerializedCommand[] {
+		const serialized = this.commands.map(e => {
+			return {
+				startLine: e.marker?.line,
+				endLine: e.endMarker?.line,
+				cwd: e.cwd,
+				exitCode: e.exitCode,
+				timestamp: e.timestamp
+			};
+		});
+		if (this._currentCommand.commandStartMarker) {
+			serialized.push({
+				startLine: this._currentCommand.commandStartMarker.line,
+				endLine: undefined,
+				cwd: undefined,
+				exitCode: undefined,
+				timestamp: 0,
+			});
+		}
+		return serialized;
+	}
+
 	restoreCommands(serialized: ISerializedCommand[]): void {
-		console.log('restoreCommands', serialized);
 		const buffer = this._terminal.buffer.normal;
 		for (const e of serialized) {
 			const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
@@ -241,6 +262,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				timestamp: e.timestamp,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
+				// TODO: Implement correctly
 				hasOutput: false,
 				getOutput: () => ''
 				// hasOutput: !!(this._currentCommand.commandExecutedMarker && this._currentCommand.commandFinishedMarker && this._currentCommand.commandExecutedMarker?.line < this._currentCommand.commandFinishedMarker!.line),

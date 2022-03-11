@@ -18,7 +18,7 @@ import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnviro
 import { Terminal as XtermTerminal } from 'xterm-headless';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
-import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISerializedCommand, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
+import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
 import { localize } from 'vs/nls';
@@ -26,7 +26,6 @@ import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonito
 import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
-import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 type WorkspaceId = string;
 
@@ -772,7 +771,7 @@ class XtermSerializer implements ITerminalSerializer {
 					data: serialized
 				}
 			],
-			commands: this._getSerializedCommands()
+			commands: this._shellIntegrationAddon.serializeCommands()
 		};
 	}
 
@@ -802,22 +801,6 @@ class XtermSerializer implements ITerminalSerializer {
 			SerializeAddon = (await import('xterm-addon-serialize')).SerializeAddon;
 		}
 		return SerializeAddon;
-	}
-
-	private _getSerializedCommands(): ISerializedCommand[] {
-		const commandDetection = this._shellIntegrationAddon.capabilities.get(TerminalCapability.CommandDetection);
-		if (!commandDetection) {
-			return [];
-		}
-		return commandDetection.commands.map(e => {
-			return {
-				cwd: e.cwd,
-				startLine: e.marker?.line,
-				endLine: e.endMarker?.line,
-				exitCode: e.exitCode,
-				timestamp: e.timestamp
-			};
-		});
 	}
 }
 

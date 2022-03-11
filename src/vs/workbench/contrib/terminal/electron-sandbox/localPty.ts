@@ -141,6 +141,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			this._inReplay = false;
 		}
 
+		if (e.commands.length > 0) {
+			this._onRestoreCommands.fire(e.commands);
+		}
+
 		// remove size override
 		this._onDidChangeProperty.fire({ type: ProcessPropertyType.OverrideDimensions, value: undefined });
 	}

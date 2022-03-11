@@ -114,7 +114,6 @@ export interface ITerminalBackend {
 	onPtyHostRestart: Event<void>;
 
 	onDidRequestDetach: Event<{ requestId: number; workspaceId: string; instanceId: number }>;
-	onRestoreCommands: Event<{ id: number; commands: ISerializedCommand[] }>;
 
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
@@ -383,6 +382,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
 	readonly onProcessExit: Event<number | undefined>;
+	readonly onRestoreCommands: Event<ISerializedCommand[]>;
 
 	dispose(immediate?: boolean): void;
 	detachFromProcess(): Promise<void>;

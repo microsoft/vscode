@@ -191,6 +191,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
+	serializeCommands(): ISerializedCommand[] {
+		if (!this._terminal || !this.capabilities.has(TerminalCapability.CommandDetection)) {
+			return [];
+		}
+		const result = this._createOrGetCommandDetection(this._terminal).serializeCommands();
+		return result;
+	}
+
 	restoreCommands(serialized: ISerializedCommand[]): void {
 		if (!this._terminal) {
 			throw new Error('Cannot restore commands before addon is activated');
