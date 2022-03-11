@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, hasReadWriteCapability, IFileService, IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
 import { sep } from 'vs/base/common/path';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 interface ILocalHistoryResource {
@@ -51,9 +51,12 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 			associatedResource: resource.associatedResource.toString(true)
 		};
 
-		return URI.from({
+		// Try to preserve the associated resource as much as possible
+		// and only keep the `query` part dynamic. This enables other
+		// components (e.g. other timeline providers) to continue
+		// providing timeline entries even when our resource is active.
+		return resource.associatedResource.with({
 			scheme: LocalHistoryFileSystemProvider.SCHEMA,
-			path: `/${basename(resource.location)}`,
 			query: JSON.stringify(serializedLocalHistoryResource)
 		});
 	}

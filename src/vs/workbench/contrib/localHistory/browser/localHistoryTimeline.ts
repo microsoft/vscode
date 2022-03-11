@@ -22,6 +22,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { isEqual } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
@@ -36,7 +37,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 	readonly label = localize('localHistory', "Local History");
 
-	readonly scheme = [this.pathService.defaultUriScheme, LocalHistoryFileSystemProvider.SCHEMA];
+	readonly scheme = '*'; // we try to show local history for all schemes if possible
 
 	private readonly _onDidChange = this._register(new Emitter<TimelineChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
@@ -46,7 +47,8 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		@IWorkingCopyHistoryService private readonly workingCopyHistoryService: IWorkingCopyHistoryService,
 		@IPathService private readonly pathService: IPathService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -126,11 +128,20 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 		// Make sure to support both default scheme and local history
 		// scheme, in case the user is looking at a history entry.
+
+
+		// Try to convert the provided `uri` into a form that is likely
+		// for the provider to find entries for:
+		// - `vscode-local-history`: convert back to the associated resource
+		// - default-scheme: keep as is
+		// - anything else: convert
 		let resource: URI;
 		if (uri.scheme === LocalHistoryFileSystemProvider.SCHEMA) {
 			resource = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri).associatedResource;
-		} else {
+		} else if (uri.scheme === this.pathService.defaultUriScheme) {
 			resource = uri;
+		} else {
+			resource = URI.from({ scheme: this.pathService.defaultUriScheme, authority: this.environmentService.remoteAuthority, path: uri.path });
 		}
 
 		// Retrieve from working copy history
