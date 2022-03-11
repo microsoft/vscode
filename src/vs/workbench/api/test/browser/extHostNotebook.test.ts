@@ -24,6 +24,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { Event } from 'vs/base/common/event';
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 suite('NotebookCell#Document', function () {
 
@@ -435,7 +436,15 @@ suite('NotebookCell#Document', function () {
 			}, {
 				kind: NotebookCellsChangeType.Output,
 				index: 1,
-				outputs: []
+				outputs: [
+					{
+						items: [{
+							valueBytes: VSBuffer.fromByteArray([0, 2, 3]),
+							mime: 'text/plain'
+						}],
+						outputId: '1'
+					}
+				]
 			}]
 		}), false, undefined);
 

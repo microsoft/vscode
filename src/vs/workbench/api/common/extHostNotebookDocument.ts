@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { deepFreeze, equals } from 'vs/base/common/objects';
+import { deepClone, deepFreeze, equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -114,12 +114,16 @@ export class ExtHostCell {
 
 	setOutputItems(outputId: string, append: boolean, newOutputItems: extHostProtocol.NotebookOutputItemDto[]) {
 		const newItems = newOutputItems.map(extHostTypeConverters.NotebookCellOutputItem.to);
-		const output = this._outputs.find(op => op.id === outputId);
-		if (output) {
+
+		// Use an index so we can overwrite internal properties (otherwise readonly)
+		const index = this._outputs.findIndex(op => op.id === outputId);
+		if (index >= 0) {
+			const output = deepClone(this._outputs[index]);
 			if (!append) {
-				output.items.length = 0;
+				output.items.length = 0; // This crashes without a copy
 			}
 			output.items.push(...newItems);
+			this._outputs[index] = output;
 		}
 	}
 
@@ -456,4 +460,5 @@ export class ExtHostNotebookDocument {
 	getCellIndex(cell: ExtHostCell): number {
 		return this._cells.indexOf(cell);
 	}
+
 }
