@@ -25,7 +25,6 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { ToggleReactionsAction, ReactionAction, ReactionActionViewItem } from './reactionsAction';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { MenuItemAction, SubmenuItemAction, IMenu } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -78,7 +77,6 @@ export class CommentNode extends Disposable {
 		public comment: languages.Comment,
 		private owner: string,
 		private resource: URI,
-		private parentEditor: ICodeEditor,
 		private parentThread: ICommentThreadWidget,
 		private markdownRenderer: MarkdownRenderer,
 		@IThemeService private themeService: IThemeService,
@@ -375,7 +373,7 @@ export class CommentNode extends Disposable {
 
 	private createCommentEditor(editContainer: HTMLElement): void {
 		const container = dom.append(editContainer, dom.$('.edit-textarea'));
-		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentEditor, this.parentThread);
+		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, container, SimpleCommentEditor.getEditorOptions(), this.parentThread);
 		const resource = URI.parse(`comment:commentinput-${this.comment.uniqueIdInThread}-${Date.now()}.md`);
 		this._commentEditorModel = this.modelService.createModel('', this.languageService.createByFilepathOrFirstLine(resource), resource, false);
 

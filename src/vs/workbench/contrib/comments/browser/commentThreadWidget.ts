@@ -110,7 +110,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	protected _headingLabel!: HTMLElement;
 	protected _actionbarWidget!: ActionBar;
 	private _bodyElement!: HTMLElement;
-	private _parentEditor: ICodeEditor;
 	private _commentsElement!: HTMLElement;
 	private _commentElements: CommentNode[] = [];
 	private _commentReplyComponent?: {
@@ -205,7 +204,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._applyTheme(this.themeService.getColorTheme());
 
 		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer({ editor }, this.languageService, this.openerService));
-		this._parentEditor = editor;
 	}
 
 	public get onDidClose(): Event<ReviewZoneWidget | undefined> {
@@ -543,7 +541,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private createCommentForm() {
 		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
 		const commentForm = dom.append(this._bodyElement, dom.$('.comment-form'));
-		const commentEditor = this._scopedInstatiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions(), this._parentEditor, this);
+		const commentEditor = this._scopedInstatiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions(), this);
 		const commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		commentEditorIsEmpty.set(!this._pendingComment);
 
@@ -732,7 +730,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			comment,
 			this.owner,
 			this.editor.getModel()!.uri,
-			this._parentEditor,
 			this,
 			this._markdownRenderer);
 
