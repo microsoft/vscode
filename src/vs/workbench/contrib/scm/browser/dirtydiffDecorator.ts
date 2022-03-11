@@ -1474,7 +1474,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-modified:before {
-				left: -3px !important;
+				transform: translateX(3px);
 				background-size: 3px 3px;
 				background-image: linear-gradient(${linearGradient});
 			}
