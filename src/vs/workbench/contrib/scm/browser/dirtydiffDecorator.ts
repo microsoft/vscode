@@ -20,7 +20,7 @@ import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { editorErrorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorErrorForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { PeekViewWidget, getOuterEditor, peekViewBorder, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
@@ -1461,15 +1461,22 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 registerEditorContribution(DirtyDiffController.ID, DirtyDiffController);
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	const editorBackgroundColor = theme.getColor(editorBackground);
 	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
+	const linearGradient = `-45deg, ${editorGutterModifiedBackgroundColor} 25%, ${editorBackgroundColor} 25%, ${editorBackgroundColor} 50%, ${editorGutterModifiedBackgroundColor} 50%, ${editorGutterModifiedBackgroundColor} 75%, ${editorBackgroundColor} 75%, ${editorBackgroundColor}`;
+
 	if (editorGutterModifiedBackgroundColor) {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-modified {
-				border-left: 3px solid ${editorGutterModifiedBackgroundColor};
+				background-size: 3px 3px;
+				background-repeat-x: no-repeat;
+				background-image: linear-gradient(${linearGradient});
 				transition: opacity 0.5s;
 			}
 			.monaco-editor .dirty-diff-modified:before {
-				background: ${editorGutterModifiedBackgroundColor};
+				transform: translateX(3px);
+				background-size: 3px 3px;
+				background-image: linear-gradient(${linearGradient});
 			}
 			.monaco-editor .margin:hover .dirty-diff-modified {
 				opacity: 1;
