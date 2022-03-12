@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Extension } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
-import { IGalleryExtension, IGalleryExtensionProperties, ILocalExtension, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IGalleryExtension, IGalleryExtensionProperties, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { generateUuid } from 'vs/base/common/uuid';

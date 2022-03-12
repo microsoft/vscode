@@ -531,7 +531,7 @@
 	flex-direction: row-reverse;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .codicon:not(.suggest-icon) {
+.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row .codicon:not(.suggest-icon) {
 	color: inherit;
 }
 
