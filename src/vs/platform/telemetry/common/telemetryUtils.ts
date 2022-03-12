@@ -159,7 +159,7 @@ export function validateTelemetryData(data?: any): { properties: Properties; mea
 
 	for (let prop in flat) {
 		// enforce property names less than 150 char, take the last 150 char
-		prop = prop.length > 150 ? prop.substr(prop.length - 149) : prop;
+		prop = prop.length > 150 ? prop.substring(prop.length - 149) : prop;
 		const value = flat[prop];
 
 		if (typeof value === 'number') {

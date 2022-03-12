@@ -406,14 +406,14 @@ export function getNonWhitespacePrefix(model: ISimpleModel, position: Position):
 	 */
 	const MAX_PREFIX_LENGTH = 100;
 
-	let line = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+	let line = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
 
 	let minChIndex = Math.max(0, line.length - MAX_PREFIX_LENGTH);
 	for (let chIndex = line.length - 1; chIndex >= minChIndex; chIndex--) {
 		let ch = line.charAt(chIndex);
 
 		if (/\s/.test(ch)) {
-			return line.substr(chIndex + 1);
+			return line.substring(chIndex + 1);
 		}
 	}
 

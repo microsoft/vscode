@@ -59,7 +59,7 @@ function template(lines: string[]): string {
 	return `/*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
-define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
+define([], [${wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
 }
 
 /**

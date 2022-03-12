@@ -132,7 +132,7 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
 			// glob.ts requires forward slashes, but a UNC path still must start with \\
 			// #38165 and #38151
 			if (key.startsWith('\\\\')) {
-				key = '\\\\' + key.substr(2).replace(/\\/g, '/');
+				key = '\\\\' + key.substring(2).replace(/\\/g, '/');
 			} else {
 				key = key.replace(/\\/g, '/');
 			}

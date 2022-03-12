@@ -203,7 +203,7 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 
 	if (patternMatch && range) {
 		return {
-			filter: filter.substr(0, patternMatch.index), // clear range suffix from search value
+			filter: filter.substring(0, patternMatch.index), // clear range suffix from search value
 			range
 		};
 	}

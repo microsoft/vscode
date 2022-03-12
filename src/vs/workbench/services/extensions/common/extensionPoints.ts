@@ -190,7 +190,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 		};
 
 		let extension = path.extname(this._absoluteManifestPath);
-		let basename = this._absoluteManifestPath.substr(0, this._absoluteManifestPath.length - extension.length);
+		let basename = this._absoluteManifestPath.substring(0, this._absoluteManifestPath.length - extension.length);
 
 		const translationId = `${extensionDescription.publisher}.${extensionDescription.name}`;
 		let translationPath = this._nlsConfig.translations[translationId];
@@ -321,7 +321,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 				const str = <string>value;
 				const length = str.length;
 				if (length > 1 && str[0] === '%' && str[length - 1] === '%') {
-					const messageKey = str.substr(1, length - 2);
+					const messageKey = str.substring(1, length - 2);
 					let translated = messages[messageKey];
 					// If the messages come from a language pack they might miss some keys
 					// Fill them from the original messages.

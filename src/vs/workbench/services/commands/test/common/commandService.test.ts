@@ -115,7 +115,7 @@ suite('CommandService', function () {
 				if (event.indexOf('onCommand:') === 0) {
 					return new Promise(resolve => {
 						setTimeout(() => {
-							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
+							let reg = CommandsRegistry.registerCommand(event.substring('onCommand:'.length), () => {
 								callCounter += 1;
 							});
 							disposable.add(reg);
@@ -151,7 +151,7 @@ suite('CommandService', function () {
 						setTimeout(() => {
 							// Register the command after some time
 							actualOrder.push('registering command');
-							let reg = CommandsRegistry.registerCommand(event.substr('onCommand:'.length), () => {
+							let reg = CommandsRegistry.registerCommand(event.substring('onCommand:'.length), () => {
 								actualOrder.push('executing command');
 							});
 							disposables.add(reg);

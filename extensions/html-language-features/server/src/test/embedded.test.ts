@@ -14,7 +14,7 @@ suite('HTML Embedded Support', () => {
 
 	function assertLanguageId(value: string, expectedLanguageId: string | undefined): void {
 		const offset = value.indexOf('|');
-		value = value.substr(0, offset) + value.substr(offset + 1);
+		value = value.substring(0, offset) + value.substring(offset + 1);
 
 		const document = TextDocument.create('test://test/test.html', 'html', 0, value);
 

@@ -734,7 +734,7 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 	if (firstLine.startsWith('error parsing glob') ||
 		firstLine.startsWith('unsupported encoding')) {
 		// Uppercase first letter
-		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
+		return firstLine.charAt(0).toUpperCase() + firstLine.substring(1);
 	}
 
 	if (firstLine === `Literal '\\n' not allowed.`) {

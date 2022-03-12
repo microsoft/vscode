@@ -36,7 +36,7 @@ function updateCSSNode(editor: TextEditor, property: Property): Thenable<boolean
 		}
 	}
 
-	const propertyName = property.name.substr(currentPrefix.length);
+	const propertyName = property.name.substring(currentPrefix.length);
 	const propertyValue = property.value;
 
 	return editor.edit(builder => {

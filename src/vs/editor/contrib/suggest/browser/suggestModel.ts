@@ -84,7 +84,7 @@ export class LineContext {
 	readonly shy: boolean;
 
 	constructor(model: ITextModel, position: Position, auto: boolean, shy: boolean) {
-		this.leadingLineContent = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+		this.leadingLineContent = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
 		this.leadingWord = model.getWordUntilPosition(position);
 		this.lineNumber = position.lineNumber;
 		this.column = position.column;
@@ -273,13 +273,13 @@ export class SuggestModel implements IDisposable {
 				// came here from the compositionEnd-event
 				const position = this._editor.getPosition()!;
 				const model = this._editor.getModel()!;
-				text = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+				text = model.getLineContent(position.lineNumber).substring(0, position.column - 1);
 			}
 
 			let lastChar = '';
 			if (isLowSurrogate(text.charCodeAt(text.length - 1))) {
 				if (isHighSurrogate(text.charCodeAt(text.length - 2))) {
-					lastChar = text.substr(text.length - 2);
+					lastChar = text.substring(text.length - 2);
 				}
 			} else {
 				lastChar = text.charAt(text.length - 1);

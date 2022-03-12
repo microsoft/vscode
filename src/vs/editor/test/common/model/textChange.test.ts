@@ -40,12 +40,12 @@ suite('TextChangeCompressor', () => {
 			let length = edit.length;
 			let text = edit.text;
 
-			let oldText = content.substr(position, length);
+			let oldText = content.substring(position, length);
 
 			content = (
-				content.substr(0, position) +
+				content.substring(0, position) +
 				text +
-				content.substr(position + length)
+				content.substring(position + length)
 			);
 
 			changes[i] = new TextChange(edit.offset, oldText, position, text);

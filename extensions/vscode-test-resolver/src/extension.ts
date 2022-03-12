@@ -60,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
 						}
 						lastProgressLine = '';
 					} else if (chr === CharCode.Backspace) {
-						lastProgressLine = lastProgressLine.substr(0, lastProgressLine.length - 1);
+						lastProgressLine = lastProgressLine.substring(0, lastProgressLine.length - 1);
 					} else {
 						lastProgressLine += output.charAt(i);
 					}

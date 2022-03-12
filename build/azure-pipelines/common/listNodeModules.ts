@@ -35,7 +35,7 @@ function findNodeModulesFiles(location: string, inNodeModules: boolean, result: 
 			findNodeModulesFiles(entryPath, inNodeModules || (entry === 'node_modules'), result);
 		} else {
 			if (inNodeModules) {
-				result.push(entryPath.substr(1));
+				result.push(entryPath.substring(1));
 			}
 		}
 	}

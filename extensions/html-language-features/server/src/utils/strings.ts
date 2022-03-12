@@ -9,7 +9,7 @@ export function getWordAtText(text: string, offset: number, wordDefinition: RegE
 		lineStart--;
 	}
 	let offsetInLine = offset - lineStart;
-	let lineText = text.substr(lineStart);
+	let lineText = text.substring(lineStart);
 
 	// make a copy of the regex as to not keep the state
 	let flags = wordDefinition.ignoreCase ? 'gi' : 'g';

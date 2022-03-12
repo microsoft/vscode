@@ -289,7 +289,8 @@ async function provideNpmScriptsForFolder(context: ExtensionContext, packageJson
 
 export function getTaskName(script: string, relativePath: string | undefined) {
 	if (relativePath && relativePath.length) {
-		return `${script} - ${relativePath.substring(0, relativePath.length - 1)}`;
+		return `${script} - ${relativePath.substring(0, relativePath.length - 1)
+			} `;
 	}
 	return script;
 }
@@ -403,7 +404,7 @@ export async function runScript(context: ExtensionContext, script: string, docum
 export async function startDebugging(context: ExtensionContext, scriptName: string, cwd: string, folder: WorkspaceFolder) {
 	commands.executeCommand(
 		'extension.js-debug.createDebuggerTerminal',
-		`${await getPackageManager(context, folder.uri)} run ${scriptName}`,
+		`${await getPackageManager(context, folder.uri)} run ${scriptName} `,
 		folder,
 		{ cwd },
 	);

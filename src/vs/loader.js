@@ -157,25 +157,25 @@ var AMDLoader;
             if (isWindows) {
                 if (/^file:\/\/\//.test(uri)) {
                     // This is a URI without a hostname => return only the path segment
-                    return uri.substr(8);
+                    return uri.substring(8);
                 }
                 if (/^file:\/\//.test(uri)) {
-                    return uri.substr(5);
+                    return uri.substring(5);
                 }
             }
             else {
                 if (/^file:\/\//.test(uri)) {
-                    return uri.substr(7);
+                    return uri.substring(7);
                 }
             }
             // Not sure...
             return uri;
         };
         Utilities.startsWith = function (haystack, needle) {
-            return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
+            return haystack.length >= needle.length && haystack.substring(0, needle.length) === needle;
         };
         Utilities.endsWith = function (haystack, needle) {
-            return haystack.length >= needle.length && haystack.substr(haystack.length - needle.length) === needle;
+            return haystack.length >= needle.length && haystack.substring(haystack.length - needle.length) === needle;
         };
         // only check for "?" before "#" to ensure that there is a real Query-String
         Utilities.containsQueryString = function (url) {
@@ -443,7 +443,7 @@ var AMDLoader;
                 if (AMDLoader.Utilities.startsWith(moduleId, pathRule.from)) {
                     var result = [];
                     for (var j = 0, lenJ = pathRule.to.length; j < lenJ; j++) {
-                        result.push(pathRule.to[j] + moduleId.substr(pathRule.from.length));
+                        result.push(pathRule.to[j] + moduleId.substring(pathRule.from.length));
                     }
                     return result;
                 }
@@ -1095,7 +1095,7 @@ var AMDLoader;
         function ModuleIdResolver(fromModuleId) {
             var lastSlash = fromModuleId.lastIndexOf('/');
             if (lastSlash !== -1) {
-                this.fromModulePath = fromModuleId.substr(0, lastSlash + 1);
+                this.fromModulePath = fromModuleId.substring(0, lastSlash + 1);
             }
             else {
                 this.fromModulePath = '';
@@ -1320,7 +1320,7 @@ var AMDLoader;
                     var stackLine = m[2];
                     var stackColumn = m[3];
                     var trimPathOffset = Math.max(stackPath.lastIndexOf(' ') + 1, stackPath.lastIndexOf('(') + 1);
-                    stackPath = stackPath.substr(trimPathOffset);
+                    stackPath = stackPath.substring(trimPathOffset);
                     stackPath = normalize(stackPath);
                     if (stackPath === normalizedPath) {
                         var r = {
@@ -1433,8 +1433,8 @@ var AMDLoader;
             // Normalize dependency and then request it from the manager
             var bangIndex = dependency.indexOf('!');
             if (bangIndex >= 0) {
-                var strPluginId = moduleIdResolver.resolveModule(dependency.substr(0, bangIndex));
-                var pluginParam = moduleIdResolver.resolveModule(dependency.substr(bangIndex + 1));
+                var strPluginId = moduleIdResolver.resolveModule(dependency.substring(0, bangIndex));
+                var pluginParam = moduleIdResolver.resolveModule(dependency.substring(bangIndex + 1));
                 var dependencyId = this._moduleIdProvider.getModuleId(strPluginId + '!' + pluginParam);
                 var pluginId = this._moduleIdProvider.getModuleId(strPluginId);
                 return new PluginDependency(dependencyId, pluginId, pluginParam);

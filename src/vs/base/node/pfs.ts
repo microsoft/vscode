@@ -602,7 +602,7 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 	// case we want the symlink to point to the target and
 	// not the source
 	if (isEqualOrParent(linkTarget, payload.root.source, !isLinux)) {
-		linkTarget = join(payload.root.target, linkTarget.substr(payload.root.source.length + 1));
+		linkTarget = join(payload.root.target, linkTarget.substring(payload.root.source.length + 1));
 	}
 
 	// Create symlink

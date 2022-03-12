@@ -402,7 +402,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 				endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH + 1		// first cap at FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH
 			})
 			.trim().replace(/\s+/g, ' '); 														// normalize whitespaces
-		firstLineText = firstLineText.substr(0, getCharContainingOffset(						// finally cap at FIRST_LINE_NAME_MAX_LENGTH (grapheme aware #111235)
+		firstLineText = firstLineText.substring(0, getCharContainingOffset(						// finally cap at FIRST_LINE_NAME_MAX_LENGTH (grapheme aware #111235)
 			firstLineText,
 			UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH)[0]
 		);

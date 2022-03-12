@@ -122,7 +122,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 				value = value.replace(
 					/(\r\n|\r|\n)(.*)/g,
-					(m, newline, rest) => `${newline}${varLeadingWhitespace.substr(whitespaceCommonLength)}${rest}`
+					(m, newline, rest) => `${newline}${varLeadingWhitespace.substring(whitespaceCommonLength)}${rest} `
 				);
 			}
 			return value;
@@ -329,7 +329,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
 		if (filename.endsWith(WORKSPACE_EXTENSION)) {
-			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+			filename = filename.substring(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
 		return filename;
 	}
@@ -341,7 +341,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		let filename = path.basename(workspaceIdentifier.configPath.path);
 		let folderpath = workspaceIdentifier.configPath.fsPath;
 		if (folderpath.endsWith(filename)) {
-			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
+			folderpath = folderpath.substring(0, folderpath.length - filename.length - 1);
 		}
 		return (folderpath ? normalizeDriveLetter(folderpath) : '/');
 	}

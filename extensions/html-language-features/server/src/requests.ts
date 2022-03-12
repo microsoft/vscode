@@ -79,17 +79,17 @@ export function getFileSystemProvider(handledSchemas: string[], connection: Conn
 }
 
 export function getScheme(uri: string) {
-	return uri.substr(0, uri.indexOf(':'));
+	return uri.substring(0, uri.indexOf(':'));
 }
 
 export function dirname(uri: string) {
 	const lastIndexOfSlash = uri.lastIndexOf('/');
-	return lastIndexOfSlash !== -1 ? uri.substr(0, lastIndexOfSlash) : '';
+	return lastIndexOfSlash !== -1 ? uri.substring(0, lastIndexOfSlash) : '';
 }
 
 export function basename(uri: string) {
 	const lastIndexOfSlash = uri.lastIndexOf('/');
-	return uri.substr(lastIndexOfSlash + 1);
+	return uri.substring(lastIndexOfSlash + 1);
 }
 
 
@@ -101,7 +101,7 @@ export function extname(uri: string) {
 		const ch = uri.charCodeAt(i);
 		if (ch === Dot) {
 			if (i > 0 && uri.charCodeAt(i - 1) !== Slash) {
-				return uri.substr(i);
+				return uri.substring(i);
 			} else {
 				break;
 			}

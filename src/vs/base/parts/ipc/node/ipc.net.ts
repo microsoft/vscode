@@ -735,9 +735,9 @@ export function createStaticIPCHandle(directoryPath: string, type: string, versi
 	// unless portable
 	let result: string;
 	if (XDG_RUNTIME_DIR && !process.env['VSCODE_PORTABLE']) {
-		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substr(0, 8)}-${version}-${type}.sock`);
+		result = join(XDG_RUNTIME_DIR, `vscode-${scope.substring(0, 8)} -${version} -${type}.sock`);
 	} else {
-		result = join(directoryPath, `${version}-${type}.sock`);
+		result = join(directoryPath, `${version} -${type}.sock`);
 	}
 
 	// Validate length
@@ -750,7 +750,7 @@ function validateIPCHandleLength(handle: string): void {
 	const limit = safeIpcPathLengths[platform];
 	if (typeof limit === 'number' && handle.length >= limit) {
 		// https://nodejs.org/api/net.html#net_identifying_paths_for_ipc_connections
-		console.warn(`WARNING: IPC handle "${handle}" is longer than ${limit} chars, try a shorter --user-data-dir`);
+		console.warn(`WARNING: IPC handle "${handle}" is longer than ${limit} chars, try a shorter--user - data - dir`);
 	}
 }
 
@@ -802,7 +802,7 @@ export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
 		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
-			c(Client.fromSocket(new NodeSocket(socket, `ipc-client${clientId}`), clientId));
+			c(Client.fromSocket(new NodeSocket(socket, `ipc - client${clientId} `), clientId));
 		});
 
 		socket.once('error', e);

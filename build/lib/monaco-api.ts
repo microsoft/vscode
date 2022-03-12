@@ -593,7 +593,7 @@ class CacheEntry {
 	constructor(
 		public readonly sourceFile: ts.SourceFile,
 		public readonly mtime: number
-	) {}
+	) { }
 }
 
 export class DeclarationResolver {

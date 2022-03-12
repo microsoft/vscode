@@ -73,7 +73,7 @@ function getResponseHeaders(xhr: XMLHttpRequest): { [name: string]: string } {
 	for (const line of xhr.getAllResponseHeaders().split(/\r\n|\n|\r/g)) {
 		if (line) {
 			const idx = line.indexOf(':');
-			headers[line.substr(0, idx).trim().toLowerCase()] = line.substr(idx + 1).trim();
+			headers[line.substring(0, idx).trim().toLowerCase()] = line.substring(idx + 1).trim();
 		}
 	}
 	return headers;

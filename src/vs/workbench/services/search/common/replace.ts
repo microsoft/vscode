@@ -67,7 +67,7 @@ export class ReplacePattern {
 				if (match[0] === text) {
 					return replaceString;
 				}
-				return replaceString.substr(match.index, match[0].length - (text.length - replaceString.length));
+				return replaceString.substring(match.index, match[0].length - (text.length - replaceString.length));
 			}
 			return this.buildReplaceString(match, preserveCase);
 		}

@@ -51,7 +51,7 @@ function findEditPoint(lineNum: number, editor: vscode.TextEditor, position: vsc
 	}
 
 	if (lineNum === position.line && direction === 'prev') {
-		lineContent = lineContent.substr(0, position.character);
+		lineContent = lineContent.substring(0, position.character);
 	}
 	let emptyAttrIndex = direction === 'next' ? lineContent.indexOf('""', lineNum === position.line ? position.character : 0) : lineContent.lastIndexOf('""');
 	let emptyTagIndex = direction === 'next' ? lineContent.indexOf('><', lineNum === position.line ? position.character : 0) : lineContent.lastIndexOf('><');

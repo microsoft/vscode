@@ -167,7 +167,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			// Collect symbol picks
 			picker.busy = true;
 			try {
-				const query = prepareQuery(picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim());
+				const query = prepareQuery(picker.value.substring(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim());
 				const items = await this.doGetSymbolPicks(symbolsPromise, query, undefined, picksCts.token);
 				if (token.isCancellationRequested) {
 					return;

@@ -22,5 +22,5 @@ export function getRemoteName(authority: string | undefined): string | undefined
 		// e.g. localhost:8000
 		return authority;
 	}
-	return authority.substr(0, pos);
+	return authority.substring(0, pos);
 }

@@ -55,7 +55,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// React to picker changes
 		const updatePickerAndEditor = () => {
-			const position = this.parsePosition(editor, picker.value.trim().substr(AbstractGotoLineQuickAccessProvider.PREFIX.length));
+			const position = this.parsePosition(editor, picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.PREFIX.length));
 			const label = this.getPickLabel(editor, position.lineNumber, position.column);
 
 			// Picker

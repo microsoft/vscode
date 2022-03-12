@@ -49,7 +49,7 @@ export default class API {
 		// Cut off any prerelease tag since we sometimes consume those on purpose.
 		const index = versionString.indexOf('-');
 		if (index >= 0) {
-			version = version.substr(0, index);
+			version = version.substring(0, index);
 		}
 		return new API(versionString, version, versionString);
 	}

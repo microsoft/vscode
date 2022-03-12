@@ -360,7 +360,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 							// Otherwise a parent folder of the source is being moved, so we need
 							// to compute the target resource based on that
 							else {
-								targetResource = joinPath(target, sourceResource.path.substr(source.path.length + 1));
+								targetResource = joinPath(target, sourceResource.path.substring(source.path.length + 1));
 							}
 
 							workingCopiesToRestore.push({

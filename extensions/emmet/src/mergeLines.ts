@@ -57,7 +57,7 @@ function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Sel
 	}
 
 	const rangeToReplace = offsetRangeToVsRange(document, startNodeToUpdate.start, endNodeToUpdate.end);
-	let textToReplaceWith = document.lineAt(startLine).text.substr(startChar);
+	let textToReplaceWith = document.lineAt(startLine).text.substring(startChar);
 	for (let i = startLine + 1; i <= endLine; i++) {
 		textToReplaceWith += document.lineAt(i).text.trim();
 	}

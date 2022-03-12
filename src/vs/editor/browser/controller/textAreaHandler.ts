@@ -646,7 +646,7 @@ export class TextAreaHandler extends ViewPart {
 			const endPosition = this._visibleTextArea.endPosition;
 			if (startPosition && endPosition && visibleStart && visibleEnd && visibleEnd.left >= this._scrollLeft && visibleStart.left <= this._scrollLeft + this._contentWidth) {
 				const top = (this._context.viewLayout.getVerticalOffsetForLineNumber(this._primaryCursorPosition.lineNumber) - this._scrollTop);
-				const lineCount = this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+				const lineCount = this._newlinecount(this.textArea.domNode.value.substring(0, this.textArea.domNode.selectionStart));
 
 				let scrollLeft = this._visibleTextArea.widthOfHiddenLineTextBefore;
 				let left = (this._contentLeft + visibleStart.left - this._scrollLeft);
@@ -738,7 +738,7 @@ export class TextAreaHandler extends ViewPart {
 			// In case the textarea contains a word, we're going to try to align the textarea's cursor
 			// with our cursor by scrolling the textarea as much as possible
 			this.textArea.domNode.scrollLeft = this._primaryCursorVisibleRange.left;
-			const lineCount = this._newlinecount(this.textArea.domNode.value.substr(0, this.textArea.domNode.selectionStart));
+			const lineCount = this._newlinecount(this.textArea.domNode.value.substring(0, this.textArea.domNode.selectionStart));
 			this.textArea.domNode.scrollTop = lineCount * this._lineHeight;
 			return;
 		}

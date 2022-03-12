@@ -65,7 +65,7 @@ export class Scanner {
 	}
 
 	tokenText(token: Token): string {
-		return this.value.substr(token.pos, token.len);
+		return this.value.substring(token.pos, token.len);
 	}
 
 	next(): Token {
@@ -375,7 +375,7 @@ export class FormatString extends Marker {
 		} else if (this.shorthandName === 'downcase') {
 			return !value ? '' : value.toLocaleLowerCase();
 		} else if (this.shorthandName === 'capitalize') {
-			return !value ? '' : (value[0].toLocaleUpperCase() + value.substr(1));
+			return !value ? '' : (value[0].toLocaleUpperCase() + value.substring(1));
 		} else if (this.shorthandName === 'pascalcase') {
 			return !value ? '' : this._toPascalCase(value);
 		} else if (this.shorthandName === 'camelcase') {
@@ -396,7 +396,7 @@ export class FormatString extends Marker {
 		}
 		return match.map(word => {
 			return word.charAt(0).toUpperCase()
-				+ word.substr(1).toLowerCase();
+				+ word.substring(1).toLowerCase();
 		})
 			.join('');
 	}
@@ -411,7 +411,7 @@ export class FormatString extends Marker {
 				return word.toLowerCase();
 			} else {
 				return word.charAt(0).toUpperCase()
-					+ word.substr(1).toLowerCase();
+					+ word.substring(1).toLowerCase();
 			}
 		})
 			.join('');

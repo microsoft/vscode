@@ -255,8 +255,8 @@ class TextChangeCompressor {
 	}
 
 	private static _splitPrev(edit: TextChange, offset: number): [TextChange, TextChange] {
-		const preText = edit.newText.substr(0, offset);
-		const postText = edit.newText.substr(offset);
+		const preText = edit.newText.substring(0, offset);
+		const postText = edit.newText.substring(offset);
 
 		return [
 			new TextChange(
@@ -275,8 +275,8 @@ class TextChangeCompressor {
 	}
 
 	private static _splitCurr(edit: TextChange, offset: number): [TextChange, TextChange] {
-		const preText = edit.oldText.substr(0, offset);
-		const postText = edit.oldText.substr(offset);
+		const preText = edit.oldText.substring(0, offset);
+		const postText = edit.oldText.substring(offset);
 
 		return [
 			new TextChange(

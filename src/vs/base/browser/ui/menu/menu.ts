@@ -600,10 +600,10 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 
 					if (escMatch) {
 						this.label.append(
-							strings.ltrim(replaceDoubleEscapes(label.substr(0, escMatch.index)), ' '),
+							strings.ltrim(replaceDoubleEscapes(label.substring(0, escMatch.index)), ' '),
 							$('u', { 'aria-hidden': 'true' },
 								escMatch[3]),
-							strings.rtrim(replaceDoubleEscapes(label.substr(escMatch.index + escMatch[0].length)), ' '));
+							strings.rtrim(replaceDoubleEscapes(label.substring(escMatch.index + escMatch[0].length)), ' '));
 					} else {
 						this.label.innerText = replaceDoubleEscapes(label).trim();
 					}

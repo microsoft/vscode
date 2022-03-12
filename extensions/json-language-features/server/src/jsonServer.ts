@@ -76,7 +76,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 		}
 		return (uri: string): Thenable<string> => {
-			const protocol = uri.substr(0, uri.indexOf(':'));
+			const protocol = uri.substring(0, uri.indexOf(':'));
 
 			const builtInHandler = builtInHandlers[protocol];
 			if (builtInHandler) {

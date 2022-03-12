@@ -176,7 +176,7 @@ export function cleanNodeModules(rulePath: string): NodeJS.ReadWriteStream {
 		.filter(line => line && !/^#/.test(line));
 
 	const excludes = rules.filter(line => !/^!/.test(line)).map(line => `!**/node_modules/${line}`);
-	const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substr(1)}`);
+	const includes = rules.filter(line => /^!/.test(line)).map(line => `**/node_modules/${line.substring(1)} `);
 
 	const input = es.through();
 	const output = es.merge(

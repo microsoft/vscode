@@ -303,7 +303,7 @@ suite('Resources', () => {
 		const p = path.indexOf('/') !== -1 ? posix : win32;
 		if (!p.isAbsolute(path)) {
 			let expectedPath = isWindows ? toSlashes(path) : path;
-			expectedPath = expectedPath.startsWith('./') ? expectedPath.substr(2) : expectedPath;
+			expectedPath = expectedPath.startsWith('./') ? expectedPath.substring(2) : expectedPath;
 			assert.strictEqual(relativePath(u1, actual), expectedPath, `relativePath (${u1.toString()}) on actual (${actual.toString()}) should be to path (${expectedPath})`);
 		}
 	}

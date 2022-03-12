@@ -757,7 +757,8 @@ export class Menubar {
 			else if (typeof options.label === 'string') {
 				const bindingIndex = options.label.indexOf('[');
 				if (bindingIndex >= 0) {
-					options.label = `${options.label.substr(0, bindingIndex)} [${binding.label}]`;
+					options.label = `${options.label.substring(0, bindingIndex)
+						} [${binding.label}]`;
 				} else {
 					options.label = `${options.label} [${binding.label}]`;
 				}

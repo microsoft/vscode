@@ -10,7 +10,7 @@ import { getNodeFileFS } from '../node/nodeFs';
 
 async function testRename(value: string, newName: string, expectedDocContent: string): Promise<void> {
 	const offset = value.indexOf('|');
-	value = value.substr(0, offset) + value.substr(offset + 1);
+	value = value.substring(0, offset) + value.substring(offset + 1);
 
 	const document = TextDocument.create('test://test/test.html', 'html', 0, value);
 	const workspace = {
@@ -42,7 +42,7 @@ async function testRename(value: string, newName: string, expectedDocContent: st
 
 async function testNoRename(value: string, newName: string): Promise<void> {
 	const offset = value.indexOf('|');
-	value = value.substr(0, offset) + value.substr(offset + 1);
+	value = value.substring(0, offset) + value.substring(offset + 1);
 
 	const document = TextDocument.create('test://test/test.html', 'html', 0, value);
 	const workspace = {

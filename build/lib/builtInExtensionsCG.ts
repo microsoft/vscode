@@ -22,7 +22,7 @@ const contentFileNames = ['package.json', 'package-lock.json', 'yarn.lock'];
 
 async function downloadExtensionDetails(extension: IExtensionDefinition): Promise<void> {
 	const extensionLabel = `${extension.name}@${extension.version}`;
-	const repository = url.parse(extension.repo).path!.substr(1);
+	const repository = url.parse(extension.repo).path!.substring(1);
 	const repositoryContentBaseUrl = `https://${token ? `${token}@` : ''}${contentBasePath}/${repository}/v${extension.version}`;
 
 	const promises = [];

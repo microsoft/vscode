@@ -227,7 +227,7 @@ function getMimeByPath(path: string, filename: string, associations: ILanguageAs
 
 function getMimeByFirstline(firstLine: string): string | undefined {
 	if (startsWithUTF8BOM(firstLine)) {
-		firstLine = firstLine.substr(1);
+		firstLine = firstLine.substring(1);
 	}
 
 	if (firstLine.length > 0) {

@@ -92,7 +92,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 
 				let importedFilePath: string;
 				if (/^vs\/css!/.test(importedFileName)) {
-					importedFilePath = importedFileName.substr('vs/css!'.length) + '.css';
+					importedFilePath = importedFileName.substring('vs/css!'.length) + '.css';
 				} else {
 					importedFilePath = importedFileName;
 				}
@@ -186,7 +186,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 
 				let importedFilepath: string;
 				if (/^vs\/css!/.test(importedFilename)) {
-					importedFilepath = importedFilename.substr('vs/css!'.length) + '.css';
+					importedFilepath = importedFilename.substring('vs/css!'.length) + '.css';
 				} else {
 					importedFilepath = importedFilename;
 				}
@@ -241,7 +241,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 			if (fs.statSync(file).isDirectory()) {
 				_walkDirRecursive(file, result, trimPos);
 			} else {
-				result.push(file.substr(trimPos));
+				result.push(file.substring(trimPos));
 			}
 		}
 	}
@@ -367,6 +367,6 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 	}
 
 	function _startsWith(haystack: string, needle: string): boolean {
-		return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
+		return haystack.length >= needle.length && haystack.substring(0, needle.length) === needle;
 	}
 }

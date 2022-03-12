@@ -175,7 +175,7 @@ function copyFile(fileName, dest) {
 function darkenColor(color) {
 	let res = '#';
 	for (let i = 1; i < 7; i += 2) {
-		const newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
+		const newVal = Math.round(parseInt('0x' + color.substring(i, 2), 16) * 0.9);
 		const hex = newVal.toString(16);
 		if (hex.length === 1) {
 			res += '0';
@@ -211,7 +211,7 @@ function getLanguageMappings() {
 						const extensions = languages[k].extensions;
 						const mapping = {};
 						if (Array.isArray(extensions)) {
-							mapping.extensions = extensions.map(function (e) { return e.substr(1).toLowerCase(); });
+							mapping.extensions = extensions.map(function (e) { return e.substring(1).toLowerCase(); });
 						}
 						const filenames = languages[k].filenames;
 						if (Array.isArray(filenames)) {
@@ -363,7 +363,7 @@ exports.update = function () {
 					continue; // no need to assign default color.
 				}
 				if (pattern[0] === '.') {
-					ext2Def[pattern.substr(1).toLowerCase()] = def;
+					ext2Def[pattern.substring(1).toLowerCase()] = def;
 				} else {
 					fileName2Def[pattern.toLowerCase()] = def;
 				}
@@ -448,7 +448,7 @@ exports.update = function () {
 						fs.writeFileSync(cgmanifestPath, JSON.stringify(cgmanifestContent, null, '\t'));
 						console.log('updated ' + cgmanifestPath);
 
-						console.log('Updated to jesseweed/seti-ui@' + info.commitSha.substr(0, 7) + ' (' + info.commitDate.substr(0, 10) + ')');
+						console.log('Updated to jesseweed/seti-ui@' + info.commitSha.substring(0, 7) + ' (' + info.commitDate.substring(0, 10) + ')');
 
 					} catch (e) {
 						console.error(e);

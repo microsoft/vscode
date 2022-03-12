@@ -167,7 +167,7 @@ export class Resource implements SourceControlResourceState {
 		// TODO@joao
 		return false;
 		// const workspaceRootPath = this.workspaceRoot.fsPath;
-		// return this.resourceUri.fsPath.substr(0, workspaceRootPath.length) !== workspaceRootPath;
+		// return this.resourceUri.fsPath.substring(0, workspaceRootPath.length) !== workspaceRootPath;
 	}
 
 	get decorations(): SourceControlResourceDecorations {
@@ -787,7 +787,7 @@ export class Repository implements Disposable {
 			return tagName;
 		}
 
-		return (HEAD.commit || '').substr(0, 8);
+		return (HEAD.commit || '').substring(0, 8);
 	}
 
 	private _remotes: Remote[] = [];
@@ -2126,7 +2126,7 @@ export class Repository implements Disposable {
 
 		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
 		const tagName = tag && tag.name;
-		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
+		const head = HEAD.name || tagName || (HEAD.commit || '').substring(0, 8);
 
 		return head
 			+ (this.workingTreeGroup.resourceStates.length + this.untrackedGroup.resourceStates.length > 0 ? '*' : '')

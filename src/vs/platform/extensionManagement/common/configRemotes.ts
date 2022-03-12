@@ -76,7 +76,7 @@ function stripPort(authority: string): string | null {
 function normalizeRemote(host: string | null, path: string, stripEndingDotGit: boolean): string | null {
 	if (host && path) {
 		if (stripEndingDotGit && path.endsWith('.git')) {
-			path = path.substr(0, path.length - 4);
+			path = path.substring(0, path.length - 4);
 		}
 		return (path.indexOf('/') === 0) ? `${host}${path}` : `${host}/${path}`;
 	}

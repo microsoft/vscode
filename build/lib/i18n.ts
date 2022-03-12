@@ -821,7 +821,7 @@ export function pushXlfFiles(apiHostname: string, username: string, password: st
 	return through(function (this: ThroughStream, file: File) {
 		const project = path.dirname(file.relative);
 		const fileName = path.basename(file.path);
-		const slug = fileName.substr(0, fileName.length - '.xlf'.length);
+		const slug = fileName.substring(0, fileName.length - '.xlf'.length);
 		const credentials = `${username}:${password}`;
 
 		// Check if resource already exists, if not, then create it.
@@ -886,7 +886,7 @@ export function findObsoleteResources(apiHostname: string, username: string, pas
 	return through(function (this: ThroughStream, file: File) {
 		const project = path.dirname(file.relative);
 		const fileName = path.basename(file.path);
-		const slug = fileName.substr(0, fileName.length - '.xlf'.length);
+		const slug = fileName.substring(0, fileName.length - '.xlf'.length);
 
 		let slugs = resourcesByProject[project];
 		if (!slugs) {
@@ -1191,12 +1191,12 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 						const externalId = externalExtensions[resource];
 						if (!externalId) { // internal extension: remove 'extensions/extensionId/' segnent
 							const secondSlash = path.indexOf('/', firstSlash + 1);
-							extPack.contents[path.substr(secondSlash + 1)] = file.messages;
+							extPack.contents[path.substring(secondSlash + 1)] = file.messages;
 						} else {
 							extPack.contents[path] = file.messages;
 						}
 					} else {
-						mainPack.contents[path.substr(firstSlash + 1)] = file.messages;
+						mainPack.contents[path.substring(firstSlash + 1)] = file.messages;
 					}
 				});
 			}

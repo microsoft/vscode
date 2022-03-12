@@ -755,11 +755,12 @@ function stringRightPad(str: string, len: number): string {
 }
 
 function commonLogPrefix(connectionType: ConnectionType, reconnectionToken: string, isReconnect: boolean): string {
-	return `[remote-connection][${stringRightPad(connectionTypeToString(connectionType), 13)}][${reconnectionToken.substr(0, 5)}…][${isReconnect ? 'reconnect' : 'initial'}]`;
+	return `[remote-connection][${stringRightPad(connectionTypeToString(connectionType), 13)}][${reconnectionToken.substring(0, 5)
+		}…][${isReconnect ? 'reconnect' : 'initial'}]`;
 }
 
 function connectLogPrefix(options: ISimpleConnectionOptions, connectionType: ConnectionType): string {
-	return `${commonLogPrefix(connectionType, options.reconnectionToken, !!options.reconnectionProtocol)}[${options.host}:${options.port}]`;
+	return `${commonLogPrefix(connectionType, options.reconnectionToken, !!options.reconnectionProtocol)} [${options.host}: ${options.port}]`;
 }
 
 function logElapsed(startTime: number): string {

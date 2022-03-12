@@ -245,7 +245,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 				// convert to relative path to ensure we
 				// get the correct path casing going forward
-				normalizedExclude = normalizedExclude.substr(path.length);
+				normalizedExclude = normalizedExclude.substring(path.length);
 			}
 
 			// Finally take as relative path joined to watched path
@@ -507,7 +507,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 			// Convert paths back to original form in case it differs
 			if (realPathDiffers) {
-				event.path = request.path + event.path.substr(realPathLength);
+				event.path = request.path + event.path.substring(realPathLength);
 			}
 
 			// Check for root deleted

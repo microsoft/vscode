@@ -325,7 +325,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		}
 
 		const currentLine = editor.document.lineAt(position.line).text;
-		const textTillPosition = currentLine.substr(0, position.character);
+		const textTillPosition = currentLine.substring(0, position.character);
 
 		// Expand cases like <div to <div></div> explicitly
 		// else we will end up with <<div></div>
@@ -565,7 +565,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	// Worse case scenario is when cursor is inside a big chunk of text which needs to backtracked
 	// Backtrack only 500 offsets to ensure we dont waste time doing this
 	if (textToBackTrack.length > 500) {
-		textToBackTrack = textToBackTrack.substr(textToBackTrack.length - 500);
+		textToBackTrack = textToBackTrack.substring(textToBackTrack.length - 500);
 	}
 
 	if (!textToBackTrack.trim()) {

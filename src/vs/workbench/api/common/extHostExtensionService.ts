@@ -684,7 +684,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		if (authorityPlusIndex === -1) {
 			throw new Error(`Not an authority that can be resolved!`);
 		}
-		const authorityPrefix = remoteAuthority.substr(0, authorityPlusIndex);
+		const authorityPrefix = remoteAuthority.substring(0, authorityPlusIndex);
 
 		await this._almostReadyToRunExtensions.wait();
 		await this._activateByEvent(`onResolveRemoteAuthority:${authorityPrefix}`, false);

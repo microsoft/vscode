@@ -59,7 +59,7 @@
 		// use a different case compared to what we have
 		let NODE_MODULES_ALTERNATIVE_PATH;
 		if (appRoot /* only used from renderer until `sandbox` enabled */ && process.platform === 'win32') {
-			const driveLetter = appRoot.substr(0, 1);
+			const driveLetter = appRoot.substring(0, 1);
 
 			let alternativeDriveLetter;
 			if (driveLetter.toLowerCase() !== driveLetter) {
@@ -68,7 +68,7 @@
 				alternativeDriveLetter = driveLetter.toUpperCase();
 			}
 
-			NODE_MODULES_ALTERNATIVE_PATH = alternativeDriveLetter + NODE_MODULES_PATH.substr(1);
+			NODE_MODULES_ALTERNATIVE_PATH = alternativeDriveLetter + NODE_MODULES_PATH.substring(1);
 		} else {
 			NODE_MODULES_ALTERNATIVE_PATH = undefined;
 		}

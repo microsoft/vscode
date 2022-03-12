@@ -94,8 +94,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 		headerId = 'vscode.' + relativeDirname;
 		headerOut = 'out';
 	} else {
-		headerId = 'vscode.' + relativeDirname.substr(0, index);
-		headerOut = relativeDirname.substr(index + 1) + '/out';
+		headerId = 'vscode.' + relativeDirname.substring(0, index);
+		headerOut = relativeDirname.substring(index + 1) + '/out';
 	}
 
 	function createPipeline(build, emitError) {

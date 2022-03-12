@@ -95,7 +95,7 @@ export class LRUMemory extends Memory {
 			return 0;
 		}
 
-		const lineSuffix = model.getLineContent(pos.lineNumber).substr(pos.column - 10, pos.column - 1);
+		const lineSuffix = model.getLineContent(pos.lineNumber).substring(pos.column - 10, pos.column - 1);
 		if (/\s$/.test(lineSuffix)) {
 			return super.select(model, pos, items);
 		}

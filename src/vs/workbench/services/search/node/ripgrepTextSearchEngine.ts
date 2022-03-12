@@ -147,12 +147,12 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 
 	if (firstLine.startsWith('error parsing glob')) {
 		// Uppercase first letter
-		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.globParseError);
+		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substring(1), SearchErrorCode.globParseError);
 	}
 
 	if (firstLine.startsWith('the literal')) {
 		// Uppercase first letter
-		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substr(1), SearchErrorCode.invalidLiteral);
+		return new SearchError(firstLine.charAt(0).toUpperCase() + firstLine.substring(1), SearchErrorCode.invalidLiteral);
 	}
 
 	if (firstLine.startsWith('PCRE2: error compiling pattern')) {

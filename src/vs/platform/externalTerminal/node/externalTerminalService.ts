@@ -41,7 +41,7 @@ export class WindowsExternalTerminalService extends ExternalTerminalService impl
 
 		// Make the drive letter uppercase on Windows (see #9448)
 		if (cwd && cwd[1] === ':') {
-			cwd = cwd[0].toUpperCase() + cwd.substr(1);
+			cwd = cwd[0].toUpperCase() + cwd.substring(1);
 		}
 
 		// cmder ignores the environment cwd and instead opts to always open in %USERPROFILE%

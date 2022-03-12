@@ -38,7 +38,7 @@ export async function createIPCServer(context?: string): Promise<IIPCServer> {
 		hash.update(context);
 	}
 
-	const ipcHandlePath = getIPCHandlePath(hash.digest('hex').substr(0, 10));
+	const ipcHandlePath = getIPCHandlePath(hash.digest('hex').substring(0, 10));
 
 	if (process.platform !== 'win32') {
 		try {

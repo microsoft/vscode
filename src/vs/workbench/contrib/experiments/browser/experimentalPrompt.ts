@@ -86,7 +86,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		const msgInEnglish = text['en'] || text['en-us'];
 		displayLanguage = displayLanguage.toLowerCase();
 		if (!text[displayLanguage] && displayLanguage.indexOf('-') === 2) {
-			displayLanguage = displayLanguage.substr(0, 2);
+			displayLanguage = displayLanguage.substring(0, 2);
 		}
 		return text[displayLanguage] || msgInEnglish;
 	}

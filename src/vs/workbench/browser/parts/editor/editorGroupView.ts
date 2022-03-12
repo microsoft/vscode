@@ -656,7 +656,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			let resourceExt = extname(resource);
 			// Remove query parameters from the resource extension
 			const queryStringLocation = resourceExt.indexOf('?');
-			resourceExt = queryStringLocation !== -1 ? resourceExt.substr(0, queryStringLocation) : resourceExt;
+			resourceExt = queryStringLocation !== -1 ? resourceExt.substring(0, queryStringLocation) : resourceExt;
 			descriptor['resource'] = { mimeType: getMimeTypes(resource).join(', '), scheme: resource.scheme, ext: resourceExt, path: hash(path) };
 
 			/* __GDPR__FRAGMENT__

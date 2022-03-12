@@ -416,7 +416,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support (folder watch)', async function () {
 
 		// Local UNC paths are in the form of: \\localhost\c$\my_dir
-		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}`;
+		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substring(testDir.indexOf(':') + 1), '\\')}`;
 
 		await watcher.watch([{ path: uncPath, excludes: [], recursive: false }]);
 
@@ -426,7 +426,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support (file watch)', async function () {
 
 		// Local UNC paths are in the form of: \\localhost\c$\my_dir
-		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}\\lorem.txt`;
+		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substring(testDir.indexOf(':') + 1), '\\')}\\lorem.txt`;
 
 		await watcher.watch([{ path: uncPath, excludes: [], recursive: false }]);
 

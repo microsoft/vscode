@@ -2204,7 +2204,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			};
 		}
 		return {
-			word: wordAtPosition.word.substr(0, position.column - wordAtPosition.startColumn),
+			word: wordAtPosition.word.substring(0, position.column - wordAtPosition.startColumn),
 			startColumn: wordAtPosition.startColumn,
 			endColumn: position.column
 		};

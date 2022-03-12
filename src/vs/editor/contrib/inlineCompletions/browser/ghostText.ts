@@ -46,7 +46,7 @@ export class GhostText {
 		}
 		const lastPart = this.parts[this.parts.length - 1];
 
-		const cappedLineText = lineText.substr(0, lastPart.column - 1);
+		const cappedLineText = lineText.substring(0, lastPart.column - 1);
 		const text = applyEdits(cappedLineText,
 			this.parts.map(p => ({
 				range: { startLineNumber: 1, endLineNumber: 1, startColumn: p.column, endColumn: p.column },

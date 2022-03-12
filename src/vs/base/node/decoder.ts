@@ -52,7 +52,7 @@ export class LineDecoder {
 				idx++;
 			}
 		}
-		this.remaining = start < value.length ? value.substr(start) : null;
+		this.remaining = start < value.length ? value.substring(start) : null;
 		return result;
 	}
 

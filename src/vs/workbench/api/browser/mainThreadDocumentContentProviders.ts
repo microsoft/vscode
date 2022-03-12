@@ -44,7 +44,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 			provideTextContent: (uri: URI): Promise<ITextModel | null> => {
 				return this._proxy.$provideTextDocumentContent(handle, uri).then(value => {
 					if (typeof value === 'string') {
-						const firstLineText = value.substr(0, 1 + value.search(/\r?\n/));
+						const firstLineText = value.substring(0, 1 + value.search(/\r?\n/));
 						const languageSelection = this._languageService.createByFilepathOrFirstLine(uri, firstLineText);
 						return this._modelService.createModel(value, languageSelection, uri);
 					}

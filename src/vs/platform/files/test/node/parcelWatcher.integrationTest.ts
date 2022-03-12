@@ -460,7 +460,7 @@ import { ltrim } from 'vs/base/common/strings';
 	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support', async function () {
 
 		// Local UNC paths are in the form of: \\localhost\c$\my_dir
-		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}`;
+		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substring(testDir.indexOf(':') + 1), '\\')}`;
 
 		await watcher.watch([{ path: uncPath, excludes: [], recursive: true }]);
 

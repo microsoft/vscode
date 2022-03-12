@@ -33,7 +33,7 @@ export function evaluateMathExpression(): Thenable<boolean> {
 					if (!extractedIndices) {
 						throw new Error('Invalid extracted indices');
 					}
-					const result = String(evaluate(lineToSelectionEnd.substr(extractedIndices[0], extractedIndices[1])));
+					const result = String(evaluate(lineToSelectionEnd.substring(extractedIndices[0], extractedIndices[1])));
 					const rangeToReplace = new vscode.Range(
 						new vscode.Position(selection.end.line, extractedIndices[0]),
 						new vscode.Position(selection.end.line, extractedIndices[1])

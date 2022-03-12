@@ -589,7 +589,7 @@ suite('viewLineRenderer.renderLine', () => {
 		{
 			assertSplitsTokens(
 				'49 chars',
-				_lineText.substr(0, 49),
+				_lineText.substring(0, 49),
 				[
 					'<span class="mtk1">This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0very\u00a0inter</span>',
 				]
@@ -600,7 +600,7 @@ suite('viewLineRenderer.renderLine', () => {
 		{
 			assertSplitsTokens(
 				'50 chars',
-				_lineText.substr(0, 50),
+				_lineText.substring(0, 50),
 				[
 					'<span class="mtk1">This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0very\u00a0intere</span>',
 				]
@@ -611,7 +611,7 @@ suite('viewLineRenderer.renderLine', () => {
 		{
 			assertSplitsTokens(
 				'51 chars',
-				_lineText.substr(0, 51),
+				_lineText.substring(0, 51),
 				[
 					'<span class="mtk1">This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0very\u00a0intere</span>',
 					'<span class="mtk1">s</span>',
@@ -623,7 +623,7 @@ suite('viewLineRenderer.renderLine', () => {
 		{
 			assertSplitsTokens(
 				'99 chars',
-				_lineText.substr(0, 99),
+				_lineText.substring(0, 99),
 				[
 					'<span class="mtk1">This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0very\u00a0intere</span>',
 					'<span class="mtk1">sting\u00a0text.\u00a0This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contain</span>',
@@ -635,7 +635,7 @@ suite('viewLineRenderer.renderLine', () => {
 		{
 			assertSplitsTokens(
 				'100 chars',
-				_lineText.substr(0, 100),
+				_lineText.substring(0, 100),
 				[
 					'<span class="mtk1">This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0very\u00a0intere</span>',
 					'<span class="mtk1">sting\u00a0text.\u00a0This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains</span>',
@@ -647,7 +647,7 @@ suite('viewLineRenderer.renderLine', () => {
 		{
 			assertSplitsTokens(
 				'101 chars',
-				_lineText.substr(0, 101),
+				_lineText.substring(0, 101),
 				[
 					'<span class="mtk1">This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0very\u00a0intere</span>',
 					'<span class="mtk1">sting\u00a0text.\u00a0This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains</span>',
@@ -693,7 +693,7 @@ suite('viewLineRenderer.renderLine', () => {
 		{
 			assertSplitsTokens(
 				'101 chars',
-				_lineText.substr(0, 101),
+				_lineText.substring(0, 101),
 				[
 					'<span class="mtk1">This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0contains\u00a0very\u00a0</span>',
 					'<span class="mtk1">interesting\u00a0text.\u00a0This\u00a0is\u00a0just\u00a0a\u00a0long\u00a0line\u00a0that\u00a0</span>',

@@ -72,7 +72,7 @@ function doParseLabelWithIcons(text: string, firstIconIndex: number): IParsedLab
 	const length = text.length;
 
 	// Append all characters until the first icon
-	appendChars(text.substr(0, firstIconIndex));
+	appendChars(text.substring(0, firstIconIndex));
 
 	// example: $(file-symlink-file) my cool $(other-icon) entry
 	while (offset < length) {

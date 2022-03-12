@@ -280,7 +280,7 @@ function compileAction(lexer: monarchCommon.ILexerMin, ruleName: string, action:
 					let next: string = action.next;
 					if (!/^(@pop|@push|@popall)$/.test(next)) {
 						if (next[0] === '@') {
-							next = next.substr(1); // peel off starting @ sign
+							next = next.substring(1); // peel off starting @ sign
 						}
 						if (next.indexOf('$') < 0) {  // no dollar substitution, we can check if the state exists
 							if (!monarchCommon.stateExists(lexer, monarchCommon.substituteMatches(lexer, next, '', [], ''))) {
@@ -382,7 +382,7 @@ class Rule implements monarchCommon.IRule {
 
 		this.matchOnlyAtLineStart = (sregex.length > 0 && sregex[0] === '^');
 		this.name = this.name + ': ' + sregex;
-		this.regex = compileRegExp(lexer, '^(?:' + (this.matchOnlyAtLineStart ? sregex.substr(1) : sregex) + ')');
+		this.regex = compileRegExp(lexer, '^(?:' + (this.matchOnlyAtLineStart ? sregex.substring(1) : sregex) + ')');
 	}
 
 	public setAction(lexer: monarchCommon.ILexerMin, act: monarchCommon.IAction) {
@@ -443,7 +443,7 @@ export function compile(languageId: string, json: IMonarchLanguage): monarchComm
 					throw monarchCommon.createError(lexer, 'an \'include\' attribute must be a string at: ' + state);
 				}
 				if (include[0] === '@') {
-					include = include.substr(1); // peel off starting @
+					include = include.substring(1); // peel off starting @
 				}
 				if (!json.tokenizer[include]) {
 					throw monarchCommon.createError(lexer, 'include target \'' + include + '\' is not defined at: ' + state);

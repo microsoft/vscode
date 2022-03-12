@@ -356,7 +356,7 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 				targetResource = target; // file got moved
 			} else {
 				const index = indexOfPath(resource.path, source.path);
-				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
+				targetResource = joinPath(target, resource.path.substring(index + source.path.length + 1)); // parent folder got moved
 			}
 
 			// Don't modify LRU state

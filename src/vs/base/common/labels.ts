@@ -115,14 +115,15 @@ export function tildify(path: string, userHome: string): string {
 
 	// Linux: case sensitive, macOS: case insensitive
 	if (isLinux ? path.startsWith(normalizedUserHome) : startsWithIgnoreCase(path, normalizedUserHome)) {
-		path = `~/${path.substr(normalizedUserHome.length)}`;
+		path = `~/${path.substring(normalizedUserHome.length)
+			} `;
 	}
 
 	return path;
 }
 
 export function untildify(path: string, userHome: string): string {
-	return path.replace(/^~($|\/|\\)/, `${userHome}$1`);
+	return path.replace(/^~($|\/|\\)/, `${userHome} $1`);
 }
 
 /**
@@ -166,7 +167,7 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 		let path = paths[pathIndex];
 
 		if (path === '') {
-			shortenedPaths[pathIndex] = `.${pathSeparator}`;
+			shortenedPaths[pathIndex] = `.${pathSeparator} `;
 			continue;
 		}
 
@@ -180,14 +181,14 @@ export function shorten(paths: string[], pathSeparator: string = sep): string[] 
 		// trim for now and concatenate unc path (e.g. \\network) or root path (/etc, ~/etc) later
 		let prefix = '';
 		if (path.indexOf(unc) === 0) {
-			prefix = path.substr(0, path.indexOf(unc) + unc.length);
-			path = path.substr(path.indexOf(unc) + unc.length);
+			prefix = path.substring(0, path.indexOf(unc) + unc.length);
+			path = path.substring(path.indexOf(unc) + unc.length);
 		} else if (path.indexOf(pathSeparator) === 0) {
-			prefix = path.substr(0, path.indexOf(pathSeparator) + pathSeparator.length);
-			path = path.substr(path.indexOf(pathSeparator) + pathSeparator.length);
+			prefix = path.substring(0, path.indexOf(pathSeparator) + pathSeparator.length);
+			path = path.substring(path.indexOf(pathSeparator) + pathSeparator.length);
 		} else if (path.indexOf(home) === 0) {
-			prefix = path.substr(0, path.indexOf(home) + home.length);
-			path = path.substr(path.indexOf(home) + home.length);
+			prefix = path.substring(0, path.indexOf(home) + home.length);
+			path = path.substring(path.indexOf(home) + home.length);
 		}
 
 		// pick the first shortest subpath found

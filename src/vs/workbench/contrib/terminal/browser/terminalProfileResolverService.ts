@@ -341,7 +341,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			if (!isWoW64 && windir) {
 				const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
 				if (profile.path && profile.path.toLowerCase().indexOf(sysnativePath) === 0) {
-					profile.path = path.join(windir, 'System32', profile.path.substr(sysnativePath.length + 1));
+					profile.path = path.join(windir, 'System32', profile.path.substring(sysnativePath.length + 1));
 				}
 			}
 

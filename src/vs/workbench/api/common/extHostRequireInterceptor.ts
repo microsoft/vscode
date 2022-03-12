@@ -223,7 +223,7 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 				appRoot = appRoot.replace(/\\/g, '/');
 			}
 			if (appRoot[appRoot.length - 1] === '/') {
-				appRoot = appRoot.substr(0, appRoot.length - 1);
+				appRoot = appRoot.substring(0, appRoot.length - 1);
 			}
 			this.alternativeNames = new Set();
 			this.alternativeNames.add(`${appRoot}/node_modules.asar/keytar`);

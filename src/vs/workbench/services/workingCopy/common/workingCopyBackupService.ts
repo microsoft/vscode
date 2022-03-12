@@ -434,7 +434,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 		let metaPreamble: string | undefined;
 		if (metaStartIndex > 0) {
 			resourcePreamble = backupPreamble.substring(0, metaStartIndex);
-			metaPreamble = backupPreamble.substr(metaStartIndex + 1);
+			metaPreamble = backupPreamble.substring(metaStartIndex + 1);
 		} else {
 			resourcePreamble = backupPreamble;
 			metaPreamble = undefined;
@@ -458,7 +458,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 
 		const matchingStringIndex = contents.indexOf(matchingString);
 		if (matchingStringIndex >= 0) {
-			return contents.substr(0, matchingStringIndex);
+			return contents.substring(0, matchingStringIndex);
 		}
 
 		// Unable to find matching string in file
@@ -497,7 +497,7 @@ class WorkingCopyBackupServiceImpl extends Disposable implements IWorkingCopyBac
 		let meta: T | undefined;
 		const metaStartIndex = preambelRaw.indexOf(WorkingCopyBackupServiceImpl.PREAMBLE_META_SEPARATOR);
 		if (metaStartIndex !== -1) {
-			meta = this.parsePreambleMeta(preambelRaw.substr(metaStartIndex + 1)).meta as T;
+			meta = this.parsePreambleMeta(preambelRaw.substring(metaStartIndex + 1)).meta as T;
 		}
 
 		// Update model entry with now resolved meta

@@ -69,7 +69,7 @@ class WebviewViewTypeTransformer {
 
 	public toExternal(viewType: string): string | undefined {
 		return viewType.startsWith(this.prefix)
-			? viewType.substr(this.prefix.length)
+			? viewType.substring(this.prefix.length)
 			: undefined;
 	}
 }

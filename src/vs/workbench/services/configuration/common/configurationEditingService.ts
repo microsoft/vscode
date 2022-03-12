@@ -464,7 +464,7 @@ export class ConfigurationEditingService {
 
 	private defaultResourceValue(resource: URI): string {
 		const basename: string = this.uriIdentityService.extUri.basename(resource);
-		const configurationValue: string = basename.substr(0, basename.length - this.uriIdentityService.extUri.extname(resource).length);
+		const configurationValue: string = basename.substring(0, basename.length - this.uriIdentityService.extUri.extname(resource).length);
 		switch (configurationValue) {
 			case TASKS_CONFIGURATION_KEY: return TASKS_DEFAULT;
 			default: return '{}';
@@ -577,7 +577,7 @@ export class ConfigurationEditingService {
 				// Check for prefix.<setting>
 				const keyPrefix = `${key}.`;
 				if (config.key.indexOf(keyPrefix) === 0) {
-					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
+					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key, config.key.substring(keyPrefix.length)] : [config.key.substring(keyPrefix.length)];
 					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: withNullAsUndefined(resource), workspaceStandAloneConfigurationKey: key, target };
 				}
 			}

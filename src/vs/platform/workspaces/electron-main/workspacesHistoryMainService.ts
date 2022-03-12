@@ -366,8 +366,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 				return {
 					type: 'task',
-					title: title.substr(0, 255), 				// Windows seems to be picky around the length of entries
-					description: description.substr(0, 255),	// (see https://github.com/microsoft/vscode/issues/111177)
+					title: title.substring(0, 255), 				// Windows seems to be picky around the length of entries
+					description: description.substring(0, 255),	// (see https://github.com/microsoft/vscode/issues/111177)
 					program: process.execPath,
 					args,
 					iconPath: 'explorer.exe', // simulate folder icon
@@ -416,7 +416,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		// Workspace: normal
 		let filename = basename(workspace.configPath);
 		if (filename.endsWith(WORKSPACE_EXTENSION)) {
-			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+			filename = filename.substring(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
 
 		return { title: localize('workspaceName', "{0} (Workspace)", filename), description: this.renderJumpListPathDescription(workspace.configPath) };

@@ -362,7 +362,7 @@ class MarkerWidget extends Disposable {
 			const highlightedLabel = new HighlightedLabel(messageElement);
 			highlightedLabel.set(lines[index].length > 1000 ? `${lines[index].substring(0, 1000)}...` : lines[index], lineMatches[index]);
 			if (lines[index] === '') {
-				lastLineElement.style.height = `${VirtualDelegate.LINE_HEIGHT}px`;
+				lastLineElement.style.height = `${VirtualDelegate.LINE_HEIGHT} px`;
 			}
 		}
 		this.renderDetails(marker, filterData, lastLineElement || dom.append(this.messageAndDetailsContainer, dom.$('.marker-message-line')));

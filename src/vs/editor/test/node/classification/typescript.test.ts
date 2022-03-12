@@ -51,9 +51,9 @@ function parseTest(fileName: string): ITest {
 	const parsedTest: ILineWithAssertions[] = [];
 	for (let i = 2; i < lines.length; i++) {
 		const line = lines[i];
-		if (line.substr(0, magicToken.length) === magicToken) {
+		if (line.substring(0, magicToken.length) === magicToken) {
 			// this is an assertion line
-			const m1 = line.substr(magicToken.length).match(/^( +)([\^]+) (\w+)\\?$/);
+			const m1 = line.substring(magicToken.length).match(/^( +)([\^]+) (\w+)\\?$/);
 			if (m1) {
 				currentElement.assertions.push({
 					testLineNumber: i + 1,
@@ -62,7 +62,7 @@ function parseTest(fileName: string): ITest {
 					expectedTokenType: toStandardTokenType(m1[3])
 				});
 			} else {
-				const m2 = line.substr(magicToken.length).match(/^( +)<(-+) (\w+)\\?$/);
+				const m2 = line.substring(magicToken.length).match(/^( +)<(-+) (\w+)\\?$/);
 				if (m2) {
 					currentElement.assertions.push({
 						testLineNumber: i + 1,

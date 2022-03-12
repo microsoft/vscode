@@ -60,7 +60,7 @@ export class TypeScriptServerError extends Error {
 		if (errorText) {
 			const errorPrefix = 'Error processing request. ';
 			if (errorText.startsWith(errorPrefix)) {
-				const prefixFreeErrorText = errorText.substr(errorPrefix.length);
+				const prefixFreeErrorText = errorText.substring(errorPrefix.length);
 				const newlineIndex = prefixFreeErrorText.indexOf('\n');
 				if (newlineIndex >= 0) {
 					// Newline expected between message and stack.

@@ -24,7 +24,7 @@ const localize = nls.loadMessageBundle();
 
 class CheckoutItem implements QuickPickItem {
 
-	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
+	protected get shortCommit(): string { return (this.ref.commit || '').substring(0, 8); }
 	get label(): string { return this.ref.name || this.shortCommit; }
 	get description(): string { return this.shortCommit; }
 
@@ -71,7 +71,7 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 
 class BranchDeleteItem implements QuickPickItem {
 
-	private get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
+	private get shortCommit(): string { return (this.ref.commit || '').substring(0, 8); }
 	get branchName(): string | undefined { return this.ref.name; }
 	get label(): string { return this.branchName || ''; }
 	get description(): string { return this.shortCommit; }
@@ -135,7 +135,7 @@ class HEADItem implements QuickPickItem {
 	constructor(private repository: Repository) { }
 
 	get label(): string { return 'HEAD'; }
-	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substr(0, 8); }
+	get description(): string { return (this.repository.HEAD && this.repository.HEAD.commit || '').substring(0, 8); }
 	get alwaysShow(): boolean { return true; }
 }
 
@@ -262,7 +262,7 @@ function sanitizeRemoteName(name: string) {
 
 class TagItem implements QuickPickItem {
 	get label(): string { return this.ref.name ?? ''; }
-	get description(): string { return this.ref.commit?.substr(0, 8) ?? ''; }
+	get description(): string { return this.ref.commit?.substring(0, 8) ?? ''; }
 	constructor(readonly ref: Ref) { }
 }
 

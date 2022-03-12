@@ -48,11 +48,11 @@ const testUri = 'test://test/test.html';
 
 export async function testCompletionFor(value: string, expected: { count?: number; items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): Promise<void> {
 	let offset = value.indexOf('|');
-	value = value.substr(0, offset) + value.substr(offset + 1);
+	value = value.substring(0, offset) + value.substring(offset + 1);
 
 	let workspace = {
 		settings: {},
-		folders: workspaceFolders || [{ name: 'x', uri: uri.substr(0, uri.lastIndexOf('/')) }]
+		folders: workspaceFolders || [{ name: 'x', uri: uri.substring(0, uri.lastIndexOf('/')) }]
 	};
 
 	let document = TextDocument.create(uri, 'html', 0, value);

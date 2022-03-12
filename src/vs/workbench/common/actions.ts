@@ -66,8 +66,8 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 			let idx = alias.indexOf(': ');
 			let categoryOriginal = '';
 			if (idx > 0) {
-				categoryOriginal = alias.substr(0, idx);
-				alias = alias.substr(idx + 2);
+				categoryOriginal = alias.substring(0, idx);
+				alias = alias.substring(idx + 2);
 			}
 
 			const command: ICommandAction = {

@@ -253,7 +253,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 		templateData.match.classList.toggle('replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
-		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
+		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substring(0, 999);
 
 		const numLines = match.range().endLineNumber - match.range().startLineNumber;
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
@@ -327,7 +327,7 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
 			const matchString = match.getMatchString();
 			const range = match.range();
-			const matchText = match.text().substr(0, range.endColumn + 150);
+			const matchText = match.text().substring(0, range.endColumn + 150);
 			if (replace) {
 				return nls.localize('replacePreviewResultAria', "Replace '{0}' with '{1}' at column {2} in line {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
 			}

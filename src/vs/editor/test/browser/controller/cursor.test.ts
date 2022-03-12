@@ -4987,7 +4987,7 @@ suite('autoClosingPairs', () => {
 
 	function assertType(editor: ITestCodeEditor, model: ITextModel, viewModel: ViewModel, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
 		let lineContent = model.getLineContent(lineNumber);
-		let expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
+		let expected = lineContent.substring(0, column - 1) + expectedInsert + lineContent.substring(column - 1);
 		moveTo(editor, viewModel, lineNumber, column);
 		viewModel.type(chr, 'keyboard');
 		assert.deepStrictEqual(model.getLineContent(lineNumber), expected, message);

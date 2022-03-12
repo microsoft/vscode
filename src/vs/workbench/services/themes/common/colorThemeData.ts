@@ -678,7 +678,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 function toCSSSelector(extensionId: string, path: string) {
 	if (path.startsWith('./')) {
-		path = path.substr(2);
+		path = path.substring(2);
 	}
 	let str = `${extensionId}-${path}`;
 
@@ -826,7 +826,7 @@ function scopesAreMatching(thisScopeName: string, scopeName: string): boolean {
 		return true;
 	}
 	const len = scopeName.length;
-	return thisScopeName.length > len && thisScopeName.substr(0, len) === scopeName && thisScopeName[len] === '.';
+	return thisScopeName.length > len && thisScopeName.substring(0, len) === scopeName && thisScopeName[len] === '.';
 }
 
 function getScopeMatcher(rule: ITextMateThemingRule): Matcher<ProbeScope> {

@@ -231,7 +231,7 @@ function _resolveCwd(cwd: string, variableResolver: VariableResolver | undefined
 function _sanitizeCwd(cwd: string): string {
 	// Make the drive letter uppercase on Windows (see #9448)
 	if (OS === OperatingSystem.Windows && cwd && cwd[1] === ':') {
-		return cwd[0].toUpperCase() + cwd.substr(1);
+		return cwd[0].toUpperCase() + cwd.substring(1);
 	}
 	return cwd;
 }
@@ -289,7 +289,7 @@ export function getDefaultShell(
 	if ((platformOverride === Platform.Windows) && !isWoW64 && windir) {
 		const sysnativePath = path.join(windir, 'Sysnative').replace(/\//g, '\\').toLowerCase();
 		if (executable && executable.toLowerCase().indexOf(sysnativePath) === 0) {
-			executable = path.join(windir, 'System32', executable.substr(sysnativePath.length + 1));
+			executable = path.join(windir, 'System32', executable.substring(sysnativePath.length + 1));
 		}
 	}
 

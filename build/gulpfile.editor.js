@@ -252,9 +252,9 @@ function toExternalDTS(contents) {
 			}
 
 			if (line.indexOf('    ') === 0) {
-				lines[i] = line.substr(4);
+				lines[i] = line.substring(4);
 			} else if (line.charAt(0) === '\t') {
-				lines[i] = line.substr(1);
+				lines[i] = line.substring(1);
 			}
 
 			continue;

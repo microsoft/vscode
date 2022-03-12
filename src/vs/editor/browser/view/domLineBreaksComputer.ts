@@ -115,7 +115,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 			}
 		}
 
-		const renderLineContent = lineContent.substr(firstNonWhitespaceIndex);
+		const renderLineContent = lineContent.substring(firstNonWhitespaceIndex);
 		const tmp = renderLine(renderLineContent, wrappedTextIndentLength, tabSize, width, sb, additionalIndentLength);
 		firstNonWhitespaceIndices[i] = firstNonWhitespaceIndex;
 		wrappedTextIndentLengths[i] = wrappedTextIndentLength;

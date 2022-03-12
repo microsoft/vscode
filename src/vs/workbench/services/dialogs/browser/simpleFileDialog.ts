@@ -453,8 +453,8 @@ export class SimpleFileDialog {
 
 	private constructFullUserPath(): string {
 		const currentFolderPath = this.pathFromUri(this.currentFolder);
-		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment)) {
-			if (equalsIgnoreCase(this.filePickBox.value.substr(0, currentFolderPath.length), currentFolderPath)) {
+		if (equalsIgnoreCase(this.filePickBox.value.substring(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment)) {
+			if (equalsIgnoreCase(this.filePickBox.value.substring(0, currentFolderPath.length), currentFolderPath)) {
 				return currentFolderPath;
 			} else {
 				return this.userEnteredPathSegment;
@@ -473,7 +473,7 @@ export class SimpleFileDialog {
 		}
 		const currentDisplayUri = this.remoteUriFrom(currentPath, this.currentFolder);
 		const relativePath = resources.relativePath(currentDisplayUri, directUri);
-		const isSameRoot = (this.filePickBox.value.length > 1 && currentPath.length > 1) ? equalsIgnoreCase(this.filePickBox.value.substr(0, 2), currentPath.substr(0, 2)) : false;
+		const isSameRoot = (this.filePickBox.value.length > 1 && currentPath.length > 1) ? equalsIgnoreCase(this.filePickBox.value.substring(0, 2), currentPath.substring(0, 2)) : false;
 		if (relativePath && isSameRoot) {
 			let path = resources.joinPath(this.currentFolder, relativePath);
 			const directBasename = resources.basename(directUri);
@@ -664,7 +664,7 @@ export class SimpleFileDialog {
 				document.execCommand('insertText', false, '');
 			}
 			return false;
-		} else if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
+		} else if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substring(0, startingBasename.length), startingBasename)) {
 			this.userEnteredPathSegment = startingBasename;
 			this.activeItem = quickPickItem;
 			// Changing the active items will trigger the onDidActiveItemsChanged. Clear the autocomplete first, then set it after.
@@ -713,7 +713,7 @@ export class SimpleFileDialog {
 		if (this.requiresTrailing && this.options.filters && this.options.filters.length > 0 && !resources.hasTrailingPathSeparator(uri)) {
 			// Make sure that the suffix is added. If the user deleted it, we automatically add it here
 			let hasExt: boolean = false;
-			const currentExt = resources.extname(uri).substr(1);
+			const currentExt = resources.extname(uri).substring(1);
 			for (let i = 0; i < this.options.filters.length; i++) {
 				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
 					if ((this.options.filters[i].extensions[j] === '*') || (this.options.filters[i].extensions[j] === currentExt)) {
@@ -733,7 +733,7 @@ export class SimpleFileDialog {
 	}
 
 	private trimTrailingSlash(path: string): string {
-		return ((path.length > 1) && this.endsWithSlash(path)) ? path.substr(0, path.length - 1) : path;
+		return ((path.length > 1) && this.endsWithSlash(path)) ? path.substring(0, path.length - 1) : path;
 	}
 
 	private yesNoPrompt(uri: URI, message: string): Promise<boolean> {
@@ -967,8 +967,8 @@ export class SimpleFileDialog {
 			if (i1.isFolder !== i2.isFolder) {
 				return i1.isFolder ? -1 : 1;
 			}
-			const trimmed1 = this.endsWithSlash(i1.label) ? i1.label.substr(0, i1.label.length - 1) : i1.label;
-			const trimmed2 = this.endsWithSlash(i2.label) ? i2.label.substr(0, i2.label.length - 1) : i2.label;
+			const trimmed1 = this.endsWithSlash(i1.label) ? i1.label.substring(0, i1.label.length - 1) : i1.label;
+			const trimmed2 = this.endsWithSlash(i2.label) ? i2.label.substring(0, i2.label.length - 1) : i2.label;
 			return trimmed1.localeCompare(trimmed2);
 		});
 

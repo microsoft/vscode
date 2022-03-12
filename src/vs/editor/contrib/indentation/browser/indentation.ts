@@ -516,7 +516,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						range: new Range(startLineNumber, 1, startLineNumber, oldIndentation.length + 1),
 						text: newIndent
 					});
-					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
+					firstLineText = newIndent + firstLineText.substring(oldIndentation.length);
 				} else {
 					let indentMetadata = LanguageConfigurationRegistry.getIndentMetadata(model, startLineNumber);
 

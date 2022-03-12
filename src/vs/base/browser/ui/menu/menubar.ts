@@ -558,9 +558,9 @@ export class MenuBar extends Disposable {
 			if (escMatch) {
 				titleElement.innerText = '';
 				titleElement.append(
-					strings.ltrim(replaceDoubleEscapes(cleanLabel.substr(0, escMatch.index)), ' '),
+					strings.ltrim(replaceDoubleEscapes(cleanLabel.substring(0, escMatch.index)), ' '),
 					$('mnemonic', { 'aria-hidden': 'true' }, escMatch[3]),
-					strings.rtrim(replaceDoubleEscapes(cleanLabel.substr(escMatch.index + escMatch[0].length)), ' ')
+					strings.rtrim(replaceDoubleEscapes(cleanLabel.substring(escMatch.index + escMatch[0].length)), ' ')
 				);
 			} else {
 				titleElement.innerText = replaceDoubleEscapes(cleanLabel).trim();

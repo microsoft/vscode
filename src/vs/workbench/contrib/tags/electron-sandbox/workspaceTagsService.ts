@@ -828,7 +828,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		}
 		const path = uri.path;
 		const i = path.lastIndexOf('/');
-		return i !== -1 ? uri.with({ path: path.substr(0, i) }) : undefined;
+		return i !== -1 ? uri.with({ path: path.substring(0, i) }) : undefined;
 	}
 
 	private searchArray(arr: string[], regEx: RegExp): boolean | undefined {

@@ -735,7 +735,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 							}
 						}
 						const leadingTriviaWidth = node.getLeadingTriviaWidth();
-						const leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
+						const leadingTrivia = sourceFile.text.substring(node.pos, leadingTriviaWidth);
 						if (survivingImports.length > 0) {
 							if (node.importClause && node.importClause.name && getColor(node.importClause) === NodeColor.Black) {
 								return write(`${leadingTrivia}import ${node.importClause.name.text}, {${survivingImports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
@@ -763,7 +763,7 @@ function generateResult(ts: typeof import('typescript'), languageService: ts.Lan
 						}
 					}
 					const leadingTriviaWidth = node.getLeadingTriviaWidth();
-					const leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
+					const leadingTrivia = sourceFile.text.substring(node.pos, leadingTriviaWidth);
 					if (survivingExports.length > 0) {
 						return write(`${leadingTrivia}export {${survivingExports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
 					}

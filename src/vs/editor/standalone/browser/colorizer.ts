@@ -55,7 +55,7 @@ export class Colorizer {
 		}
 
 		if (strings.startsWithUTF8BOM(text)) {
-			text = text.substr(1);
+			text = text.substring(1);
 		}
 		const lines = strings.splitLines(text);
 		if (!languageService.isRegisteredLanguageId(languageId)) {

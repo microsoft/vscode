@@ -80,8 +80,8 @@ function parseGroupAndOrder(welcome: ViewWelcome, contribution: IExtensionPointU
 
 		const idx = welcome.group.lastIndexOf('@');
 		if (idx > 0) {
-			group = welcome.group.substr(0, idx);
-			order = Number(welcome.group.substr(idx + 1)) || undefined;
+			group = welcome.group.substring(0, idx);
+			order = Number(welcome.group.substring(idx + 1)) || undefined;
 		} else {
 			group = welcome.group;
 		}

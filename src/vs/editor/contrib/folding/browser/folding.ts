@@ -1002,7 +1002,7 @@ class FoldLevelAction extends FoldingAction<void> {
 	public static readonly ID = (level: number) => FoldLevelAction.ID_PREFIX + level;
 
 	private getFoldingLevel() {
-		return parseInt(this.id.substr(FoldLevelAction.ID_PREFIX.length));
+		return parseInt(this.id.substring(FoldLevelAction.ID_PREFIX.length));
 	}
 
 	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {

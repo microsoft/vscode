@@ -99,5 +99,5 @@ export function getRequestService(handledSchemas: string[], connection: Connecti
 }
 
 function getScheme(uri: string) {
-	return uri.substr(0, uri.indexOf(':'));
+	return uri.substring(0, uri.indexOf(':'));
 }

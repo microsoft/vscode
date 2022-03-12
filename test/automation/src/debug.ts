@@ -85,7 +85,7 @@ export class Debug extends Viewlet {
 		const output = await this.waitForOutput(output => output.some(line => line.indexOf(portPrefix) >= 0));
 		const lastOutput = output.filter(line => line.indexOf(portPrefix) >= 0)[0];
 
-		return lastOutput ? parseInt(lastOutput.substr(portPrefix.length)) : 3000;
+		return lastOutput ? parseInt(lastOutput.substring(portPrefix.length)) : 3000;
 	}
 
 	async stepOver(): Promise<any> {

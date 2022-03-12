@@ -155,12 +155,13 @@ async function getSchemaRequestService(context: ExtensionContext, log: Log): Pro
 
 				let status = getErrorStatusDescription(error.status);
 				if (status && error.responseText) {
-					status = `${status}\n${error.responseText.substring(0, 200)}`;
+					status = `${status}\n${error.responseText.substring(0, 200)
+						} `;
 				}
 				if (!status) {
 					status = error.toString();
 				}
-				log.trace(`[json schema cache] Respond schema ${uri} error ${status}`);
+				log.trace(`[json schema cache] Respond schema ${uri} error ${status} `);
 
 				throw status;
 			}
@@ -174,7 +175,7 @@ async function getSchemaRequestService(context: ExtensionContext, log: Log): Pro
 				const content = await cache.getSchemaIfUpdatedSince(uri, retryTimeoutInHours);
 				if (content) {
 					if (log.isTrace()) {
-						log.trace(`[json schema cache] Schema ${uri} from cache without request (last accessed ${cache.getLastUpdatedInHours(uri)} hours ago)`);
+						log.trace(`[json schema cache] Schema ${uri} from cache without request(last accessed ${cache.getLastUpdatedInHours(uri)} hours ago)`);
 					}
 
 					return content;

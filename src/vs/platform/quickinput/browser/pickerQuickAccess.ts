@@ -121,7 +121,7 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 			// Collect picks and support both long running and short or combined
 			const picksToken = picksCts.token;
-			const picksFilter = picker.value.substr(this.prefix.length).trim();
+			const picksFilter = picker.value.substring(this.prefix.length).trim();
 			const providedPicks = this._getPicks(picksFilter, picksDisposables, picksToken);
 
 			const applyPicks = (picks: Picks<T>, skipEmpty?: boolean): boolean => {

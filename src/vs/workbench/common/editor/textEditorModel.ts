@@ -163,7 +163,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 
 		// text model
 		const textSnapshot = value as ITextModel;
-		return textSnapshot.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT);
+		return textSnapshot.getLineContent(1).substring(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT);
 	}
 
 	/**

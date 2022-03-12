@@ -118,15 +118,16 @@ export class ExtensionHostConnection {
 	}
 
 	private get _logPrefix(): string {
-		return `[${this._remoteAddress}][${this._reconnectionToken.substr(0, 8)}][ExtensionHostConnection] `;
+		return `[${this._remoteAddress}][${this._reconnectionToken.substring(0, 8)
+			}][ExtensionHostConnection] `;
 	}
 
 	private _log(_str: string): void {
-		this._logService.info(`${this._logPrefix}${_str}`);
+		this._logService.info(`${this._logPrefix}${_str} `);
 	}
 
 	private _logError(_str: string): void {
-		this._logService.error(`${this._logPrefix}${_str}`);
+		this._logService.error(`${this._logPrefix}${_str} `);
 	}
 
 	private static _toConnectionData(socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer): ConnectionData {
@@ -189,7 +190,7 @@ export class ExtensionHostConnection {
 		try {
 			let execArgv: string[] = [];
 			if (startParams.port && !(<any>process).pkg) {
-				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port}`];
+				execArgv = [`--inspect${startParams.break ? '-brk' : ''}=${startParams.port} `];
 			}
 
 			const env = await buildUserEnvironment(startParams.env, true, startParams.language, !!startParams.debugId, this._environmentService, this._logService);
@@ -204,36 +205,36 @@ export class ExtensionHostConnection {
 			// Run Extension Host as fork of current process
 			const args = ['--type=extensionHost', `--transformURIs`];
 			const useHostProxy = this._environmentService.args['use-host-proxy'];
-			args.push(`--useHostProxy=${useHostProxy ? 'true' : 'false'}`);
+			args.push(`--useHostProxy = ${useHostProxy ? 'true' : 'false'} `);
 			this._extensionHostProcess = cp.fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, args, opts);
 			const pid = this._extensionHostProcess.pid;
-			this._log(`<${pid}> Launched Extension Host Process.`);
+			this._log(`< ${pid}> Launched Extension Host Process.`);
 
 			// Catch all output coming from the extension host process
 			this._extensionHostProcess.stdout!.setEncoding('utf8');
 			this._extensionHostProcess.stderr!.setEncoding('utf8');
 			const onStdout = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stdout!, 'data');
 			const onStderr = Event.fromNodeEventEmitter<string>(this._extensionHostProcess.stderr!, 'data');
-			onStdout((e) => this._log(`<${pid}> ${e}`));
-			onStderr((e) => this._log(`<${pid}><stderr> ${e}`));
+			onStdout((e) => this._log(`< ${pid}> ${e} `));
+			onStderr((e) => this._log(`< ${pid}> <stderr>${e} `));
 
 
 			// Support logging from extension host
 			this._extensionHostProcess.on('message', msg => {
 				if (msg && (<IRemoteConsoleLog>msg).type === '__$console') {
-					logRemoteEntry(this._logService, (<IRemoteConsoleLog>msg), `${this._logPrefix}<${pid}>`);
+					logRemoteEntry(this._logService, (<IRemoteConsoleLog>msg), `${this._logPrefix} <${pid} > `);
 				}
 			});
 
 			// Lifecycle
 			this._extensionHostProcess.on('error', (err) => {
-				this._logError(`<${pid}> Extension Host Process had an error`);
+				this._logError(`< ${pid}> Extension Host Process had an error`);
 				this._logService.error(err);
 				this._cleanResources();
 			});
 
 			this._extensionHostProcess.on('exit', (code: number, signal: string) => {
-				this._log(`<${pid}> Extension Host Process exited with code: ${code}, signal: ${signal}.`);
+				this._log(`< ${pid}> Extension Host Process exited with code: ${code}, signal: ${signal}.`);
 				this._cleanResources();
 			});
 

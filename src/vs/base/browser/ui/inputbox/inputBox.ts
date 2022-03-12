@@ -610,7 +610,7 @@ export class InputBox extends Widget {
 		const content = inputElement.value;
 
 		if (start !== null && end !== null) {
-			this.value = content.substr(0, start) + text + content.substr(end);
+			this.value = content.substring(0, start) + text + content.substring(end);
 			inputElement.setSelectionRange(start + 1, start + 1);
 			this.layout();
 		}

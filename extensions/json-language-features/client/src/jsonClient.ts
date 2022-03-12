@@ -446,7 +446,7 @@ function getSettings(): Settings {
 		if (folderUri && isMultiRoot) {
 			fileMatchPrefix = folderUri.toString();
 			if (fileMatchPrefix[fileMatchPrefix.length - 1] === '/') {
-				fileMatchPrefix = fileMatchPrefix.substr(0, fileMatchPrefix.length - 1);
+				fileMatchPrefix = fileMatchPrefix.substring(0, fileMatchPrefix.length - 1);
 			}
 		}
 		for (const setting of schemaSettings) {

@@ -123,11 +123,11 @@ export class TypeOperations {
 			// Try to spread the pasted text in case the line count matches the cursor count
 			// Remove trailing \n if present
 			if (text.charCodeAt(text.length - 1) === CharCode.LineFeed) {
-				text = text.substr(0, text.length - 1);
+				text = text.substring(0, text.length - 1);
 			}
 			// Remove trailing \r if present
 			if (text.charCodeAt(text.length - 1) === CharCode.CarriageReturn) {
-				text = text.substr(0, text.length - 1);
+				text = text.substring(0, text.length - 1);
 			}
 			const lines = strings.splitLines(text);
 			if (lines.length === selections.length) {

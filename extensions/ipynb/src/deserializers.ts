@@ -34,7 +34,8 @@ export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 function translateKernelLanguageToMonaco(language: string): string {
 	language = language.toLowerCase();
 	if (language.length === 2 && language.endsWith('#')) {
-		return `${language.substring(0, 1)}sharp`;
+		return `${language.substring(0, 1)
+			} sharp`;
 	}
 	return jupyterLanguageToMonacoLanguageMapping.get(language) || language;
 }
@@ -66,7 +67,7 @@ function isEmptyVendoredMimeType(outputItem: NotebookCellOutputItem) {
 }
 function isMimeTypeMatch(value: string, compareWith: string) {
 	if (value.endsWith('.*')) {
-		value = value.substr(0, value.indexOf('.*'));
+		value = value.substring(0, value.indexOf('.*'));
 	}
 	return compareWith.startsWith(value);
 }
@@ -75,7 +76,7 @@ function sortOutputItemsBasedOnDisplayOrder(outputItems: NotebookCellOutputItem[
 	return outputItems
 		.map(item => {
 			let index = orderOfMimeTypes.findIndex((mime) => isMimeTypeMatch(mime, item.mime));
-			// Sometimes we can have mime types with empty data, e.g. when using holoview we can have `application/vnd.holoviews_load.v0+json` with empty value.
+			// Sometimes we can have mime types with empty data, e.g. when using holoview we can have `application / vnd.holoviews_load.v0 + json` with empty value.
 			// & in these cases we have HTML/JS and those take precedence.
 			// https://github.com/microsoft/vscode-jupyter/issues/6109
 			if (isEmptyVendoredMimeType(item)) {
@@ -105,7 +106,7 @@ function concatMultilineString(str: string | string[], trim?: boolean): string {
 		for (let i = 0; i < str.length; i += 1) {
 			const s = str[i];
 			if (i < str.length - 1 && !s.endsWith('\n')) {
-				result = result.concat(`${s}\n`);
+				result = result.concat(`${s} \n`);
 			} else {
 				result = result.concat(s);
 			}
@@ -249,8 +250,8 @@ cellOutputMappers.set('stream', translateStreamOutput);
 
 export function jupyterCellOutputToCellOutput(output: nbformat.IOutput): NotebookCellOutput {
 	/**
-	 * Stream, `application/x.notebook.stream`
-	 * Error, `application/x.notebook.error-traceback`
+	 * Stream, `application / x.notebook.stream`
+	 * Error, `application / x.notebook.error - traceback`
 	 * Rich, { mime: value }
 	 *
 	 * outputs: [

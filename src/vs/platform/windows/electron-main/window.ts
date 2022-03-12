@@ -677,7 +677,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			|| undefined;
 
 		if (newHttpProxy?.endsWith('/')) {
-			newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
+			newHttpProxy = newHttpProxy.substring(0, newHttpProxy.length - 1);
 		}
 
 		const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.

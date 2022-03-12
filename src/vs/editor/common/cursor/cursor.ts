@@ -556,7 +556,7 @@ export class CursorsController extends Disposable {
 				let offset = 0;
 				while (offset < len) {
 					const charLength = strings.nextCharLength(text, offset);
-					const chr = text.substr(offset, charLength);
+					const chr = text.substring(offset, charLength);
 
 					// Here we must interpret each typed character individually
 					this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));

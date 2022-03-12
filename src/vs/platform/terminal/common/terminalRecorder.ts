@@ -70,7 +70,7 @@ export class TerminalRecorder {
 				}
 			} else {
 				// the first data piece must be partially deleted
-				firstEntry.data[0] = firstEntry.data[0].substr(remainingToDelete);
+				firstEntry.data[0] = firstEntry.data[0].substring(remainingToDelete);
 				this._totalDataLength -= remainingToDelete;
 			}
 		}

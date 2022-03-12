@@ -206,7 +206,7 @@ class Snapper {
 			for (const themeName of themeNames) {
 				let themedToken = themesResult[themeName].tokens[index[themeName]];
 
-				themedToken.text = themedToken.text.substr(token.c.length);
+				themedToken.text = themedToken.text.substring(token.c.length);
 				token.r[themeName] = themesResult[themeName].document.explainTokenColor(token.t, themedToken.color);
 				if (themedToken.text.length === 0) {
 					index[themeName]++;

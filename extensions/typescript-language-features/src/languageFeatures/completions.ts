@@ -426,7 +426,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			const text = this.completionContext.line.slice(Math.max(0, this.position.character - this.textLabel.length), this.position.character).toLowerCase();
 			const entryName = this.textLabel.toLowerCase();
 			for (let i = entryName.length; i >= 0; --i) {
-				if (text.endsWith(entryName.substr(0, i)) && (!this.completionContext.wordRange || this.completionContext.wordRange.start.character > this.position.character - i)) {
+				if (text.endsWith(entryName.substring(0, i)) && (!this.completionContext.wordRange || this.completionContext.wordRange.start.character > this.position.character - i)) {
 					return new vscode.Range(
 						new vscode.Position(this.position.line, Math.max(0, this.position.character - i)),
 						this.position);

@@ -190,7 +190,7 @@ export function findRules(lexer: ILexer, inState: string): IRule[] | null {
 		if (idx < 0) {
 			state = null; // no further parent
 		} else {
-			state = state.substr(0, idx);
+			state = state.substring(0, idx);
 		}
 	}
 	return null;
@@ -213,7 +213,7 @@ export function stateExists(lexer: ILexerMin, inState: string): boolean {
 		if (idx < 0) {
 			state = null; // no further parent
 		} else {
-			state = state.substr(0, idx);
+			state = state.substring(0, idx);
 		}
 	}
 	return false;

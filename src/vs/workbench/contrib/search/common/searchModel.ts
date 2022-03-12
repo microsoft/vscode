@@ -89,9 +89,9 @@ export class Match {
 		before = before.trimLeft();
 
 		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
-		inside = inside.substr(0, charsRemaining);
+		inside = inside.substring(0, charsRemaining);
 		charsRemaining -= inside.length;
-		after = after.substr(0, charsRemaining);
+		after = after.substring(0, charsRemaining);
 
 		return {
 			before,

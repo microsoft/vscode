@@ -38,7 +38,7 @@ export class TMTokenization extends Disposable implements ITokenizationSupport {
 		const textMateResult = this._grammar.tokenizeLine2(line, state, 500);
 
 		if (textMateResult.stoppedEarly) {
-			console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)}`);
+			console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)} `);
 			// return the state at the beginning of the line
 			return new EncodedTokenizationResult(textMateResult.tokens, state);
 		}

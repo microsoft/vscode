@@ -47,7 +47,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 		};
 
 		let matches = (name: string) => {
-			return prefix.length === 0 || name.length >= prefix.length && name.substr(0, prefix.length) === prefix;
+			return prefix.length === 0 || name.length >= prefix.length && name.substring(0, prefix.length) === prefix;
 		};
 
 		if (matches('php') && range.start.character >= 2) {

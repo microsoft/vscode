@@ -234,9 +234,10 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 						let relativePath: string | null = null;
 						if (fsPath.startsWith('/./')) {
-							relativePath = `.${fsPath.substr(1)}`;
+							relativePath = `.${fsPath.substring(1)
+								} `;
 						} else if (fsPath.startsWith('//./')) {
-							relativePath = `.${fsPath.substr(2)}`;
+							relativePath = `.${fsPath.substring(2)} `;
 						}
 
 						if (relativePath) {
@@ -427,6 +428,6 @@ registerEditorAction(OpenLinkAction);
 registerThemingParticipant((theme, collector) => {
 	const activeLinkForeground = theme.getColor(editorActiveLinkForeground);
 	if (activeLinkForeground) {
-		collector.addRule(`.monaco-editor .detected-link-active { color: ${activeLinkForeground} !important; }`);
+		collector.addRule(`.monaco - editor.detected - link - active { color: ${activeLinkForeground} !important; } `);
 	}
 });

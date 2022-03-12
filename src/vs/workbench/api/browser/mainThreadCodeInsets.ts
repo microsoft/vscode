@@ -73,7 +73,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 	async $createEditorInset(handle: number, id: string, uri: UriComponents, line: number, height: number, options: IWebviewContentOptions, extensionId: ExtensionIdentifier, extensionLocation: UriComponents): Promise<void> {
 
 		let editor: IActiveCodeEditor | undefined;
-		id = id.substr(0, id.indexOf(',')); //todo@jrieken HACK
+		id = id.substring(0, id.indexOf(',')); //todo@jrieken HACK
 
 		for (const candidate of this._editorService.listCodeEditors()) {
 			if (candidate.getId() === id && candidate.hasModel() && isEqual(candidate.getModel().uri, URI.revive(uri))) {

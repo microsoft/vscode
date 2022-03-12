@@ -60,7 +60,7 @@ export class PieceTreeTextBufferFactory implements ITextBufferFactory {
 	}
 
 	public getFirstLineText(lengthLimit: number): string {
-		return this._chunks[0].buffer.substr(0, lengthLimit).split(/\r\n|\r|\n/)[0];
+		return this._chunks[0].buffer.substring(0, lengthLimit).split(/\r\n|\r|\n/)[0];
 	}
 }
 
@@ -103,14 +103,14 @@ export class PieceTreeTextBufferBuilder implements ITextBufferBuilder {
 		if (this.chunks.length === 0) {
 			if (strings.startsWithUTF8BOM(chunk)) {
 				this.BOM = strings.UTF8_BOM_CHARACTER;
-				chunk = chunk.substr(1);
+				chunk = chunk.substring(1);
 			}
 		}
 
 		const lastChar = chunk.charCodeAt(chunk.length - 1);
 		if (lastChar === CharCode.CarriageReturn || (lastChar >= 0xD800 && lastChar <= 0xDBFF)) {
 			// last character is \r or a high surrogate => keep it back
-			this._acceptChunk1(chunk.substr(0, chunk.length - 1), false);
+			this._acceptChunk1(chunk.substring(0, chunk.length - 1), false);
 			this._hasPreviousChar = true;
 			this._previousChar = lastChar;
 		} else {

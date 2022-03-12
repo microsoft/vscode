@@ -71,7 +71,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			// If we have a visible provider with a value, take it's filter value but
 			// rewrite to new provider prefix in case they differ
 			if (visibleQuickAccess && visibleDescriptor && visibleDescriptor !== descriptor) {
-				const newValueCandidateWithoutPrefix = visibleQuickAccess.value.substr(visibleDescriptor.prefix.length);
+				const newValueCandidateWithoutPrefix = visibleQuickAccess.value.substring(visibleDescriptor.prefix.length);
 				if (newValueCandidateWithoutPrefix) {
 					newValue = `${descriptor.prefix}${newValueCandidateWithoutPrefix}`;
 				}

@@ -506,9 +506,9 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 
 			let regex = rule.regex;
 			const regexSource = rule.regex.source;
-			if (regexSource.substr(0, 4) === '^(?:' && regexSource.substr(regexSource.length - 1, 1) === ')') {
+			if (regexSource.substring(0, 4) === '^(?:' && regexSource.substring(regexSource.length - 1, 1) === ')') {
 				const flags = (regex.ignoreCase ? 'i' : '') + (regex.unicode ? 'u' : '');
-				regex = new RegExp(regexSource.substr(4, regexSource.length - 5), flags);
+				regex = new RegExp(regexSource.substring(4, regexSource.length - 5), flags);
 			}
 
 			const result = line.search(regex);
@@ -625,7 +625,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 				}
 
 				// try each rule until we match
-				let restOfLine = line.substr(pos);
+				let restOfLine = line.substring(pos);
 				for (const rule of rules) {
 					if (pos === 0 || !rule.matchOnlyAtLineStart) {
 						matches = restOfLine.match(rule.regex);
@@ -704,7 +704,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 				if (action.switchTo && typeof action.switchTo === 'string') {
 					let nextState = monarchCommon.substituteMatches(this._lexer, action.switchTo, matched, matches, state);  // switch state without a push...
 					if (nextState[0] === '@') {
-						nextState = nextState.substr(1); // peel off starting '@'
+						nextState = nextState.substring(1); // peel off starting '@'
 					}
 					if (!monarchCommon.findRules(this._lexer, nextState)) {
 						throw monarchCommon.createError(this._lexer, 'trying to switch to a state \'' + nextState + '\' that is undefined in rule: ' + this._safeRuleName(rule));
@@ -732,7 +732,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 					} else {
 						let nextState = monarchCommon.substituteMatches(this._lexer, action.next, matched, matches, state);
 						if (nextState[0] === '@') {
-							nextState = nextState.substr(1); // peel off starting '@'
+							nextState = nextState.substring(1); // peel off starting '@'
 						}
 
 						if (!monarchCommon.findRules(this._lexer, nextState)) {
@@ -765,7 +765,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 
 				if (pos < lineLength) {
 					// there is content from the embedded language on this line
-					const restOfLine = lineWithoutLF.substr(pos);
+					const restOfLine = lineWithoutLF.substring(pos);
 					return this._nestedTokenize(restOfLine, hasEOL, MonarchLineStateFactory.create(stack, embeddedLanguageData), offsetDelta + pos, tokensCollector);
 				} else {
 					return MonarchLineStateFactory.create(stack, embeddedLanguageData);
@@ -833,7 +833,7 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 				// todo: for efficiency we could pre-sanitize tokenPostfix and substitutions
 				let tokenType: string | null = null;
 				if (monarchCommon.isString(result) && result.indexOf('@brackets') === 0) {
-					const rest = result.substr('@brackets'.length);
+					const rest = result.substring('@brackets'.length);
 					const bracket = findBracket(this._lexer, matched);
 					if (!bracket) {
 						throw monarchCommon.createError(this._lexer, '@brackets token returned but no bracket defined as: ' + matched);

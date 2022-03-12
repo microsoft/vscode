@@ -149,7 +149,8 @@ export class SuggestDetailsWidget {
 		// --- details
 
 		if (detail) {
-			const cappedDetail = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
+			const cappedDetail = detail.length > 100000 ? `${detail.substring(0, 100000)
+				}…` : detail;
 			this._type.textContent = cappedDetail;
 			this._type.title = cappedDetail;
 			dom.show(this._type);
@@ -449,7 +450,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 	private _applyTopLeft(topLeft: TopLeftPosition): void {
 		this._topLeft = topLeft;
-		this.getDomNode().style.left = `${this._topLeft.left}px`;
-		this.getDomNode().style.top = `${this._topLeft.top}px`;
+		this.getDomNode().style.left = `${this._topLeft.left} px`;
+		this.getDomNode().style.top = `${this._topLeft.top} px`;
 	}
 }

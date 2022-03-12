@@ -24,10 +24,10 @@ suite('HTML Embedded Formatting', () => {
 		let rangeStartOffset = value.indexOf('|');
 		let rangeEndOffset;
 		if (rangeStartOffset !== -1) {
-			value = value.substr(0, rangeStartOffset) + value.substr(rangeStartOffset + 1);
+			value = value.substring(0, rangeStartOffset) + value.substring(rangeStartOffset + 1);
 
 			rangeEndOffset = value.indexOf('|');
-			value = value.substr(0, rangeEndOffset) + value.substr(rangeEndOffset + 1);
+			value = value.substring(0, rangeEndOffset) + value.substring(rangeEndOffset + 1);
 		} else {
 			rangeStartOffset = 0;
 			rangeEndOffset = value.length;

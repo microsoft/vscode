@@ -37,8 +37,9 @@ export class ExtensionStoragePaths extends CommonExtensionStoragePaths {
 			} else {
 				workspaceStoragePath = (
 					/[/\\]$/.test(workspaceStorageBase)
-						? `${workspaceStorageBase.substr(0, workspaceStorageBase.length - 1)}-${attempt}`
-						: `${workspaceStorageBase}-${attempt}`
+						? `${workspaceStorageBase.substring(0, workspaceStorageBase.length - 1)
+						} -${attempt} `
+						: `${workspaceStorageBase} -${attempt} `
 				);
 			}
 

@@ -428,9 +428,9 @@ function emitEntryPoint(
 		const bangIndex = c.indexOf('!');
 
 		if (bangIndex >= 0) {
-			const pluginName = c.substr(0, bangIndex);
+			const pluginName = c.substring(0, bangIndex);
 			const plugin = getLoaderPlugin(pluginName);
-			mainResult.sources.push(emitPlugin(entryPoint, plugin, pluginName, c.substr(bangIndex + 1)));
+			mainResult.sources.push(emitPlugin(entryPoint, plugin, pluginName, c.substring(bangIndex + 1)));
 			return;
 		}
 
@@ -532,7 +532,7 @@ function emitNamedModule(moduleId: string, defineCallPosition: IPosition, path: 
 
 	return {
 		path: path,
-		contents: contents.substr(0, parensOffset + 1) + insertStr + contents.substr(parensOffset + 1)
+		contents: contents.substring(0, parensOffset + 1) + insertStr + contents.substring(parensOffset + 1)
 	};
 }
 

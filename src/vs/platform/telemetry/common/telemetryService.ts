@@ -173,7 +173,7 @@ export class TelemetryService implements ITelemetryService {
 			}
 		}
 		if (lastIndex < stack.length) {
-			updatedStack += stack.substr(lastIndex);
+			updatedStack += stack.substring(lastIndex);
 		}
 
 		return updatedStack;

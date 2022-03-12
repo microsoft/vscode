@@ -275,7 +275,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				} else {
 					data.icon.style.visibility = 'inherit';
 				}
-				data.name.textContent = (element.marketplaceInfo?.displayName || element.description.identifier.value).substr(0, 50);
+				data.name.textContent = (element.marketplaceInfo?.displayName || element.description.identifier.value).substring(0, 50);
 				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;
@@ -305,7 +305,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						]
 					}, "Activated by {0} on start-up", activationId);
 				} else if (/^workspaceContains:/.test(activationEvent)) {
-					let fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
+					let fileNameOrGlob = activationEvent.substring('workspaceContains:'.length);
 					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
 						title = nls.localize({
 							key: 'workspaceContainsGlobActivation',
@@ -324,7 +324,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						}, "Activated by {1} because file {0} exists in your workspace", fileNameOrGlob, activationId);
 					}
 				} else if (/^workspaceContainsTimeout:/.test(activationEvent)) {
-					const glob = activationEvent.substr('workspaceContainsTimeout:'.length);
+					const glob = activationEvent.substring('workspaceContainsTimeout:'.length);
 					title = nls.localize({
 						key: 'workspaceContainsTimeout',
 						comment: [
@@ -340,7 +340,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 						]
 					}, "Activated by {0} after start-up finished", activationId);
 				} else if (/^onLanguage:/.test(activationEvent)) {
-					let language = activationEvent.substr('onLanguage:'.length);
+					let language = activationEvent.substring('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
 				} else {
 					title = nls.localize({

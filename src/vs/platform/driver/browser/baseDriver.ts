@@ -115,7 +115,7 @@ export abstract class BaseWindowDriver implements IWindowDriver {
 		const start = textarea.selectionStart;
 		const newStart = start + text.length;
 		const value = textarea.value;
-		const newValue = value.substr(0, start) + text + value.substr(start);
+		const newValue = value.substring(0, start) + text + value.substring(start);
 
 		textarea.value = newValue;
 		textarea.setSelectionRange(newStart, newStart);

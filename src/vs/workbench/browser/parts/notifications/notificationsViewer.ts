@@ -146,7 +146,7 @@ class NotificationMessageRenderer {
 				let title = node.title;
 
 				if (!title && node.href.startsWith('command:')) {
-					title = localize('executeCommand', "Click to execute command '{0}'", node.href.substr('command:'.length));
+					title = localize('executeCommand', "Click to execute command '{0}'", node.href.substring('command:'.length));
 				} else if (!title) {
 					title = node.href;
 				}

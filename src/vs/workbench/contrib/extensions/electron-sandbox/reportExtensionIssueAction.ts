@@ -58,7 +58,8 @@ export class ReportExtensionIssueAction extends Action {
 			baseUrl = builtinExtensionIssueUrl;
 		}
 		if (!!baseUrl) {
-			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
+			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substring(0, baseUrl.length - 4) : baseUrl
+				} /issues/new / `;
 		} else {
 			baseUrl = this.productService.reportIssueUrl!;
 		}
@@ -69,7 +70,7 @@ export class ReportExtensionIssueAction extends Action {
 		this.clipboardService.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 
 		const os = await this.nativeHostService.getOSProperties();
-		const osVersion = `${os.type} ${os.arch} ${os.release}`;
+		const osVersion = `${os.type} ${os.arch} ${os.release} `;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
 			`- Issue Type: \`${reason}\`

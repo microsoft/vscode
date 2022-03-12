@@ -23,32 +23,32 @@ export class KeybindingParser {
 			matchedModifier = false;
 			if (/^ctrl(\+|\-)/.test(input)) {
 				ctrl = true;
-				input = input.substr('ctrl-'.length);
+				input = input.substring('ctrl-'.length);
 				matchedModifier = true;
 			}
 			if (/^shift(\+|\-)/.test(input)) {
 				shift = true;
-				input = input.substr('shift-'.length);
+				input = input.substring('shift-'.length);
 				matchedModifier = true;
 			}
 			if (/^alt(\+|\-)/.test(input)) {
 				alt = true;
-				input = input.substr('alt-'.length);
+				input = input.substring('alt-'.length);
 				matchedModifier = true;
 			}
 			if (/^meta(\+|\-)/.test(input)) {
 				meta = true;
-				input = input.substr('meta-'.length);
+				input = input.substring('meta-'.length);
 				matchedModifier = true;
 			}
 			if (/^win(\+|\-)/.test(input)) {
 				meta = true;
-				input = input.substr('win-'.length);
+				input = input.substring('win-'.length);
 				matchedModifier = true;
 			}
 			if (/^cmd(\+|\-)/.test(input)) {
 				meta = true;
-				input = input.substr('cmd-'.length);
+				input = input.substring('cmd-'.length);
 				matchedModifier = true;
 			}
 		} while (matchedModifier);

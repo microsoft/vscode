@@ -56,7 +56,7 @@ suite('TokensStore', () => {
 				}
 				tokens.push(i + 1 - baseLine, tokenStartCharacter, tokenStartCharacter + tokenLength, metadata);
 
-				lineText += line.substr(firstPipeOffset + 1, tokenLength);
+				lineText += line.substring(firstPipeOffset + 1, tokenLength);
 				startOffset = secondPipeOffset + 1;
 			}
 

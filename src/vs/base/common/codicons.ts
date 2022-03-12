@@ -614,7 +614,7 @@ export namespace CSSIcon {
 		let [, id, modifier] = match;
 		const classNames = ['codicon', 'codicon-' + id];
 		if (modifier) {
-			classNames.push('codicon-modifier-' + modifier.substr(1));
+			classNames.push('codicon-modifier-' + modifier.substring(1));
 		}
 		return classNames;
 	}

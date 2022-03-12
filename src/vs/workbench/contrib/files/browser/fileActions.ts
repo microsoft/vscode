@@ -378,7 +378,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 	// file.txt=>file.1.txt
 	const lastIndexOfDot = name.lastIndexOf('.');
 	if (!isFolder && lastIndexOfDot >= 0) {
-		return `${name.substr(0, lastIndexOfDot)}.1${name.substr(lastIndexOfDot)}`;
+		return `${name.substring(0, lastIndexOfDot)
+			} .1${name.substring(lastIndexOfDot)} `;
 	}
 
 	// 123 => 124
@@ -388,7 +389,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 			let number = parseInt(g1);
 			return number < maxNumber
 				? String(number + 1).padStart(g1.length, '0')
-				: `${g1}.1`;
+				: `${g1} .1`;
 		});
 	}
 
@@ -403,7 +404,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 			}
 			return number < maxNumber
 				? g1 + String(number + 1).padStart(g2.length, '0')
-				: `${g1}${g2}.1`;
+				: `${g1}${g2} .1`;
 		});
 	}
 
@@ -413,7 +414,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 			let number = parseInt(groups[0]);
 			return number < maxNumber
 				? String(number + 1).padStart(groups[0].length, '0')
-				: `${groups[0]}.1`;
+				: `${groups[0]} .1`;
 		});
 	}
 
@@ -423,12 +424,12 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 			let number = parseInt(groups[0]);
 			return number < maxNumber
 				? String(number + 1).padStart(groups[0].length, '0') + groups[1]
-				: `${groups[0]}${groups[1]}.1`;
+				: `${groups[0]}${groups[1]} .1`;
 		});
 	}
 
 	// file/folder=>file.1/folder.1
-	return `${name}.1`;
+	return `${name} .1`;
 }
 
 // Global Compare with
@@ -676,7 +677,7 @@ export function validateFileName(pathService: IPathService, item: ExplorerItem, 
 
 function trimLongName(name: string): string {
 	if (name?.length > 255) {
-		return `${name.substr(0, 255)}...`;
+		return `${name.substring(0, 255)}...`;
 	}
 
 	return name;
@@ -720,7 +721,7 @@ export class CompareWithClipboardAction extends Action {
 
 	override async run(): Promise<void> {
 		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
+		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++} `;
 		if (resource && (this.fileService.hasProvider(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
 				const provider = this.instantiationService.createInstance(ClipboardContentProvider);

@@ -1012,7 +1012,7 @@ flakySuite('WorkingCopyBackupService', () => {
 			assert.strictEqual(fileContents.indexOf(identifier.resource.toString()), 0);
 
 			const metaIndex = fileContents.indexOf('{');
-			const newFileContents = fileContents.substring(0, metaIndex) + '{{' + fileContents.substr(metaIndex);
+			const newFileContents = fileContents.substring(0, metaIndex) + '{{' + fileContents.substring(metaIndex);
 			writeFileSync(backupPath, newFileContents);
 
 			const backup = await service.resolve(identifier);

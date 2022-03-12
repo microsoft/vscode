@@ -40,7 +40,7 @@ export function checkActivateWorkspaceContainsExtension(host: IExtensionActivati
 
 	for (const activationEvent of activationEvents) {
 		if (/^workspaceContains:/.test(activationEvent)) {
-			const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
+			const fileNameOrGlob = activationEvent.substring('workspaceContains:'.length);
 			if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0 || host.forceUsingSearch) {
 				globPatterns.push(fileNameOrGlob);
 			} else {

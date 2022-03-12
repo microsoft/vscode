@@ -251,7 +251,7 @@ export class ExtUri implements IExtUri {
 					}
 				}
 			}
-			fromPath = toPath.substr(0, i) + fromPath.substr(i);
+			fromPath = toPath.substring(0, i) + fromPath.substring(i);
 		}
 		return paths.posix.relative(fromPath, toPath);
 	}
@@ -293,7 +293,7 @@ export class ExtUri implements IExtUri {
 	removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
 		// Make sure that the path isn't a drive letter. A trailing separator there is not removable.
 		if (hasTrailingPathSeparator(resource, sep)) {
-			return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
+			return resource.with({ path: resource.path.substring(0, resource.path.length - 1) });
 		}
 		return resource;
 	}

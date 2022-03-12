@@ -502,7 +502,7 @@ export class PieceTreeBase {
 				ret += buffer.substring(startOffset, startOffset + endPosition.remainder);
 				break;
 			} else {
-				ret += buffer.substr(startOffset, x.piece.length);
+				ret += buffer.substring(startOffset, x.piece.length);
 			}
 
 			x = x.next();
@@ -553,9 +553,9 @@ export class PieceTreeBase {
 				// this piece has no new lines
 				if (!this._EOLNormalized && buffer.charCodeAt(pieceStartOffset + pieceLength - 1) === CharCode.CarriageReturn) {
 					danglingCR = true;
-					currentLine += buffer.substr(pieceStartOffset, pieceLength - 1);
+					currentLine += buffer.substring(pieceStartOffset, pieceLength - 1);
 				} else {
-					currentLine += buffer.substr(pieceStartOffset, pieceLength);
+					currentLine += buffer.substring(pieceStartOffset, pieceLength);
 				}
 				return true;
 			}
@@ -583,10 +583,10 @@ export class PieceTreeBase {
 					// The last line ended with a \r, let's undo the push, it will be pushed by next iteration
 					linesLength--;
 				} else {
-					currentLine = buffer.substr(lineStarts[pieceEndLine], piece.end.column - 1);
+					currentLine = buffer.substring(lineStarts[pieceEndLine], piece.end.column - 1);
 				}
 			} else {
-				currentLine = buffer.substr(lineStarts[pieceEndLine], piece.end.column);
+				currentLine = buffer.substring(lineStarts[pieceEndLine], piece.end.column);
 			}
 
 			return true;
@@ -763,7 +763,7 @@ export class PieceTreeBase {
 				return result;
 			}
 
-			resultLen = this._findMatchesInLine(searchData, searcher, this.getLineContent(startLineNumber).substr(startColumn), startLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
+			resultLen = this._findMatchesInLine(searchData, searcher, this.getLineContent(startLineNumber).substring(startColumn), startLineNumber, startColumn, resultLen, result, captureMatches, limitResultCount);
 
 			if (resultLen >= limitResultCount) {
 				return result;
@@ -1291,7 +1291,7 @@ export class PieceTreeBase {
 				return ret;
 			} else {
 				const startOffset = this.offsetInBuffer(x.piece.bufferIndex, x.piece.start);
-				ret += buffer.substr(startOffset, x.piece.length);
+				ret += buffer.substring(startOffset, x.piece.length);
 			}
 
 			x = x.next();

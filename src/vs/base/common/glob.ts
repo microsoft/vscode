@@ -330,13 +330,13 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	// Check for Trivials
 	let match: RegExpExecArray | null;
 	if (T1.test(pattern)) {
-		parsedPattern = trivia1(pattern.substr(4), pattern); 			// common pattern: **/*.txt just need endsWith check
+		parsedPattern = trivia1(pattern.substring(4), pattern); 			// common pattern: **/*.txt just need endsWith check
 	} else if (match = T2.exec(trimForExclusions(pattern, options))) { 	// common pattern: **/some.txt just need basename check
 		parsedPattern = trivia2(match[1], pattern);
 	} else if ((options.trimForExclusions ? T3_2 : T3).test(pattern)) { // repetition of common patterns (see above) {**/*.txt,**/*.png}
 		parsedPattern = trivia3(pattern, options);
 	} else if (match = T4.exec(trimForExclusions(pattern, options))) { 	// common pattern: **/something/else just need endsWith check
-		parsedPattern = trivia4and5(match[1].substr(1), pattern, true);
+		parsedPattern = trivia4and5(match[1].substring(1), pattern, true);
 	} else if (match = T5.exec(trimForExclusions(pattern, options))) { 	// common pattern: something/else just need equals check
 		parsedPattern = trivia4and5(match[1], pattern, false);
 	}
@@ -366,12 +366,12 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 		// Given we have checked `base` being a parent of `path`,
 		// we can now remove the `base` portion of the `path`
 		// and only match on the remaining path components
-		return parsedPattern(path.substr(arg2.base.length + 1), basename);
+		return parsedPattern(path.substring(arg2.base.length + 1), basename);
 	};
 }
 
 function trimForExclusions(pattern: string, options: IGlobOptions): string {
-	return options.trimForExclusions && pattern.endsWith('/**') ? pattern.substr(0, pattern.length - 2) : pattern; // dropping **, tailing / is dropped later
+	return options.trimForExclusions && pattern.endsWith('/**') ? pattern.substring(0, pattern.length - 2) : pattern; // dropping **, tailing / is dropped later
 }
 
 // common pattern: **/*.txt just need endsWith check
@@ -614,7 +614,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 				}
 
 				if (!name) {
-					name = base.substr(0, base.length - extname(path).length);
+					name = base.substring(0, base.length - extname(path).length);
 				}
 			}
 
@@ -722,7 +722,7 @@ function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | Pa
 				}
 			}
 
-			basename = path.substr(i);
+			basename = path.substring(i);
 		}
 
 		const index = basenames.indexOf(basename);

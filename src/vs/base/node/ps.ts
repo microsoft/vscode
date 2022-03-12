@@ -119,13 +119,13 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			const cleanUNCPrefix = (value: string): string => {
 				if (value.indexOf('\\\\?\\') === 0) {
-					return value.substr(4);
+					return value.substring(4);
 				} else if (value.indexOf('\\??\\') === 0) {
-					return value.substr(4);
+					return value.substring(4);
 				} else if (value.indexOf('"\\\\?\\') === 0) {
-					return '"' + value.substr(5);
+					return '"' + value.substring(5);
 				} else if (value.indexOf('"\\??\\') === 0) {
-					return '"' + value.substr(5);
+					return '"' + value.substring(5);
 				} else {
 					return value;
 				}

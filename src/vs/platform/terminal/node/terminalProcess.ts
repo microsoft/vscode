@@ -429,7 +429,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		for (let i = 0; i <= Math.floor(data.length / Constants.WriteMaxChunkSize); i++) {
 			const obj = {
 				isBinary: isBinary || false,
-				data: data.substr(i * Constants.WriteMaxChunkSize, Constants.WriteMaxChunkSize)
+				data: data.substring(i * Constants.WriteMaxChunkSize, Constants.WriteMaxChunkSize)
 			};
 			this._writeQueue.push(obj);
 		}

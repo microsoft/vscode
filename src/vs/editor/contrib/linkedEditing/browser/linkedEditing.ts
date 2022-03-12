@@ -216,13 +216,13 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 
 				const commonPrefixLength = strings.commonPrefixLength(oldValue, newValue);
 				rangeStartColumn += commonPrefixLength;
-				oldValue = oldValue.substr(commonPrefixLength);
-				newValue = newValue.substr(commonPrefixLength);
+				oldValue = oldValue.substring(commonPrefixLength);
+				newValue = newValue.substring(commonPrefixLength);
 
 				const commonSuffixLength = strings.commonSuffixLength(oldValue, newValue);
 				rangeEndColumn -= commonSuffixLength;
-				oldValue = oldValue.substr(0, oldValue.length - commonSuffixLength);
-				newValue = newValue.substr(0, newValue.length - commonSuffixLength);
+				oldValue = oldValue.substring(0, oldValue.length - commonSuffixLength);
+				newValue = newValue.substring(0, newValue.length - commonSuffixLength);
 
 				if (rangeStartColumn !== rangeEndColumn || newValue.length !== 0) {
 					edits.push({

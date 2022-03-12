@@ -160,7 +160,8 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			let uriString = uri.toString(false);
 
 			if (uriString.length > 40) {
-				uriString = `${uriString.substring(0, 30)}...${uriString.substring(uriString.length - 5)}`;
+				uriString = `${uriString.substring(0, 30)
+					}...${uriString.substring(uriString.length - 5)} `;
 			}
 
 			const result = await this.dialogService.confirm({
@@ -168,7 +169,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				checkbox: {
 					label: localize('rememberConfirmUrl', "Don't ask again for this extension."),
 				},
-				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URI:\n\n${uriString}`,
+				detail: `${extension.displayName || extension.name} (${extensionId}) wants to open a URI: \n\n${uriString} `,
 				primaryButton: localize('open', "&&Open"),
 				type: 'question'
 			});
@@ -207,7 +208,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		uris.push({ timestamp, uri });
 
 		// activate the extension
-		await this.extensionService.activateByEvent(`onUri:${ExtensionIdentifier.toKey(extensionId)}`);
+		await this.extensionService.activateByEvent(`onUri:${ExtensionIdentifier.toKey(extensionId)} `);
 		return true;
 	}
 
@@ -245,7 +246,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/activate_extension/start', { extensionId: extensionIdentifier.id });
 				const result = await this.dialogService.confirm({
 					message: localize('reloadAndHandle', "Extension '{0}' is not loaded. Would you like to reload the window to load the extension and open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL: \n\n${uri.toString()} `,
 					primaryButton: localize('reloadAndOpen', "&&Reload Window and Open"),
 					type: 'question'
 				});
@@ -264,7 +265,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 				this.telemetryService.publicLog2<ExtensionUrlHandlerEvent, ExtensionUrlHandlerClassification>('uri_invoked/enable_extension/start', { extensionId: extensionIdentifier.id });
 				const result = await this.dialogService.confirm({
 					message: localize('enableAndHandle', "Extension '{0}' is disabled. Would you like to enable the extension and reload the window to open the URL?", extension.manifest.displayName || extension.manifest.name),
-					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+					detail: `${extension.manifest.displayName || extension.manifest.name} (${extensionIdentifier.id}) wants to open a URL: \n\n${uri.toString()} `,
 					primaryButton: localize('enableAndReload', "&&Enable and Open"),
 					type: 'question'
 				});
@@ -299,7 +300,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			// Install the Extension and reload the window to handle.
 			const result = await this.dialogService.confirm({
 				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and reload the window to open this URL?", galleryExtension.displayName || galleryExtension.name),
-				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
+				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL: \n\n${uri.toString()} `,
 				primaryButton: localize('install', "&&Install"),
 				type: 'question'
 			});

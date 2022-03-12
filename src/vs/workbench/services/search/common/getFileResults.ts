@@ -83,7 +83,7 @@ export const getFileResults = (
 				let previewLine = readLine(matchLine);
 				if (options.previewOptions?.charsPerLine && previewLine.length > options.previewOptions.charsPerLine) {
 					offset = Math.max(matchStartIndex - lineRanges[startLine].start - 20, 0);
-					previewLine = previewLine.substr(offset, options.previewOptions.charsPerLine);
+					previewLine = previewLine.substring(offset, options.previewOptions.charsPerLine);
 				}
 				previewText += `${previewLine}\n`;
 				resultLines.add(matchLine);

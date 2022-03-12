@@ -501,7 +501,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				const start = model.positionAt(editOffset + change.originalStart);
 				const end = model.positionAt(editOffset + change.originalStart + change.originalLength);
 				const newEdit: TextEdit = {
-					text: text.substr(change.modifiedStart, change.modifiedLength),
+					text: text.substring(change.modifiedStart, change.modifiedLength),
 					range: { startLineNumber: start.lineNumber, startColumn: start.column, endLineNumber: end.lineNumber, endColumn: end.column }
 				};
 

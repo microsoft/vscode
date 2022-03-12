@@ -244,7 +244,7 @@ export class LabelService extends Disposable implements ILabelService {
 		// Workspace: Saved
 		let filename = basename(workspaceUri);
 		if (filename.endsWith(WORKSPACE_EXTENSION)) {
-			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
+			filename = filename.substring(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
 
 		let label: string;
@@ -315,7 +315,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 		// convert \c:\something => C:\something
 		if (formatting.normalizeDriveLetter && hasDriveLetterIgnorePlatform(label)) {
-			label = label.charAt(1).toUpperCase() + label.substr(2);
+			label = label.charAt(1).toUpperCase() + label.substring(2);
 		}
 
 		if (formatting.tildify && !forceNoTildify) {

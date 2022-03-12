@@ -36,9 +36,9 @@ suite('FindModel', () => {
 
 			const text = textArr.join('\n');
 			const ptBuilder = new PieceTreeTextBufferBuilder();
-			ptBuilder.acceptChunk(text.substr(0, 94));
-			ptBuilder.acceptChunk(text.substr(94, 101));
-			ptBuilder.acceptChunk(text.substr(195, 59));
+			ptBuilder.acceptChunk(text.substring(0, 94));
+			ptBuilder.acceptChunk(text.substring(94, 101));
+			ptBuilder.acceptChunk(text.substring(195, 59));
 			const factory = ptBuilder.finish();
 			withTestCodeEditor(
 				factory,

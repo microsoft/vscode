@@ -860,7 +860,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				return `tag:"__ext_${ext}" tag:"__ext_.${ext}" ${keywords.map(tag => `tag:"${tag}"`).join(' ')}${languageTag} tag:"${ext}"`;
 			});
 		}
-		return text.substr(0, 350);
+		return text.substring(0, 350);
 	}
 
 	private fromGallery(gallery: IGalleryExtension, extensionsControlManifest: IExtensionsControlManifest): IExtension {

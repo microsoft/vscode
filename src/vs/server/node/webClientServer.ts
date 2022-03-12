@@ -102,7 +102,7 @@ export class WebClientServer {
 			const pathname = parsedUrl.pathname!;
 
 			if (pathname === '/favicon.ico' || pathname === '/manifest.json' || pathname === '/code-192.png' || pathname === '/code-512.png') {
-				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', pathname.substr(1)));
+				return serveFile(this._logService, req, res, join(APP_ROOT, 'resources', 'server', pathname.substring(1)));
 			}
 			if (/^\/static\//.test(pathname)) {
 				return this._handleStatic(req, res, parsedUrl);
@@ -136,7 +136,7 @@ export class WebClientServer {
 
 		// Strip `/static/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		const relativeFilePath = normalize(normalizedPathname.substr('/static/'.length));
+		const relativeFilePath = normalize(normalizedPathname.substring('/static/'.length));
 
 		const filePath = join(APP_ROOT, relativeFilePath);
 		if (!isEqualOrParent(filePath, APP_ROOT, !isLinux)) {
@@ -161,7 +161,7 @@ export class WebClientServer {
 
 		// Strip `/web-extension-resource/` from the path
 		const normalizedPathname = decodeURIComponent(parsedUrl.pathname!); // support paths that are uri-encoded (e.g. spaces => %20)
-		const path = normalize(normalizedPathname.substr('/web-extension-resource/'.length));
+		const path = normalize(normalizedPathname.substring('/web-extension-resource/'.length));
 		const uri = URI.parse(path).with({
 			scheme: this._webExtensionResourceUrlTemplate.scheme,
 			authority: path.substring(0, path.indexOf('/')),

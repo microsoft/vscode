@@ -469,17 +469,17 @@ export class LanguageConfigurationRegistryImpl {
 		if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
 			// we are in the embeded language content
 			embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
-			beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+			beforeEnterText = scopedLineText.substring(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
 			beforeEnterText = lineTokens.getLineContent().substring(0, range.startColumn - 1);
 		}
 
 		let afterEnterText: string;
 		if (range.isEmpty()) {
-			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+			afterEnterText = scopedLineText.substring(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
 			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+			afterEnterText = endScopedLineTokens.getLineContent().substring(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
 		const indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
@@ -556,15 +556,15 @@ export class LanguageConfigurationRegistryImpl {
 		}
 
 		const scopedLineText = scopedLineTokens.getLineContent();
-		const beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		const beforeTypeText = scopedLineText.substring(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 
 		// selection support
 		let afterTypeText: string;
 		if (range.isEmpty()) {
-			afterTypeText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+			afterTypeText = scopedLineText.substring(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
 			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-			afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+			afterTypeText = endScopedLineTokens.getLineContent().substring(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
 		// If previous content already matches decreaseIndentPattern, it means indentation of this line should already be adjusted
@@ -611,15 +611,15 @@ export class LanguageConfigurationRegistryImpl {
 		}
 
 		const scopedLineText = scopedLineTokens.getLineContent();
-		const beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+		const beforeEnterText = scopedLineText.substring(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 
 		// selection support
 		let afterEnterText: string;
 		if (range.isEmpty()) {
-			afterEnterText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+			afterEnterText = scopedLineText.substring(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {
 			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
-			afterEnterText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
+			afterEnterText = endScopedLineTokens.getLineContent().substring(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
 
 		let previousLineText = '';

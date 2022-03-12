@@ -81,7 +81,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 	}
 
 	function advanceIfStartsWith(str: string): boolean {
-		if (content.substr(pos, str.length) === str) {
+		if (content.substring(pos, str.length) === str) {
 			advancePosBy(str.length);
 			return true;
 		}
@@ -106,7 +106,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 			return r;
 		} else {
 			// EOF
-			let r = content.substr(pos);
+			let r = content.substring(pos);
 			advancePosTo(len);
 			return r;
 		}
@@ -135,7 +135,7 @@ function _parse(content: string, filename: string | null, locationKeyName: strin
 	}
 
 	function fail(msg: string): void {
-		throw new Error('Near offset ' + pos + ': ' + msg + ' ~~~' + content.substr(pos, 50) + '~~~');
+		throw new Error('Near offset ' + pos + ': ' + msg + ' ~~~' + content.substring(pos, 50) + '~~~');
 	}
 
 	const dictState = {

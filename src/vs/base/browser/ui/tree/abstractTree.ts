@@ -804,7 +804,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		} else if (e instanceof MouseEvent || e.keyCode === KeyCode.Escape || (e.keyCode === KeyCode.Backspace && (isMacintosh ? e.altKey : e.ctrlKey))) {
 			this.onInput('');
 		} else if (e.keyCode === KeyCode.Backspace) {
-			this.onInput(this.pattern.length === 0 ? '' : this.pattern.substr(0, this.pattern.length - 1));
+			this.onInput(this.pattern.length === 0 ? '' : this.pattern.substring(0, this.pattern.length - 1));
 		} else {
 			this.onInput(this.pattern + e.browserEvent.key);
 		}
@@ -950,7 +950,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 		this.domNode.classList.toggle('no-matches', noMatches);
 		this.domNode.title = localize('found', "Matched {0} out of {1} elements", this.filter.matchCount, this.filter.totalCount);
-		this.labelDomNode.textContent = this.pattern.length > 16 ? '…' + this.pattern.substr(this.pattern.length - 16) : this.pattern;
+		this.labelDomNode.textContent = this.pattern.length > 16 ? '…' + this.pattern.substring(this.pattern.length - 16) : this.pattern;
 
 		this._onDidChangeEmptyState.fire(this._empty);
 	}

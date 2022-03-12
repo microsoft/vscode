@@ -146,7 +146,7 @@ class ConfigAwareContextValuesContainer extends Context {
 			return this._values.get(key);
 		}
 
-		const configKey = key.substr(ConfigAwareContextValuesContainer._keyPrefix.length);
+		const configKey = key.substring(ConfigAwareContextValuesContainer._keyPrefix.length);
 		const configValue = this._configurationService.getValue(configKey);
 		let value: any = undefined;
 		switch (typeof configValue) {

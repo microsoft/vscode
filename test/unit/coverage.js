@@ -66,14 +66,14 @@ exports.createReport = function (isSingle) {
 
 function toUpperDriveLetter(str) {
 	if (/^[a-z]:/.test(str)) {
-		return str.charAt(0).toUpperCase() + str.substr(1);
+		return str.charAt(0).toUpperCase() + str.substring(1);
 	}
 	return str;
 }
 
 function toLowerDriveLetter(str) {
 	if (/^[A-Z]:/.test(str)) {
-		return str.charAt(0).toLowerCase() + str.substr(1);
+		return str.charAt(0).toLowerCase() + str.substring(1);
 	}
 	return str;
 }
@@ -83,5 +83,5 @@ function fixPath(brokenPath) {
 	if (startIndex === -1) {
 		return toLowerDriveLetter(brokenPath);
 	}
-	return toLowerDriveLetter(brokenPath.substr(startIndex));
+	return toLowerDriveLetter(brokenPath.substring(startIndex));
 }

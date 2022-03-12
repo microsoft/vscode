@@ -273,7 +273,7 @@
 			 * @returns {string}
 			 */
 			cwd() {
-				return process.env['VSCODE_CWD'] || process.execPath.substr(0, process.execPath.lastIndexOf(process.platform === 'win32' ? '\\' : '/'));
+				return process.env['VSCODE_CWD'] || process.execPath.substring(0, process.execPath.lastIndexOf(process.platform === 'win32' ? '\\' : '/'));
 			},
 
 			/**

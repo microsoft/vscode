@@ -528,7 +528,7 @@ function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): stri
 		} else {
 			// encoding needed, we need to allocate a new string
 			if (res === undefined) {
-				res = uriComponent.substr(0, pos);
+				res = uriComponent.substring(0, pos);
 			}
 
 			// check with default table first
@@ -564,7 +564,7 @@ function encodeURIComponentMinimal(path: string): string {
 		const code = path.charCodeAt(pos);
 		if (code === CharCode.Hash || code === CharCode.QuestionMark) {
 			if (res === undefined) {
-				res = path.substr(0, pos);
+				res = path.substring(0, pos);
 			}
 			res += encodeTable[code];
 		} else {
@@ -592,9 +592,9 @@ export function uriToFsPath(uri: URI, keepDriveLetterCasing: boolean): string {
 	) {
 		if (!keepDriveLetterCasing) {
 			// windows drive letter: file:///c:/far/boo
-			value = uri.path[1].toLowerCase() + uri.path.substr(2);
+			value = uri.path[1].toLowerCase() + uri.path.substring(2);
 		} else {
-			value = uri.path.substr(1);
+			value = uri.path.substring(1);
 		}
 	} else {
 		// other path
@@ -629,16 +629,16 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		let idx = authority.indexOf('@');
 		if (idx !== -1) {
 			// <user>@<auth>
-			const userinfo = authority.substr(0, idx);
-			authority = authority.substr(idx + 1);
+			const userinfo = authority.substring(0, idx);
+			authority = authority.substring(idx + 1);
 			idx = userinfo.indexOf(':');
 			if (idx === -1) {
 				res += encoder(userinfo, false);
 			} else {
 				// <user>:<pass>@<auth>
-				res += encoder(userinfo.substr(0, idx), false);
+				res += encoder(userinfo.substring(0, idx), false);
 				res += ':';
-				res += encoder(userinfo.substr(idx + 1), false);
+				res += encoder(userinfo.substring(idx + 1), false);
 			}
 			res += '@';
 		}
@@ -648,8 +648,8 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			res += encoder(authority, false);
 		} else {
 			// <auth>:<port>
-			res += encoder(authority.substr(0, idx), false);
-			res += authority.substr(idx);
+			res += encoder(authority.substring(0, idx), false);
+			res += authority.substring(idx);
 		}
 	}
 	if (path) {
@@ -657,12 +657,13 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
 			const code = path.charCodeAt(1);
 			if (code >= CharCode.A && code <= CharCode.Z) {
-				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
+				path = `/${String.fromCharCode(code + 32)}:${path.substring(3)
+					} `; // "/c:".length === 3
 			}
 		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
 			const code = path.charCodeAt(0);
 			if (code >= CharCode.A && code <= CharCode.Z) {
-				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
+				path = `${String.fromCharCode(code + 32)}:${path.substring(2)} `; // "/c:".length === 3
 			}
 		}
 		// encode the rest of the path
@@ -686,7 +687,7 @@ function decodeURIComponentGraceful(str: string): string {
 		return decodeURIComponent(str);
 	} catch {
 		if (str.length > 3) {
-			return str.substr(0, 3) + decodeURIComponentGraceful(str.substr(3));
+			return str.substring(0, 3) + decodeURIComponentGraceful(str.substring(3));
 		} else {
 			return str;
 		}

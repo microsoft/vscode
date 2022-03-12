@@ -78,14 +78,14 @@ export function parseIpAddress(hex: string): string {
 	let result = '';
 	if (hex.length === 8) {
 		for (let i = hex.length - 2; i >= 0; i -= 2) {
-			result += parseInt(hex.substr(i, 2), 16);
+			result += parseInt(hex.substring(i, 2), 16);
 			if (i !== 0) {
 				result += '.';
 			}
 		}
 	} else {
 		for (let i = hex.length - 4; i >= 0; i -= 4) {
-			result += parseInt(hex.substr(i, 4), 16).toString(16);
+			result += parseInt(hex.substring(i, 4), 16).toString(16);
 			if (i !== 0) {
 				result += ':';
 			}

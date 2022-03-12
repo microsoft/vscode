@@ -807,8 +807,8 @@ menusExtensionPoint.setHandler(extensions => {
 				if (menuItem.group) {
 					const idx = menuItem.group.lastIndexOf('@');
 					if (idx > 0) {
-						item.group = menuItem.group.substr(0, idx);
-						item.order = Number(menuItem.group.substr(idx + 1)) || undefined;
+						item.group = menuItem.group.substring(0, idx);
+						item.order = Number(menuItem.group.substring(idx + 1)) || undefined;
 					} else {
 						item.group = menuItem.group;
 					}

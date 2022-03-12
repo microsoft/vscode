@@ -163,7 +163,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		const p = this.primary.resource!.path;
 		const basename = paths.basename(p);
 
-		return basename.substr(0, basename.length - paths.extname(p).length);
+		return basename.substring(0, basename.length - paths.extname(p).length);
 	}
 
 	override dispose() {

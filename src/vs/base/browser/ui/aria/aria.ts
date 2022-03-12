@@ -85,7 +85,7 @@ export function status(msg: string): void {
 function insertMessage(target: HTMLElement, msg: string): void {
 	dom.clearNode(target);
 	if (msg.length > MAX_MESSAGE_LENGTH) {
-		msg = msg.substr(0, MAX_MESSAGE_LENGTH);
+		msg = msg.substring(0, MAX_MESSAGE_LENGTH);
 	}
 	target.textContent = msg;
 

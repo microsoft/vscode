@@ -258,7 +258,7 @@ export class TextAreaInput extends Disposable {
 				&& lastKeyDown.equals(KeyCode.KEY_IN_COMPOSITION)
 				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
 				&& this._textAreaState.selectionStart > 0
-				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
+				&& this._textAreaState.value.substring(this._textAreaState.selectionStart - 1, 1) === e.data
 				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
 				// Handling long press case on Chromium/Safari macOS + arrow key => pretend the character was selected

@@ -263,7 +263,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	 */
 	private _handleWebSocketConnection(socket: NodeSocket | WebSocketNodeSocket, isReconnection: boolean, reconnectionToken: string): void {
 		const remoteAddress = this._getRemoteAddress(socket);
-		const logPrefix = `[${remoteAddress}][${reconnectionToken.substr(0, 8)}]`;
+		const logPrefix = `[${remoteAddress}][${reconnectionToken.substring(0, 8)
+			}]`;
 		const protocol = new PersistentProtocol(socket);
 
 		let validator: vsda.validator;
@@ -396,9 +397,9 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	private async _handleConnectionType(remoteAddress: string, _logPrefix: string, protocol: PersistentProtocol, socket: NodeSocket | WebSocketNodeSocket, isReconnection: boolean, reconnectionToken: string, msg: ConnectionTypeRequest): Promise<void> {
 		const logPrefix = (
 			msg.desiredConnectionType === ConnectionType.Management
-				? `${_logPrefix}[ManagementConnection]`
+				? `${_logPrefix} [ManagementConnection]`
 				: msg.desiredConnectionType === ConnectionType.ExtensionHost
-					? `${_logPrefix}[ExtensionHostConnection]`
+					? `${_logPrefix} [ExtensionHostConnection]`
 					: _logPrefix
 		);
 
@@ -410,10 +411,10 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 				if (!this._managementConnections[reconnectionToken]) {
 					if (!this._allReconnectionTokens.has(reconnectionToken)) {
 						// This is an unknown reconnection token
-						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token (never seen)`);
+						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token(never seen)`);
 					} else {
 						// This is a connection that was seen in the past, but is no longer valid
-						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token (seen before)`);
+						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token(seen before)`);
 					}
 				}
 
@@ -447,20 +448,20 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 			const startParams = await this._updateWithFreeDebugPort(startParams0);
 
 			if (startParams.port) {
-				this._logService.trace(`${logPrefix} - startParams debug port ${startParams.port}`);
+				this._logService.trace(`${logPrefix} - startParams debug port ${startParams.port} `);
 			}
-			this._logService.trace(`${logPrefix} - startParams language: ${startParams.language}`);
-			this._logService.trace(`${logPrefix} - startParams env: ${JSON.stringify(startParams.env)}`);
+			this._logService.trace(`${logPrefix} - startParams language: ${startParams.language} `);
+			this._logService.trace(`${logPrefix} - startParams env: ${JSON.stringify(startParams.env)} `);
 
 			if (isReconnection) {
 				// This is a reconnection
 				if (!this._extHostConnections[reconnectionToken]) {
 					if (!this._allReconnectionTokens.has(reconnectionToken)) {
 						// This is an unknown reconnection token
-						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token (never seen)`);
+						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token(never seen)`);
 					} else {
 						// This is a connection that was seen in the past, but is no longer valid
-						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token (seen before)`);
+						return this._rejectWebSocketConnection(logPrefix, protocol, `Unknown reconnection token(seen before)`);
 					}
 				}
 
@@ -666,17 +667,17 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			if (fs.existsSync(homeDirModulesPath) || fs.existsSync(userDirModulesPath)) {
 				const message = `
 
-*
-* !!!! Server terminated due to presence of CVE-2020-1416 !!!!
-*
-* Please remove the following directories and re-try
+	*
+* !!!!Server terminated due to presence of CVE - 2020 - 1416!!!!
+	*
+* Please remove the following directories and re -try
 * ${homeDirModulesPath}
 * ${userDirModulesPath}
 *
 * For more information on the vulnerability https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2020-1416
 *
 
-`;
+	`;
 				logService.warn(message);
 				console.warn(message);
 				process.exit(0);
@@ -688,7 +689,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 
 	if (hasWebClient && address && typeof address !== 'string') {
 		// ships the web ui!
-		const queryPart = (connectionToken.type !== ServerConnectionTokenType.None ? `?${connectionTokenQueryName}=${connectionToken.value}` : '');
+		const queryPart = (connectionToken.type !== ServerConnectionTokenType.None ? `? ${connectionTokenQueryName}=${connectionToken.value} ` : '');
 		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/${queryPart}`);
 	}
 

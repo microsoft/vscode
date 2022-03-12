@@ -490,10 +490,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				const a = displayLanguage.indexOf('-');
 				const b = localeToCheck.indexOf('-');
 				if (a > -1) {
-					displayLanguage = displayLanguage.substr(0, a);
+					displayLanguage = displayLanguage.substring(0, a);
 				}
 				if (b > -1) {
-					localeToCheck = localeToCheck.substr(0, b);
+					localeToCheck = localeToCheck.substring(0, b);
 				}
 				if (displayLanguage !== localeToCheck) {
 					return Promise.resolve(ExperimentState.NoRun);

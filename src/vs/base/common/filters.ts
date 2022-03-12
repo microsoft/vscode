@@ -448,8 +448,8 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 }
 
 function printTables(pattern: string, patternStart: number, word: string, wordStart: number): void {
-	pattern = pattern.substr(patternStart);
-	word = word.substr(wordStart);
+	pattern = pattern.substring(patternStart);
+	word = word.substring(wordStart);
 	console.log(printTable(_table, pattern, pattern.length, word, word.length));
 	console.log(printTable(_arrows, pattern, pattern.length, word, word.length));
 	console.log(printTable(_diag, pattern, pattern.length, word, word.length));

@@ -1316,7 +1316,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async sendText(text: string, addNewLine: boolean): Promise<void> {
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
-		if (addNewLine && text.substr(text.length - 1) !== '\r') {
+		if (addNewLine && text.substring(text.length - 1) !== '\r') {
 			text += '\r';
 		}
 

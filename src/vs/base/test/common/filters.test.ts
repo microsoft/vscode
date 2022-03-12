@@ -422,7 +422,7 @@ suite('Filters', () => {
 	});
 
 	test('patternPos isn\'t working correctly #79815', function () {
-		assertMatches(':p'.substr(1), 'prop', '^prop', fuzzyScore, { patternPos: 0 });
+		assertMatches(':p'.substring(1), 'prop', '^prop', fuzzyScore, { patternPos: 0 });
 		assertMatches(':p', 'prop', '^prop', fuzzyScore, { patternPos: 1 });
 		assertMatches(':p', 'prop', undefined, fuzzyScore, { patternPos: 2 });
 		assertMatches(':p', 'proP', 'pro^P', fuzzyScore, { patternPos: 1, wordPos: 1 });

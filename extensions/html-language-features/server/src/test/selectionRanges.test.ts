@@ -13,7 +13,7 @@ async function assertRanges(content: string, expected: (number | string)[][]): P
 	let message = `${content} gives selection range:\n`;
 
 	const offset = content.indexOf('|');
-	content = content.substr(0, offset) + content.substr(offset + 1);
+	content = content.substring(0, offset) + content.substring(offset + 1);
 
 	let workspace = {
 		settings: {},

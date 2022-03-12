@@ -896,7 +896,7 @@ export class JoinLinesAction extends EditorAction {
 						trimmedLinesContent = trimmedLinesContent.replace(/[\s\uFEFF\xA0]+$/g, ' ');
 					}
 
-					let lineTextWithoutIndent = lineText.substr(firstNonWhitespaceIdx - 1);
+					let lineTextWithoutIndent = lineText.substring(firstNonWhitespaceIdx - 1);
 
 					trimmedLinesContent += (insertSpace ? ' ' : '') + lineTextWithoutIndent;
 

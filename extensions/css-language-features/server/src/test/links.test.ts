@@ -34,12 +34,12 @@ suite('Links', () => {
 
 	async function assertLinks(value: string, expected: ItemDescription[], testUri: string, workspaceFolders?: WorkspaceFolder[], lang: string = 'css'): Promise<void> {
 		const offset = value.indexOf('|');
-		value = value.substr(0, offset) + value.substr(offset + 1);
+		value = value.substring(0, offset) + value.substring(offset + 1);
 
 		const document = TextDocument.create(testUri, lang, 0, value);
 
 		if (!workspaceFolders) {
-			workspaceFolders = [{ name: 'x', uri: testUri.substr(0, testUri.lastIndexOf('/')) }];
+			workspaceFolders = [{ name: 'x', uri: testUri.substring(0, testUri.lastIndexOf('/')) }];
 		}
 
 		const context = getDocumentContext(testUri, workspaceFolders);

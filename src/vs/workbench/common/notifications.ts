@@ -488,7 +488,8 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 
 		// Make sure message is in the limits
 		if (message.length > NotificationViewItem.MAX_MESSAGE_LENGTH) {
-			message = `${message.substr(0, NotificationViewItem.MAX_MESSAGE_LENGTH)}...`;
+			message = `${message.substring(0, NotificationViewItem.MAX_MESSAGE_LENGTH)
+				}...`;
 		}
 
 		// Remove newlines from messages as we do not support that and it makes link parsing hard
@@ -731,7 +732,7 @@ export class ChoiceAction extends Action {
 		});
 
 		this._keepOpen = !!choice.keepOpen;
-		this._menu = !choice.isSecondary && (<IPromptChoiceWithMenu>choice).menu ? (<IPromptChoiceWithMenu>choice).menu.map((c, index) => new ChoiceAction(`${id}.${index}`, c)) : undefined;
+		this._menu = !choice.isSecondary && (<IPromptChoiceWithMenu>choice).menu ? (<IPromptChoiceWithMenu>choice).menu.map((c, index) => new ChoiceAction(`${id}.${index} `, c)) : undefined;
 	}
 
 	get menu(): ChoiceAction[] | undefined {

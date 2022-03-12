@@ -31,7 +31,8 @@ export class GitTimelineItem extends TimelineItem {
 		contextValue: string
 	) {
 		const index = message.indexOf('\n');
-		const label = index !== -1 ? `${message.substring(0, index)} \u2026` : message;
+		const label = index !== -1 ? `${message.substring(0, index)
+			} \u2026` : message;
 
 		super(label, timestamp);
 
@@ -54,7 +55,7 @@ export class GitTimelineItem extends TimelineItem {
 		if (ref === '' || ref === '~' || ref === 'HEAD') {
 			return ref;
 		}
-		return ref.endsWith('^') ? `${ref.substr(0, 8)}^` : ref.substr(0, 8);
+		return ref.endsWith('^') ? `${ref.substring(0, 8)}^ ` : ref.substring(0, 8);
 	}
 }
 
@@ -91,7 +92,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	}
 
 	async provideTimeline(uri: Uri, options: TimelineOptions, _token: CancellationToken): Promise<Timeline> {
-		// console.log(`GitTimelineProvider.provideTimeline: uri=${uri} state=${this._model.state}`);
+		// console.log(`GitTimelineProvider.provideTimeline: uri = ${ uri } state = ${ this._model.state } `);
 
 		const repo = this.model.getRepository(uri);
 		if (!repo) {
@@ -162,12 +163,12 @@ export class GitTimelineProvider implements TimelineProvider {
 
 			const message = emojify(c.message);
 
-			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
+			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^ `, message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new ThemeIcon('git-commit');
 			if (showAuthor) {
 				item.description = c.authorName;
 			}
-			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${message}`;
+			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substring(0, 8)} \n${dateFormatter.format(date)} \n\n${message} `;
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -257,7 +258,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	}
 
 	private onRepositoryChanged(_repo: Repository, _uri: Uri) {
-		// console.log(`GitTimelineProvider.onRepositoryChanged: uri=${uri.toString(true)}`);
+		// console.log(`GitTimelineProvider.onRepositoryChanged: uri = ${ uri.toString(true) } `);
 
 		this.fireChanged();
 	}

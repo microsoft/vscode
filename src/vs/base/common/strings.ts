@@ -86,7 +86,8 @@ export function truncate(value: string, maxLength: number, suffix = '…'): stri
 		return value;
 	}
 
-	return `${value.substr(0, maxLength)}${suffix}`;
+	return `${value.substring(0, maxLength)
+		}${suffix} `;
 }
 
 /**
@@ -709,7 +710,7 @@ export function startsWithUTF8BOM(str: string): boolean {
 }
 
 export function stripUTF8BOM(str: string): string {
-	return startsWithUTF8BOM(str) ? str.substr(1) : str;
+	return startsWithUTF8BOM(str) ? str.substring(1) : str;
 }
 
 /**
@@ -779,7 +780,7 @@ export function getNLines(str: string, n = 1): string {
 		idx--;
 	}
 
-	return str.substr(0, idx);
+	return str.substring(0, idx);
 }
 
 /**

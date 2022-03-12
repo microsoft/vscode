@@ -21,12 +21,12 @@ suite('HTML Language Configuration', () => {
 
 	function assertWord(value: string, expected: string): void {
 		const offset = value.indexOf('|');
-		value = value.substr(0, offset) + value.substring(offset + 1);
+		value = value.substring(0, offset) + value.substring(offset + 1);
 
 		const actualRange = words.getWordAtText(value, offset, wordRegex);
 		assert(actualRange.start <= offset);
 		assert(actualRange.start + actualRange.length >= offset);
-		assert.strictEqual(value.substr(actualRange.start, actualRange.length), expected);
+		assert.strictEqual(value.substring(actualRange.start, actualRange.length), expected);
 	}
 
 	test('Words Basic', function (): any {

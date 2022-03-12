@@ -522,9 +522,9 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string; globPorti
 	const globCharMatch = searchPath.match(/[\*\{\}\(\)\[\]\?]/);
 	if (globCharMatch) {
 		const globCharIdx = globCharMatch.index;
-		const lastSlashMatch = searchPath.substr(0, globCharIdx).match(/[/|\\][^/\\]*$/);
+		const lastSlashMatch = searchPath.substring(0, globCharIdx).match(/[/|\\][^/\\]*$/);
 		if (lastSlashMatch) {
-			let pathPortion = searchPath.substr(0, lastSlashMatch.index);
+			let pathPortion = searchPath.substring(0, lastSlashMatch.index);
 			if (!pathPortion.match(/[/\\]/)) {
 				// If the last slash was the only slash, then we now have '' or 'C:' or '.'. Append a slash.
 				pathPortion += '/';
@@ -532,7 +532,7 @@ function splitGlobFromPath(searchPath: string): { pathPortion: string; globPorti
 
 			return {
 				pathPortion,
-				globPortion: searchPath.substr((lastSlashMatch.index || 0) + 1)
+				globPortion: searchPath.substring((lastSlashMatch.index || 0) + 1)
 			};
 		}
 	}

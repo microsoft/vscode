@@ -729,13 +729,13 @@ export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: No
 	const startOffset = model.getOffsetAt(inlineCompletion.range.getStartPosition()) + commonPrefixLen;
 	const start = model.getPositionAt(startOffset);
 
-	const remainingValueToReplace = valueToReplace.substr(commonPrefixLen);
+	const remainingValueToReplace = valueToReplace.substring(commonPrefixLen);
 	const commonSuffixLen = commonSuffixLength(remainingValueToReplace, inlineCompletion.text);
 	const end = model.getPositionAt(Math.max(startOffset, model.getOffsetAt(inlineCompletion.range.getEndPosition()) - commonSuffixLen));
 
 	return {
 		range: Range.fromPositions(start, end),
-		text: inlineCompletion.text.substr(commonPrefixLen, inlineCompletion.text.length - commonPrefixLen - commonSuffixLen),
+		text: inlineCompletion.text.substring(commonPrefixLen, inlineCompletion.text.length - commonPrefixLen - commonSuffixLen),
 		snippetInfo: inlineCompletion.snippetInfo
 	};
 }

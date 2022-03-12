@@ -8,7 +8,7 @@ import { rtrim } from 'vs/base/common/strings';
 export function normalizeGitHubUrl(url: string): string {
 	// If the url has a .git suffix, remove it
 	if (url.endsWith('.git')) {
-		url = url.substr(0, url.length - 4);
+		url = url.substring(0, url.length - 4);
 	}
 
 	// Remove trailing slash

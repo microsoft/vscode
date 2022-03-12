@@ -174,7 +174,7 @@ var CSSBuildLoaderPlugin;
         function Utilities() {
         }
         Utilities.startsWith = function (haystack, needle) {
-            return haystack.length >= needle.length && haystack.substr(0, needle.length) === needle;
+            return haystack.length >= needle.length && haystack.substring(0, needle.length) === needle;
         };
         /**
          * Find the path of a file.
@@ -182,7 +182,7 @@ var CSSBuildLoaderPlugin;
         Utilities.pathOf = function (filename) {
             var lastSlash = filename.lastIndexOf('/');
             if (lastSlash !== -1) {
-                return filename.substr(0, lastSlash + 1);
+                return filename.substring(0, lastSlash + 1);
             }
             else {
                 return '';
@@ -233,7 +233,7 @@ var CSSBuildLoaderPlugin;
                 }
             }
             var pieces = [];
-            push(pieces, a.substr(aPathStartIndex));
+            push(pieces, a.substring(aPathStartIndex));
             if (b.length > 0 && b.charAt(0) === '/') {
                 pieces = [];
             }
@@ -263,8 +263,8 @@ var CSSBuildLoaderPlugin;
             }
             // Ignore common folder prefix
             var prefix = Utilities.commonFolderPrefix(fromPath, toPath);
-            fromPath = fromPath.substr(prefix.length);
-            toPath = toPath.substr(prefix.length);
+            fromPath = fromPath.substring(prefix.length);
+            toPath = toPath.substring(prefix.length);
             var upCount = fromPath.split('/').length;
             var result = '';
             for (var i = 1; i < upCount; i++) {

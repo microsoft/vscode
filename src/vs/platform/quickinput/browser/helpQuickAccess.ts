@@ -35,7 +35,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		// Also open a picker when we detect the user typed the exact
 		// name of a provider (e.g. `?term` for terminals)
 		disposables.add(picker.onDidChangeValue(value => {
-			const providerDescriptor = this.registry.getQuickAccessProvider(value.substr(HelpQuickAccessProvider.PREFIX.length));
+			const providerDescriptor = this.registry.getQuickAccessProvider(value.substring(HelpQuickAccessProvider.PREFIX.length));
 			if (providerDescriptor && providerDescriptor.prefix && providerDescriptor.prefix !== HelpQuickAccessProvider.PREFIX) {
 				this.quickInputService.quickAccess.show(providerDescriptor.prefix, { preserveValue: true });
 			}

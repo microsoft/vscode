@@ -34,7 +34,7 @@ function watch(root: string): Stream {
 			}
 
 			const changeType = <'0' | '1' | '2'>line[0];
-			const changePath = line.substr(2);
+			const changePath = line.substring(2);
 
 			// filter as early as possible
 			if (/^\.git/.test(changePath) || /(^|\\)out($|\\)/.test(changePath)) {

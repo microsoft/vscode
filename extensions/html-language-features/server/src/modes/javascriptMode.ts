@@ -30,7 +30,7 @@ function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
 				if (fileName === currentTextDocument.uri) {
 					return scriptKind;
 				}
-				return fileName.substr(fileName.length - 2) === 'ts' ? ts.ScriptKind.TS : ts.ScriptKind.JS;
+				return fileName.substring(fileName.length - 2) === 'ts' ? ts.ScriptKind.TS : ts.ScriptKind.JS;
 			},
 			getScriptVersion: (fileName: string) => {
 				if (fileName === currentTextDocument.uri) {
@@ -309,7 +309,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			let start = jsDocument.offsetAt(range.start);
 			let end = jsDocument.offsetAt(range.end);
 			let lastLineRange = null;
-			if (range.end.line > range.start.line && (range.end.character === 0 || isWhitespaceOnly(jsDocument.getText().substr(end - range.end.character, range.end.character)))) {
+			if (range.end.line > range.start.line && (range.end.character === 0 || isWhitespaceOnly(jsDocument.getText().substring(end - range.end.character, range.end.character)))) {
 				end -= range.end.character;
 				lastLineRange = Range.create(Position.create(range.end.line, 0), range.end);
 			}

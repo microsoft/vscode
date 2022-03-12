@@ -226,7 +226,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		if (uri.scheme === 'vscode-vfs') {
 			const index = uri.authority.indexOf('+');
 			if (index !== -1) {
-				return uri.with({ authority: uri.authority.substr(0, index) });
+				return uri.with({ authority: uri.authority.substring(0, index) });
 			}
 		}
 

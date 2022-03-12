@@ -148,7 +148,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	private collectScopedPackages(currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
 		let segments = currentWord.split('/');
 		if (segments.length === 2 && segments[0].length > 1) {
-			let scope = segments[0].substr(1);
+			let scope = segments[0].substring(1);
 			let name = segments[1];
 			if (name.length < 4) {
 				name = '';

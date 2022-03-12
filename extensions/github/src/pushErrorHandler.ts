@@ -51,7 +51,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 				if (resp.ref) {
 					let ref = resp.ref;
 					if (ref.startsWith('refs/heads/')) {
-						ref = ref.substr(11);
+						ref = ref.substring(11);
 					}
 
 					remoteName = ref;

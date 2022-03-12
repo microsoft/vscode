@@ -234,7 +234,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	// values that are too long will freeze the UI
 	let value = markdown.value ?? '';
 	if (value.length > 100_000) {
-		value = `${value.substr(0, 100_000)}…`;
+		value = `${value.substring(0, 100_000)
+			}…`;
 	}
 	// escape theme icons
 	if (markdown.supportThemeIcons) {
@@ -443,7 +444,7 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 	// values that are too long will freeze the UI
 	let value = markdown.value ?? '';
 	if (value.length > 100_000) {
-		value = `${value.substr(0, 100_000)}…`;
+		value = `${value.substring(0, 100_000)}…`;
 	}
 
 	const unescapeInfo = new Map<string, string>([

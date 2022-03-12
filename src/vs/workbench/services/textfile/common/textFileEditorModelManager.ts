@@ -207,7 +207,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						// Otherwise a parent folder of the source is being moved, so we need
 						// to compute the target resource based on that
 						else {
-							targetModelResource = joinPath(target, sourceModelResource.path.substr(source.path.length + 1));
+							targetModelResource = joinPath(target, sourceModelResource.path.substring(source.path.length + 1));
 						}
 
 						modelsToRestore.push({
