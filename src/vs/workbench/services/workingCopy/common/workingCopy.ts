@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
+import { ISaveOptions, IRevertOptions, SaveReason, SaveSource } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
@@ -99,6 +99,11 @@ export interface IWorkingCopySaveEvent {
 	 * The reason why the working copy was saved.
 	 */
 	readonly reason?: SaveReason;
+
+	/**
+	 * The source of the working copy save request.
+	 */
+	readonly source?: SaveSource;
 }
 
 /**

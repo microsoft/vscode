@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IEncodingSupport, ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions, IReadTextFileEncodingOptions, TextFileEditorModelState } from 'vs/workbench/services/textfile/common/textfiles';
-import { IRevertOptions } from 'vs/workbench/common/editor';
+import { IRevertOptions, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -49,6 +49,8 @@ import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private static readonly TEXTFILE_SAVE_CREATE_SOURCE = SaveSourceRegistry.registerSource('textFileCreate.source', localize('textFileCreate.source', "File Created"));
 
 	readonly files: ITextFileEditorModelManager = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
 
@@ -534,6 +536,14 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 					this.codeEditorService.setTransientModelProperty(targetTextModel, key, value);
 				}
 			}
+		}
+
+		// set source options depending on target exists or not
+		if (!targetExists && !options?.source) {
+			options = {
+				...options,
+				source: AbstractTextFileService.TEXTFILE_SAVE_CREATE_SOURCE
+			};
 		}
 
 		// save model

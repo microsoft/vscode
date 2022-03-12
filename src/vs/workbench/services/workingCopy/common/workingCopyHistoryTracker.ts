@@ -88,7 +88,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 			const contentVersion = this.getContentVersion(e.workingCopy);
 
 			// Add entry
-			await this.workingCopyHistoryService.addEntry(e.workingCopy, cts.token);
+			await this.workingCopyHistoryService.addEntry({ workingCopy: e.workingCopy, source: e.source }, cts.token);
 
 			// Remember content version as being added to history
 			this.historyEntryContentVersion.set(e.workingCopy.resource, contentVersion);

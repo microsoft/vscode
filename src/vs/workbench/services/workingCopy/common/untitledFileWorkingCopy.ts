@@ -273,7 +273,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 		// Emit Save Event
 		if (result) {
-			this._onDidSave.fire({ reason: options?.reason });
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
 		}
 
 		return result;

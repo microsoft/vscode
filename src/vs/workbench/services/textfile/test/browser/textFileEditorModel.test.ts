@@ -19,6 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 
 suite('Files - TextFileEditorModel', () => {
 
@@ -114,7 +115,8 @@ suite('Files - TextFileEditorModel', () => {
 			}
 		});
 
-		const pendingSave = model.save();
+		const source = SaveSourceRegistry.registerSource('testSource', 'Hello Save');
+		const pendingSave = model.save({ reason: SaveReason.AUTO, source });
 		assert.ok(model.hasState(TextFileEditorModelState.PENDING_SAVE));
 
 		await Promise.all([pendingSave, model.joinState(TextFileEditorModelState.PENDING_SAVE)]);
@@ -123,6 +125,8 @@ suite('Files - TextFileEditorModel', () => {
 		assert.ok(!model.isDirty());
 		assert.ok(savedEvent);
 		assert.ok((savedEvent as ITextFileEditorModelSaveEvent).stat);
+		assert.strictEqual((savedEvent as ITextFileEditorModelSaveEvent).reason, SaveReason.AUTO);
+		assert.strictEqual((savedEvent as ITextFileEditorModelSaveEvent).source, source);
 		assert.ok(workingCopyEvent);
 
 		assert.strictEqual(accessor.workingCopyService.dirtyCount, 0);

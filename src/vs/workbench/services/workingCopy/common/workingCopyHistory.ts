@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { SaveSource } from 'vs/workbench/common/editor';
 
 export const IWorkingCopyHistoryService = createDecorator<IWorkingCopyHistoryService>('workingCopyHistoryService');
 
@@ -16,7 +17,7 @@ export interface IWorkingCopyHistoryEvent {
 	/**
 	 * The entry this event is about.
 	 */
-	entry: IWorkingCopyHistoryEntry;
+	readonly entry: IWorkingCopyHistoryEntry;
 }
 
 export interface IWorkingCopyHistoryEntry {
@@ -24,35 +25,48 @@ export interface IWorkingCopyHistoryEntry {
 	/**
 	 * Unique identifier of this entry for the working copy.
 	 */
-	id: string;
+	readonly id: string;
 
 	/**
 	 * The associated working copy of this entry.
 	 */
-	workingCopy: {
-		resource: URI;
-		name: string;
+	readonly workingCopy: {
+		readonly resource: URI;
+		readonly name: string;
 	};
 
 	/**
 	 * The location on disk of this history entry.
 	 */
-	location: URI;
+	readonly location: URI;
 
 	/**
 	 * The time when this history entry was created.
 	 */
-	timestamp: number;
+	readonly timestamp: number;
 
 	/**
 	 * Associated label with the history entry.
 	 */
-	label: string;
+	readonly label: string;
 
 	/**
-	 * Associated description with the history entry.
+	 * Associated source with the history entry.
 	 */
-	description: string;
+	readonly source: SaveSource;
+}
+
+export interface IWorkingCopyHistoryEntryDescriptor {
+
+	/**
+	 * The associated working copy of this history entry.
+	 */
+	readonly workingCopy: IWorkingCopy;
+
+	/**
+	 * Optional source why the entry was added.
+	 */
+	readonly source?: SaveSource;
 }
 
 export interface IWorkingCopyHistoryService {
@@ -65,9 +79,10 @@ export interface IWorkingCopyHistoryService {
 	onDidAddEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
-	 * Adds a new entry to the history for the given working copy.
+	 * Adds a new entry to the history for the given working copy
+	 * with an optional associated descriptor.
 	 */
-	addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined>;
+	addEntry(descriptor: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined>;
 
 	/**
 	 * Gets all history entries for the provided resource.

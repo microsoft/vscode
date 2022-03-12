@@ -171,7 +171,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 	}
 
 	async save(options?: ISaveOptions, stat?: IFileStatWithMetadata): Promise<boolean> {
-		this._onDidSave.fire({ reason: options?.reason ?? SaveReason.EXPLICIT, stat: stat ?? createFileStat(this.resource) });
+		this._onDidSave.fire({ reason: options?.reason ?? SaveReason.EXPLICIT, stat: stat ?? createFileStat(this.resource), source: options?.source });
 
 		return true;
 	}

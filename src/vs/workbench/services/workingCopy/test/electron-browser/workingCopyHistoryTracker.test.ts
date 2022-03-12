@@ -18,6 +18,7 @@ import { TestFileService, TestPathService } from 'vs/workbench/test/browser/work
 import { DeferredPromise } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 
 flakySuite('WorkingCopyHistoryTracker', () => {
 
@@ -81,10 +82,12 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		const saveResult = new DeferredPromise<void>();
 		let addedCounter = 0;
 		workingCopyHistoryService.onDidAddEntry(e => {
-			addedCounter++;
+			if (isEqual(e.entry.workingCopy.resource, workingCopy1.resource) || isEqual(e.entry.workingCopy.resource, workingCopy2.resource)) {
+				addedCounter++;
 
-			if (addedCounter === 2) {
-				saveResult.complete();
+				if (addedCounter === 2) {
+					saveResult.complete();
+				}
 			}
 		});
 

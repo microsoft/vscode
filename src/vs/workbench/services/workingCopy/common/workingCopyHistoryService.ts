@@ -8,16 +8,15 @@ import { Emitter } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
-import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { URI } from 'vs/base/common/uri';
 import { DeferredPromise } from 'vs/base/common/async';
-import { extname, joinPath } from 'vs/base/common/resources';
+import { extname, isEqual, joinPath } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { hash } from 'vs/base/common/hash';
 import { randomPath } from 'vs/base/common/extpath';
@@ -25,33 +24,49 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResourceMap } from 'vs/base/common/map';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { ILogService } from 'vs/platform/log/common/log';
+import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
+
+interface ISerializedWorkingCopyHistoryModel {
+	readonly resource: string;
+	readonly entries: ISerializedWorkingCopyHistoryModelEntry[];
+}
+
+interface ISerializedWorkingCopyHistoryModelEntry {
+	readonly id: string;
+	readonly timestamp: number;
+	readonly source?: SaveSource;
+}
 
 class WorkingCopyHistoryModel {
 
-	private static readonly sepRegexp = /\//g;
+	private static readonly SEP = /\//g;
+
+	private static readonly ENTRIES_FILE = 'entries.json';
+
+	private static readonly DEFAULT_ENTRY_SOURCE = SaveSourceRegistry.registerSource('default.source', localize('default.source', "File Saved"));
 
 	private entries: IWorkingCopyHistoryEntry[] = [];
 
 	private whenResolved: Promise<void> | undefined = undefined;
 
-	private historyEntriesFolder: URI;
+	private readonly historyEntriesFolder = joinPath(this.historyHome, hash(this.workingCopyResource.toString(true)).toString(16));
+	private readonly historyEntriesListingFile = joinPath(this.historyEntriesFolder, WorkingCopyHistoryModel.ENTRIES_FILE);
+	private readonly historyEntriesNameMatch = new RegExp(`[A-Za-z0-9]{4}${extname(this.workingCopyResource)}`);
 
-	private workingCopyResource: URI;
-	private workingCopyName: string;
+	private readonly workingCopy = { resource: this.workingCopyResource, name: this.labelService.getUriBasenameLabel(this.workingCopyResource) };
 
 	constructor(
-		workingCopyResource: URI,
-		historyHome: URI,
+		private readonly workingCopyResource: URI,
+		private readonly historyHome: URI,
 		private readonly fileService: IFileService,
-		labelService: ILabelService
+		private readonly labelService: ILabelService,
+		private readonly logService: ILogService
 	) {
-		this.workingCopyResource = workingCopyResource;
-		this.workingCopyName = labelService.getUriBasenameLabel(workingCopyResource);
-
-		this.historyEntriesFolder = joinPath(historyHome, hash(workingCopyResource.toString(true)).toString(16));
 	}
 
-	async addEntry(): Promise<IWorkingCopyHistoryEntry> {
+	async addEntry(source = WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE): Promise<IWorkingCopyHistoryEntry> {
 
 		// Clone to a potentially unique location within
 		// the history entries folder. The idea is to
@@ -62,20 +77,24 @@ class WorkingCopyHistoryModel {
 		await this.fileService.cloneFile(this.workingCopyResource, location);
 
 		// Add to list of entries
+		const now = Date.now();
 		const entry: IWorkingCopyHistoryEntry = {
 			id,
-			workingCopy: {
-				resource: this.workingCopyResource,
-				name: this.workingCopyName
-			},
+			workingCopy: this.workingCopy,
 			location,
-			timestamp: Date.now(),
-			label: this.toEntryLabel(Date.now()),
-			description: localize('historyEntryDescription', "File Saved")
+			timestamp: now,
+			label: this.toEntryLabel(now),
+			source
 		};
 		this.entries.push(entry);
 
 		return entry;
+	}
+
+	private toEntryLabel(timestamp: number): string {
+		const date = new Date(timestamp);
+
+		return `${date.toLocaleString().replace(WorkingCopyHistoryModel.SEP, '-')}`;
 	}
 
 	async getEntries(): Promise<readonly IWorkingCopyHistoryEntry[]> {
@@ -91,40 +110,119 @@ class WorkingCopyHistoryModel {
 	}
 
 	private async resolveEntries(): Promise<void> {
+
+		// Resolve from disk
+		const entries = await this.resolveEntriesFromDisk();
+
+		// We now need to merge our in-memory entries with the
+		// entries we have found on disk because it is possible
+		// that new entries have been added before the entries
+		// listing file was updated
+		for (const entry of this.entries) {
+			entries.set(entry.id, entry);
+		}
+
+		// Set as entries, sorted by timestamp
+		this.entries = Array.from(entries.values()).sort((entryA, entryB) => entryA.timestamp - entryB.timestamp);
+	}
+
+	private async resolveEntriesFromDisk(): Promise<Map<string /* ID */, IWorkingCopyHistoryEntry>> {
+		const [entryListing, entryStats] = await Promise.all([
+
+			// Resolve entries listing file
+			this.readEntriesFile(),
+
+			// Resolve children of history folder
+			this.readEntriesFolder()
+		]);
+
+		// Add from raw folder children
+		const entries = new Map<string, IWorkingCopyHistoryEntry>();
+		if (entryStats) {
+			for (const entryStat of entryStats) {
+				entries.set(entryStat.name, {
+					id: entryStat.name,
+					workingCopy: this.workingCopy,
+					location: entryStat.resource,
+					timestamp: entryStat.mtime,
+					label: this.toEntryLabel(entryStat.mtime),
+					source: WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE
+				});
+			}
+		}
+
+		// Update from listing (to have more specific metadata)
+		if (entryListing) {
+			for (const entry of entryListing.entries) {
+				const existingEntry = entries.get(entry.id);
+				if (existingEntry) {
+					entries.set(entry.id, {
+						...existingEntry,
+						timestamp: entry.timestamp,
+						source: entry.source ?? existingEntry.source
+					});
+				}
+			}
+		}
+
+		return entries;
+	}
+
+	async notifyWillShutdown(): Promise<void> {
+
+		// Persist entries meta data on shutdown
+		await this.writeEntriesFile();
+	}
+
+	private async writeEntriesFile(): Promise<void> {
+		const serializedModel: ISerializedWorkingCopyHistoryModel = {
+			resource: this.workingCopyResource.toString(true),
+			entries: this.entries.map(entry => {
+				return {
+					id: entry.id,
+					source: entry.source !== WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE ? entry.source : undefined,
+					timestamp: entry.timestamp
+				};
+			})
+		};
+
+		await this.fileService.writeFile(this.historyEntriesListingFile, VSBuffer.fromString(JSON.stringify(serializedModel)));
+	}
+
+	private async readEntriesFile(): Promise<ISerializedWorkingCopyHistoryModel | undefined> {
+		let serializedModel: ISerializedWorkingCopyHistoryModel | undefined = undefined;
+		try {
+			serializedModel = JSON.parse((await this.fileService.readFile(this.historyEntriesListingFile)).value.toString());
+		} catch (error) {
+			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+				this.logService.trace(error);
+			}
+		}
+
+		return serializedModel;
+	}
+
+	private async readEntriesFolder(): Promise<IFileStatWithMetadata[] | undefined> {
 		let rawEntries: IFileStatWithMetadata[] | undefined = undefined;
 
 		// Resolve children of folder on disk
 		try {
 			rawEntries = (await this.fileService.resolve(this.historyEntriesFolder, { resolveMetadata: true })).children;
 		} catch (error) {
-			// ignore - folder might not exist
+			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
+				this.logService.trace(error);
+			}
 		}
 
-		if (!Array.isArray(rawEntries)) {
-			return;
+		if (!rawEntries) {
+			return undefined;
 		}
 
-		// Convert each child to history entry
-		// sorted by modification time
-		this.entries = rawEntries
-			.sort((entryA, entryB) => entryA.mtime - entryB.mtime)
-			.map(entry => ({
-				id: entry.name,
-				workingCopy: {
-					resource: this.workingCopyResource,
-					name: this.workingCopyName
-				},
-				location: entry.resource,
-				timestamp: entry.mtime,
-				label: this.toEntryLabel(entry.mtime),
-				description: localize('historyEntryDescription', "File Saved")
-			}));
-	}
-
-	private toEntryLabel(timestamp: number): string {
-		const date = new Date(timestamp);
-
-		return `${date.toLocaleDateString().replace(WorkingCopyHistoryModel.sepRegexp, '-')} ${date.toLocaleTimeString().replace(WorkingCopyHistoryModel.sepRegexp, '-')}`;
+		// Skip entries that do not seem to have valid file name
+		return rawEntries.filter(entry =>
+			!isEqual(entry.resource, this.historyEntriesListingFile) && // not the listings file
+			this.historyEntriesNameMatch.test(entry.name)				// matching our expected file pattern for entries
+		);
 	}
 }
 
@@ -144,11 +242,14 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
 		this.resolveLocalHistoryHome();
+		this.registerListeners();
 	}
 
 	private async resolveLocalHistoryHome(): Promise<void> {
@@ -161,7 +262,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 				historyHome = remoteEnv.localHistoryHome;
 			}
 		} catch (error) {
-			// ignore and fallback to local
+			this.logService.trace(error); // ignore and fallback to local
 		}
 
 		// But fallback to local if there is no remote
@@ -172,7 +273,20 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		this.localHistoryHome.complete(historyHome);
 	}
 
-	async addEntry(workingCopy: IWorkingCopy, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
+	private registerListeners(): void {
+		this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e));
+	}
+
+	private onWillShutdown(e: WillShutdownEvent): void {
+
+		// Forward shutdown to all models we have
+		const models = Array.from(this.models.values());
+		const modelShutdown = (async () => { await Promise.allSettled(models.map(model => model.notifyWillShutdown())); })();
+
+		e.join(modelShutdown, 'join.workingCopyHistory');
+	}
+
+	async addEntry({ workingCopy, source }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
 		if (!this.fileService.hasProvider(workingCopy.resource)) {
 			return undefined; // we require the working copy resource to be file service accessible
 		}
@@ -184,7 +298,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		}
 
 		// Add to model
-		const entry = await model.addEntry();
+		const entry = await model.addEntry(source);
 
 		// Events
 		this._onDidAddEntry.fire({ entry });
@@ -207,7 +321,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 
 		let model = this.models.get(resource);
 		if (!model) {
-			model = new WorkingCopyHistoryModel(resource, historyHome, this.fileService, this.labelService);
+			model = new WorkingCopyHistoryModel(resource, historyHome, this.fileService, this.labelService, this.logService);
 			this.models.set(resource, model);
 		}
 

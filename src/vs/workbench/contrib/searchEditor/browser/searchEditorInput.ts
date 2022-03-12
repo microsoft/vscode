@@ -137,7 +137,7 @@ export class SearchEditorInput extends EditorInput {
 		if (this.backingUri) {
 			await this.textFileService.write(this.backingUri, await this.serializeForDisk(), options);
 			this.setDirty(false);
-			this._onDidSave.fire({ reason: options?.reason });
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
 			return this;
 		} else {
 			return this.saveAs(group, options);

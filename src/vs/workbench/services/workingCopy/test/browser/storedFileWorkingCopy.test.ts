@@ -14,7 +14,7 @@ import { TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/resources';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
-import { SaveReason } from 'vs/workbench/common/editor';
+import { SaveReason, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { Promises } from 'vs/base/common/async';
 import { consumeReadable, consumeStream, isReadableStream } from 'vs/base/common/stream';
 
@@ -454,12 +454,15 @@ suite('StoredFileWorkingCopy', function () {
 
 		// save reason
 		workingCopy.model?.updateContents('hello save');
-		await workingCopy.save({ reason: SaveReason.AUTO });
+
+		const source = SaveSourceRegistry.registerSource('testSource', 'Hello Save');
+		await workingCopy.save({ reason: SaveReason.AUTO, source });
 
 		assert.strictEqual(savedCounter, 2);
 		assert.strictEqual(saveErrorCounter, 0);
 		assert.strictEqual(workingCopy.isDirty(), false);
 		assert.strictEqual((lastSaveEvent as IStoredFileWorkingCopySaveEvent).reason, SaveReason.AUTO);
+		assert.strictEqual((lastSaveEvent as IStoredFileWorkingCopySaveEvent).source, source);
 
 		// multiple saves in parallel are fine and result
 		// in a single save when content does not change

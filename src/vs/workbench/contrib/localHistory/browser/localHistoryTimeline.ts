@@ -23,6 +23,7 @@ import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/act
 import { isEqual } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
@@ -165,7 +166,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		return {
 			handle: entry.id,
 			label: entry.label,
-			description: entry.description,
+			description: SaveSourceRegistry.getSourceLabel(entry.source),
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp,
 			themeIcon: Codicon.save,
@@ -185,17 +186,20 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 				LocalHistoryFileSystemProvider.EMPTY
 			),
 			LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
-			previousEntry ? localize(
-				'localHistoryCompareEditorLabel', "{0} ({1}) ↔ {2} ({3})",
-				previousEntry.workingCopy.name,
-				previousEntry.label,
-				entry.workingCopy.name,
-				entry.label
-			) : localize(
-				'localHistoryCompareEditorLabelWithoutPrevious', "{0} ({1})",
-				entry.workingCopy.name,
-				entry.label
-			),
+			{
+				label: previousEntry ? localize(
+					'localHistoryCompareEditorLabel', "{0} ({1}) ↔ {2} ({3})",
+					previousEntry.workingCopy.name,
+					previousEntry.label,
+					entry.workingCopy.name,
+					entry.label
+				) : localize(
+					'localHistoryCompareEditorLabelWithoutPrevious', "{0} ({1})",
+					entry.workingCopy.name,
+					entry.label
+				),
+				description: SaveSourceRegistry.getSourceLabel(entry.source)
+			},
 			undefined // important to keep order of arguments in command proper
 		];
 	}

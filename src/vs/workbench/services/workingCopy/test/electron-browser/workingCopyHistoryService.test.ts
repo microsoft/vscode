@@ -20,11 +20,13 @@ import { Promises } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { TestRemoteAgentService } from 'vs/workbench/services/remote/test/common/testServices';
-import { readFileSync } from 'fs';
-import { IWorkingCopyHistoryEvent } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { existsSync, readFileSync, unlinkSync } from 'fs';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEvent } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IFileService } from 'vs/platform/files/common/files';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
+import { TestLifecycleService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
+import { dirname } from 'path';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -36,6 +38,7 @@ class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService 
 export class TestWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
 	readonly _fileService: IFileService;
+	readonly _lifecycleService: TestLifecycleService;
 
 	constructor(testDir: string) {
 		const environmentService = new TestWorkbenchEnvironmentService(testDir);
@@ -51,9 +54,12 @@ export class TestWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
 		const labelService = new LabelService(environmentService, new TestContextService(), new TestNativePathService());
 
-		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService);
+		const lifecycleService = new TestLifecycleService();
+
+		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, lifecycleService, logService);
 
 		this._fileService = fileService;
+		this._lifecycleService = lifecycleService;
 	}
 }
 
@@ -104,8 +110,8 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		// Add Entry works
 
-		const entry1A = await service.addEntry(workingCopy1, CancellationToken.None);
-		const entry2A = await service.addEntry(workingCopy2, CancellationToken.None);
+		const entry1A = await service.addEntry({ workingCopy: workingCopy1 }, CancellationToken.None);
+		const entry2A = await service.addEntry({ workingCopy: workingCopy2, source: 'My Source' }, CancellationToken.None);
 
 		assert.ok(entry1A);
 		assert.ok(entry2A);
@@ -116,9 +122,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(addEvents.length, 2);
 		assert.strictEqual(addEvents[0].entry.workingCopy.resource.toString(), workingCopy1.resource.toString());
 		assert.strictEqual(addEvents[1].entry.workingCopy.resource.toString(), workingCopy2.resource.toString());
+		assert.strictEqual(addEvents[1].entry.source, 'My Source');
 
-		const entry1B = await service.addEntry(workingCopy1, CancellationToken.None);
-		const entry2B = await service.addEntry(workingCopy2, CancellationToken.None);
+		const entry1B = await service.addEntry({ workingCopy: workingCopy1 }, CancellationToken.None);
+		const entry2B = await service.addEntry({ workingCopy: workingCopy2 }, CancellationToken.None);
 
 		assert.ok(entry1B);
 		assert.ok(entry2B);
@@ -133,7 +140,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 		// Cancellation works
 
 		const cts = new CancellationTokenSource();
-		const entry1CPromise = service.addEntry(workingCopy1, cts.token);
+		const entry1CPromise = service.addEntry({ workingCopy: workingCopy1 }, cts.token);
 		cts.dispose(true);
 
 		const entry1C = await entry1CPromise;
@@ -144,48 +151,170 @@ flakySuite('WorkingCopyHistoryService', () => {
 		// Invalid working copies are ignored
 
 		const workingCopy3 = new TestWorkingCopy(URI.file(testFile2Path).with({ scheme: 'unsupported' }));
-		const entry3A = await service.addEntry(workingCopy3, CancellationToken.None);
+		const entry3A = await service.addEntry({ workingCopy: workingCopy3 }, CancellationToken.None);
 		assert.ok(!entry3A);
 
 		assert.strictEqual(addEvents.length, 4);
 	});
 
-	test('getEntries', async () => {
+	test('getEntries - simple', async () => {
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
-
-		// Initially empty without entries added
 
 		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);
 
-		await service.addEntry(workingCopy1, CancellationToken.None);
+		const entry1 = await service.addEntry({ workingCopy: workingCopy1, source: 'test-source' }, CancellationToken.None);
+		assert.ok(entry1);
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);
+		assertEntryEqual(entries[0], entry1);
 
-		await service.addEntry(workingCopy1, CancellationToken.None);
+		const entry2 = await service.addEntry({ workingCopy: workingCopy1, source: 'test-source' }, CancellationToken.None);
+		assert.ok(entry2);
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 2);
+		assertEntryEqual(entries[1], entry2);
 
 		entries = await service.getEntries(workingCopy2.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);
 
-		await service.addEntry(workingCopy2, CancellationToken.None);
+		const entry3 = await service.addEntry({ workingCopy: workingCopy2, source: 'other-test-source' }, CancellationToken.None);
+		assert.ok(entry3);
 
 		entries = await service.getEntries(workingCopy2.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);
+		assertEntryEqual(entries[0], entry3);
+	});
 
-		// Now filled with entries given contents on disk
+	test('getEntries - metadata preserved between shutdown', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+
+		const entry1 = await service.addEntry({ workingCopy: workingCopy1, source: 'test-source' }, CancellationToken.None);
+		assert.ok(entry1);
+
+		const entry2 = await service.addEntry({ workingCopy: workingCopy2 }, CancellationToken.None);
+		assert.ok(entry2);
+
+		const entry3 = await service.addEntry({ workingCopy: workingCopy2, source: 'other-source' }, CancellationToken.None);
+		assert.ok(entry3);
+
+		// Simulate shutdown
+		const event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
 
 		service.dispose();
 		service = new TestWorkingCopyHistoryService(testDir);
 
-		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
-		assert.strictEqual(entries.length, 2);
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 1);
+		assertEntryEqual(entries[0], entry1);
 
 		entries = await service.getEntries(workingCopy2.resource, CancellationToken.None);
-		assert.strictEqual(entries.length, 1);
+		assert.strictEqual(entries.length, 2);
+		assertEntryEqual(entries[0], entry2);
+		assertEntryEqual(entries[1], entry3);
 	});
+
+	test('getEntries - corrupt meta.json is no problem', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		const entry1 = await service.addEntry({ workingCopy: workingCopy1 }, CancellationToken.None);
+		assert.ok(entry1);
+
+		// Simulate shutdown
+		const event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		const metaFile = join(dirname(entry1.location.fsPath), 'entries.json');
+		assert.ok(existsSync(metaFile));
+		unlinkSync(metaFile);
+
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 1);
+		assertEntryEqual(entries[0], entry1, false /* skip timestamp that is unreliable when entries.json is gone */);
+	});
+
+	test('getEntries - missing entries from meta.json is no problem', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		const entry1 = await service.addEntry({ workingCopy: workingCopy1 }, CancellationToken.None);
+		assert.ok(entry1);
+
+		const entry2 = await service.addEntry({ workingCopy: workingCopy1 }, CancellationToken.None);
+		assert.ok(entry2);
+
+		// Simulate shutdown
+		const event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		unlinkSync(entry1.location.fsPath);
+
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 1);
+		assertEntryEqual(entries[0], entry2);
+	});
+
+	test('getEntries - in-memory and on-disk entries are merged', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		const entry1 = await service.addEntry({ workingCopy: workingCopy1, source: 'test-source' }, CancellationToken.None);
+		assert.ok(entry1);
+
+		const entry2 = await service.addEntry({ workingCopy: workingCopy1, source: 'other-source' }, CancellationToken.None);
+		assert.ok(entry2);
+
+		// Simulate shutdown
+		const event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		const entry3 = await service.addEntry({ workingCopy: workingCopy1, source: 'test-source' }, CancellationToken.None);
+		assert.ok(entry3);
+
+		const entry4 = await service.addEntry({ workingCopy: workingCopy1, source: 'other-source' }, CancellationToken.None);
+		assert.ok(entry4);
+
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 4);
+		assertEntryEqual(entries[0], entry1);
+		assertEntryEqual(entries[1], entry2);
+		assertEntryEqual(entries[2], entry3);
+		assertEntryEqual(entries[3], entry4);
+	});
+
+	function assertEntryEqual(entryA: IWorkingCopyHistoryEntry, entryB: IWorkingCopyHistoryEntry, assertTimestamp = true): void {
+		assert.strictEqual(entryA.id, entryB.id);
+		assert.strictEqual(entryA.label, entryB.label);
+		assert.strictEqual(entryA.location.toString(), entryB.location.toString());
+		if (assertTimestamp) {
+			assert.strictEqual(entryA.timestamp, entryB.timestamp);
+		}
+		assert.strictEqual(entryA.source, entryB.source);
+		assert.strictEqual(entryA.workingCopy.name, entryB.workingCopy.name);
+		assert.strictEqual(entryA.workingCopy.resource.toString(), entryB.workingCopy.resource.toString());
+	}
 });

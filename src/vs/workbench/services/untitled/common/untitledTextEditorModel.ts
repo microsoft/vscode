@@ -262,7 +262,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Emit as event
 		if (target) {
-			this._onDidSave.fire({ reason: options?.reason });
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
 		}
 
 		return !!target;

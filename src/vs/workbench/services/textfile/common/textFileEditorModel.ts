@@ -886,7 +886,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.setOrphaned(false);
 
 		// Emit Save Event
-		this._onDidSave.fire({ reason: options.reason, stat });
+		this._onDidSave.fire({ reason: options.reason, stat, source: options.source });
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: ITextFileSaveOptions): void {
