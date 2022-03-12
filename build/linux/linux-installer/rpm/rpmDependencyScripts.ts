@@ -8,14 +8,12 @@ import { statSync } from 'fs';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/calculate_package_deps.py
 export function calculatePackageDeps(binaryPath: string): Set<string> {
-	console.log('Going to stat ' + binaryPath);
 	try {
 		if ((statSync(binaryPath).mode & 0o111) === 0) {
 			throw new Error(`Binary ${binaryPath} needs to have an executable bit set.`);
 		}
 	} catch (e) {
-		console.log('Tried to stat ' + binaryPath + ' but failed. Following is exception:');
-		console.log(e);
+		console.error('Tried to stat ' + binaryPath + ' but failed.');
 		throw e;
 	}
 

@@ -18,16 +18,9 @@ export function getRpmDependencies(buildDir: string, applicationName: string): s
 		return [];
 	}
 
-	// Filter the files and add on the Code binary.
-	// const files: string[] = findResult.stdout.toString().split('\n').filter((file) => {
-	// 	return !file.includes('obj.target') && file.includes('build/Release');
-	// });
-
-	const files = findResult.stdout.toString().split('\n');
-	console.log('Found files:\n' + files);
+	const files = findResult.stdout.toString().trimEnd().split('\n');
 
 	const appPath = `${buildDir}/${applicationName}`;
-	console.log(appPath);
 	files.push(appPath);
 
 	// Generate the dependencies.
