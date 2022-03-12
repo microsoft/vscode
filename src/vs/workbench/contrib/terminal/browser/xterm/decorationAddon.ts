@@ -169,11 +169,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!decoration) {
 			return undefined;
 		}
-		let scrollbarDecorationColor = command.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
-		if (scrollbarDecorationColor && typeof scrollbarDecorationColor !== 'string') {
-			scrollbarDecorationColor = scrollbarDecorationColor.toString();
+		let overviewRulerItemColor = command.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
+		if (overviewRulerItemColor && typeof overviewRulerItemColor !== 'string') {
+			overviewRulerItemColor = overviewRulerItemColor.toString();
 		}
-		this._terminal.registerDecoration({ marker: command.marker, scrollbarDecorationColor });
+		this._terminal.registerDecoration({ marker: command.marker, overviewRulerItemColor });
 
 		decoration.onRender(element => {
 			decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
