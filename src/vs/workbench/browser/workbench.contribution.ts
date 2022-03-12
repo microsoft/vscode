@@ -414,7 +414,7 @@ const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace
 					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
 				],
 				'tags': ['experimental'],
-				'default': 'menu',
+				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
 		}
