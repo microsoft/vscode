@@ -136,6 +136,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 	readonly onDidCreate: Event<IFileWorkingCopy<S | U>>;
 
 	private static readonly FILE_WORKING_COPY_SAVE_CREATE_SOURCE = SaveSourceRegistry.registerSource('fileWorkingCopyCreate.source', localize('fileWorkingCopyCreate.source', "File Created"));
+	private static readonly FILE_WORKING_COPY_SAVE_REPLACE_SOURCE = SaveSourceRegistry.registerSource('fileWorkingCopyReplace.source', localize('fileWorkingCopyReplace.source', "File Replaced"));
 
 	readonly stored: IStoredFileWorkingCopyManager<S>;
 	readonly untitled: IUntitledFileWorkingCopyManager<U>;
@@ -408,10 +409,10 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		await targetStoredFileWorkingCopy.model?.update(sourceContents, CancellationToken.None);
 
 		// Set source options depending on target exists or not
-		if (!targetFileExists && !options?.source) {
+		if (!options?.source) {
 			options = {
 				...options,
-				source: FileWorkingCopyManager.FILE_WORKING_COPY_SAVE_CREATE_SOURCE
+				source: targetFileExists ? FileWorkingCopyManager.FILE_WORKING_COPY_SAVE_REPLACE_SOURCE : FileWorkingCopyManager.FILE_WORKING_COPY_SAVE_CREATE_SOURCE
 			};
 		}
 

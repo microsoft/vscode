@@ -51,6 +51,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly TEXTFILE_SAVE_CREATE_SOURCE = SaveSourceRegistry.registerSource('textFileCreate.source', localize('textFileCreate.source', "File Created"));
+	private static readonly TEXTFILE_SAVE_REPLACE_SOURCE = SaveSourceRegistry.registerSource('textFileOverwrite.source', localize('textFileOverwrite.source', "File Replaced"));
 
 	readonly files: ITextFileEditorModelManager = this._register(this.instantiationService.createInstance(TextFileEditorModelManager));
 
@@ -539,10 +540,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// set source options depending on target exists or not
-		if (!targetExists && !options?.source) {
+		if (!options?.source) {
 			options = {
 				...options,
-				source: AbstractTextFileService.TEXTFILE_SAVE_CREATE_SOURCE
+				source: targetExists ? AbstractTextFileService.TEXTFILE_SAVE_REPLACE_SOURCE : AbstractTextFileService.TEXTFILE_SAVE_CREATE_SOURCE
 			};
 		}
 
