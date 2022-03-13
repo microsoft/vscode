@@ -5,10 +5,9 @@
 
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
@@ -182,7 +181,7 @@ class WorkingCopyHistoryModel {
 		return entries;
 	}
 
-	async notifyWillShutdown(): Promise<void> {
+	async store(): Promise<void> {
 
 		// Cleanup based on max-entries setting
 		await this.cleanUpEntries();
@@ -276,7 +275,7 @@ class WorkingCopyHistoryModel {
 	}
 }
 
-export class WorkingCopyHistoryService extends Disposable implements IWorkingCopyHistoryService {
+export abstract class WorkingCopyHistoryService extends Disposable implements IWorkingCopyHistoryService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -285,7 +284,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 
 	private readonly localHistoryHome = new DeferredPromise<URI>();
 
-	private readonly models = new ResourceMap<WorkingCopyHistoryModel>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+	protected readonly models = new ResourceMap<WorkingCopyHistoryModel>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -293,14 +292,12 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService protected readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
 		this.resolveLocalHistoryHome();
-		this.registerListeners();
 	}
 
 	private async resolveLocalHistoryHome(): Promise<void> {
@@ -322,25 +319,6 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		}
 
 		this.localHistoryHome.complete(historyHome);
-	}
-
-	private registerListeners(): void {
-		this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e));
-	}
-
-	private onWillShutdown(e: WillShutdownEvent): void {
-
-		// Prolong shutdown for orderly model shutdown
-		e.join((async () => {
-			const models = Array.from(this.models.values());
-			for (const model of models) {
-				try {
-					await model.notifyWillShutdown();
-				} catch (error) {
-					this.logService.trace(error);
-				}
-			}
-		})(), 'join.workingCopyHistory');
 	}
 
 	async addEntry({ workingCopy, source }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
@@ -385,9 +363,6 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		return model;
 	}
 }
-
-// Register Service
-registerSingleton(IWorkingCopyHistoryService, WorkingCopyHistoryService, true);
 
 // Register History Tracker
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkingCopyHistoryTracker, LifecyclePhase.Restored);

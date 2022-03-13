@@ -8,7 +8,6 @@ import { flakySuite } from 'vs/base/test/common/testUtils';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { TestNativePathService, TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestContextService, TestProductService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
-import { WorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -28,6 +27,7 @@ import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestLifecycleService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
 import { dirname } from 'path';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -36,7 +36,7 @@ class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService 
 	}
 }
 
-export class TestWorkingCopyHistoryService extends WorkingCopyHistoryService {
+export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryService {
 
 	readonly _fileService: IFileService;
 	readonly _configurationService: TestConfigurationService;
