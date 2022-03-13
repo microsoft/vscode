@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as assert from 'assert';
 import { flakySuite } from 'vs/base/test/common/testUtils';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -19,6 +20,7 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 flakySuite('WorkingCopyHistoryTracker', () => {
 
@@ -28,6 +30,7 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 	let workingCopyHistoryService: TestWorkingCopyHistoryService;
 	let workingCopyService: WorkingCopyService;
 	let fileService: IFileService;
+	let configurationService: TestConfigurationService;
 
 	let tracker: WorkingCopyHistoryTracker;
 
@@ -40,7 +43,7 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		'dolor öäü sit amet ',
 		'adipiscing ßß elit',
 		'consectetur '
-	].join('');
+	].join('').repeat(1000);
 
 	setup(async () => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'workingcopyhistorytracker');
@@ -49,8 +52,9 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		workingCopyHistoryService = new TestWorkingCopyHistoryService(testDir);
 		workingCopyService = new WorkingCopyService();
 		fileService = workingCopyHistoryService._fileService;
+		configurationService = workingCopyHistoryService._configurationService;
 
-		tracker = new WorkingCopyHistoryTracker(workingCopyService, workingCopyHistoryService, new UriIdentityService(new TestFileService()), new TestPathService(undefined, Schemas.file));
+		tracker = new WorkingCopyHistoryTracker(workingCopyService, workingCopyHistoryService, new UriIdentityService(new TestFileService()), new TestPathService(undefined, Schemas.file), configurationService);
 
 		await Promises.mkdir(historyHome, { recursive: true });
 
@@ -88,6 +92,64 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 				if (addedCounter === 2) {
 					saveResult.complete();
 				}
+			}
+		});
+
+		await workingCopy1.save(undefined, stat1);
+		await workingCopy2.save(undefined, stat2);
+
+		await saveResult.p;
+	});
+
+	test('history entry skipped when setting disabled', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+
+		const stat1 = await fileService.resolve(workingCopy1.resource, { resolveMetadata: true });
+		const stat2 = await fileService.resolve(workingCopy2.resource, { resolveMetadata: true });
+
+		workingCopyService.registerWorkingCopy(workingCopy1);
+		workingCopyService.registerWorkingCopy(workingCopy2);
+
+		configurationService.setUserConfiguration('workbench.localHistory.enabled', false, workingCopy1.resource);
+
+		const saveResult = new DeferredPromise<void>();
+		workingCopyHistoryService.onDidAddEntry(e => {
+			if (isEqual(e.entry.workingCopy.resource, workingCopy1.resource)) {
+				assert.fail('Unexpected working copy history entry');
+			}
+
+			if (isEqual(e.entry.workingCopy.resource, workingCopy2.resource)) {
+				saveResult.complete();
+			}
+		});
+
+		await workingCopy1.save(undefined, stat1);
+		await workingCopy2.save(undefined, stat2);
+
+		await saveResult.p;
+	});
+
+	test('history entry skipped when too large', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+
+		const stat1 = await fileService.resolve(workingCopy1.resource, { resolveMetadata: true });
+		const stat2 = await fileService.resolve(workingCopy2.resource, { resolveMetadata: true });
+
+		workingCopyService.registerWorkingCopy(workingCopy1);
+		workingCopyService.registerWorkingCopy(workingCopy2);
+
+		configurationService.setUserConfiguration('workbench.localHistory.maxFileSize', 1);
+
+		const saveResult = new DeferredPromise<void>();
+		workingCopyHistoryService.onDidAddEntry(e => {
+			if (isEqual(e.entry.workingCopy.resource, workingCopy2.resource)) {
+				assert.fail('Unexpected working copy history entry');
+			}
+
+			if (isEqual(e.entry.workingCopy.resource, workingCopy1.resource)) {
+				saveResult.complete();
 			}
 		});
 

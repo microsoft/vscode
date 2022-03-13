@@ -27,6 +27,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ISerializedWorkingCopyHistoryModel {
 	readonly resource: string;
@@ -47,6 +48,8 @@ class WorkingCopyHistoryModel {
 
 	private static readonly DEFAULT_ENTRY_SOURCE = SaveSourceRegistry.registerSource('default.source', localize('default.source', "File Saved"));
 
+	private static readonly MAX_ENTRIES_SETTINGS_KEY = 'workbench.localHistory.maxFileEntries';
+
 	private entries: IWorkingCopyHistoryEntry[] = [];
 
 	private whenResolved: Promise<void> | undefined = undefined;
@@ -62,7 +65,8 @@ class WorkingCopyHistoryModel {
 		private readonly historyHome: URI,
 		private readonly fileService: IFileService,
 		private readonly labelService: ILabelService,
-		private readonly logService: ILogService
+		private readonly logService: ILogService,
+		private readonly configurationService: IConfigurationService
 	) {
 	}
 
@@ -106,7 +110,10 @@ class WorkingCopyHistoryModel {
 		}
 		await this.whenResolved;
 
-		return this.entries;
+		// Return as many entries as configured by user settings
+		const configuredMaxEntries = this.configurationService.getValue<number>(WorkingCopyHistoryModel.MAX_ENTRIES_SETTINGS_KEY, { resource: this.workingCopyResource });
+
+		return this.entries.slice(this.entries.length - configuredMaxEntries);
 	}
 
 	private async resolveEntries(): Promise<void> {
@@ -244,7 +251,8 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -321,7 +329,7 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 
 		let model = this.models.get(resource);
 		if (!model) {
-			model = new WorkingCopyHistoryModel(resource, historyHome, this.fileService, this.labelService, this.logService);
+			model = new WorkingCopyHistoryModel(resource, historyHome, this.fileService, this.labelService, this.logService, this.configurationService);
 			this.models.set(resource, model);
 		}
 

@@ -7,6 +7,7 @@ import { Limiter } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -22,9 +23,10 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 	// limit the write operations up to a maximum degree.
 	private static readonly MAX_PARALLEL_HISTORY_WRITES = 10;
 
-	// Maximum size of files that are tracked for being considered
-	// as history entries.
-	private static readonly MAX_TRACKED_FILE_SIZE = 1024 * 256;
+	private static readonly SETTINGS = {
+		ENABLED: 'workbench.localHistory.enabled',
+		SIZE_LIMIT: 'workbench.localHistory.maxFileSize',
+	};
 
 	private readonly limiter = this._register(new Limiter(WorkingCopyHistoryTracker.MAX_PARALLEL_HISTORY_WRITES));
 
@@ -37,7 +39,8 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IWorkingCopyHistoryService private readonly workingCopyHistoryService: IWorkingCopyHistoryService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -111,10 +114,12 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 			return false; // only support working copies that are backed by stored files
 		}
 
-		if (e.stat.size > WorkingCopyHistoryTracker.MAX_TRACKED_FILE_SIZE) {
+		const configuredMaxFileSizeInBytes = 1024 * this.configurationService.getValue<number>(WorkingCopyHistoryTracker.SETTINGS.SIZE_LIMIT, { resource: e.workingCopy.resource });
+		if (e.stat.size > configuredMaxFileSizeInBytes) {
 			return false; // only track files that are not too large
 		}
 
-		return true;
+		// Finally check for setting
+		return this.configurationService.getValue<boolean>(WorkingCopyHistoryTracker.SETTINGS.ENABLED, { resource: e.workingCopy.resource }) !== false;
 	}
 }

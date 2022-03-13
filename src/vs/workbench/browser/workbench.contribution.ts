@@ -257,6 +257,24 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
+			'workbench.localHistory.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('localHistoryEnabled', "Controls whether the local file history is enabled. When enabled, the file contents of an editor that is saved will be stored to a backup location and can be restored or reviewed later. Changing this setting has no effect on existing file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.maxFileSize': {
+				'type': 'number',
+				'default': 256,
+				'description': localize('localHistoryMaxFileSize', "Controls the maximum size of a file (in KB) to be considered for local history. Files that are larger will not be added to the local history unless explicitly added by via user gesture. Changing this setting has no effect on existing file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.maxFileEntries': {
+				'type': 'number',
+				'default': 50,
+				'description': localize('localHistoryMaxFileEntries', "Controls the maximum number of local file history entries per file. When the number of local file history entries exceeds this number for a file, the oldest entries will be discarded."),
+				'scope': ConfigurationScope.RESOURCE
+			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
@@ -400,7 +418,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'tags': ['experimental'],
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
-			},
+			}
 		}
 	});
 

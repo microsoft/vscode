@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { InternalTimelineOptions, ITimelineService, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
@@ -24,6 +24,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
@@ -31,6 +32,8 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 	private static readonly MENU_CONTEXT_VALUE = 'localHistory:item';
 	private static readonly MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LocalHistoryTimeline.MENU_CONTEXT_VALUE);
+
+	private static readonly LOCAL_HISTORY_ENABLED_SETTINGS_KEY = 'workbench.localHistory.enabled';
 
 	private static readonly OPEN_CHANGES_LABEL = { value: localize('localHistory.openChanges', "Open Changes"), original: 'Open Changes' };
 
@@ -43,13 +46,16 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 	private readonly _onDidChange = this._register(new Emitter<TimelineChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private readonly timelineProviderDisposable = this._register(new MutableDisposable());
+
 	constructor(
 		@ITimelineService private readonly timelineService: ITimelineService,
 		@IWorkingCopyHistoryService private readonly workingCopyHistoryService: IWorkingCopyHistoryService,
 		@IPathService private readonly pathService: IPathService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -60,8 +66,8 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 	private registerComponents(): void {
 
-		// Timeline
-		this._register(this.timelineService.registerTimelineProvider(this));
+		// Timeline (if enabled)
+		this.updateTimelineRegistration();
 
 		// File Service Provider
 		this._register(this.fileService.registerProvider(LocalHistoryFileSystemProvider.SCHEMA, new LocalHistoryFileSystemProvider(this.fileService)));
@@ -70,8 +76,25 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		this._register(this.labelService.registerFormatter(new LocalHistoryFileLabelFormatter()));
 	}
 
+	private updateTimelineRegistration(): void {
+		if (this.configurationService.getValue<boolean>(LocalHistoryTimeline.LOCAL_HISTORY_ENABLED_SETTINGS_KEY)) {
+			this.timelineProviderDisposable.value = this.timelineService.registerTimelineProvider(this);
+		} else {
+			this.timelineProviderDisposable.clear();
+		}
+	}
+
 	private registerListeners(): void {
+
+		// History changes
 		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidAddWorkingCopyHistoryEntry(e.entry)));
+
+		// Configuration changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LocalHistoryTimeline.LOCAL_HISTORY_ENABLED_SETTINGS_KEY)) {
+				this.updateTimelineRegistration();
+			}
+		}));
 	}
 
 	private registerActions(): void {

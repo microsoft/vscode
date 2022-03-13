@@ -27,6 +27,7 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestLifecycleService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
 import { dirname } from 'path';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -38,6 +39,7 @@ class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService 
 export class TestWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
 	readonly _fileService: IFileService;
+	readonly _configurationService: TestConfigurationService;
 	readonly _lifecycleService: TestLifecycleService;
 
 	constructor(testDir: string) {
@@ -56,9 +58,12 @@ export class TestWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
 		const lifecycleService = new TestLifecycleService();
 
-		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, lifecycleService, logService);
+		const configurationService = new TestConfigurationService();
+
+		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, lifecycleService, logService, configurationService);
 
 		this._fileService = fileService;
+		this._configurationService = configurationService;
 		this._lifecycleService = lifecycleService;
 	}
 }
@@ -304,6 +309,29 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assertEntryEqual(entries[1], entry2);
 		assertEntryEqual(entries[2], entry3);
 		assertEntryEqual(entries[3], entry4);
+	});
+
+	test('getEntries - configured max entries respected', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		const entry1 = await service.addEntry({ workingCopy: workingCopy1 }, CancellationToken.None);
+		assert.ok(entry1);
+
+		const entry2 = await service.addEntry({ workingCopy: workingCopy1 }, CancellationToken.None);
+		assert.ok(entry2);
+
+		const entry3 = await service.addEntry({ workingCopy: workingCopy1, source: 'Test source' }, CancellationToken.None);
+		assert.ok(entry3);
+
+		const entry4 = await service.addEntry({ workingCopy: workingCopy1 }, CancellationToken.None);
+		assert.ok(entry4);
+
+		service._configurationService.setUserConfiguration('workbench.localHistory.maxFileEntries', 2);
+
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 2);
+		assertEntryEqual(entries[0], entry3);
+		assertEntryEqual(entries[1], entry4);
 	});
 
 	function assertEntryEqual(entryA: IWorkingCopyHistoryEntry, entryB: IWorkingCopyHistoryEntry, assertTimestamp = true): void {
