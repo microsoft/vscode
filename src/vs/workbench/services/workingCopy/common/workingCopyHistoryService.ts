@@ -39,7 +39,7 @@ interface ISerializedWorkingCopyHistoryModelEntry {
 	readonly source?: SaveSource;
 }
 
-class WorkingCopyHistoryModel {
+export class WorkingCopyHistoryModel {
 
 	private static readonly SEP = /\//g;
 
@@ -69,7 +69,7 @@ class WorkingCopyHistoryModel {
 	) {
 	}
 
-	async addEntry(source = WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE): Promise<IWorkingCopyHistoryEntry> {
+	async addEntry(source = WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
 
 		// Clone to a potentially unique location within
 		// the history entries folder. The idea is to
@@ -287,13 +287,13 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 	protected readonly models = new ResourceMap<WorkingCopyHistoryModel>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILabelService private readonly labelService: ILabelService,
+		@IFileService protected readonly fileService: IFileService,
+		@IRemoteAgentService protected readonly remoteAgentService: IRemoteAgentService,
+		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
+		@ILabelService protected readonly labelService: ILabelService,
 		@ILogService protected readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -333,7 +333,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		}
 
 		// Add to model
-		const entry = await model.addEntry(source);
+		const entry = await model.addEntry(source, token);
 
 		// Events
 		this._onDidAddEntry.fire({ entry });
@@ -356,11 +356,15 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 		let model = this.models.get(resource);
 		if (!model) {
-			model = new WorkingCopyHistoryModel(resource, historyHome, this.fileService, this.labelService, this.logService, this.configurationService);
+			model = this.createModel(resource, historyHome);
 			this.models.set(resource, model);
 		}
 
 		return model;
+	}
+
+	protected createModel(resource: URI, historyHome: URI): WorkingCopyHistoryModel {
+		return new WorkingCopyHistoryModel(resource, historyHome, this.fileService, this.labelService, this.logService, this.configurationService);
 	}
 }
 

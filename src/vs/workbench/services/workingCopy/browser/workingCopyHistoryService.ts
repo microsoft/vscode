@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
+import { SaveSource } from 'vs/workbench/common/editor';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -10,9 +13,21 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { WorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
+import { WorkingCopyHistoryModel, WorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+
+class BrowserWorkingCopyHistoryModel extends WorkingCopyHistoryModel {
+
+	override async addEntry(source: SaveSource, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+		const entry = await super.addEntry(source, token);
+		if (!token.isCancellationRequested) {
+			await this.store(); // need to store on each add because we do not have long running shutdown support in web
+		}
+
+		return entry;
+	}
+}
 
 export class BrowserWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
@@ -26,6 +41,10 @@ export class BrowserWorkingCopyHistoryService extends WorkingCopyHistoryService 
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, logService, configurationService);
+	}
+
+	protected override createModel(resource: URI, historyHome: URI): WorkingCopyHistoryModel {
+		return new BrowserWorkingCopyHistoryModel(resource, historyHome, this.fileService, this.labelService, this.logService, this.configurationService);
 	}
 }
 
