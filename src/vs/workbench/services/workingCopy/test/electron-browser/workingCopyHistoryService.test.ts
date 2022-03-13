@@ -355,4 +355,67 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entryA.workingCopy.name, entryB.workingCopy.name);
 		assert.strictEqual(entryA.workingCopy.resource.toString(), entryB.workingCopy.resource.toString());
 	}
+
+	test('entries cleaned up on shutdown', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		const entry1 = await service.addEntry({ workingCopy: workingCopy1, source: 'test-source' }, CancellationToken.None);
+		assert.ok(entry1);
+
+		const entry2 = await service.addEntry({ workingCopy: workingCopy1, source: 'other-source' }, CancellationToken.None);
+		assert.ok(entry2);
+
+		const entry3 = await service.addEntry({ workingCopy: workingCopy1, source: 'other-source' }, CancellationToken.None);
+		assert.ok(entry3);
+
+		const entry4 = await service.addEntry({ workingCopy: workingCopy1, source: 'other-source' }, CancellationToken.None);
+		assert.ok(entry4);
+
+		service._configurationService.setUserConfiguration('workbench.localHistory.maxFileEntries', 2);
+
+		// Simulate shutdown
+		let event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		assert.ok(!existsSync(entry1.location.fsPath));
+		assert.ok(!existsSync(entry2.location.fsPath));
+		assert.ok(existsSync(entry3.location.fsPath));
+		assert.ok(existsSync(entry4.location.fsPath));
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 2);
+		assertEntryEqual(entries[0], entry3);
+		assertEntryEqual(entries[1], entry4);
+
+		service._configurationService.setUserConfiguration('workbench.localHistory.maxFileEntries', 3);
+
+		const entry5 = await service.addEntry({ workingCopy: workingCopy1, source: 'other-source' }, CancellationToken.None);
+		assert.ok(entry5);
+
+		// Simulate shutdown
+		event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		assert.ok(existsSync(entry3.location.fsPath));
+		assert.ok(existsSync(entry4.location.fsPath));
+		assert.ok(existsSync(entry5.location.fsPath));
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 3);
+		assertEntryEqual(entries[0], entry3);
+		assertEntryEqual(entries[1], entry4);
+		assertEntryEqual(entries[2], entry5);
+	});
 });

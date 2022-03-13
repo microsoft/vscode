@@ -266,6 +266,7 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
+			'minimum': 0,
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: isNative
 		},
@@ -332,7 +333,8 @@ configurationRegistry.registerConfiguration({
 		'explorer.openEditors.visible': {
 			'type': 'number',
 			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
-			'default': 9
+			'default': 9,
+			'minimum': 0
 		},
 		'explorer.openEditors.sortOrder': {
 			'type': 'string',

@@ -103,12 +103,8 @@ class WorkingCopyHistoryModel {
 
 	async getEntries(): Promise<readonly IWorkingCopyHistoryEntry[]> {
 
-		// Make sure to await resolving when
-		// all entries are asked for
-		if (!this.whenResolved) {
-			this.whenResolved = this.resolveEntries();
-		}
-		await this.whenResolved;
+		// Make sure to await resolving when all entries are asked for
+		await this.resolveEntriesOnce();
 
 		// Return as many entries as configured by user settings
 		const configuredMaxEntries = this.configurationService.getValue<number>(WorkingCopyHistoryModel.MAX_ENTRIES_SETTINGS_KEY, { resource: this.workingCopyResource });
@@ -119,7 +115,15 @@ class WorkingCopyHistoryModel {
 		return this.entries;
 	}
 
-	private async resolveEntries(): Promise<void> {
+	private resolveEntriesOnce(): Promise<void> {
+		if (!this.whenResolved) {
+			this.whenResolved = this.doResolveEntries();
+		}
+
+		return this.whenResolved;
+	}
+
+	private async doResolveEntries(): Promise<void> {
 
 		// Resolve from disk
 		const entries = await this.resolveEntriesFromDisk();
@@ -180,8 +184,40 @@ class WorkingCopyHistoryModel {
 
 	async notifyWillShutdown(): Promise<void> {
 
+		// Cleanup based on max-entries setting
+		await this.cleanUpEntries();
+
 		// Persist entries meta data on shutdown
 		await this.writeEntriesFile();
+	}
+
+	private async cleanUpEntries(): Promise<void> {
+
+		// We can only cleanup entries when we have resolved
+		// all existing entries from disk, so we need to first
+		// do that if not already done.
+		await this.resolveEntriesOnce();
+
+		const configuredMaxEntries = this.configurationService.getValue<number>(WorkingCopyHistoryModel.MAX_ENTRIES_SETTINGS_KEY, { resource: this.workingCopyResource });
+		if (this.entries.length <= configuredMaxEntries) {
+			return; // nothing to cleanup
+		}
+
+		const entriesToDelete = this.entries.slice(0, this.entries.length - configuredMaxEntries);
+		const entriesToKeep = this.entries.slice(this.entries.length - configuredMaxEntries);
+
+		// Delete entries from disk as instructed
+		for (const entryToDelete of entriesToDelete) {
+			try {
+				await this.fileService.del(entryToDelete.location);
+			} catch (error) {
+				this.traceError(error);
+			}
+		}
+
+		// Make sure to update our in-memory model as well
+		// because it will be persisted right after
+		this.entries = entriesToKeep;
 	}
 
 	private async writeEntriesFile(): Promise<void> {
@@ -205,7 +241,7 @@ class WorkingCopyHistoryModel {
 			serializedModel = JSON.parse((await this.fileService.readFile(this.historyEntriesListingFile)).value.toString());
 		} catch (error) {
 			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
-				this.logService.trace(error);
+				this.traceError(error);
 			}
 		}
 
@@ -220,7 +256,7 @@ class WorkingCopyHistoryModel {
 			rawEntries = (await this.fileService.resolve(this.historyEntriesFolder, { resolveMetadata: true })).children;
 		} catch (error) {
 			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
-				this.logService.trace(error);
+				this.traceError(error);
 			}
 		}
 
@@ -233,6 +269,10 @@ class WorkingCopyHistoryModel {
 			!isEqual(entry.resource, this.historyEntriesListingFile) && // not the listings file
 			this.historyEntriesNameMatch.test(entry.name)				// matching our expected file pattern for entries
 		);
+	}
+
+	private traceError(error: Error): void {
+		this.logService.trace('[Working Copy History Service]', error);
 	}
 }
 
@@ -290,11 +330,17 @@ export class WorkingCopyHistoryService extends Disposable implements IWorkingCop
 
 	private onWillShutdown(e: WillShutdownEvent): void {
 
-		// Forward shutdown to all models we have
-		const models = Array.from(this.models.values());
-		const modelShutdown = (async () => { await Promise.allSettled(models.map(model => model.notifyWillShutdown())); })();
-
-		e.join(modelShutdown, 'join.workingCopyHistory');
+		// Prolong shutdown for orderly model shutdown
+		e.join((async () => {
+			const models = Array.from(this.models.values());
+			for (const model of models) {
+				try {
+					await model.notifyWillShutdown();
+				} catch (error) {
+					this.logService.trace(error);
+				}
+			}
+		})(), 'join.workingCopyHistory');
 	}
 
 	async addEntry({ workingCopy, source }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
