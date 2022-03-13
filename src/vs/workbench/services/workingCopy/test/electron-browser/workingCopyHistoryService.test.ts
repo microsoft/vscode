@@ -332,6 +332,16 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries.length, 2);
 		assertEntryEqual(entries[0], entry3);
 		assertEntryEqual(entries[1], entry4);
+
+		service._configurationService.setUserConfiguration('workbench.localHistory.maxFileEntries', 4);
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 4);
+
+		service._configurationService.setUserConfiguration('workbench.localHistory.maxFileEntries', 5);
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 4);
 	});
 
 	function assertEntryEqual(entryA: IWorkingCopyHistoryEntry, entryB: IWorkingCopyHistoryEntry, assertTimestamp = true): void {

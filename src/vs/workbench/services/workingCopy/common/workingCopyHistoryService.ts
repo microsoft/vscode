@@ -112,8 +112,11 @@ class WorkingCopyHistoryModel {
 
 		// Return as many entries as configured by user settings
 		const configuredMaxEntries = this.configurationService.getValue<number>(WorkingCopyHistoryModel.MAX_ENTRIES_SETTINGS_KEY, { resource: this.workingCopyResource });
+		if (this.entries.length > configuredMaxEntries) {
+			return this.entries.slice(this.entries.length - configuredMaxEntries);
+		}
 
-		return this.entries.slice(this.entries.length - configuredMaxEntries);
+		return this.entries;
 	}
 
 	private async resolveEntries(): Promise<void> {
