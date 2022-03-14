@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalAddon, Terminal } from 'xterm';
-import { IShellIntegration } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellIntegration } from 'vs/platform/terminal/common/terminal';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CwdDetectionCapability } from 'vs/workbench/contrib/terminal/common/capabilities/cwdDetectionCapability';
-import { ICommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { CwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/cwdDetectionCapability';
+import { ICommandDetectionCapability, ICwdDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
+import { ILogService } from 'vs/platform/log/common/log';
+// Importing types is safe in any layer
+// eslint-disable-next-line code-import-patterns
+import type { ITerminalAddon, Terminal } from 'xterm-headless';
+import { ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
  * Shell integration is a feature that enhances the terminal's understanding of what's happening
@@ -112,7 +115,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	readonly capabilities = new TerminalCapabilityStore();
 
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 	}
@@ -188,7 +191,22 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		return false;
 	}
 
-	protected _createOrGetCwdDetection(): CwdDetectionCapability {
+	serializeCommands(): ISerializedCommand[] {
+		if (!this._terminal || !this.capabilities.has(TerminalCapability.CommandDetection)) {
+			return [];
+		}
+		const result = this._createOrGetCommandDetection(this._terminal).serializeCommands();
+		return result;
+	}
+
+	restoreCommands(serialized: ISerializedCommand[]): void {
+		if (!this._terminal) {
+			throw new Error('Cannot restore commands before addon is activated');
+		}
+		this._createOrGetCommandDetection(this._terminal).restoreCommands(serialized);
+	}
+
+	protected _createOrGetCwdDetection(): ICwdDetectionCapability {
 		let cwdDetection = this.capabilities.get(TerminalCapability.CwdDetection);
 		if (!cwdDetection) {
 			cwdDetection = new CwdDetectionCapability();
@@ -200,7 +218,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	protected _createOrGetCommandDetection(terminal: Terminal): ICommandDetectionCapability {
 		let commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
-			commandDetection = this._instantiationService.createInstance(CommandDetectionCapability, terminal);
+			commandDetection = new CommandDetectionCapability(terminal, this._logService);
 			this.capabilities.add(TerminalCapability.CommandDetection, commandDetection);
 		}
 		return commandDetection;

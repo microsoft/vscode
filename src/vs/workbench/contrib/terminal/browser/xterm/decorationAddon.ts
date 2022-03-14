@@ -8,7 +8,7 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -131,6 +131,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
+		if (capability.commands.length > 0) {
+			const lastCommand = capability.commands[capability.commands.length - 1];
+			if (lastCommand.marker && !lastCommand.endMarker) {
+				this.registerCommandDecoration(lastCommand, true);
+			}
+		}
 		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command, true));
 	}
 
@@ -142,6 +148,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (!capability) {
 			return;
+		}
+		for (const command of capability.commands) {
+			this.registerCommandDecoration(command);
 		}
 		this._commandFinishedListener = capability.onCommandFinished(command => {
 			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
@@ -174,12 +183,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._placeholderDecoration = decoration;
 				this._placeholderDecoration.onDispose(() => this._placeholderDecoration = undefined);
 			} else {
-				this._decorations.set(decoration.marker.id,
-					{
+				if (!this._decorations.has(decoration.marker.id)) {
+					this._decorations.set(decoration.marker.id, {
 						decoration,
 						disposables: command.exitCode === undefined ? [] : [this._createContextMenu(element, command), ...this._createHover(element, command)],
 						exitCode: command.exitCode
 					});
+				}
 			}
 			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
 				// first render or buffer was cleared
