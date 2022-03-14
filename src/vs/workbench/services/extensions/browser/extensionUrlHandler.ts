@@ -147,14 +147,14 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		const wasHandlerAvailable = this.extensionHandlers.has(ExtensionIdentifier.toKey(extensionId));
 		const extension = await this.extensionService.getExtension(extensionId);
 
-		const trusted = options?.trusted
-			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
-			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
-
 		if (!extension) {
 			await this.handleUnhandledURL(uri, { id: extensionId }, options);
 			return true;
 		}
+
+		const trusted = options?.trusted
+			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
+			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {
 			let uriString = uri.toString(false);
