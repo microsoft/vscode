@@ -456,5 +456,4 @@ export class ExtHostNotebookDocument {
 	getCellIndex(cell: ExtHostCell): number {
 		return this._cells.indexOf(cell);
 	}
-
 }
