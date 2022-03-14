@@ -12,16 +12,21 @@ import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistor
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const OPEN_CHANGES_LABEL = { value: localize('localHistory.openChanges', "Open Changes"), original: 'Open Changes' };
 
 export const LOCAL_HISTORY_MENU_CONTEXT_VALUE = 'localHistory:item';
 export const LOCAL_HISTORY_MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LOCAL_HISTORY_MENU_CONTEXT_VALUE);
 
-// Open Changes
+//#region Open Changes
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -29,6 +34,8 @@ registerAction2(class extends Action2 {
 			title: OPEN_CHANGES_LABEL,
 			menu: {
 				id: MenuId.TimelineItemContext,
+				group: 'navigation',
+				order: 1,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
 		});
@@ -37,27 +44,89 @@ registerAction2(class extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
 
-		const { location, associatedResource } = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri);
-
-		const entries = await workingCopyHistoryService.getEntries(associatedResource, CancellationToken.None);
-
-		let currentEntry: IWorkingCopyHistoryEntry | undefined = undefined;
-		let previousEntry: IWorkingCopyHistoryEntry | undefined = undefined;
-		for (let i = 0; i < entries.length; i++) {
-			const entry = entries[i];
-
-			if (isEqual(entry.location, location)) {
-				currentEntry = entry;
-				previousEntry = entries[i - 1];
-				break;
-			}
-		}
-
-		if (currentEntry) {
-			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toCompareWithPreviousCommandArguments(currentEntry, previousEntry));
+		const { entry, previous } = await findLocalHistoryEntry(workingCopyHistoryService, uri);
+		if (entry) {
+			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toCompareWithPreviousCommandArguments(entry, previous));
 		}
 	}
 });
+
+//#endregion
+
+//#region Restore
+
+const restoreSaveSource = SaveSourceRegistry.registerSource('localHistoryRestore.source', localize('localHistoryRestore.source', "File Restored"));
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.restore',
+			title: { value: localize('localHistory.restore', "Restore..."), original: 'Restore...' },
+			menu: {
+				id: MenuId.TimelineItemContext,
+				group: '1_restore',
+				order: 1,
+				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, arg1: unknown, uri: URI): Promise<void> {
+		const fileService = accessor.get(IFileService);
+		const dialogService = accessor.get(IDialogService);
+		const workingCopyService = accessor.get(IWorkingCopyService);
+		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+		const editorService = accessor.get(IEditorService);
+
+		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, uri);
+		if (entry) {
+
+			// Ask for confirmation
+			const { confirmed } = await dialogService.confirm({
+				message: localize('confirmRestoreMessage', "Do you want to restore the contents of '{0}'?", basename(entry.workingCopy.resource)),
+				detail: localize('confirmRestoreDetail', "Restoring will discard any unsaved changes."),
+				primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore"),
+				type: 'warning'
+			});
+
+			if (!confirmed) {
+				return;
+			}
+
+			// Revert all dirty working copies for target
+			const workingCopies = workingCopyService.getAll(entry.workingCopy.resource);
+			if (workingCopies) {
+				for (const workingCopy of workingCopies) {
+					if (workingCopy.isDirty()) {
+						await workingCopy.revert({ soft: true });
+					}
+				}
+			}
+
+			// Replace target with contents of history entry
+			await fileService.cloneFile(entry.location, entry.workingCopy.resource);
+
+			// Restore all working copies for target
+			if (workingCopies) {
+				for (const workingCopy of workingCopies) {
+					await workingCopy.revert({ force: true });
+				}
+			}
+
+			// Open target
+			await editorService.openEditor({ resource: entry.workingCopy.resource });
+
+			// Add new entry
+			await workingCopyHistoryService.addEntry({
+				resource: entry.workingCopy.resource,
+				source: restoreSaveSource
+			}, CancellationToken.None);
+		}
+	}
+});
+
+//#endregion
+
+//#region Helpers
 
 export function toCompareWithPreviousCommandArguments(entry: IWorkingCopyHistoryEntry, previousEntry: IWorkingCopyHistoryEntry | undefined): unknown[] {
 	return [
@@ -83,3 +152,28 @@ export function toCompareWithPreviousCommandArguments(entry: IWorkingCopyHistory
 		undefined // important to keep order of arguments in command proper
 	];
 }
+
+async function findLocalHistoryEntry(workingCopyHistoryService: IWorkingCopyHistoryService, uri: URI): Promise<{ entry: IWorkingCopyHistoryEntry | undefined; previous: IWorkingCopyHistoryEntry | undefined }> {
+	const { location, associatedResource } = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri);
+
+	const entries = await workingCopyHistoryService.getEntries(associatedResource, CancellationToken.None);
+
+	let currentEntry: IWorkingCopyHistoryEntry | undefined = undefined;
+	let previousEntry: IWorkingCopyHistoryEntry | undefined = undefined;
+	for (let i = 0; i < entries.length; i++) {
+		const entry = entries[i];
+
+		if (isEqual(entry.location, location)) {
+			currentEntry = entry;
+			previousEntry = entries[i - 1];
+			break;
+		}
+	}
+
+	return {
+		entry: currentEntry,
+		previous: previousEntry
+	};
+}
+
+//#endregion

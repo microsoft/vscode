@@ -321,13 +321,13 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		this.localHistoryHome.complete(historyHome);
 	}
 
-	async addEntry({ workingCopy, source }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
-		if (!this.fileService.hasProvider(workingCopy.resource)) {
+	async addEntry({ resource, source }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
+		if (!this.fileService.hasProvider(resource)) {
 			return undefined; // we require the working copy resource to be file service accessible
 		}
 
 		// Resolve history model for working copy
-		const model = await this.getModel(workingCopy.resource);
+		const model = await this.getModel(resource);
 		if (token.isCancellationRequested) {
 			return undefined;
 		}

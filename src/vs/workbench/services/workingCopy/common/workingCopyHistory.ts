@@ -7,7 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { SaveSource } from 'vs/workbench/common/editor';
 
 export const IWorkingCopyHistoryService = createDecorator<IWorkingCopyHistoryService>('workingCopyHistoryService');
@@ -59,9 +58,9 @@ export interface IWorkingCopyHistoryEntry {
 export interface IWorkingCopyHistoryEntryDescriptor {
 
 	/**
-	 * The associated working copy of this history entry.
+	 * The associated resource of this history entry.
 	 */
-	readonly workingCopy: IWorkingCopy;
+	readonly resource: URI;
 
 	/**
 	 * Optional source why the entry was added.

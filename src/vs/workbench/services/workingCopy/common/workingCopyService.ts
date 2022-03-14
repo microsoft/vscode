@@ -116,6 +116,12 @@ export interface IWorkingCopyService {
 	 */
 	get(identifier: IWorkingCopyIdentifier): IWorkingCopy | undefined;
 
+	/**
+	 * Returns all working copies with the given resource or `undefined`
+	 * if no such working copy exists.
+	 */
+	getAll(resource: URI): readonly IWorkingCopy[] | undefined;
+
 	//#endregion
 }
 
@@ -217,6 +223,15 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	get(identifier: IWorkingCopyIdentifier): IWorkingCopy | undefined {
 		return this.mapResourceToWorkingCopies.get(identifier.resource)?.get(identifier.typeId);
+	}
+
+	getAll(resource: URI): readonly IWorkingCopy[] | undefined {
+		const workingCopies = this.mapResourceToWorkingCopies.get(resource);
+		if (!workingCopies) {
+			return undefined;
+		}
+
+		return Array.from(workingCopies.values());
 	}
 
 	//#endregion
