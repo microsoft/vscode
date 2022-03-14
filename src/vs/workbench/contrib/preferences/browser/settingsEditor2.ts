@@ -1032,9 +1032,9 @@ export class SettingsEditor2 extends EditorPane {
 		/* __GDPR__
 			"settingsEditor.settingModified" : {
 				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The setting that is being modified." },
-				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "" },
-				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "" },
-				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "" },
+				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Whether the setting is from the local search or remote search provider, if applicable." },
+				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The index of the setting in the remote search provider results, if applicable." },
+				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The index of the setting in the combined search results, if applicable." },
 				"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Whether the user is in the modified view, which shows configured settings only." },
 				"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Identifies whether a setting was reset to its default value." },
 				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The scope of the setting, such as user or workspace." }
@@ -1339,10 +1339,10 @@ export class SettingsEditor2 extends EditorPane {
 
 	private reportFilteringUsed(query: string, results: ISearchResult[]): void {
 		const nlpResult = results[SearchResultIdx.Remote];
-		const nlpMetadata = nlpResult && nlpResult.metadata;
+		const nlpMetadata = nlpResult?.metadata;
 
-		const durations = {
-			nlpResult: nlpMetadata && nlpMetadata.duration
+		const duration = {
+			nlpResult: nlpMetadata?.duration
 		};
 
 		// Count unique results
@@ -1356,20 +1356,20 @@ export class SettingsEditor2 extends EditorPane {
 			counts['nlpResult'] = nlpResult.filterMatches.length;
 		}
 
-		const requestCount = nlpMetadata && nlpMetadata.requestCount;
+		const requestCount = nlpMetadata?.requestCount;
 
 		const data = {
-			durations,
+			durations: duration,
 			counts,
 			requestCount
 		};
 
 		/* __GDPR__
 			"settingsEditor.filter" : {
-				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "" },
-				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "" },
-				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "" },
-				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "" }
+				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "How long the remote search provider took, if applicable." },
+				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of matches found by the remote search provider, if applicable." },
+				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of matches found by the local search provider, if applicable." },
+				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of requests sent to Bing, if applicable." }
 			}
 		*/
 		this.telemetryService.publicLog('settingsEditor.filter', data);
