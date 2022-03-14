@@ -9,6 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostWebview, ExtHostWebviews, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ViewBadge } from 'vs/workbench/api/common/extHostTypeConverters';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';
@@ -117,7 +118,13 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 	public set badge(badge: vscode.ViewBadge | undefined) {
 		this.assertNotDisposed();
 		checkProposedApiEnabled(this.#extension, 'badges');
-		this.#badge = badge;
+
+		if (badge?.value === this.#badge?.value &&
+			badge?.tooltip === this.#badge?.tooltip) {
+			return;
+		}
+
+		this.#badge = ViewBadge.from(badge);
 		this.#proxy.$setWebviewViewBadge(this.#handle, badge);
 	}
 

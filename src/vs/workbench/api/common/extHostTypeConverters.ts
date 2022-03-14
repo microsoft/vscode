@@ -27,6 +27,7 @@ import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/c
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { getPrivateApiFor, TestItemImpl } from 'vs/workbench/api/common/extHostTestingPrivateApi';
 import { SaveReason } from 'vs/workbench/common/editor';
+import { IViewBadge } from 'vs/workbench/common/views';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -1932,6 +1933,19 @@ export namespace TypeHierarchyItem {
 			range: Range.from(item.range),
 			selectionRange: Range.from(item.selectionRange),
 			tags: item.tags?.map(SymbolTag.from)
+		};
+	}
+}
+
+export namespace ViewBadge {
+	export function from(badge: vscode.ViewBadge | undefined): IViewBadge | undefined {
+		if (!badge) {
+			return undefined;
+		}
+
+		return {
+			value: badge.value,
+			tooltip: badge.tooltip
 		};
 	}
 }

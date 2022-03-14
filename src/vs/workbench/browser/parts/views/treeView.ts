@@ -358,6 +358,11 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	set badge(badge: IViewBadge | undefined) {
 
+		if (this._badge?.value === badge?.value &&
+			this._badge?.tooltip === badge?.tooltip) {
+			return;
+		}
+
 		if (this._badgeActivity) {
 			this._badgeActivity.dispose();
 			this._badgeActivity = undefined;

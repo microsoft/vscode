@@ -241,6 +241,12 @@ export class WebviewViewPane extends ViewPane {
 	}
 
 	protected updateBadge(badge: IViewBadge | undefined) {
+
+		if (this.badge?.value === badge?.value &&
+			this.badge?.tooltip === badge?.tooltip) {
+			return;
+		}
+
 		if (this.activity) {
 			this.activity.dispose();
 			this.activity = undefined;
