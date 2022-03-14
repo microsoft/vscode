@@ -170,20 +170,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._decorationAddon);
 	}
 
-	async copyAsHtml(): Promise<void> {
+	async getSelectionAsHtml(): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._getSerializeAddonConstructor();
 			this._serializeAddon = new Addon();
 			this.raw.loadAddon(this._serializeAddon);
 		}
-		const selectionAsHtml = this._serializeAddon.serializeAsHTML({ onlySelection: true });
-		function listener(e: any) {
-			e.clipboardData.setData('text/html', selectionAsHtml);
-			e.preventDefault();
-		}
-		document.addEventListener('copy', listener);
-		document.execCommand('copy');
-		document.removeEventListener('copy', listener);
+		return this._serializeAddon.serializeAsHTML({ onlySelection: true });
 	}
 
 	attachToElement(container: HTMLElement): HTMLElement {
