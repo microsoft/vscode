@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -21,7 +20,6 @@ import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValid
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { CommentNode } from 'vs/workbench/contrib/comments/browser/commentNode';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
@@ -82,7 +80,6 @@ export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number
 
 export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader;
-	protected _actionbarWidget!: ActionBar;
 	private _body!: CommentThreadBody;
 	private _commentReply?: CommentReply;
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
@@ -102,10 +99,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 	public get commentThread(): languages.CommentThread {
 		return this._commentThread;
-	}
-
-	public get extensionId(): string | undefined {
-		return this._commentThread.extensionId;
 	}
 
 	private _commentMenus: CommentMenus;
@@ -274,9 +267,16 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	async update(commentThread: languages.CommentThread) {
+		if (this._commentThread !== commentThread) {
+			this._commentThreadDisposables.forEach(disposable => disposable.dispose());
+		}
+
+		this._commentThread = commentThread;
+		this._commentThreadDisposables = [];
+		this.bindCommentThreadListeners();
+
 		this._body.updateCommentThread(commentThread);
 		this._threadIsEmpty.set(!this._body.length);
-		this._commentThread = commentThread;
 		this._header.updateCommentThread(commentThread);
 		this._commentReply?.updateCommentThread(commentThread);
 
@@ -345,6 +345,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentReply?.focusIfNeeded();
 		}
 
+		this.bindCommentThreadListeners();
+	}
+
+	private bindCommentThreadListeners() {
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeCanReply(() => {
 			if (this._commentReply) {
 				this._commentReply.updateCanReply();
@@ -420,16 +424,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.add(this._commentReply);
 	}
 
-	private getActiveComment(): CommentNode | ReviewZoneWidget {
-		return this._body.activeComment || this;
-	}
-
 	async submitComment(): Promise<void> {
-		const activeComment = this.getActiveComment();
+		const activeComment = this._body.activeComment;
 		if (activeComment instanceof ReviewZoneWidget) {
 			this._commentReply?.submitComment();
 		}
 	}
+
 	_refresh(dimensions?: dom.Dimension) {
 		if (this._isExpanded && this._body && dimensions) {
 			this._body.layout();
