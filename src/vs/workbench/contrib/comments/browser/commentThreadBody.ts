@@ -14,7 +14,9 @@ import { CommentNode } from 'vs/workbench/contrib/comments/browser/commentNode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export class CommentThreadBody extends Disposable {
 	private _commentsElement!: HTMLElement;
@@ -23,6 +25,8 @@ export class CommentThreadBody extends Disposable {
 	private _focusedComment: number | undefined = undefined;
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
+
+	private _markdownRenderer: MarkdownRenderer;
 
 	get length() {
 		return this._commentThread.comments ? this._commentThread.comments.length : 0;
@@ -37,17 +41,21 @@ export class CommentThreadBody extends Disposable {
 		readonly owner: string,
 		readonly parentResourceUri: URI,
 		readonly container: HTMLElement,
+		private _options: IMarkdownRendererOptions,
 		private _commentThread: languages.CommentThread,
+		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
-		private _markdownRenderer: MarkdownRenderer,
-		private _commentService: ICommentService,
-		private _scopedInstatiationService: IInstantiationService
+		@ICommentService private commentService: ICommentService,
+		@IOpenerService private openerService: IOpenerService,
+		@ILanguageService private languageService: ILanguageService,
 	) {
 		super();
 
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS_IN, e => {
-			this._commentService.setActiveCommentThread(this._commentThread);
+			this.commentService.setActiveCommentThread(this._commentThread);
 		}));
+
+		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
 	}
 
 	display() {

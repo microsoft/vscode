@@ -19,13 +19,11 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, resolveColorValue, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
@@ -112,7 +110,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _submitActionsDisposables: IDisposable[];
 	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
-	private _markdownRenderer: MarkdownRenderer;
 	private _styleElement: HTMLStyleElement;
 	private _formActions: HTMLElement | null;
 	private _error!: HTMLElement;
@@ -147,7 +144,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		@IModelService private modelService: IModelService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
-		@IOpenerService private openerService: IOpenerService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, { keepEditorSelection: true });
@@ -186,7 +182,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 		this._applyTheme(this.themeService.getColorTheme());
 
-		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer({ editor }, this.languageService, this.openerService));
 	}
 
 	public get onDidClose(): Event<ReviewZoneWidget | undefined> {
@@ -259,7 +254,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		const bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(bodyElement);
-		this._body = new CommentThreadBody(this.owner, this.editor.getModel()!.uri, bodyElement, this._commentThread, this, this._markdownRenderer, this.commentService, this._scopedInstatiationService);
+
+		this._body = this._scopedInstatiationService.createInstance(
+			CommentThreadBody,
+			this.owner,
+			this.editor.getModel()!.uri,
+			bodyElement,
+			{ editor: this.editor },
+			this._commentThread,
+			this._scopedInstatiationService,
+			this
+		);
 	}
 
 	private deleteCommentThread(): void {
