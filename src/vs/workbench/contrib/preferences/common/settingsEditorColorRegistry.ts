@@ -9,7 +9,7 @@ import { editorWidgetBorder, focusBorder, inputBackground, inputBorder, inputFor
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 
 // General setting colors
-export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hcDark: '#ffffff' }, localize('headerForeground', "The foreground color for a section header or active title."));
+export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hcDark: '#ffffff', hcLight: '#292929' }, localize('headerForeground', "The foreground color for a section header or active title."));
 export const modifiedItemIndicator = registerColor('settings.modifiedItemIndicator', {
 	light: new Color(new RGBA(102, 175, 224)),
 	dark: new Color(new RGBA(12, 125, 157)),
