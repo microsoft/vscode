@@ -221,7 +221,11 @@ export class Extension implements IExtension {
 	}
 
 	get outdatedTargetPlatform(): boolean {
-		return !!this.local && !!this.gallery && this.local.targetPlatform !== TargetPlatform.UNDEFINED && this.local.targetPlatform !== this.gallery.properties.targetPlatform && semver.eq(this.latestVersion, this.version);
+		return !!this.local && !!this.gallery
+			&& ![TargetPlatform.UNDEFINED, TargetPlatform.WEB].includes(this.local.targetPlatform)
+			&& this.gallery.properties.targetPlatform !== TargetPlatform.WEB
+			&& this.local.targetPlatform !== this.gallery.properties.targetPlatform
+			&& semver.eq(this.latestVersion, this.version);
 	}
 
 	get telemetryData(): any {
