@@ -15,6 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellComments } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellComments';
 import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
 import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
 import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
@@ -107,6 +108,7 @@ export interface BaseCellRenderTemplate {
 	betweenCellToolbar: BetweenCellToolbar;
 	titleToolbar: CellTitleToolbarPart;
 	focusIndicator: CellFocusIndicator;
+	commentingPart: CellComments;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	currentRenderedCell?: ICellViewModel;

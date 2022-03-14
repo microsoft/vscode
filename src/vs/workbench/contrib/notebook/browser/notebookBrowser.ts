@@ -136,6 +136,7 @@ export interface CodeCellLayoutInfo {
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly statusBarHeight: number;
+	readonly commentHeight: number;
 	readonly totalHeight: number;
 	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
@@ -150,6 +151,7 @@ export interface CodeCellLayoutInfo {
 export interface CodeCellLayoutChangeEvent {
 	source?: string;
 	editorHeight?: boolean;
+	commentHeight?: boolean;
 	outputHeight?: boolean;
 	outputShowMoreContainerHeight?: number;
 	totalHeight?: boolean;

@@ -7,6 +7,7 @@ import 'vs/css!./media/notebook';
 import 'vs/css!./media/notebookCellInsertToolbar';
 import 'vs/css!./media/notebookCellStatusBar';
 import 'vs/css!./media/notebookCellTitleToolbar';
+import 'vs/css!./media/notebookComment';
 import 'vs/css!./media/notebookFocusIndicator';
 import 'vs/css!./media/notebookToolbar';
 import { PixelRatio } from 'vs/base/browser/browser';
@@ -83,6 +84,7 @@ import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { peekViewResultsBackground } from 'vs/editor/contrib/peekView/browser/peekView';
 
 const $ = DOM.$;
 
@@ -824,6 +826,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}`);
 
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
+		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .code-cell-row div.cell.code { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell { margin-right: ${cellRightMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .cell-inner-container { padding-top: ${cellTopMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row > .cell-inner-container { padding-bottom: ${markdownCellBottomMargin}px; padding-top: ${markdownCellTopMargin}px; }`);
@@ -831,6 +834,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row > .webview-backed-markdown-cell.markdown-cell-edit-mode .cell.code { padding-bottom: ${markdownCellBottomMargin}px; padding-top: ${markdownCellTopMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .output { margin: 0px ${cellRightMargin}px 0px ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .output { width: calc(100% - ${codeCellLeftMargin + cellRunGutter + cellRightMargin}px); }`);
+
+		// comment
+		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-comment-container { margin-left: ${codeCellLeftMargin + cellRunGutter}px; }`);
 
 		// output collapse button
 		styleSheets.push(`.monaco-workbench .notebookOverlay .output .output-collapse-container .expandButton { left: -${cellRunGutter}px; }`);
@@ -3308,5 +3314,13 @@ registerThemingParticipant((theme, collector) => {
 	const iconForegroundColor = theme.getColor(iconForeground);
 	if (iconForegroundColor) {
 		collector.addRule(`.monaco-workbench .notebookOverlay .codicon-debug-continue { color: ${iconForegroundColor} !important; }`);
+	}
+
+	const peekViewBackground = theme.getColor(peekViewResultsBackground);
+	if (peekViewBackground) {
+		collector.addRule(
+			`.cell-comment-container {` +
+			`	background-color: ${peekViewBackground};` +
+			`}`);
 	}
 });

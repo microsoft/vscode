@@ -100,6 +100,5 @@ export class CommentThreadHeader extends Disposable {
 	updateHeight(headHeight: number) {
 		this._headElement.style.height = `${headHeight}px`;
 		this._headElement.style.lineHeight = this._headElement.style.height;
-
 	}
 }

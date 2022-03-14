@@ -52,6 +52,13 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		throw new Error('editorHeight is write-only');
 	}
 
+	private _commentHeight = 0;
+
+	set commentHeight(height: number) {
+		this._commentHeight = height;
+		this.layoutChange({ commentHeight: true }, 'CodeCellViewModel#commentHeight');
+	}
+
 	private _hoveringOutput: boolean = false;
 	public get outputIsHovered(): boolean {
 		return this._hoveringOutput;
@@ -134,6 +141,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				? this.viewContext.notebookOptions.computeCodeCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
 			statusBarHeight: 0,
+			commentHeight: 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			outputShowMoreContainerHeight: 0,
@@ -167,6 +175,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const bottomToolbarDimensions = this.viewContext.notebookOptions.computeBottomToolbarDimensions();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
 		const outputTotalHeight = Math.max(this._outputMinHeight, this.isOutputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
+		const commentHeight = state.commentHeight ? this._commentHeight : this._layoutInfo.commentHeight;
 
 		const originalLayout = this.layoutInfo;
 		if (!this.isInputCollapsed) {
@@ -195,7 +204,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			const outputContainerOffset = notebookLayoutConfiguration.editorToolbarHeight
 				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 				+ editorHeight
-				+ statusBarHeight;
+				+ statusBarHeight
+				+ commentHeight;
 			const outputShowMoreContainerOffset = totalHeight
 				- bottomToolbarDimensions.bottomToolbarGap
 				- bottomToolbarDimensions.bottomToolbarHeight / 2
@@ -210,6 +220,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorHeight,
 				editorWidth,
 				statusBarHeight,
+				commentHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
@@ -230,6 +241,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				+ notebookLayoutConfiguration.collapsedIndicatorHeight
 				+ notebookLayoutConfiguration.cellBottomMargin //CELL_BOTTOM_MARGIN
 				+ bottomToolbarDimensions.bottomToolbarGap //BOTTOM_CELL_TOOLBAR_GAP
+				+ commentHeight
 				+ outputTotalHeight + outputShowMoreContainerHeight;
 			const outputShowMoreContainerOffset = totalHeight
 				- bottomToolbarDimensions.bottomToolbarGap
@@ -245,6 +257,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorHeight: this._layoutInfo.editorHeight,
 				editorWidth,
 				statusBarHeight: 0,
+				commentHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
@@ -275,6 +288,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorHeight: this._layoutInfo.editorHeight,
 				editorWidth: this._layoutInfo.editorWidth,
 				statusBarHeight: this.layoutInfo.statusBarHeight,
+				commentHeight: this.layoutInfo.commentHeight,
 				outputContainerOffset: this._layoutInfo.outputContainerOffset,
 				outputTotalHeight: this._layoutInfo.outputTotalHeight,
 				outputShowMoreContainerHeight: this._layoutInfo.outputShowMoreContainerHeight,
@@ -339,6 +353,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			+ layoutConfiguration.cellTopMargin
 			+ editorHeight
 			+ this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata, this.uri)
+			+ this._commentHeight
 			+ outputsTotalHeight
 			+ outputShowMoreContainerHeight
 			+ bottomToolbarGap
