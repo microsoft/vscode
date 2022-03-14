@@ -137,10 +137,10 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 	private toTimelineItem(entry: IWorkingCopyHistoryEntry, previousEntry: IWorkingCopyHistoryEntry | undefined): TimelineItem {
 		return {
 			handle: entry.id,
-			label: entry.label,
-			description: SaveSourceRegistry.getSourceLabel(entry.source),
+			label: SaveSourceRegistry.getSourceLabel(entry.source) ?? entry.source,
+			description: entry.time.label,
 			source: LocalHistoryTimeline.ID,
-			timestamp: entry.timestamp,
+			timestamp: entry.time.value,
 			themeIcon: Codicon.save,
 			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
 			command: {

@@ -85,8 +85,10 @@ export class WorkingCopyHistoryModel {
 			id,
 			workingCopy: this.workingCopy,
 			location,
-			timestamp: now,
-			label: this.toEntryLabel(now),
+			time: {
+				value: now,
+				label: this.toDateLabel(now)
+			},
 			source
 		};
 		this.entries.push(entry);
@@ -94,7 +96,7 @@ export class WorkingCopyHistoryModel {
 		return entry;
 	}
 
-	private toEntryLabel(timestamp: number): string {
+	private toDateLabel(timestamp: number): string {
 		const date = new Date(timestamp);
 
 		return `${date.toLocaleString().replace(WorkingCopyHistoryModel.SEP, '-')}`;
@@ -136,7 +138,7 @@ export class WorkingCopyHistoryModel {
 		}
 
 		// Set as entries, sorted by timestamp
-		this.entries = Array.from(entries.values()).sort((entryA, entryB) => entryA.timestamp - entryB.timestamp);
+		this.entries = Array.from(entries.values()).sort((entryA, entryB) => entryA.time.value - entryB.time.value);
 	}
 
 	private async resolveEntriesFromDisk(): Promise<Map<string /* ID */, IWorkingCopyHistoryEntry>> {
@@ -157,8 +159,10 @@ export class WorkingCopyHistoryModel {
 					id: entryStat.name,
 					workingCopy: this.workingCopy,
 					location: entryStat.resource,
-					timestamp: entryStat.mtime,
-					label: this.toEntryLabel(entryStat.mtime),
+					time: {
+						value: entryStat.mtime,
+						label: this.toDateLabel(entryStat.mtime)
+					},
 					source: WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE
 				});
 			}
@@ -171,7 +175,10 @@ export class WorkingCopyHistoryModel {
 				if (existingEntry) {
 					entries.set(entry.id, {
 						...existingEntry,
-						timestamp: entry.timestamp,
+						time: {
+							value: entry.timestamp,
+							label: this.toDateLabel(entry.timestamp)
+						},
 						source: entry.source ?? existingEntry.source
 					});
 				}
@@ -226,7 +233,7 @@ export class WorkingCopyHistoryModel {
 				return {
 					id: entry.id,
 					source: entry.source !== WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE ? entry.source : undefined,
-					timestamp: entry.timestamp
+					timestamp: entry.time.value
 				};
 			})
 		};

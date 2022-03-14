@@ -76,10 +76,15 @@ registerAction2(class extends Action2 {
 		if (entry) {
 
 			// Previous entry is the latest on disk
-			let previous = {
+			let previous: IWorkingCopyHistoryEntry = {
+				id: '',
+				workingCopy: entry.workingCopy,
+				source: '',
 				location: entry.workingCopy.resource,
-				label: localize('latestFile', "File"),
-				workingCopy: entry.workingCopy
+				time: {
+					label: localize('latestFile', "File"),
+					value: 0
+				}
 			};
 
 			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toCompareWithPreviousCommandArguments(entry, previous));
@@ -164,7 +169,7 @@ registerAction2(class extends Action2 {
 
 //#region Helpers
 
-export function toCompareWithPreviousCommandArguments(entry: IWorkingCopyHistoryEntry, previousEntry: { location: URI; workingCopy: { name: string; resource: URI }; label: string } | undefined): unknown[] {
+export function toCompareWithPreviousCommandArguments(entry: IWorkingCopyHistoryEntry, previousEntry: IWorkingCopyHistoryEntry | undefined): unknown[] {
 	return [
 		LocalHistoryFileSystemProvider.toLocalHistoryFileSystem(previousEntry ?
 			{ location: previousEntry.location, associatedResource: previousEntry.workingCopy.resource, label: previousEntry.workingCopy.name } :
@@ -175,13 +180,13 @@ export function toCompareWithPreviousCommandArguments(entry: IWorkingCopyHistory
 			label: previousEntry ? localize(
 				'localHistoryCompareEditorLabel', "{0} ({1}) ↔ {2} ({3})",
 				previousEntry.workingCopy.name,
-				previousEntry.label,
+				previousEntry.time.label,
 				entry.workingCopy.name,
-				entry.label
+				entry.time.label
 			) : localize(
 				'localHistoryCompareEditorLabelWithoutPrevious', "{0} ({1})",
 				entry.workingCopy.name,
-				entry.label
+				entry.time.label
 			),
 			description: SaveSourceRegistry.getSourceLabel(entry.source)
 		},
