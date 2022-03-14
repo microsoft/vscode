@@ -649,7 +649,7 @@ export interface ITerminalInstance {
 	/**
 	 * Copies the terminal selection to the clipboard.
 	 */
-	copySelection(): Promise<void>;
+	copySelection(asHtml?: boolean): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.
