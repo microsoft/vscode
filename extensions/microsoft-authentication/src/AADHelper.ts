@@ -22,7 +22,7 @@ import { URLSearchParams } from 'url';
 const localize = nls.loadMessageBundle();
 
 // TODO: Change to stable when it's deployed.
-const redirectUrl = 'http://insiders.vscode.dev/redirect';
+const redirectUrl = 'https://insiders.vscode.dev/redirect';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
 const DEFAULT_CLIENT_ID = 'aebc6443-996d-45c2-90f0-388ff96faa56';
 const DEFAULT_TENANT = 'organizations';
