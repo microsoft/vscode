@@ -200,17 +200,19 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 		if (command !== undefined && !command.startsWith('\\')) {
 			const buffer = this._terminal.buffer.active;
-			const clonedPartialCommand = { ...this._currentCommand };
 			const timestamp = Date.now();
-			const newCommand = {
+			const executedMarker = this._currentCommand.commandExecutedMarker;
+			const endMarker = this._currentCommand.commandFinishedMarker;
+			const newCommand: ITerminalCommand = {
 				command,
 				marker: this._currentCommand.commandStartMarker,
-				endMarker: this._currentCommand.commandFinishedMarker,
+				endMarker,
+				executedMarker,
 				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
-				hasOutput: !!(this._currentCommand.commandExecutedMarker && this._currentCommand.commandFinishedMarker && this._currentCommand.commandExecutedMarker?.line < this._currentCommand.commandFinishedMarker!.line),
-				getOutput: () => getOutputForCommand(clonedPartialCommand, buffer)
+				hasOutput: !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -230,6 +232,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			return {
 				startLine: e.marker?.line,
 				endLine: e.endMarker?.line,
+				executedLine: e.executedMarker?.line,
 				command: e.command,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
@@ -240,6 +243,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			serialized.push({
 				startLine: this._currentCommand.commandStartMarker.line,
 				endLine: undefined,
+				executedLine: undefined,
 				command: '',
 				cwd: undefined,
 				exitCode: undefined,
@@ -266,18 +270,18 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				continue;
 			}
 			// Full command
+			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			const newCommand = {
 				command: e.command,
 				marker,
-				endMarker: e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined,
+				endMarker,
+				executedMarker,
 				timestamp: e.timestamp,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
-				// TODO: Implement correctly
-				hasOutput: false,
-				getOutput: () => ''
-				// hasOutput: !!(this._currentCommand.commandExecutedMarker && this._currentCommand.commandFinishedMarker && this._currentCommand.commandExecutedMarker?.line < this._currentCommand.commandFinishedMarker!.line),
-				// getOutput: () => getOutputForCommand(clonedPartialCommand, buffer)
+				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -286,9 +290,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 }
 
-function getOutputForCommand(command: ICurrentPartialCommand, buffer: IBuffer): string | undefined {
-	const startLine = command.commandExecutedMarker!.line;
-	const endLine = command.commandFinishedMarker!.line;
+function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer): string | undefined {
+	if (!executedMarker || !endMarker) {
+		return undefined;
+	}
+	const startLine = executedMarker.line;
+	const endLine = endMarker.line;
 
 	if (startLine === endLine) {
 		return undefined;

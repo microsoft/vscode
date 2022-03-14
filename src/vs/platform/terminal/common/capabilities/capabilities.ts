@@ -127,6 +127,7 @@ export interface ITerminalCommand {
 	exitCode?: number;
 	marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
+	executedMarker?: IXtermMarker;
 	getOutput(): string | undefined;
 	hasOutput: boolean;
 }
