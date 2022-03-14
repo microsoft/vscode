@@ -17,25 +17,16 @@ import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/edit
 import { IFileService } from 'vs/platform/files/common/files';
 import { LocalHistoryFileLabelFormatter, LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { isEqual } from 'vs/base/common/resources';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { LOCAL_HISTORY_MENU_CONTEXT_VALUE, OPEN_CHANGES_LABEL, toCompareWithPreviousCommandArguments } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
 	private static readonly ID = 'timeline.localHistory';
 
-	private static readonly MENU_CONTEXT_VALUE = 'localHistory:item';
-	private static readonly MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LocalHistoryTimeline.MENU_CONTEXT_VALUE);
-
 	private static readonly LOCAL_HISTORY_ENABLED_SETTINGS_KEY = 'workbench.localHistory.enabled';
-
-	private static readonly OPEN_CHANGES_LABEL = { value: localize('localHistory.openChanges', "Open Changes"), original: 'Open Changes' };
 
 	readonly id = LocalHistoryTimeline.ID;
 
@@ -60,7 +51,6 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		super();
 
 		this.registerComponents();
-		this.registerActions();
 		this.registerListeners();
 	}
 
@@ -93,47 +83,6 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LocalHistoryTimeline.LOCAL_HISTORY_ENABLED_SETTINGS_KEY)) {
 				this.updateTimelineRegistration();
-			}
-		}));
-	}
-
-	private registerActions(): void {
-		const that = this;
-
-		// Open changes
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.localHistory.openChanges',
-					title: LocalHistoryTimeline.OPEN_CHANGES_LABEL,
-					menu: {
-						id: MenuId.TimelineItemContext,
-						when: LocalHistoryTimeline.MENU_CONTEXT_KEY
-					}
-				});
-			}
-			async run(accessor: ServicesAccessor, arg1: unknown, uri: URI): Promise<void> {
-				const commandService = accessor.get(ICommandService);
-
-				const { location, associatedResource } = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri);
-
-				const entries = await that.workingCopyHistoryService.getEntries(associatedResource, CancellationToken.None);
-
-				let currentEntry: IWorkingCopyHistoryEntry | undefined = undefined;
-				let previousEntry: IWorkingCopyHistoryEntry | undefined = undefined;
-				for (let i = 0; i < entries.length; i++) {
-					const entry = entries[i];
-
-					if (isEqual(entry.location, location)) {
-						currentEntry = entry;
-						previousEntry = entries[i - 1];
-						break;
-					}
-				}
-
-				if (currentEntry) {
-					return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...that.toCompareWithPreviousCommandArguments(currentEntry, previousEntry));
-				}
 			}
 		}));
 	}
@@ -193,37 +142,12 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp,
 			themeIcon: Codicon.save,
-			contextValue: LocalHistoryTimeline.MENU_CONTEXT_VALUE,
+			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
 			command: {
 				id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
-				title: LocalHistoryTimeline.OPEN_CHANGES_LABEL.value,
-				arguments: this.toCompareWithPreviousCommandArguments(entry, previousEntry)
+				title: OPEN_CHANGES_LABEL.value,
+				arguments: toCompareWithPreviousCommandArguments(entry, previousEntry)
 			}
 		};
-	}
-
-	private toCompareWithPreviousCommandArguments(entry: IWorkingCopyHistoryEntry, previousEntry: IWorkingCopyHistoryEntry | undefined): unknown[] {
-		return [
-			LocalHistoryFileSystemProvider.toLocalHistoryFileSystem(previousEntry ?
-				{ location: previousEntry.location, associatedResource: previousEntry.workingCopy.resource, label: previousEntry.workingCopy.name } :
-				LocalHistoryFileSystemProvider.EMPTY
-			),
-			LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
-			{
-				label: previousEntry ? localize(
-					'localHistoryCompareEditorLabel', "{0} ({1}) ↔ {2} ({3})",
-					previousEntry.workingCopy.name,
-					previousEntry.label,
-					entry.workingCopy.name,
-					entry.label
-				) : localize(
-					'localHistoryCompareEditorLabelWithoutPrevious', "{0} ({1})",
-					entry.workingCopy.name,
-					entry.label
-				),
-				description: SaveSourceRegistry.getSourceLabel(entry.source)
-			},
-			undefined // important to keep order of arguments in command proper
-		];
 	}
 }
