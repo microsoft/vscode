@@ -56,6 +56,16 @@ suite('Extension Test', () => {
 		assert.strictEqual(extension.outdated, true);
 	});
 
+	test('extension is not outdated when local and gallery are on same version and local is on web', () => {
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }), aGalleryExtension('somext'));
+		assert.strictEqual(extension.outdated, false);
+	});
+
+	test('extension is not outdated when local and gallery are on same version and gallery is on web', () => {
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext'), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }));
+		assert.strictEqual(extension.outdated, false);
+	});
+
 	test('extension is not outdated when local is not pre-release but gallery is pre-release', () => {
 		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }), aGalleryExtension('somext', { version: '1.0.1' }, { isPreReleaseVersion: true }));
 		assert.strictEqual(extension.outdated, false);
