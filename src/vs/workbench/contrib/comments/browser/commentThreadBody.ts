@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as languages from 'vs/editor/common/languages';
 import { Emitter } from 'vs/base/common/event';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
@@ -26,6 +26,7 @@ export class CommentThreadBody extends Disposable {
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
+	private _commentDisposable = new Map<CommentNode, IDisposable>();
 	private _markdownRenderer: MarkdownRenderer;
 
 	get length() {
@@ -148,10 +149,13 @@ export class CommentThreadBody extends Disposable {
 		}
 
 		// del removed elements
-		// TODO@rebornix remove listener for deleted comments
 		for (let i = commentElementsToDel.length - 1; i >= 0; i--) {
+			const commentToDelete = commentElementsToDel[i];
+			this._commentDisposable.get(commentToDelete)?.dispose();
+			this._commentDisposable.delete(commentToDelete);
+
 			this._commentElements.splice(commentElementsToDelIndex[i], 1);
-			this._commentsElement.removeChild(commentElementsToDel[i].domNode);
+			this._commentsElement.removeChild(commentToDelete.domNode);
 		}
 
 
@@ -217,7 +221,7 @@ export class CommentThreadBody extends Disposable {
 			this._markdownRenderer);
 
 		this._register(newCommentNode);
-		this._register(newCommentNode.onDidClick(clickedNode =>
+		this._commentDisposable.set(newCommentNode, newCommentNode.onDidClick(clickedNode =>
 			this._setFocusedComment(this._commentElements.findIndex(commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
 		));
 
@@ -231,5 +235,7 @@ export class CommentThreadBody extends Disposable {
 			this._resizeObserver.disconnect();
 			this._resizeObserver = null;
 		}
+
+		this._commentDisposable.forEach(v => v.dispose());
 	}
 }
