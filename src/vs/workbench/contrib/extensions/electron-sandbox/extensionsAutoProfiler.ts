@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IExtensionService, IResponsiveStateChangeEvent, IExtensionHostProfile, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IResponsiveStateChangeEvent, IExtensionHostProfile, ProfileSession, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -46,8 +46,11 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 	}
 
 	private async _onDidChangeResponsiveChange(event: IResponsiveStateChangeEvent): Promise<void> {
+		if (event.extensionHostKind !== ExtensionHostKind.LocalProcess) {
+			return;
+		}
 
-		const port = await this._extensionService.getInspectPort(true);
+		const port = await this._extensionService.getInspectPort(event.extensionHostId, true);
 
 		if (!port) {
 			return;

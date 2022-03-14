@@ -6,7 +6,6 @@
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 
@@ -288,12 +287,35 @@ export const enum ExtensionType {
 	User
 }
 
+export const enum TargetPlatform {
+	WIN32_X64 = 'win32-x64',
+	WIN32_IA32 = 'win32-ia32',
+	WIN32_ARM64 = 'win32-arm64',
+
+	LINUX_X64 = 'linux-x64',
+	LINUX_ARM64 = 'linux-arm64',
+	LINUX_ARMHF = 'linux-armhf',
+
+	ALPINE_X64 = 'alpine-x64',
+	ALPINE_ARM64 = 'alpine-arm64',
+
+	DARWIN_X64 = 'darwin-x64',
+	DARWIN_ARM64 = 'darwin-arm64',
+
+	WEB = 'web',
+
+	UNIVERSAL = 'universal',
+	UNKNOWN = 'unknown',
+	UNDEFINED = 'undefined',
+}
+
 export interface IExtension {
 	readonly type: ExtensionType;
 	readonly isBuiltin: boolean;
 	readonly identifier: IExtensionIdentifier;
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
+	readonly targetPlatform: TargetPlatform;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 }
@@ -356,7 +378,7 @@ export class ExtensionIdentifier {
 export interface IExtensionDescription extends IExtensionManifest {
 	readonly identifier: ExtensionIdentifier;
 	readonly uuid?: string;
-	readonly targetPlatform?: TargetPlatform;
+	readonly targetPlatform: TargetPlatform;
 	readonly isBuiltin: boolean;
 	readonly isUserBuiltin: boolean;
 	readonly isUnderDevelopment: boolean;

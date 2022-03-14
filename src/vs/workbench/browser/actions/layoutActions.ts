@@ -223,7 +223,7 @@ MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
 	title: localize('configureLayout', "Configure Layout"),
 	icon: configureLayoutIcon,
 	group: '1_workbench_layout',
-	when: ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'menu'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both'))
+	when: ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'menu')
 });
 
 
@@ -1134,8 +1134,8 @@ if (!isMacintosh || !isNative) {
 ToggleVisibilityActions.push(...[
 	CreateToggleLayoutItem(ToggleActivityBarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.activityBar.visible', true), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
 	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Primary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelLeftIcon, iconB: panelRightIcon }),
-	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
 	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('secondarySideBar', "Secondary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
+	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
 	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar"), statusBarIcon),
 ]);
 
@@ -1170,10 +1170,16 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 			id: 'workbench.action.customizeLayout',
 			title: localize('customizeLayout', "Customize Layout..."),
 			f1: true,
+			icon: configureLayoutIcon,
 			menu: [
 				{
 					id: MenuId.LayoutControlMenuSubmenu,
 					group: 'z_end',
+				},
+				{
+					id: MenuId.LayoutControlMenu,
+					when: ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both'),
+					group: 'z_end'
 				}
 			]
 		});

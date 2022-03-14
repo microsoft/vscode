@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { compareIgnoreCase, regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
-import { clearPlatformLanguageAssociations, getMimeTypes, registerPlatformLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
+import { clearPlatformLanguageAssociations, getLanguageIds, registerPlatformLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageIdCodec, LanguageId } from 'vs/editor/common/languages';
 import { ModesRegistry, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -362,7 +361,6 @@ export class LanguagesRegistry extends Disposable {
 		if (!resource && !firstLine) {
 			return [];
 		}
-		const mimeTypes = getMimeTypes(resource, firstLine);
-		return coalesce(mimeTypes.map(mimeType => this.getLanguageIdByMimeType(mimeType)));
+		return getLanguageIds(resource, firstLine);
 	}
 }

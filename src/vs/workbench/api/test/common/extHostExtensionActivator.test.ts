@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
@@ -261,6 +261,7 @@ suite('ExtensionsActivator', () => {
 			isUserBuiltin: false,
 			activationEvents,
 			main: 'index.js',
+			targetPlatform: TargetPlatform.UNDEFINED,
 			extensionDependencies: deps.map(d => d.value)
 		};
 	}
