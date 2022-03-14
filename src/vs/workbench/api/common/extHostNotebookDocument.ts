@@ -114,16 +114,12 @@ export class ExtHostCell {
 
 	setOutputItems(outputId: string, append: boolean, newOutputItems: extHostProtocol.NotebookOutputItemDto[]) {
 		const newItems = newOutputItems.map(extHostTypeConverters.NotebookCellOutputItem.to);
-
-		// Use an index so we can overwrite internal properties (otherwise readonly from freezing that occurs)
-		const index = this._outputs.findIndex(op => op.id === outputId);
-		if (index >= 0) {
-			const output = deepClone(this._outputs[index]);
+		const output = this._outputs.find(op => op.id === outputId);
+		if (output) {
 			if (!append) {
-				output.items.length = 0; // This crashes without a copy
+				output.items.length = 0;
 			}
 			output.items.push(...newItems);
-			this._outputs[index] = output;
 		}
 	}
 
