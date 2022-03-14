@@ -226,10 +226,11 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	serializeCommands(): ISerializedCommand[] {
-		const serialized = this.commands.map(e => {
+		const serialized: ISerializedCommand[] = this.commands.map(e => {
 			return {
 				startLine: e.marker?.line,
 				endLine: e.endMarker?.line,
+				command: e.command,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
 				timestamp: e.timestamp
@@ -239,6 +240,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			serialized.push({
 				startLine: this._currentCommand.commandStartMarker.line,
 				endLine: undefined,
+				command: '',
 				cwd: undefined,
 				exitCode: undefined,
 				timestamp: 0,
@@ -265,7 +267,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			}
 			// Full command
 			const newCommand = {
-				command: '',
+				command: e.command,
 				marker,
 				endMarker: e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined,
 				timestamp: e.timestamp,

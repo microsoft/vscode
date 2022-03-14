@@ -69,6 +69,7 @@ export interface ReplayEntry {
 	data: string;
 }
 export interface ISerializedCommand {
+	command: string;
 	cwd: string | undefined;
 	startLine: number | undefined;
 	endLine: number | undefined;
