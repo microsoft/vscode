@@ -147,14 +147,13 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		setting: ISetting,
 		parent: SettingsTreeGroupElement,
 		inspectResult: IInspectResult,
-		isWorkspaceTrusted: boolean,
-		configurationService: IWorkbenchConfigurationService
+		isWorkspaceTrusted: boolean
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
 		this.parent = parent;
 
-		this.update(inspectResult, isWorkspaceTrusted, configurationService);
+		this.update(inspectResult, isWorkspaceTrusted);
 	}
 
 	get displayCategory(): string {
@@ -179,7 +178,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this._displayCategory = displayKeyFormat.category;
 	}
 
-	update(inspectResult: IInspectResult, isWorkspaceTrusted: boolean, configurationService: IWorkbenchConfigurationService): void {
+	update(inspectResult: IInspectResult, isWorkspaceTrusted: boolean): void {
 		const { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelectors } = inspectResult;
 
 		switch (targetSelector) {
@@ -462,7 +461,7 @@ export class SettingsTreeModel {
 	private updateSettings(settings: SettingsTreeSettingElement[]): void {
 		settings.forEach(element => {
 			const inspectResult = inspectSetting(element.setting.key, this._viewState.settingsTarget, this._viewState.languageFilters, this._configurationService);
-			element.update(inspectResult, this._isWorkspaceTrusted, this._configurationService);
+			element.update(inspectResult, this._isWorkspaceTrusted);
 		});
 	}
 
@@ -498,7 +497,7 @@ export class SettingsTreeModel {
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
 		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._viewState.languageFilters, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._configurationService);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
