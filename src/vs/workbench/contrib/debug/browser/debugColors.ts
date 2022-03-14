@@ -285,7 +285,8 @@ export function registerColors() {
 					opacity: 0.4;
 				}
 
-				.monaco-workbench.hc-black .repl .repl-tree .monaco-tl-contents .arrow {
+				.monaco-workbench.hc-black .repl .repl-tree .monaco-tl-contents .arrow,
+				.monaco-workbench.hc-light .repl .repl-tree .monaco-tl-contents .arrow {
 					opacity: 1;
 				}
 			`);

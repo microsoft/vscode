@@ -101,12 +101,21 @@ registerThemingParticipant((theme, collector) => {
 		.hc-black input[type="button"]:focus,
 		.hc-black input[type="text"]:focus,
 		.hc-black textarea:focus,
-		.hc-black input[type="checkbox"]:focus {
+		.hc-black input[type="checkbox"]:focus,
+		.hc-light [tabindex="0"]:focus,
+		.hc-light [tabindex="-1"]:focus,
+		.hc-light .synthetic-focus,
+		.hc-light select:focus,
+		.hc-light input[type="button"]:focus,
+		.hc-light input[type="text"]:focus,
+		.hc-light textarea:focus,
+		.hc-light input[type="checkbox"]:focus {
 			outline-style: solid;
 			outline-width: 1px;
 		}
 
-		.hc-black .synthetic-focus input {
+		.hc-black .synthetic-focus input {,
+		.hc-light .synthetic-focus input
 			background: transparent; /* Search input focus fix when in high contrast */
 		}
 		`);

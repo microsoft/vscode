@@ -184,7 +184,9 @@
 }
 
 .monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
-.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before {
+.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before,
+.monaco-workbench.hc-light .pane-body.integrated-terminal .xterm:focus::before,
+.monaco-workbench.hc-light .pane-body.integrated-terminal .xterm.focus::before {
 	display: block;
 	content: "";
 	border: 1px solid;
@@ -197,7 +199,9 @@
 }
 
 .monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm.focus::before,
-.monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm:focus::before {
+.monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm:focus::before,
+.monaco-workbench.hc-light .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm.focus::before,
+.monaco-workbench.hc-light .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm:focus::before {
 	right: 0;
 }
 
