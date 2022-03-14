@@ -72,6 +72,7 @@ export interface ISerializedCommand {
 	command: string;
 	cwd: string | undefined;
 	startLine: number | undefined;
+	startX: number | undefined;
 	endLine: number | undefined;
 	executedLine: number | undefined;
 	exitCode: number | undefined;
