@@ -40,7 +40,7 @@ suite('ExtHostEditorTabs', function () {
 			label: 'label1',
 			viewColumn: 0,
 			additionalResourcesAndViewTypes: [],
-			kind: TabKind.Other
+			kind: TabKind.Singular
 		};
 
 		extHostEditorTabs.$acceptEditorTabModel([{

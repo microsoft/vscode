@@ -628,8 +628,7 @@ export interface IEditorTabGroupDto {
 export enum TabKind {
 	Singular = 0,
 	Diff = 1,
-	SidebySide = 2,
-	Other = 3
+	SidebySide = 2
 }
 
 export interface IEditorTabDto {
