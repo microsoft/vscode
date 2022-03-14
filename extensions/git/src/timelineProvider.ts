@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace } from 'vscode';
+import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, MarkdownString, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace } from 'vscode';
 import { Model } from './model';
 import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
@@ -48,6 +48,20 @@ export class GitTimelineItem extends TimelineItem {
 
 	get shortPreviousRef() {
 		return this.shortenRef(this.previousRef);
+	}
+
+	setItemDetails(author: string, email: string | undefined, date: string, message: string): void {
+		this.detail = new MarkdownString('', true);
+
+		if (email) {
+			const emailTitle = localize('git.timeline.email', "Email");
+			this.detail.appendMarkdown(`$(account) [**${author}**](mailto:${email} "${emailTitle} ${author}")\n\n`);
+		} else {
+			this.detail.appendMarkdown(`$(account) **${author}**\n\n`);
+		}
+
+		this.detail.appendMarkdown(`$(history) ${date}\n\n`);
+		this.detail.appendMarkdown(message);
 	}
 
 	private shortenRef(ref: string): string {
@@ -167,7 +181,8 @@ export class GitTimelineProvider implements TimelineProvider {
 			if (showAuthor) {
 				item.description = c.authorName;
 			}
-			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${message}`;
+
+			item.setItemDetails(c.authorName!, c.authorEmail, dateFormatter.format(date), message);
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -192,7 +207,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
-				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format(date), Resource.getStatusText(index.type));
+				item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(index.type));
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
@@ -214,7 +229,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
-				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format(date), Resource.getStatusText(working.type));
+				item.setItemDetails(you, undefined, dateFormatter.format(date), Resource.getStatusText(working.type));
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
