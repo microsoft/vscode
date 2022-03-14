@@ -183,12 +183,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this._placeholderDecoration = decoration;
 				this._placeholderDecoration.onDispose(() => this._placeholderDecoration = undefined);
 			} else {
-				this._decorations.set(decoration.marker.id,
-					{
+				if (!this._decorations.has(decoration.marker.id)) {
+					this._decorations.set(decoration.marker.id, {
 						decoration,
 						disposables: command.exitCode === undefined ? [] : [this._createContextMenu(element, command), ...this._createHover(element, command)],
 						exitCode: command.exitCode
 					});
+				}
 			}
 			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
 				// first render or buffer was cleared
