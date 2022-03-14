@@ -14,10 +14,6 @@
 	transition: background-color 0.35s ease-out;
 }
 
-.monaco-workbench .part.statusbar:focus {
-	outline-color: var(--statusbar-focusborder);
-}
-
 .monaco-workbench .part.statusbar.status-border-top::after {
 	content: '';
 	position: absolute;

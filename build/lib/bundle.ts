@@ -109,10 +109,10 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	const allMentionedModulesMap: { [modules: string]: boolean } = {};
 	entryPoints.forEach((module: IEntryPoint) => {
 		allMentionedModulesMap[module.name] = true;
-		(module.include || []).forEach(function (includedModule) {
+		module.include?.forEach(function (includedModule) {
 			allMentionedModulesMap[includedModule] = true;
 		});
-		(module.exclude || []).forEach(function (excludedModule) {
+		module.exclude?.forEach(function (excludedModule) {
 			allMentionedModulesMap[excludedModule] = true;
 		});
 	});

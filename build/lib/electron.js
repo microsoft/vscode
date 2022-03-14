@@ -40,7 +40,7 @@ const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSyn
 function darwinBundleDocumentType(extensions, icon, nameOrSuffix) {
     // If given a suffix, generate a name from it. If not given anything, default to 'document'
     if (isDocumentSuffix(nameOrSuffix) || !nameOrSuffix) {
-        nameOrSuffix = icon.charAt(0).toUpperCase() + icon.slice(1) + ' ' + (nameOrSuffix !== null && nameOrSuffix !== void 0 ? nameOrSuffix : 'document');
+        nameOrSuffix = icon.charAt(0).toUpperCase() + icon.slice(1) + ' ' + (nameOrSuffix ?? 'document');
     }
     return {
         name: nameOrSuffix,

@@ -88,7 +88,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/vie
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
 import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorProgress';
-import 'vs/workbench/contrib/notebook/browser/contrib/execute/execution';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';

@@ -111,13 +111,23 @@ export const enum TerminalSettingId {
 	ShellIntegrationCommandHistory = 'terminal.integrated.shellIntegration.history'
 }
 
+export const enum PosixShellType {
+	PowerShell = 'pwsh',
+	Bash = 'bash',
+	Fish = 'fish',
+	Sh = 'sh',
+	Csh = 'csh',
+	Ksh = 'ksh',
+	Zsh = 'zsh',
+}
 export const enum WindowsShellType {
 	CommandPrompt = 'cmd',
 	PowerShell = 'pwsh',
 	Wsl = 'wsl',
 	GitBash = 'gitbash'
 }
-export type TerminalShellType = WindowsShellType | undefined;
+export type TerminalShellType = PosixShellType | WindowsShellType | undefined;
+
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
 	terminal: T;
@@ -263,7 +273,7 @@ export interface IPtyService extends IPtyHostController {
 		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
 		executableEnv: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		options: ITerminalProcessOptions,
 		shouldPersist: boolean,
 		workspaceId: string,
 		workspaceName: string
@@ -331,16 +341,16 @@ export interface ISerializedTerminalState {
 	id: number;
 	shellLaunchConfig: IShellLaunchConfig;
 	processDetails: IProcessDetails;
-	processLaunchOptions: IPersistentTerminalProcessLaunchOptions;
+	processLaunchConfig: IPersistentTerminalProcessLaunchConfig;
 	unicodeVersion: '6' | '11';
 	replayEvent: IPtyHostProcessReplayEvent;
 	timestamp: number;
 }
 
-export interface IPersistentTerminalProcessLaunchOptions {
+export interface IPersistentTerminalProcessLaunchConfig {
 	env: IProcessEnvironment;
 	executableEnv: IProcessEnvironment;
-	windowsEnableConpty: boolean;
+	options: ITerminalProcessOptions;
 }
 
 export interface IRequestResolveVariablesEvent {
@@ -537,6 +547,18 @@ export interface IShellLaunchConfigDto {
 	env?: ITerminalEnvironment;
 	useShellEnvironment?: boolean;
 	hideFromUser?: boolean;
+}
+
+/**
+ * A set of options for the terminal process. These differ from the shell launch config in that they
+ * are set internally to the terminal component, not from the outside.
+ */
+export interface ITerminalProcessOptions {
+	shellIntegration: {
+		enabled: boolean;
+		showWelcome: boolean;
+	};
+	windowsEnableConpty: boolean;
 }
 
 export interface ITerminalEnvironment {

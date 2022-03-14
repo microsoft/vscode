@@ -43,7 +43,7 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from 'vs/editor/common/model';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { IDialogService, IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -132,8 +132,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IWorkingCopyEditorService, WorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/elevatedFileService';
-import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
-import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ResourceMap } from 'vs/base/common/map';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
@@ -148,12 +147,12 @@ import { env } from 'vs/base/common/process';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { ILanguageFeatureDebounceService, LanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
-import { IChange, IDiffComputationResult } from 'vs/editor/common/diff/diffComputer';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { TextEditorPaneSelection } from 'vs/workbench/browser/parts/editor/textEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IFolderBackupInfo, IWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { TestEditorWorkerService } from 'vs/editor/test/common/services/testEditorWorkerService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -1899,20 +1898,4 @@ export class TestQuickInputService implements IQuickInputService {
 	accept(): Promise<void> { throw new Error('not implemented.'); }
 	back(): Promise<void> { throw new Error('not implemented.'); }
 	cancel(): Promise<void> { throw new Error('not implemented.'); }
-}
-
-export class TestEditorWorkerService implements IEditorWorkerService {
-
-	declare readonly _serviceBrand: undefined;
-
-	canComputeUnicodeHighlights(uri: URI): boolean { return false; }
-	async computedUnicodeHighlights(uri: URI): Promise<IUnicodeHighlightsResult> { return { ranges: [], hasMore: false, ambiguousCharacterCount: 0, invisibleCharacterCount: 0, nonBasicAsciiCharacterCount: 0 }; }
-	async computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> { return null; }
-	canComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }
-	async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }
-	async computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined> { return undefined; }
-	canComputeWordRanges(resource: URI): boolean { return false; }
-	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> { return null; }
-	canNavigateValueSet(resource: URI): boolean { return false; }
-	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
 }

@@ -31,7 +31,7 @@ import { Emitter } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { hasWorkspaceFileExtension, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { ITreeDataTransfer } from 'vs/workbench/common/views';
 import { extractSelection } from 'vs/platform/opener/common/opener';
@@ -75,8 +75,8 @@ export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInpu
 
 	/**
 	 * Whether we probe for the dropped editor to be a workspace
-	 * allowing to open it as workspace instead of opening as
-	 * editor.
+	 * (i.e. code-workspace file or even a folder), allowing to
+	 * open it as workspace instead of opening as editor.
 	 */
 	allowWorkspaceOpen?: boolean;
 }
@@ -313,8 +313,9 @@ export async function extractFileListData(accessor: ServicesAccessor, files: Fil
 export interface IResourcesDropHandlerOptions {
 
 	/**
-	 * Whether to open the actual workspace when a workspace configuration file is dropped
-	 * or whether to open the configuration file within the editor as normal file.
+	 * Whether we probe for the dropped resource to be a workspace
+	 * (i.e. code-workspace file or even a folder), allowing to
+	 * open it as workspace instead of opening as editor.
 	 */
 	readonly allowWorkspaceOpen: boolean;
 }
@@ -351,7 +352,7 @@ export class ResourcesDropHandler {
 		if (this.options.allowWorkspaceOpen) {
 			const localFilesAllowedToOpenAsWorkspace = coalesce(editors.filter(editor => editor.allowWorkspaceOpen && editor.resource?.scheme === Schemas.file).map(editor => editor.resource));
 			if (localFilesAllowedToOpenAsWorkspace.length > 0) {
-				const isWorkspaceOpening = await this.handleWorkspaceFileDrop(localFilesAllowedToOpenAsWorkspace);
+				const isWorkspaceOpening = await this.handleWorkspaceDrop(localFilesAllowedToOpenAsWorkspace);
 				if (isWorkspaceOpening) {
 					return; // return early if the drop operation resulted in this window changing to a workspace
 				}
@@ -384,7 +385,7 @@ export class ResourcesDropHandler {
 		afterDrop(targetGroup);
 	}
 
-	private async handleWorkspaceFileDrop(resources: URI[]): Promise<boolean> {
+	private async handleWorkspaceDrop(resources: URI[]): Promise<boolean> {
 		const toOpen: IWindowOpenable[] = [];
 		const folderURIs: IWorkspaceFolderCreationData[] = [];
 
@@ -422,7 +423,12 @@ export class ResourcesDropHandler {
 			await this.hostService.openWindow(toOpen);
 		}
 
-		// folders.length > 1: Multiple folders: Create new workspace with folders and open
+		// Add to workspace if we are in a temporary workspace
+		else if (isTemporaryWorkspace(this.contextService.getWorkspace())) {
+			await this.workspaceEditingService.addFolders(folderURIs);
+		}
+
+		// Finaly, enter untitled workspace when dropping >1 folders
 		else {
 			await this.workspaceEditingService.createAndEnterWorkspace(folderURIs);
 		}

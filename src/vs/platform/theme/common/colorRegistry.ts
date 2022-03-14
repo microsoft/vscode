@@ -245,9 +245,9 @@ export const selectListBackground = registerColor('dropdown.listBackground', { d
 export const selectForeground = registerColor('dropdown.foreground', { dark: '#F0F0F0', light: null, hc: Color.white }, nls.localize('dropdownForeground', "Dropdown foreground."));
 export const selectBorder = registerColor('dropdown.border', { dark: selectBackground, light: '#CECECE', hc: contrastBorder }, nls.localize('dropdownBorder', "Dropdown border."));
 
-export const simpleCheckboxBackground = registerColor('checkbox.background', { dark: selectBackground, light: selectBackground, hc: selectBackground }, nls.localize('checkbox.background', "Background color of checkbox widget."));
-export const simpleCheckboxForeground = registerColor('checkbox.foreground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, nls.localize('checkbox.foreground', "Foreground color of checkbox widget."));
-export const simpleCheckboxBorder = registerColor('checkbox.border', { dark: selectBorder, light: selectBorder, hc: selectBorder }, nls.localize('checkbox.border', "Border color of checkbox widget."));
+export const checkboxBackground = registerColor('checkbox.background', { dark: selectBackground, light: selectBackground, hc: selectBackground }, nls.localize('checkbox.background', "Background color of checkbox widget."));
+export const checkboxForeground = registerColor('checkbox.foreground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, nls.localize('checkbox.foreground', "Foreground color of checkbox widget."));
+export const checkboxBorder = registerColor('checkbox.border', { dark: selectBorder, light: selectBorder, hc: selectBorder }, nls.localize('checkbox.border', "Border color of checkbox widget."));
 
 export const buttonForeground = registerColor('button.foreground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('buttonForeground', "Button foreground color."));
 export const buttonBackground = registerColor('button.background', { dark: '#0E639C', light: '#007ACC', hc: null }, nls.localize('buttonBackground', "Button background color."));

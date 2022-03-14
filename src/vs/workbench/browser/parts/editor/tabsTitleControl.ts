@@ -1857,7 +1857,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Check for URI transfer
 		else {
-			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false /* open workspace file as file if dropped */ });
+			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
 			dropHandler.handleDrop(e, () => this.group, () => this.group.focus(), targetIndex);
 		}
 	}

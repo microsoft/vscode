@@ -153,6 +153,10 @@ export class CellTitleToolbarPart extends CellPart {
 		});
 	}
 
+	override unrenderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		this.cellDisposable.clear();
+	}
+
 	prepareLayout(): void {
 		// nothing to read
 	}

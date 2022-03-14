@@ -3745,14 +3745,14 @@
 	},
 	{
 		"c": "Math",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.arrow.ts meta.block.ts meta.function-call.ts support.constant.math.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.arrow.ts meta.block.ts meta.function-call.ts variable.other.object.ts",
 		"r": {
-			"dark_plus": "support.constant.math: #4EC9B0",
-			"light_plus": "support.constant.math: #267F99",
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.constant.math: #4EC9B0",
-			"hc_light": "support.constant.math: #267F99"
+			"hc_black": "variable: #9CDCFE",
+			"hc_light": "variable: #001080"
 		}
 	},
 	{
@@ -3769,14 +3769,14 @@
 	},
 	{
 		"c": "random",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.arrow.ts meta.block.ts meta.function-call.ts support.function.math.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.arrow.ts meta.block.ts meta.function-call.ts entity.name.function.ts",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{
@@ -4909,14 +4909,14 @@
 	},
 	{
 		"c": "setTimeout",
-		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.function-call.ts support.function.ts",
+		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.function-call.ts entity.name.function.ts",
 		"r": {
-			"dark_plus": "support.function: #DCDCAA",
-			"light_plus": "support.function: #795E26",
+			"dark_plus": "entity.name.function: #DCDCAA",
+			"light_plus": "entity.name.function: #795E26",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "support.function: #DCDCAA",
-			"hc_light": "support.function: #795E26"
+			"hc_black": "entity.name.function: #DCDCAA",
+			"hc_light": "entity.name.function: #795E26"
 		}
 	},
 	{

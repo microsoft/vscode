@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalIcon, TerminalLocationString, IProcessProperty, TitleEventSource, ProcessPropertyType, IFixedTerminalDimensions, IExtensionTerminalProfile, ICreateContributedTerminalProfileOptions, IProcessPropertyMap, ITerminalEnvironment, ITerminalProcessOptions } from 'vs/platform/terminal/common/terminal';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
@@ -138,7 +138,7 @@ export interface ITerminalBackend {
 		rows: number,
 		unicodeVersion: '6' | '11',
 		env: IProcessEnvironment,
-		windowsEnableConpty: boolean,
+		options: ITerminalProcessOptions,
 		shouldPersist: boolean
 	): Promise<ITerminalChildProcess>;
 }
@@ -475,6 +475,7 @@ export const enum TerminalCommandId {
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopySelection = 'workbench.action.terminal.copySelection',
+	CopySelectionAsHtml = 'workbench.action.terminal.copySelectionAsHtml',
 	SelectAll = 'workbench.action.terminal.selectAll',
 	DeleteWordLeft = 'workbench.action.terminal.deleteWordLeft',
 	DeleteWordRight = 'workbench.action.terminal.deleteWordRight',
@@ -566,6 +567,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.ClearSelection,
 	TerminalCommandId.Clear,
 	TerminalCommandId.CopySelection,
+	TerminalCommandId.CopySelectionAsHtml,
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,

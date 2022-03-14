@@ -317,7 +317,8 @@ export class BrowserFileUpload {
 
 		// Read the file in chunks using File.stream() web APIs
 		try {
-			const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+			// TODO@electron: duplicate type definitions originate from `@types/node/stream/consumers.d.ts`
+			const reader: ReadableStreamDefaultReader<Uint8Array> = (file.stream() as unknown as ReadableStream<Uint8Array>).getReader();
 
 			let res = await reader.read();
 			while (!res.done) {
@@ -536,11 +537,11 @@ export class ExternalFileImport {
 			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
-					localize('importFile', "Import {0}", basename(resourcesFiltered[0])) :
-					localize('importnFile', "Import {0} resources", resourcesFiltered.length),
+					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the number of files that were imported'], key: 'importnFile' }, "Import {0} resources", resourcesFiltered.length),
 				progressLabel: resourcesFiltered.length === 1 ?
-					localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) :
-					localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length),
+					localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length),
 				progressLocation: ProgressLocation.Window,
 				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
 			});

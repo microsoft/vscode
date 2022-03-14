@@ -649,7 +649,7 @@ export interface ITerminalInstance {
 	/**
 	 * Copies the terminal selection to the clipboard.
 	 */
-	copySelection(): Promise<void>;
+	copySelection(asHtml?: boolean): Promise<void>;
 
 	/**
 	 * Current selection in the terminal.
@@ -837,7 +837,7 @@ export interface ITerminalInstance {
 
 	/**
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will
-	 * re-run it in the active terminal.
+	 * rerun it in the active terminal.
 	 */
 	runRecent(type: 'command' | 'cwd'): Promise<void>;
 
@@ -896,6 +896,11 @@ export interface IXtermTerminal {
 	 * viewport.
 	 */
 	clearBuffer(): void;
+
+	/**
+	 * Clears decorations - for example, when shell integration is disabled.
+	 */
+	clearDecorations(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

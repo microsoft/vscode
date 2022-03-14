@@ -34,7 +34,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { parseExtensionDevOptions } from '../common/extensionDevOptions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IExtensionHost, ExtensionHostLogFileName, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostLogFileName, LocalProcessRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -44,6 +44,7 @@ import { IExtensionHostProcessOptions, IExtensionHostStarter } from 'vs/platform
 import { SerializedError } from 'vs/base/common/errors';
 import { removeDangerousEnvVariables } from 'vs/base/node/processes';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -105,9 +106,9 @@ class ExtensionHostProcess {
 
 export class LocalProcessExtensionHost implements IExtensionHost {
 
-	public readonly kind = ExtensionHostKind.LocalProcess;
 	public readonly remoteAuthority = null;
 	public readonly lazyStart = false;
+	public readonly extensions = new ExtensionDescriptionRegistry([]);
 
 	private readonly _onExit: Emitter<[number, string]> = new Emitter<[number, string]>();
 	public readonly onExit: Event<[number, string]> = this._onExit.event;
@@ -135,6 +136,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	private readonly _extensionHostLogFile: URI;
 
 	constructor(
+		public readonly runningLocation: LocalProcessRunningLocation,
 		private readonly _initDataProvider: ILocalProcessExtensionHostDataProvider,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -502,6 +504,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
 		const [telemetryInfo, initData] = await Promise.all([this._telemetryService.getTelemetryInfo(), this._initDataProvider.getInitData()]);
 		const workspace = this._contextService.getWorkspace();
+		this.extensions.deltaExtensions(initData.extensions, []);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
@@ -532,7 +535,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			},
 			resolvedExtensions: [],
 			hostExtensions: [],
-			extensions: initData.extensions,
+			extensions: this.extensions.getAllExtensionDescriptions(),
 			telemetryInfo,
 			logLevel: this._logService.getLevel(),
 			logsLocation: this._environmentService.extHostLogsPath,

@@ -788,7 +788,7 @@ export class SettingsEditor2 extends EditorPane {
 	private createSettingsTree(container: HTMLElement): void {
 
 		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
-		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type)));
+		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type, e.manualReset)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
 			this.openSettingsFile({ revealSetting: { key: settingKey, edit: true } });
 		}));
@@ -869,16 +869,16 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 	}
 
-	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[]): void {
+	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[], manualReset: boolean): void {
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
-			this.updateChangedSetting(key, value);
+			this.updateChangedSetting(key, value, manualReset);
 		}
 
 		this.pendingSettingUpdate = { key, value };
 		if (SettingsEditor2.shouldSettingUpdateFast(type)) {
-			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset));
 		} else {
-			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset));
 		}
 	}
 
@@ -948,7 +948,7 @@ export class SettingsEditor2 extends EditorPane {
 		return ancestors.reverse();
 	}
 
-	private updateChangedSetting(key: string, value: any): Promise<void> {
+	private updateChangedSetting(key: string, value: any, manualReset: boolean): Promise<void> {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
@@ -956,11 +956,13 @@ export class SettingsEditor2 extends EditorPane {
 		const configurationTarget = <ConfigurationTarget>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget);
 		const overrides: IConfigurationOverrides = { resource };
 
-		const isManualReset = value === undefined;
+		const configurationTargetIsWorkspace = configurationTarget === ConfigurationTarget.WORKSPACE || configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER;
 
-		// If the user is changing the value back to the default, do a 'reset' instead
+		const isManualReset = configurationTargetIsWorkspace ? manualReset : value === undefined;
+
+		// If the user is changing the value back to the default, and we're not targeting a workspace scope, do a 'reset' instead
 		const inspected = this.configurationService.inspect(key, overrides);
-		if (inspected.defaultValue === value) {
+		if (!configurationTargetIsWorkspace && inspected.defaultValue === value) {
 			value = undefined;
 		}
 

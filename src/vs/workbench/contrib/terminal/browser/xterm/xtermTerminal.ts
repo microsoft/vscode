@@ -7,6 +7,7 @@ import type { IBuffer, ITheme, RendererType, Terminal as RawXtermTerminal } from
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
+import { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
@@ -42,6 +43,7 @@ const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 let SearchAddon: typeof SearchAddonType;
 let Unicode11Addon: typeof Unicode11AddonType;
 let WebglAddon: typeof WebglAddonType;
+let SerializeAddon: typeof SerializeAddonType;
 
 /**
  * Wraps the xterm object with additional functionality. Interaction with the backing process is out
@@ -64,6 +66,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	private _searchAddon?: SearchAddonType;
 	private _unicode11Addon?: Unicode11AddonType;
 	private _webglAddon?: WebglAddonType;
+	private _serializeAddon?: SerializeAddonType;
 
 	private readonly _onDidRequestRunCommand = new Emitter<string>();
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -167,7 +170,16 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this.raw.loadAddon(this._decorationAddon);
 	}
 
-	attachToElement(container: HTMLElement) {
+	async getSelectionAsHtml(): Promise<string> {
+		if (!this._serializeAddon) {
+			const Addon = await this._getSerializeAddonConstructor();
+			this._serializeAddon = new Addon();
+			this.raw.loadAddon(this._serializeAddon);
+		}
+		return this._serializeAddon.serializeAsHTML({ onlySelection: true });
+	}
+
+	attachToElement(container: HTMLElement): HTMLElement {
 		// Update the theme when attaching as the terminal location could have changed
 		this._updateTheme();
 		if (!this._container) {
@@ -177,6 +189,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		if (this._shouldLoadWebgl()) {
 			this._enableWebglRenderer();
 		}
+		// Screen must be created at this point as xterm.open is called
+		return this._container.querySelector('.xterm-screen')!;
 	}
 
 	updateConfig(): void {
@@ -212,6 +226,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	forceRedraw() {
 		this._webglAddon?.clearTextureAtlas();
 		this.raw.clearTextureAtlas();
+	}
+
+	clearDecorations(): void {
+		this._decorationAddon?.clearDecorations(true);
 	}
 
 
@@ -312,6 +330,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	clearBuffer(): void {
 		this.raw.clear();
+		// hack so that the next placeholder shows
+		this._decorationAddon?.registerCommandDecoration({ marker: this.raw.registerMarker(0), hasOutput: false, timestamp: Date.now(), getOutput: () => { return undefined; }, command: '' }, true);
 	}
 
 	private _setCursorBlink(blink: boolean): void {
@@ -394,6 +414,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
 		}
 		return WebglAddon;
+	}
+
+	protected async _getSerializeAddonConstructor(): Promise<typeof SerializeAddonType> {
+		if (!SerializeAddon) {
+			SerializeAddon = (await import('xterm-addon-serialize')).SerializeAddon;
+		}
+		return SerializeAddon;
 	}
 
 	private _disposeOfWebglRenderer(): void {

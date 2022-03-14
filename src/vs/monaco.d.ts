@@ -1686,6 +1686,7 @@ declare namespace monaco.editor {
 
 	export interface BracketPairColorizationOptions {
 		enabled: boolean;
+		useIndependentColorPoolPerBracketType: boolean;
 	}
 
 	export interface ITextModelUpdateOptions {
@@ -3974,6 +3975,10 @@ declare namespace monaco.editor {
 		 * Enable or disable bracket pair colorization.
 		*/
 		enabled?: boolean;
+		/**
+		 * Use independent color pool per bracket type.
+		*/
+		useIndependentColorPoolPerBracketType?: boolean;
 	}
 
 	export interface IGuidesOptions {
@@ -4608,6 +4613,11 @@ declare namespace monaco.editor {
 		 * Placement preference for position, in order of preference.
 		 */
 		preference: ContentWidgetPositionPreference[];
+		/**
+		 * Placement preference when multiple view positions refer to the same (model) position.
+		 * This plays a role when injected text is involved.
+		*/
+		positionAffinity?: PositionAffinity;
 	}
 
 	/**
@@ -5394,7 +5404,6 @@ declare namespace monaco.editor {
 }
 
 declare namespace monaco.languages {
-
 
 	export interface IRelativePattern {
 		/**
@@ -6258,8 +6267,13 @@ declare namespace monaco.languages {
 		 * The text to insert.
 		 * If the text contains a line break, the range must end at the end of a line.
 		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+		 *
+		 * The text can also be a snippet. In that case, a preview with default parameters is shown.
+		 * When accepting the suggestion, the full snippet is inserted.
 		*/
-		readonly text: string;
+		readonly text: string | {
+			snippet: string;
+		};
 		/**
 		 * The range to replace.
 		 * Must begin and end on the same line.
@@ -6950,7 +6964,7 @@ declare namespace monaco.languages {
 	export interface InlayHint {
 		label: string | InlayHintLabelPart[];
 		tooltip?: string | IMarkdownString;
-		command?: Command;
+		textEdits?: TextEdit[];
 		position: IPosition;
 		kind?: InlayHintKind;
 		paddingLeft?: boolean;

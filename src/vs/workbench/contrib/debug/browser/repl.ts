@@ -261,6 +261,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 										suggestions.push({
 											label: item.label,
 											insertText,
+											detail: item.detail,
 											kind: CompletionItemKinds.fromString(item.type || 'property'),
 											filterText: (item.start && item.length) ? text.substring(item.start, item.start + item.length).concat(item.label) : undefined,
 											range: computeRange(item.length || overwriteBefore),

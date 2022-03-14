@@ -5,13 +5,13 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import * as uri from 'vscode-uri';
 import { Logger } from '../logger';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { openDocumentLink, resolveDocumentLink, resolveUriToMarkdownFile } from '../util/openDocumentLink';
-import * as path from '../util/path';
 import { WebviewResourceProvider } from '../util/resources';
 import { getVisibleLine, LastScrollLocation, TopmostLineMonitor } from '../util/topmostLineMonitor';
 import { urlToUri } from '../util/url';
@@ -179,31 +179,6 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
-		this._register(this._webviewPanel.onDidChangeViewState(async () => {
-			if (this._disposed) {
-				return;
-			}
-
-			if (this._webviewPanel.active) {
-				let document: vscode.TextDocument;
-				try {
-					document = await vscode.workspace.openTextDocument(this._resource);
-				} catch {
-					return;
-				}
-
-				if (this._disposed) {
-					return;
-				}
-
-				const content = await this._contentProvider.provideTextDocumentContent(document, this, this._previewConfigurations, this.line, this.state);
-				if (!this._webviewPanel.active && !this._disposed) {
-					// Update the html so we can show it properly when restoring it
-					this._webviewPanel.webview.html = content.html;
-				}
-			}
-		}));
-
 		this._register(this._webviewPanel.webview.onDidReceiveMessage((e: CacheImageSizesMessage | RevealLineMessage | DidClickMessage | ClickLinkMessage | ShowPreviewSecuritySelectorMessage | PreviewStyleLoadErrorMessage) => {
 			if (e.source !== this._resource.toString()) {
 				return;
@@ -343,7 +318,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			return;
 		}
 
-		const shouldReloadPage = forceUpdate || !this.currentVersion || this.currentVersion.resource.toString() !== pendingVersion.resource.toString();
+		const shouldReloadPage = forceUpdate || !this.currentVersion || this.currentVersion.resource.toString() !== pendingVersion.resource.toString() || !this._webviewPanel.visible;
 		this.currentVersion = pendingVersion;
 
 		const content = await (shouldReloadPage
@@ -425,7 +400,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		const srcs = new Set(containingImages.map(img => img.src));
 
 		// Delete stale file watchers.
-		for (const [src, watcher] of [...this._fileWatchersBySrc]) {
+		for (const [src, watcher] of this._fileWatchersBySrc) {
 			if (!srcs.has(src)) {
 				watcher.dispose();
 				this._fileWatchersBySrc.delete(src);
@@ -464,7 +439,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 				baseRoots.push(...workspaceRoots);
 			}
 		} else {
-			baseRoots.push(this._resource.with({ path: path.dirname(this._resource.path) }));
+			baseRoots.push(uri.Utils.dirname(this._resource));
 		}
 
 		return baseRoots;
@@ -792,9 +767,10 @@ export class DynamicMarkdownPreview extends Disposable implements ManagedMarkdow
 	}
 
 	private static getPreviewTitle(resource: vscode.Uri, locked: boolean): string {
+		const resourceLabel = uri.Utils.basename(resource);
 		return locked
-			? localize('lockedPreviewTitle', '[Preview] {0}', path.basename(resource.fsPath))
-			: localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath));
+			? localize('lockedPreviewTitle', '[Preview] {0}', resourceLabel)
+			: localize('previewTitle', 'Preview {0}', resourceLabel);
 	}
 
 	public get position(): vscode.ViewColumn | undefined {

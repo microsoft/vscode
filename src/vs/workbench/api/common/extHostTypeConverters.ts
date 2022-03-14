@@ -1170,6 +1170,7 @@ export namespace InlayHint {
 			typeof hint.label === 'string' ? hint.label : hint.label.map(InlayHintLabelPart.to.bind(undefined, converter)),
 			hint.kind && InlayHintKind.to(hint.kind)
 		);
+		res.textEdits = hint.textEdits && hint.textEdits.map(TextEdit.to);
 		res.tooltip = htmlContent.isMarkdownString(hint.tooltip) ? MarkdownString.to(hint.tooltip) : hint.tooltip;
 		res.paddingLeft = hint.paddingLeft;
 		res.paddingRight = hint.paddingRight;

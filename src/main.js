@@ -26,8 +26,6 @@ const { stripComments } = require('./vs/base/common/stripComments');
 const product = require('../product.json');
 const { app, protocol, crashReporter } = require('electron');
 
-app.allowRendererProcessReuse = false;
-
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
 

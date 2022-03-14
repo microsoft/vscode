@@ -16,9 +16,9 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestContext, IRequestOptions } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, TargetPlatform, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { getFallbackTargetPlarforms, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -238,6 +238,7 @@ type GalleryServiceQueryClassification = {
 	readonly flags: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly sortBy: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly sortOrder: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+	readonly pageNumber: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true };
 	readonly success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 	readonly requestBodySize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
@@ -252,6 +253,7 @@ type QueryTelemetryData = {
 	readonly filterTypes: string[];
 	readonly sortBy: string;
 	readonly sortOrder: string;
+	readonly pageNumber: string;
 };
 
 type GalleryServiceQueryEvent = QueryTelemetryData & {
@@ -336,7 +338,8 @@ class Query {
 			filterTypes: this.state.criteria.map(criterium => String(criterium.filterType)),
 			flags: this.state.flags,
 			sortBy: String(this.sortBy),
-			sortOrder: String(this.sortOrder)
+			sortOrder: String(this.sortOrder),
+			pageNumber: String(this.pageNumber)
 		};
 	}
 }

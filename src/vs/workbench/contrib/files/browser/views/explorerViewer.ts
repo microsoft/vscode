@@ -11,7 +11,7 @@ import { IProgressService, ProgressLocation, } from 'vs/platform/progress/common
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -56,6 +56,7 @@ import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { BrowserFileUpload, ExternalFileImport, getMultipleFilesOverwriteConfirm } from 'vs/workbench/contrib/files/browser/fileImportExport';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -1003,17 +1004,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// External file DND (Import/Upload file)
 			if (data instanceof NativeDragAndDropData) {
-				// Native OS file DND into Web
-				if (containsDragType(originalEvent, 'Files') && isWeb) {
-					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
-					await browserUpload.upload(target, originalEvent);
-				}
-				// 2 Cases handled for import:
-				// FS-Provided file DND into Web/Desktop
-				// Native OS file DND into Desktop
-				else {
+				// Use local file import when supported
+				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(window))) {
 					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
 					await fileImport.import(resolvedTarget, originalEvent);
+				}
+				// Otherwise fallback to browser based file upload
+				else {
+					const browserUpload = this.instantiationService.createInstance(BrowserFileUpload);
+					await browserUpload.upload(target, originalEvent);
 				}
 			}
 

@@ -30,7 +30,9 @@ export namespace ServerResponse {
 
 	export const NoContent = { type: 'noContent' } as const;
 
-	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
+	export const NoServer = { type: 'noServer' } as const;
+
+	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent | typeof NoServer;
 }
 
 interface StandardTsServerRequests {
@@ -70,6 +72,7 @@ interface StandardTsServerRequests {
 	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
 	'fileReferences': [Proto.FileRequestArgs, Proto.FileReferencesResponse];
 	'provideInlayHints': [Proto.InlayHintsRequestArgs, Proto.InlayHintsResponse];
+	'encodedSemanticClassifications-full': [Proto.EncodedSemanticClassificationsRequestArgs, Proto.EncodedSemanticClassificationsResponse];
 }
 
 interface NoResponseTsServerRequests {

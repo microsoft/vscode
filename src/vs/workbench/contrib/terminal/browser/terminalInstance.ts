@@ -14,6 +14,7 @@ import { AutoOpenBarrier, Promises } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { fromNow } from 'vs/base/common/date';
 import { debounce } from 'vs/base/common/decorators';
+import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ISeparator, template } from 'vs/base/common/labels';
@@ -494,6 +495,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				e.affectsConfiguration(TerminalSettingId.TerminalDescription)) {
 				this._labelComputer?.refreshLabel();
 			}
+			if ((e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) ||
+				(e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled) && !this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled))) {
+				this.xterm?.clearDecorations();
+			}
 		}));
 		this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel());
 
@@ -638,7 +643,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	protected async _createXterm(): Promise<XtermTerminal> {
 		const Terminal = await getXtermConstructor();
 		if (this._isDisposed) {
-			throw new Error('Terminal disposed of during xterm.js creation');
+			throw new ErrorNoTelemetry('Terminal disposed of during xterm.js creation');
 		}
 
 		const xterm = this._instantiationService.createInstance(XtermTerminal, Terminal, this._configHelper, this._cols, this._rows, this.target || TerminalLocation.Panel, this.capabilities);
@@ -958,7 +963,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
 		this._wrapperElement.xterm = xterm.raw;
 
-		xterm.attachToElement(xtermElement);
+		const screenElement = xterm.attachToElement(xtermElement);
 
 		if (!xterm.raw.element || !xterm.raw.textarea) {
 			throw new Error('xterm elements not set after open');
@@ -1084,7 +1089,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._initDragAndDrop(container);
 
-		this._widgetManager.attachToElement(xterm.raw.element);
+		this._widgetManager.attachToElement(screenElement);
 		this._processManager.onProcessReady((e) => {
 			this._linkManager?.setWidgetManager(this._widgetManager);
 		});
@@ -1121,10 +1126,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this.xterm ? this.xterm.raw.hasSelection() : false;
 	}
 
-	async copySelection(): Promise<void> {
+	async copySelection(asHtml?: boolean): Promise<void> {
 		const xterm = await this._xtermReadyPromise;
 		if (this.hasSelection()) {
-			await this._clipboardService.writeText(xterm.raw.getSelection());
+			if (asHtml) {
+				const selectionAsHtml = await xterm.getSelectionAsHtml();
+				function listener(e: any) {
+					e.clipboardData.setData('text/html', selectionAsHtml);
+					e.preventDefault();
+				}
+				document.addEventListener('copy', listener);
+				document.execCommand('copy');
+				document.removeEventListener('copy', listener);
+			} else {
+				await this._clipboardService.writeText(xterm.raw.getSelection());
+			}
 		} else {
 			this._notificationService.warn(nls.localize('terminal.integrated.copySelection.noSelection', 'The terminal has no selection to copy'));
 		}
@@ -1718,7 +1734,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		try {
 			const cwd = await this.refreshProperty(ProcessPropertyType.Cwd);
 			if (typeof cwd !== 'string') {
-				throw new Error('cwd is not a string');
+				throw new Error(`cwd is not a string ${cwd}`);
 			}
 		} catch (e: unknown) {
 			// Swallow this as it means the process has been killed

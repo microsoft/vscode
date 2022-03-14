@@ -33,6 +33,7 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * An implementation of editor for file system resources.
@@ -57,7 +58,8 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
 
@@ -210,18 +212,29 @@ export class TextFileEditor extends BaseTextEditor<ICodeEditorViewState> {
 
 	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 
-		// Mark file input for forced binary opening
-		input.setForceOpenAsBinary();
-
-		// Open in group
-		(this.group ?? this.editorGroupService.activeGroup).openEditor(input, {
+		const defaultBinaryEditor = this.configurationService.getValue<string | undefined>('workbench.editor.defaultBinaryEditor');
+		const groupToOpen = this.group ?? this.editorGroupService.activeGroup;
+		const editorOptions = {
 			...options,
 			// Make sure to not steal away the currently active group
 			// because we are triggering another openEditor() call
 			// and do not control the initial intent that resulted
 			// in us now opening as binary.
 			activation: EditorActivation.PRESERVE
-		});
+		};
+
+		// If we the user setting specifies a default binary editor we use that.
+		if (defaultBinaryEditor && defaultBinaryEditor !== '') {
+			this.editorService.replaceEditors([{
+				editor: input,
+				replacement: { resource: input.resource, options: { ...editorOptions, override: defaultBinaryEditor } }
+			}], groupToOpen);
+		} else {
+			// Mark file input for forced binary opening
+			input.setForceOpenAsBinary();
+			// Open in group
+			groupToOpen.openEditor(input, editorOptions);
+		}
 	}
 
 	private async openAsFolder(input: FileEditorInput): Promise<void> {
