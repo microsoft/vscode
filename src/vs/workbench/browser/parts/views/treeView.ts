@@ -372,7 +372,8 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 		if (badge) {
 			const activity = {
-				badge: new NumberBadge(badge.value, () => badge.tooltip)
+				badge: new NumberBadge(badge.value, () => badge.tooltip),
+				priority: 150
 			};
 			this._badgeActivity = this.activityService.showViewActivity(this.id, activity);
 		}

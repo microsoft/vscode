@@ -255,7 +255,8 @@ export class WebviewViewPane extends ViewPane {
 		this.badge = badge;
 		if (badge) {
 			const activity = {
-				badge: new NumberBadge(badge.value, () => badge.tooltip)
+				badge: new NumberBadge(badge.value, () => badge.tooltip),
+				priority: 150
 			};
 			this.activityService.showViewActivity(this.id, activity);
 		}
