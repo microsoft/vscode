@@ -10,8 +10,7 @@ declare module 'vscode' {
 	export enum TabKind {
 		Singular = 0,
 		Diff = 1,
-		SidebySide = 2,
-		Other = 3
+		SidebySide = 2
 	}
 
 	/**
@@ -99,8 +98,7 @@ declare module 'vscode' {
 		/**
 		 * All the groups within the group container
 		 */
-		// TODO@API rename to groups
-		readonly all: TabGroup[];
+		readonly groups: TabGroup[];
 
 		/**
 		 * The currently active group
