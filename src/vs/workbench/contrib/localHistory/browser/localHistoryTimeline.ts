@@ -20,7 +20,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { LOCAL_HISTORY_MENU_CONTEXT_VALUE, OPEN_CHANGES_LABEL, toCompareWithPreviousCommandArguments } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
+import { LOCAL_HISTORY_MENU_CONTEXT_VALUE, COMPARE_WITH_PREVIOUS_LABEL, toCompareWithPreviousCommandArguments } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
@@ -145,7 +145,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
 			command: {
 				id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
-				title: OPEN_CHANGES_LABEL.value,
+				title: COMPARE_WITH_PREVIOUS_LABEL.value,
 				arguments: toCompareWithPreviousCommandArguments(entry, previousEntry)
 			}
 		};

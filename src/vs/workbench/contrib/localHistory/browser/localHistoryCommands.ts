@@ -20,18 +20,18 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export const OPEN_CHANGES_LABEL = { value: localize('localHistory.openChanges', "Open Changes"), original: 'Open Changes' };
-
 export const LOCAL_HISTORY_MENU_CONTEXT_VALUE = 'localHistory:item';
 export const LOCAL_HISTORY_MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LOCAL_HISTORY_MENU_CONTEXT_VALUE);
 
-//#region Open Changes
+//#region Compare with Previous
+
+export const COMPARE_WITH_PREVIOUS_LABEL = { value: localize('localHistory.compareWithPrevious', "Compare with Previous"), original: 'Compare with Previous' };
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.localHistory.openChanges',
-			title: OPEN_CHANGES_LABEL,
+			id: 'workbench.action.localHistory.compareWithPrevious',
+			title: COMPARE_WITH_PREVIOUS_LABEL,
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: 'navigation',
@@ -46,6 +46,42 @@ registerAction2(class extends Action2 {
 
 		const { entry, previous } = await findLocalHistoryEntry(workingCopyHistoryService, uri);
 		if (entry) {
+			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toCompareWithPreviousCommandArguments(entry, previous));
+		}
+	}
+});
+
+//#endregion
+
+//#region Compare with File
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.compareWithFile',
+			title: { value: localize('localHistory.compareWithCurrent', "Compare with File"), original: 'Compare with File' },
+			menu: {
+				id: MenuId.TimelineItemContext,
+				group: 'navigation',
+				order: 2,
+				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, arg1: unknown, uri: URI): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+
+		let { entry } = await findLocalHistoryEntry(workingCopyHistoryService, uri);
+		if (entry) {
+
+			// Previous entry is the latest on disk
+			let previous = {
+				location: entry.workingCopy.resource,
+				label: localize('latestFile', "File"),
+				workingCopy: entry.workingCopy
+			};
+
 			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toCompareWithPreviousCommandArguments(entry, previous));
 		}
 	}
@@ -128,7 +164,7 @@ registerAction2(class extends Action2 {
 
 //#region Helpers
 
-export function toCompareWithPreviousCommandArguments(entry: IWorkingCopyHistoryEntry, previousEntry: IWorkingCopyHistoryEntry | undefined): unknown[] {
+export function toCompareWithPreviousCommandArguments(entry: IWorkingCopyHistoryEntry, previousEntry: { location: URI; workingCopy: { name: string; resource: URI }; label: string } | undefined): unknown[] {
 	return [
 		LocalHistoryFileSystemProvider.toLocalHistoryFileSystem(previousEntry ?
 			{ location: previousEntry.location, associatedResource: previousEntry.workingCopy.resource, label: previousEntry.workingCopy.name } :
