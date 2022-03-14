@@ -89,7 +89,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
 	private _isExpanded?: boolean;
 	private _commentGlyph?: CommentGlyphWidget;
-	private _submitActionsDisposables: IDisposable[];
 	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _styleElement: HTMLStyleElement;
@@ -145,7 +144,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._isExpanded = _commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
-		this._submitActionsDisposables = [];
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 		this.create();
 
@@ -596,7 +594,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._globalToDispose.dispose();
 		this._commentThreadDisposables.forEach(global => global.dispose());
-		this._submitActionsDisposables.forEach(local => local.dispose());
 		this._onDidClose.fire(undefined);
 	}
 }

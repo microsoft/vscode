@@ -31,7 +31,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { isMouseUpEventMatchMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
+import { isMouseUpEventMatchMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
