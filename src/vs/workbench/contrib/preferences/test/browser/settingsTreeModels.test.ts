@@ -324,7 +324,7 @@ suite('SettingsTree', () => {
 				featureFilters: [],
 				query: '',
 				idFilters: [],
-				languageFilters: ['cpp', 'python']
+				languageFilters: ['cpp']
 			});
 	});
 });
