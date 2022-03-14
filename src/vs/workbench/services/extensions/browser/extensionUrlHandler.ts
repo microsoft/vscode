@@ -256,7 +256,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 			const result = await this.dialogService.confirm({
 				message: localize('installAndHandle', "Extension '{0}' is not installed. Would you like to install the extension and open this URL?", galleryExtension.displayName || galleryExtension.name),
 				detail: `${galleryExtension.displayName || galleryExtension.name} (${extensionIdentifier.id}) wants to open a URL:\n\n${uri.toString()}`,
-				primaryButton: localize('install and open', "&&Install & Open"),
+				primaryButton: localize('install and open', "&&Install and Open"),
 				type: 'question'
 			});
 
