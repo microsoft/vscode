@@ -9,9 +9,9 @@ import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/xterm
 import { isWindows } from 'vs/base/common/platform';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { timeout } from 'vs/base/common/async';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
-import { PartialCommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/partialCommandDetectionCapability';
-import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
+import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;
@@ -62,13 +62,13 @@ suite('Workbench - TerminalCommandTracker', function () {
 		test('should track commands when the prompt is of sufficient size', async () => {
 			assert.strictEqual(xterm.markers.length, 0);
 			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm._core._onKey.fire({ key: '\x0d' });
+			xterm._core._onData.fire('\x0d');
 			assert.strictEqual(xterm.markers.length, 1);
 		});
 		test('should not track commands when the prompt is too small', async () => {
 			assert.strictEqual(xterm.markers.length, 0);
 			await writeP(xterm, '\x1b[2G'); // Move cursor to column 2
-			xterm._core._onKey.fire({ key: '\x0d' });
+			xterm._core._onData.fire('\x0d');
 			assert.strictEqual(xterm.markers.length, 0);
 		});
 	});
@@ -85,7 +85,7 @@ suite('Workbench - TerminalCommandTracker', function () {
 		});
 		test('should scroll to the next and previous commands', async () => {
 			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line #10
+			xterm._core._onData.fire('\x0d'); // Mark line #10
 			assert.strictEqual(xterm.markers[0].line, 9);
 
 			await writeP(xterm, `\r\n`.repeat(20));
@@ -114,13 +114,13 @@ suite('Workbench - TerminalCommandTracker', function () {
 				'\n\r1' +
 				'\x1b[3G' // Move cursor to column 3
 			);
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
+			xterm._core._onData.fire('\x0d'); // Mark line
 			assert.strictEqual(xterm.markers[0].line, 10);
 			await writeP(xterm,
 				'\n\r2' +
 				'\x1b[3G' // Move cursor to column 3
 			);
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
+			xterm._core._onData.fire('\x0d'); // Mark line
 			assert.strictEqual(xterm.markers[1].line, 11);
 			await writeP(xterm, '\n\r3');
 
@@ -143,13 +143,13 @@ suite('Workbench - TerminalCommandTracker', function () {
 				'\n\r1' +
 				'\x1b[3G' // Move cursor to column 3
 			);
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
+			xterm._core._onData.fire('\x0d'); // Mark line
 			assert.strictEqual(xterm.markers[0].line, 10);
 			await writeP(xterm,
 				'\n\r2' +
 				'\x1b[3G' // Move cursor to column 3
 			);
-			xterm._core._onKey.fire({ key: '\x0d' }); // Mark line
+			xterm._core._onData.fire('\x0d'); // Mark line
 			assert.strictEqual(xterm.markers[1].line, 11);
 			await writeP(xterm, '\n\r3');
 

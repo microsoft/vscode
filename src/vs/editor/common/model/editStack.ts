@@ -161,11 +161,11 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 		return this.model.uri;
 	}
 
-	public get label(): string {
-		return nls.localize('edit', "Typing");
-	}
-
-	constructor(model: ITextModel, beforeCursorState: Selection[] | null) {
+	constructor(
+		public readonly label: string,
+		model: ITextModel,
+		beforeCursorState: Selection[] | null
+	) {
 		this.model = model;
 		this._data = SingleModelEditStackData.create(model, beforeCursorState);
 	}
@@ -413,7 +413,7 @@ export class EditStack {
 		if (isEditStackElement(lastElement) && lastElement.canAppend(this._model)) {
 			return lastElement;
 		}
-		const newElement = new SingleModelEditStackElement(this._model, beforeCursorState);
+		const newElement = new SingleModelEditStackElement(nls.localize('edit', "Typing"), this._model, beforeCursorState);
 		this._undoRedoService.pushElement(newElement);
 		return newElement;
 	}

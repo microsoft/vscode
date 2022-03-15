@@ -33,7 +33,7 @@ export interface IEditorTabGroup {
 }
 
 export interface IEditorTabGroups {
-	all: IEditorTabGroup[];
+	groups: IEditorTabGroup[];
 	activeTabGroup: IEditorTabGroup | undefined;
 	readonly onDidChangeTabGroup: Event<void>;
 	readonly onDidChangeActiveTabGroup: Event<IEditorTabGroup | undefined>;
@@ -55,7 +55,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	private readonly _onDidChangeActiveTabGroup = new Emitter<IEditorTabGroup | undefined>();
 
 	private _tabGroups: IEditorTabGroups = {
-		all: [],
+		groups: [],
 		activeTabGroup: undefined,
 		onDidChangeTabGroup: this._onDidChangeTabGroup.event,
 		onDidChangeActiveTabGroup: this._onDidChangeActiveTabGroup.event
@@ -71,7 +71,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void {
 		// Clears the tab groups array
-		this._tabGroups.all.length = 0;
+		this._tabGroups.groups.length = 0;
 		let activeGroupFound = false;
 		for (const group of tabGroups) {
 			let activeTab: IEditorTab | undefined;
@@ -82,7 +82,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				}
 				return extHostTab;
 			});
-			this._tabGroups.all.push(Object.freeze({
+			this._tabGroups.groups.push(Object.freeze({
 				isActive: group.isActive,
 				viewColumn: typeConverters.ViewColumn.to(group.viewColumn),
 				activeTab,
@@ -93,7 +93,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			if (group.isActive) {
 				activeGroupFound = true;
 				const oldActiveTabGroup = this._tabGroups.activeTabGroup;
-				this._tabGroups.activeTabGroup = this._tabGroups.all[this._tabGroups.all.length - 1];
+				this._tabGroups.activeTabGroup = this._tabGroups.groups[this._tabGroups.groups.length - 1];
 				// Diff the old and current active group to decide if we should fire a change event
 				if (this.groupDiff(oldActiveTabGroup, this._tabGroups.activeTabGroup)) {
 					this._onDidChangeActiveTabGroup.fire(this._tabGroups.activeTabGroup);
