@@ -70,5 +70,7 @@
     "watch": "../node_modules/.bin/tsc -p tsconfig.build.json --watch",
     "npmCheckJs": "../node_modules/.bin/tsc --noEmit"
   },
-  "dependencies": {}
+  "dependencies": {
+    "typescript": "^4.7.0-dev.20220315"
+  }
 }
