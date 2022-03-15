@@ -48,11 +48,6 @@ configurationRegistry.registerConfiguration({
 	title: localize('timelineConfigurationTitle', "Timeline"),
 	type: 'object',
 	properties: {
-		'timeline.activeSource': {
-			type: 'string',
-			default: null,
-			description: localize('timeline.activeSource', "The active Timeline source that shows in the Timeline view."),
-		},
 		'timeline.pageSize': {
 			type: ['number', 'null'],
 			default: null,

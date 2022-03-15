@@ -51,6 +51,7 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 const ItemHeight = 22;
 
@@ -258,7 +259,8 @@ export class TimelinePane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -266,9 +268,10 @@ export class TimelinePane extends ViewPane {
 
 		this.followActiveEditorContext = TimelineFollowActiveEditorContext.bindTo(this.contextKeyService);
 
-		this.excludedSources = HardcodedTimelineProviders.resolveTimelineExcludes(configurationService);
+		this.excludedSources = HardcodedTimelineProviders.resolveTimelineExcludes(storageService);
 
 		this._register(configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this));
+		this._register(storageService.onDidChangeValue(this.onStorageChanged, this));
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
 		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
 		this._register(timelineService.onDidChangeUri(uri => this.setUri(uri), this));
@@ -334,9 +337,11 @@ export class TimelinePane extends ViewPane {
 		if (e.affectsConfiguration('timeline.pageOnScroll')) {
 			this._pageOnScroll = undefined;
 		}
+	}
 
-		if (e.affectsConfiguration('timeline.activeSource')) {
-			this.excludedSources = HardcodedTimelineProviders.resolveTimelineExcludes(this.configurationService);
+	private onStorageChanged(e: IStorageValueChangeEvent) {
+		if (e.key === 'timeline.activeSource') {
+			this.excludedSources = HardcodedTimelineProviders.resolveTimelineExcludes(this.storageService);
 
 			const missing = this.timelineService.getSources()
 				.filter(({ id }) => !this.excludedSources.has(id) && !this.timelinesBySource.has(id));
@@ -1057,8 +1062,8 @@ class HardcodedTimelineProviders {
 		}
 	};
 
-	static resolveTimelineExcludes(configurationService: IConfigurationService): Set<string> {
-		const activeSource = configurationService.getValue('timeline.activeSource');
+	static resolveTimelineExcludes(storageService: IStorageService): Set<string> {
+		const activeSource = storageService.get('timeline.activeSource', StorageScope.WORKSPACE);
 		if (activeSource === HardcodedTimelineProviders.TimelineProviders.LOCAL.id) {
 			return new Set([HardcodedTimelineProviders.TimelineProviders.GIT.id]);
 		}
@@ -1068,8 +1073,8 @@ class HardcodedTimelineProviders {
 		return new Set([HardcodedTimelineProviders.TimelineProviders.LOCAL.id]);
 	}
 
-	static resolveDropdownViewModel(configurationService: IConfigurationService) {
-		const excludedSources = HardcodedTimelineProviders.resolveTimelineExcludes(configurationService);
+	static resolveDropdownViewModel(storageService: IStorageService) {
+		const excludedSources = HardcodedTimelineProviders.resolveTimelineExcludes(storageService);
 
 		return {
 			items: [
@@ -1087,12 +1092,12 @@ class SwitchSourceActionViewItem extends SelectActionViewItem {
 		action: IAction,
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(null, action, [], 0, contextViewService, { ariaLabel: localize('timelineSources', "Timeline Sources"), optionsAsChildren: true });
 
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('timeline.activeSource')) {
+		this._register(storageService.onDidChangeValue(e => {
+			if (e.key === 'timeline.activeSource') {
 				this.updateOptions();
 			}
 		}));
@@ -1112,13 +1117,13 @@ class SwitchSourceActionViewItem extends SelectActionViewItem {
 	}
 
 	protected override getActionContext(option: string, index: number): string {
-		const { items } = HardcodedTimelineProviders.resolveDropdownViewModel(this.configurationService);
+		const { items } = HardcodedTimelineProviders.resolveDropdownViewModel(this.storageService);
 
 		return items[index].id;
 	}
 
 	private updateOptions(): void {
-		const { items, selected } = HardcodedTimelineProviders.resolveDropdownViewModel(this.configurationService);
+		const { items, selected } = HardcodedTimelineProviders.resolveDropdownViewModel(this.storageService);
 		this.setOptions(items, selected);
 	}
 }
@@ -1324,9 +1329,9 @@ class TimelinePaneCommands extends Disposable {
 			}
 			async run(accessor: ServicesAccessor, sourceId: string): Promise<void> {
 				if (typeof sourceId === 'string') {
-					const configurationService = accessor.get(IConfigurationService);
+					const storageService = accessor.get(IStorageService);
 
-					return configurationService.updateValue('timeline.activeSource', sourceId);
+					return storageService.store('timeline.activeSource', sourceId, StorageScope.WORKSPACE, StorageTarget.USER);
 				}
 			}
 		}));
