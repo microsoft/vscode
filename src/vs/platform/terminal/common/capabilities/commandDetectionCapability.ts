@@ -65,6 +65,11 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	getCwdForLine(line: number): string | undefined {
+		// Handle the current partial command first, anything below it's prompt is considered part
+		// of the current command
+		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
+			return this._cwd;
+		}
 		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
 		// TODO: Use a reverse for loop to find the line to avoid creating another array
 		const reversed = [...this._commands].reverse();
