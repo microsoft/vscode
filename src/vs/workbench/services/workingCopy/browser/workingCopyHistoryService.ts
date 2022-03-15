@@ -19,8 +19,8 @@ import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workben
 
 class BrowserWorkingCopyHistoryModel extends WorkingCopyHistoryModel {
 
-	override async addEntry(source: SaveSource, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
-		const entry = await super.addEntry(source, token);
+	override async addEntry(source: SaveSource, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+		const entry = await super.addEntry(source, timestamp, token);
 		if (!token.isCancellationRequested) {
 			await this.store(); // need to store on each add because we do not have long running shutdown support in web
 		}

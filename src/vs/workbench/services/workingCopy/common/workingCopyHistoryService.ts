@@ -72,7 +72,7 @@ export class WorkingCopyHistoryModel {
 	) {
 	}
 
-	async addEntry(source = WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+	async addEntry(source = WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE, timestamp = Date.now(), token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
 
 		// Clone to a potentially unique location within
 		// the history entries folder. The idea is to
@@ -83,14 +83,13 @@ export class WorkingCopyHistoryModel {
 		await this.fileService.cloneFile(this.workingCopyResource, location);
 
 		// Add to list of entries
-		const now = Date.now();
 		const entry: IWorkingCopyHistoryEntry = {
 			id,
 			workingCopy: this.workingCopy,
 			location,
 			timestamp: {
-				value: now,
-				label: this.toDateLabel(now)
+				value: timestamp,
+				label: this.toDateLabel(timestamp)
 			},
 			source
 		};
@@ -365,7 +364,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		this.localHistoryHome.complete(historyHome);
 	}
 
-	async addEntry({ resource, source }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
+	async addEntry({ resource, source, timestamp }: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined> {
 		if (!this.fileService.hasProvider(resource)) {
 			return undefined; // we require the working copy resource to be file service accessible
 		}
@@ -377,7 +376,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		}
 
 		// Add to model
-		return model.addEntry(source, token);
+		return model.addEntry(source, timestamp, token);
 	}
 
 	async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {

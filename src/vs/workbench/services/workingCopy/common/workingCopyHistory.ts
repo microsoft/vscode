@@ -69,6 +69,13 @@ export interface IWorkingCopyHistoryEntryDescriptor {
 	readonly resource: URI;
 
 	/**
+	 * Optional associated timestamp to use for the
+	 * history entry. If not provided, the current
+	 * time will be used.
+	 */
+	readonly timestamp?: number;
+
+	/**
 	 * Optional source why the entry was added.
 	 */
 	readonly source?: SaveSource;
