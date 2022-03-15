@@ -85,6 +85,7 @@ declare module 'vscode' {
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
 		 * should no longer be used for further actions.
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
 		 */
 		// TODO@API move into TabGroups, support one or many tabs or tab groups
 		close(preserveFocus: boolean): Thenable<void>;
