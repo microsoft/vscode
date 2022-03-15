@@ -406,7 +406,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
 				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
+			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
