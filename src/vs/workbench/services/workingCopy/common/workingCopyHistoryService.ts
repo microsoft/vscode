@@ -86,7 +86,7 @@ export class WorkingCopyHistoryModel {
 			id,
 			workingCopy: this.workingCopy,
 			location,
-			time: {
+			timestamp: {
 				value: now,
 				label: this.toDateLabel(now)
 			},
@@ -139,7 +139,7 @@ export class WorkingCopyHistoryModel {
 		}
 
 		// Set as entries, sorted by timestamp
-		this.entries = Array.from(entries.values()).sort((entryA, entryB) => entryA.time.value - entryB.time.value);
+		this.entries = Array.from(entries.values()).sort((entryA, entryB) => entryA.timestamp.value - entryB.timestamp.value);
 	}
 
 	private async resolveEntriesFromDisk(): Promise<Map<string /* ID */, IWorkingCopyHistoryEntry>> {
@@ -160,7 +160,7 @@ export class WorkingCopyHistoryModel {
 					id: entryStat.name,
 					workingCopy: this.workingCopy,
 					location: entryStat.resource,
-					time: {
+					timestamp: {
 						value: entryStat.mtime,
 						label: this.toDateLabel(entryStat.mtime)
 					},
@@ -176,7 +176,7 @@ export class WorkingCopyHistoryModel {
 				if (existingEntry) {
 					entries.set(entry.id, {
 						...existingEntry,
-						time: {
+						timestamp: {
 							value: entry.timestamp,
 							label: this.toDateLabel(entry.timestamp)
 						},
@@ -235,7 +235,7 @@ export class WorkingCopyHistoryModel {
 				return {
 					id: entry.id,
 					source: entry.source !== WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE ? entry.source : undefined,
-					timestamp: entry.time.value
+					timestamp: entry.timestamp.value
 				};
 			})
 		};

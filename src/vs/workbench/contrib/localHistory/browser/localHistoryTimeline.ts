@@ -138,9 +138,9 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		return {
 			handle: entry.id,
 			label: SaveSourceRegistry.getSourceLabel(entry.source) ?? entry.source,
-			description: entry.time.label,
+			description: entry.timestamp.label,
 			source: LocalHistoryTimeline.ID,
-			timestamp: entry.time.value,
+			timestamp: entry.timestamp.value,
 			themeIcon: Codicon.save,
 			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
 			command: {

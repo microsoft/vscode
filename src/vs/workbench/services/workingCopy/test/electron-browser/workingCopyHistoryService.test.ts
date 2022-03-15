@@ -346,10 +346,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 	function assertEntryEqual(entryA: IWorkingCopyHistoryEntry, entryB: IWorkingCopyHistoryEntry, assertTimestamp = true): void {
 		assert.strictEqual(entryA.id, entryB.id);
-		assert.strictEqual(entryA.time.label, entryB.time.label);
+		assert.strictEqual(entryA.timestamp.label, entryB.timestamp.label);
 		assert.strictEqual(entryA.location.toString(), entryB.location.toString());
 		if (assertTimestamp) {
-			assert.strictEqual(entryA.time.value, entryB.time.value);
+			assert.strictEqual(entryA.timestamp.value, entryB.timestamp.value);
 		}
 		assert.strictEqual(entryA.source, entryB.source);
 		assert.strictEqual(entryA.workingCopy.name, entryB.workingCopy.name);

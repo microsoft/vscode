@@ -81,7 +81,7 @@ registerAction2(class extends Action2 {
 				workingCopy: entry.workingCopy,
 				source: '',
 				location: entry.workingCopy.resource,
-				time: {
+				timestamp: {
 					label: localize('latestFile', "File"),
 					value: 0
 				}
@@ -180,13 +180,13 @@ export function toCompareWithPreviousCommandArguments(entry: IWorkingCopyHistory
 			label: previousEntry ? localize(
 				'localHistoryCompareEditorLabel', "{0} ({1}) ↔ {2} ({3})",
 				previousEntry.workingCopy.name,
-				previousEntry.time.label,
+				previousEntry.timestamp.label,
 				entry.workingCopy.name,
-				entry.time.label
+				entry.timestamp.label
 			) : localize(
 				'localHistoryCompareEditorLabelWithoutPrevious', "{0} ({1})",
 				entry.workingCopy.name,
-				entry.time.label
+				entry.timestamp.label
 			),
 			description: SaveSourceRegistry.getSourceLabel(entry.source)
 		},
