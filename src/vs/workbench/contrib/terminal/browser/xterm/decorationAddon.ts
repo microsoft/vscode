@@ -193,24 +193,25 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		this._overviewRuler = this._terminal.registerDecoration({ marker: command.marker, overviewRulerItemColor, width: DecorationStyles.OverlayRulerWidth });
 
 		decoration.onRender(element => {
-			if (element && !element.classList.contains(DecorationSelector.OverviewRuler)) {
+			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
+				return;
+			}
+			if (beforeCommandExecution && !this._placeholderDecoration) {
+				this._placeholderDecoration = decoration;
+				this._placeholderDecoration.onDispose(() => this._placeholderDecoration = undefined);
+			} else {
 				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
-				if (beforeCommandExecution && !this._placeholderDecoration) {
-					this._placeholderDecoration = decoration;
-					this._placeholderDecoration.onDispose(() => this._placeholderDecoration = undefined);
-				} else {
-					this._decorations.set(decoration.marker.id,
-						{
-							decoration,
-							disposables: command.exitCode === undefined ? [] : [this._createContextMenu(element, command), ...this._createHover(element, command)],
-							exitCode: command.exitCode
-						});
-				}
-				if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
-					// first render or buffer was cleared
-					this._updateLayout(element);
-					this._updateClasses(element, command.exitCode);
-				}
+				this._decorations.set(decoration.marker.id,
+					{
+						decoration,
+						disposables: command.exitCode === undefined ? [] : [this._createContextMenu(element, command), ...this._createHover(element, command)],
+						exitCode: command.exitCode
+					});
+			}
+			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
+				// first render or buffer was cleared
+				this._updateLayout(element);
+				this._updateClasses(element, command.exitCode);
 			}
 		});
 		return decoration;
