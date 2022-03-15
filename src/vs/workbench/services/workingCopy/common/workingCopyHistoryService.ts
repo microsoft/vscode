@@ -63,6 +63,8 @@ export class WorkingCopyHistoryModel {
 	constructor(
 		private readonly workingCopyResource: URI,
 		private readonly historyHome: URI,
+		private readonly entryAddedEmitter: Emitter<IWorkingCopyHistoryEvent>,
+		private readonly entryRemovedEmitter: Emitter<IWorkingCopyHistoryEvent>,
 		private readonly fileService: IFileService,
 		private readonly labelService: ILabelService,
 		private readonly logService: ILogService,
@@ -94,6 +96,9 @@ export class WorkingCopyHistoryModel {
 		};
 		this.entries.push(entry);
 
+		// Events
+		this.entryAddedEmitter.fire({ entry });
+
 		return entry;
 	}
 
@@ -114,6 +119,9 @@ export class WorkingCopyHistoryModel {
 
 		// Remove from model
 		this.entries.splice(index, 1);
+
+		// Events
+		this.entryRemovedEmitter.fire({ entry });
 
 		return true;
 	}
@@ -236,6 +244,11 @@ export class WorkingCopyHistoryModel {
 		// Make sure to update our in-memory model as well
 		// because it will be persisted right after
 		this.entries = entriesToKeep;
+
+		// Events
+		for (const entry of entriesToDelete) {
+			this.entryRemovedEmitter.fire({ entry });
+		}
 	}
 
 	private async deleteEntry(entry: IWorkingCopyHistoryEntry): Promise<void> {
@@ -307,10 +320,10 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidAddEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
+	protected readonly _onDidAddEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
 	readonly onDidAddEntry = this._onDidAddEntry.event;
 
-	private readonly _onDidRemoveEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
+	protected readonly _onDidRemoveEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
 	readonly onDidRemoveEntry = this._onDidRemoveEntry.event;
 
 	private readonly localHistoryHome = new DeferredPromise<URI>();
@@ -364,12 +377,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		}
 
 		// Add to model
-		const entry = await model.addEntry(source, token);
-
-		// Events
-		this._onDidAddEntry.fire({ entry });
-
-		return entry;
+		return model.addEntry(source, token);
 	}
 
 	async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {
@@ -381,14 +389,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		}
 
 		// Remove from model
-		const removed = await model.removeEntry(entry, token);
-
-		// Events
-		if (removed) {
-			this._onDidRemoveEntry.fire({ entry });
-		}
-
-		return removed;
+		return model.removeEntry(entry, token);
 	}
 
 	async getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]> {
@@ -414,7 +415,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 	}
 
 	protected createModel(resource: URI, historyHome: URI): WorkingCopyHistoryModel {
-		return new WorkingCopyHistoryModel(resource, historyHome, this.fileService, this.labelService, this.logService, this.configurationService);
+		return new WorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidRemoveEntry, this.fileService, this.labelService, this.logService, this.configurationService);
 	}
 }
 
