@@ -16,7 +16,6 @@ import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListVirtualDelegate, IIdentityProvider, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
@@ -24,8 +23,8 @@ import { ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ITreeElement } from 'v
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ContextKeyExpr, IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
@@ -36,11 +35,11 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItem, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -50,6 +49,8 @@ import { isString } from 'vs/base/common/types';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 
 const ItemHeight = 22;
 
@@ -265,9 +266,9 @@ export class TimelinePane extends ViewPane {
 
 		this.followActiveEditorContext = TimelineFollowActiveEditorContext.bindTo(this.contextKeyService);
 
-		this.excludedSources = new Set(configurationService.getValue('timeline.excludeSources'));
-		configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this);
+		this.excludedSources = HardcodedTimelineProviders.resolveTimelineExcludes(configurationService);
 
+		this._register(configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this));
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
 		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
 		this._register(timelineService.onDidChangeUri(uri => this.setUri(uri), this));
@@ -334,8 +335,8 @@ export class TimelinePane extends ViewPane {
 			this._pageOnScroll = undefined;
 		}
 
-		if (e.affectsConfiguration('timeline.excludeSources')) {
-			this.excludedSources = new Set(this.configurationService.getValue('timeline.excludeSources'));
+		if (e.affectsConfiguration('timeline.activeSource')) {
+			this.excludedSources = HardcodedTimelineProviders.resolveTimelineExcludes(this.configurationService);
 
 			const missing = this.timelineService.getSources()
 				.filter(({ id }) => !this.excludedSources.has(id) && !this.timelinesBySource.has(id));
@@ -1011,6 +1012,115 @@ export class TimelinePane extends ViewPane {
 			actionRunner: new TimelineActionRunner()
 		});
 	}
+
+	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+		if (action.id === 'workbench.timeline.action.switchSource') {
+			return this.instantiationService.createInstance(SwitchSourceActionViewItem, action);
+		}
+
+		return super.getActionViewItem(action);
+	}
+}
+
+/**
+ * @deprecated
+ */
+class HardcodedTimelineProviders {
+
+	// TODO@timeline: this entire thing is a huge hack and needs to be cleaned up:
+	//
+	// - the timeline view assumes it can show multiple sources at once and thus
+	//   requires an array of excluded sources. but in reality, the timeline view
+	//   should only ever show a single source at the same time and not merge
+	//   entries. it makes little sense to mix-and-match entries from git with the
+	//   local history, because there is no loverlap between the items
+	//
+	// - we used to have a (now deprecated) setting `timeline.excludeSources` that
+	//   was changed to the proper `timeline.activeSource` analogy. but in order
+	//   to convert back to the view model of requiring an array of sources to
+	//   exclude, we need to hardcode all providers we are aware of and convert
+	//   to this legacy structure
+	//
+	// Besides: we want to preserve the view model where only the git history would
+	// appear by default so that existing users do not have to make adjustments to
+	// see the git history. The local history should only be accessible on demand
+	// since it is less useful and should be used less often in general.
+
+	static TimelineProviders = {
+		GIT: {
+			id: 'git-history',
+			text: localize('git.history', "Git History")
+		},
+		LOCAL: {
+			id: 'timeline.localHistory',
+			text: localize('local.history', "Local History")
+		}
+	};
+
+	static resolveTimelineExcludes(configurationService: IConfigurationService): Set<string> {
+		const activeSource = configurationService.getValue('timeline.activeSource');
+		if (activeSource === HardcodedTimelineProviders.TimelineProviders.LOCAL.id) {
+			return new Set([HardcodedTimelineProviders.TimelineProviders.GIT.id]);
+		}
+
+		// Preserve backwards compatibility where we only had a single provider
+		// and make sure the history provider is excluded over the Git one
+		return new Set([HardcodedTimelineProviders.TimelineProviders.LOCAL.id]);
+	}
+
+	static resolveDropdownViewModel(configurationService: IConfigurationService) {
+		const excludedSources = HardcodedTimelineProviders.resolveTimelineExcludes(configurationService);
+
+		return {
+			items: [
+				HardcodedTimelineProviders.TimelineProviders.GIT,
+				HardcodedTimelineProviders.TimelineProviders.LOCAL
+			],
+			selected: excludedSources.has(HardcodedTimelineProviders.TimelineProviders.GIT.id) ? 1 : 0
+		};
+	}
+}
+
+class SwitchSourceActionViewItem extends SelectActionViewItem {
+
+	constructor(
+		action: IAction,
+		@IThemeService private readonly themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(null, action, [], 0, contextViewService, { ariaLabel: localize('timelineSources', "Timeline Sources"), optionsAsChildren: true });
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('timeline.activeSource')) {
+				this.updateOptions();
+			}
+		}));
+		this._register(attachSelectBoxStyler(this.selectBox, themeService));
+
+		this.updateOptions();
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+
+		container.classList.add('switch-source');
+
+		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
+		}));
+	}
+
+	protected override getActionContext(option: string, index: number): string {
+		const { items } = HardcodedTimelineProviders.resolveDropdownViewModel(this.configurationService);
+
+		return items[index].id;
+	}
+
+	private updateOptions(): void {
+		const { items, selected } = HardcodedTimelineProviders.resolveDropdownViewModel(this.configurationService);
+		this.setOptions(items, selected);
+	}
 }
 
 export class TimelineElementTemplate implements IDisposable {
@@ -1192,18 +1302,34 @@ const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timeline
 const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
 
 class TimelinePaneCommands extends Disposable {
-	private sourceDisposables: DisposableStore;
 
 	constructor(
 		private readonly pane: TimelinePane,
-		@ITimelineService private readonly timelineService: ITimelineService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
+		@IMenuService private readonly menuService: IMenuService
 	) {
 		super();
 
-		this._register(this.sourceDisposables = new DisposableStore());
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.timeline.action.switchSource',
+					title: localize('switchToSource.label', "Switch to Source"),
+					menu: {
+						id: MenuId.TimelineTitle,
+						group: 'navigation',
+						order: 1
+					},
+				});
+			}
+			async run(accessor: ServicesAccessor, sourceId: string): Promise<void> {
+				if (typeof sourceId === 'string') {
+					const configurationService = accessor.get(IConfigurationService);
+
+					return configurationService.updateValue('timeline.activeSource', sourceId);
+				}
+			}
+		}));
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -1251,9 +1377,6 @@ class TimelinePaneCommands extends Disposable {
 			order: 98,
 			when: TimelineFollowActiveEditorContext.toNegated()
 		})));
-
-		this._register(timelineService.onDidChangeProviders(() => this.updateTimelineSourceFilters()));
-		this.updateTimelineSourceFilters();
 	}
 
 	getItemActions(element: TreeElement): IAction[] {
@@ -1279,38 +1402,5 @@ class TimelinePaneCommands extends Disposable {
 		menu.dispose();
 
 		return result;
-	}
-
-	private updateTimelineSourceFilters() {
-		this.sourceDisposables.clear();
-
-		const excluded = new Set(this.configurationService.getValue<string[] | undefined>('timeline.excludeSources') ?? []);
-
-		for (const source of this.timelineService.getSources()) {
-			this.sourceDisposables.add(registerAction2(class extends Action2 {
-				constructor() {
-					super({
-						id: `timeline.toggleExcludeSource:${source.id}`,
-						title: { value: localize('timeline.filterSource', "Include: {0}", source.label), original: `Include: ${source.label}` },
-						category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
-						menu: {
-							id: MenuId.TimelineTitle,
-							group: '2_sources',
-						},
-						toggled: ContextKeyExpr.regex(`config.timeline.excludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
-					});
-				}
-				run(accessor: ServicesAccessor, ...args: any[]) {
-					if (excluded.has(source.id)) {
-						excluded.delete(source.id);
-					} else {
-						excluded.add(source.id);
-					}
-
-					const configurationService = accessor.get(IConfigurationService);
-					configurationService.updateValue('timeline.excludeSources', [...excluded.keys()]);
-				}
-			}));
-		}
 	}
 }

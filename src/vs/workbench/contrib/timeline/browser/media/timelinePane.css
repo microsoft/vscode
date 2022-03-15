@@ -61,3 +61,42 @@
 	visibility: visible !important;
 	width: initial;
 }
+
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-source,
+.monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-source {
+	border-width: 1px;
+	border-style: solid;
+}
+
+.part.panel > .title > .title-actions .switch-source > .monaco-select-box {
+	border-width: 1px;
+	border-style: solid;
+}
+
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-source  {
+	display: flex;
+	align-items: center;
+	font-size: 11px;
+	margin-right: 0.3em;
+	height: 20px;
+	flex-shrink: 1;
+	margin-top: 7px;
+}
+
+.monaco-workbench.mac .part.sidebar > .title > .title-actions .switch-source {
+	border-radius: 4px;
+}
+
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-source > .monaco-select-box {
+	border: none !important;
+	display: block !important;
+	background-color: unset !important;
+}
+
+.monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-source.action-item.select-container {
+	border: none !important;
+}
+
+.monaco-workbench .part.sidebar > .title > .title-actions .switch-source > .monaco-select-box {
+	padding: 0 22px 0 6px;
+}
