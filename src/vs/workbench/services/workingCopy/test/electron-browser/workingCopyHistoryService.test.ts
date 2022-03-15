@@ -378,11 +378,6 @@ flakySuite('WorkingCopyHistoryService', () => {
 		service._lifecycleService.fireWillShutdown(event);
 		await Promise.allSettled(event.value);
 
-		assert.ok(!existsSync(entry1.location.fsPath));
-		assert.ok(!existsSync(entry2.location.fsPath));
-		assert.ok(existsSync(entry3.location.fsPath));
-		assert.ok(existsSync(entry4.location.fsPath));
-
 		// Resolve from disk fresh and verify again
 
 		service.dispose();
