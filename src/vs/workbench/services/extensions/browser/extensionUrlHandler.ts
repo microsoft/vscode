@@ -298,7 +298,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		if (this.extensionService.canAddExtension(toExtensionDescription(extension))) {
-			await this.waitUntilExtensionIsRunning(extensionIdentifier);
+			await this.waitUntilExtensionIsAdded(extensionIdentifier);
 			await this.handleURL(uri, { ...options, trusted: true });
 		}
 
@@ -323,7 +323,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 	}
 
-	private async waitUntilExtensionIsRunning(extensionId: IExtensionIdentifier): Promise<void> {
+	private async waitUntilExtensionIsAdded(extensionId: IExtensionIdentifier): Promise<void> {
 		if (!(await this.extensionService.getExtension(extensionId.id))) {
 			await new Promise<void>((c, e) => {
 				const disposable = this.extensionService.onDidChangeExtensions(async () => {
