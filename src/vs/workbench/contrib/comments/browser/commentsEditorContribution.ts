@@ -831,7 +831,7 @@ registerThemingParticipant((theme, collector) => {
 	const monacoEditorBackground = theme.getColor(peekViewTitleBackground);
 	if (monacoEditorBackground) {
 		collector.addRule(
-			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
+			`.review-widget .body .comment-form .review-thread-reply-button {` +
 			`	background-color: ${monacoEditorBackground}` +
 			`}`
 		);
@@ -840,10 +840,10 @@ registerThemingParticipant((theme, collector) => {
 	const monacoEditorForeground = theme.getColor(editorForeground);
 	if (monacoEditorForeground) {
 		collector.addRule(
-			`.monaco-editor .review-widget .body .monaco-editor {` +
+			`.review-widget .body .monaco-editor {` +
 			`	color: ${monacoEditorForeground}` +
 			`}` +
-			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
+			`.review-widget .body .comment-form .review-thread-reply-button {` +
 			`	color: ${monacoEditorForeground};` +
 			`	font-size: inherit` +
 			`}`
@@ -858,7 +858,7 @@ registerThemingParticipant((theme, collector) => {
 			`	0% { background: ${selectionBackground}; }` +
 			`	100% { background: transparent; }` +
 			`}` +
-			`.monaco-editor .review-widget .body .review-comment.focus {` +
+			`.review-widget .body .review-comment.focus {` +
 			`	animation: monaco-review-widget-focus 3s ease 0s;` +
 			`}`
 		);
@@ -884,11 +884,11 @@ registerThemingParticipant((theme, collector) => {
 
 	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 	if (statusBarItemHoverBackground) {
-		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active:hover { background-color: ${statusBarItemHoverBackground};}`);
+		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active:hover { background-color: ${statusBarItemHoverBackground};}`);
 	}
 
 	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 	if (statusBarItemActiveBackground) {
-		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
+		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
 	}
 });

@@ -17,6 +17,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class TestCommentThread implements languages.CommentThread {
 	private _input?: languages.CommentInput;
@@ -145,10 +146,16 @@ export class CellComments extends CellPart {
 		private readonly container: HTMLElement,
 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.container.classList.add('review-widget');
+
+		this._register(this.themeService.onDidColorThemeChange(this._applyTheme, this));
+		// TODO @rebornix onDidChangeLayout (font change)
+		// this._register(this.notebookEditor.onDidchangeLa)
+		this._applyTheme();
 	}
 
 	private initialize(element: ICellViewModel) {
@@ -181,6 +188,7 @@ export class CellComments extends CellPart {
 			const layoutInfo = this.notebookEditor.getLayoutInfo();
 
 			this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight);
+			this._applyTheme();
 			this._bindListeners();
 		}
 	}
@@ -224,6 +232,12 @@ export class CellComments extends CellPart {
 		];
 
 		return commentThread;
+	}
+
+	private _applyTheme() {
+		const theme = this.themeService.getColorTheme();
+		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
+		this._commentThreadWidget?.applyTheme(theme, fontInfo);
 	}
 
 	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
