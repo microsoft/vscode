@@ -639,6 +639,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			await this.update(this._commentThread);
 		}));
 
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(async _ => {
+			await this.update(this._commentThread);
+		}));
+
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeLabel(_ => {
 			this.createThreadLabel();
 		}));
@@ -890,7 +894,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(peekViewBorder);
+		const borderColor = Color.fromHex('#ff0000') || theme.getColor(peekViewBorder);
 		this.style({
 			arrowColor: borderColor || Color.transparent,
 			frameColor: borderColor || Color.transparent

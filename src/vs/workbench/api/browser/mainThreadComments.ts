@@ -120,6 +120,19 @@ export class MainThreadCommentThread implements languages.CommentThread {
 		return this._isDisposed;
 	}
 
+	private _state: languages.CommentThreadState | undefined;
+	get state() {
+		return this._state;
+	}
+
+	set state(newState: languages.CommentThreadState | undefined) {
+		this._state = newState;
+		this._onDidChangeState.fire(this._state);
+	}
+
+	private readonly _onDidChangeState = new Emitter<languages.CommentThreadState | undefined>();
+	public onDidChangeState = this._onDidChangeState.event;
+
 	constructor(
 		public commentThreadHandle: number,
 		public controllerHandle: number,
@@ -142,6 +155,7 @@ export class MainThreadCommentThread implements languages.CommentThread {
 		if (modified('comments')) { this._comments = changes.comments; }
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
 		if (modified('canReply')) { this.canReply = changes.canReply!; }
+		if (modified('state')) { this.state = changes.state!; }
 	}
 
 	dispose() {
@@ -151,6 +165,7 @@ export class MainThreadCommentThread implements languages.CommentThread {
 		this._onDidChangeInput.dispose();
 		this._onDidChangeLabel.dispose();
 		this._onDidChangeRange.dispose();
+		this._onDidChangeState.dispose();
 	}
 
 	toJSON(): any {
