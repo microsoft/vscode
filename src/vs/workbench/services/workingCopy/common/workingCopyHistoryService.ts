@@ -29,6 +29,7 @@ import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface ISerializedWorkingCopyHistoryModel {
+	readonly version: number;
 	readonly resource: string;
 	readonly entries: ISerializedWorkingCopyHistoryModelEntry[];
 }
@@ -228,6 +229,7 @@ export class WorkingCopyHistoryModel {
 
 	private async writeEntriesFile(): Promise<void> {
 		const serializedModel: ISerializedWorkingCopyHistoryModel = {
+			version: 1,
 			resource: this.workingCopyResource.toString(true),
 			entries: this.entries.map(entry => {
 				return {
