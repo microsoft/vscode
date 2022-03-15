@@ -25,6 +25,7 @@ declare module 'vscode' {
 		/**
 		 * The column which the tab belongs to
 		 */
+		// TODO@API point to TabGroup instead?
 		readonly viewColumn: ViewColumn;
 
 		/**
@@ -85,7 +86,8 @@ declare module 'vscode' {
 		 * Closes the tab. This makes the tab object invalid and the tab
 		 * should no longer be used for further actions.
 		 */
-		// TODO@API move into TabGroups
+		// TODO@API move into TabGroups, support one or many tabs or tab groups
+		// TODO@API add `preserveFocus`
 		close(): Thenable<void>;
 	}
 
