@@ -1151,7 +1151,8 @@
               "type": "boolean",
               "description": "%configuration.tsserver.watchOptions.synchronousWatchDirectory%"
             }
-          }
+          },
+          "additionalProperties": false
         },
         "typescript.workspaceSymbols.scope": {
           "type": "string",
