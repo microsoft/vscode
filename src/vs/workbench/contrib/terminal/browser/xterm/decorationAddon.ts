@@ -8,7 +8,6 @@ import { ITerminalCommand } from 'vs/workbench/contrib/terminal/common/terminal'
 import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -23,6 +22,7 @@ import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
+import { ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
@@ -133,6 +133,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (!capability) {
 			return;
 		}
+		if (capability.commands.length > 0) {
+			const lastCommand = capability.commands[capability.commands.length - 1];
+			if (lastCommand.marker && !lastCommand.endMarker) {
+				this.registerCommandDecoration(lastCommand, true);
+			}
+		}
 		this._commandStartedListener = capability.onCommandStarted(command => this.registerCommandDecoration(command, true));
 	}
 
@@ -144,6 +150,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		const capability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (!capability) {
 			return;
+		}
+		for (const command of capability.commands) {
+			this.registerCommandDecoration(command);
 		}
 		this._commandFinishedListener = capability.onCommandFinished(command => {
 			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
@@ -175,7 +184,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			overviewRulerItemColor = overviewRulerItemColor.toString();
 		}
 		this._terminal.registerDecoration({ marker: command.marker, overviewRulerItemColor, width: DecorationStyles.OverlayRulerWidth });
-
 		decoration.onRender(element => {
 			decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
 			if (beforeCommandExecution && !this._placeholderDecoration) {
@@ -294,9 +302,9 @@ let successColor: string | Color | undefined;
 let errorColor: string | Color | undefined;
 let defaultColor: string | Color | undefined;
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
-	errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
-	defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
+	const successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
+	const errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
+	const defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
 	const hoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 
 	if (successColor) {
