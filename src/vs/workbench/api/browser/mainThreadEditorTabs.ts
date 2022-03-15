@@ -349,7 +349,7 @@ export class MainThreadEditorTabs {
 		return;
 	}
 
-	async $closeTab(tab: IEditorTabDto): Promise<void> {
+	async $closeTab(tab: IEditorTabDto, preserveFocus: boolean): Promise<void> {
 		const group = this._editorGroupsService.getGroup(columnToEditorGroup(this._editorGroupsService, tab.viewColumn));
 		if (!group) {
 			return;
@@ -359,7 +359,7 @@ export class MainThreadEditorTabs {
 		if (!editor) {
 			return;
 		}
-		await group.closeEditor(editor);
+		await group.closeEditor(editor, { preserveFocus });
 	}
 	//#endregion
 }

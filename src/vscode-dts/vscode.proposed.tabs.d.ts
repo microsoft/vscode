@@ -87,8 +87,7 @@ declare module 'vscode' {
 		 * should no longer be used for further actions.
 		 */
 		// TODO@API move into TabGroups, support one or many tabs or tab groups
-		// TODO@API add `preserveFocus`
-		close(): Thenable<void>;
+		close(preserveFocus: boolean): Thenable<void>;
 	}
 
 	export namespace window {

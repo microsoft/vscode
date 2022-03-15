@@ -1287,7 +1287,7 @@ export class Repository implements Disposable {
 				t.additionalResourcesAndViewTypes.find(r => r.resource!.scheme === 'git')));
 
 		// Close editors
-		diffEditorTabsToClose.forEach(t => t.close());
+		diffEditorTabsToClose.forEach(t => t.close(false));
 	}
 
 	async branch(name: string, _checkout: boolean, _ref?: string): Promise<void> {
