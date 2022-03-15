@@ -2841,11 +2841,6 @@ typed-rest-client@^1.8.4:
     tunnel "0.0.6"
     underscore "^1.12.1"
 
-typescript@^4.7.0-dev.20220315:
-  version "4.7.0-dev.20220315"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.7.0-dev.20220315.tgz#f4486025a7d9aa39e8bd21d1f863e7b7513347dd"
-  integrity sha512-miUXjP+dc+ZRT7cUv/p+FKBBRifvV/dLZsrYigY3pclH/LMWWcmUz9mEtqOxTs8m3d1T6RobtF6BfQB8goqM6w==
-
 uc.micro@^1.0.1, uc.micro@^1.0.5:
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/uc.micro/-/uc.micro-1.0.5.tgz#0c65f15f815aa08b560a61ce8b4db7ffc3f45376"

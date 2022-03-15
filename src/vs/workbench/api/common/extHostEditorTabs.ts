@@ -109,7 +109,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	}
 
 	private createExtHostTabObject(tabDto: IEditorTabDto): IEditorTab {
-		return Object.freeze<IEditorTab>({
+		return Object.freeze({
 			label: tabDto.label,
 			viewColumn: typeConverters.ViewColumn.to(tabDto.viewColumn),
 			resource: URI.revive(tabDto.resource),
