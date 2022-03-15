@@ -49,6 +49,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	private _contextMenuVisible: boolean = false;
 	private _decorations: Map<number, IDisposableDecoration> = new Map();
 	private _placeholderDecoration: IDecoration | undefined;
+	private _overviewRuler: IDecoration | undefined;
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<string>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -95,6 +96,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (disableDecorations) {
 			this._commandStartedListener?.dispose();
 			this._commandFinishedListener?.dispose();
+			this._overviewRuler?.dispose();
 		}
 		this._placeholderDecoration?.dispose();
 		this._placeholderDecoration?.marker.dispose();
@@ -187,7 +189,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		if (overviewRulerItemColor && typeof overviewRulerItemColor !== 'string') {
 			overviewRulerItemColor = overviewRulerItemColor.toString();
 		}
-		this._terminal.registerDecoration({ marker: command.marker, overviewRulerItemColor, width: DecorationStyles.OverlayRulerWidth });
+
+		this._overviewRuler = this._terminal.registerDecoration({ marker: command.marker, overviewRulerItemColor, width: DecorationStyles.OverlayRulerWidth });
 
 		decoration.onRender(element => {
 			if (element && !element.classList.contains(DecorationSelector.OverviewRuler)) {
