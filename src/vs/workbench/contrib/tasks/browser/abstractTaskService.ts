@@ -2795,8 +2795,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 				taskGroupTasks = await this._findWorkspaceTasks((task) => {
 					const taskGroup = task.configurationProperties.group;
-					if (taskGroup && typeof taskGroup !== 'string' && taskGroup.glob) {
-						return (taskGroup._id === taskGroup._id && glob.match(taskGroup.glob, relativePath));
+					if (taskGroup && typeof taskGroup !== 'string' && typeof taskGroup.isDefault === 'string') {
+						return (taskGroup._id === taskGroup._id && glob.match(taskGroup.isDefault, relativePath));
 					}
 
 					return false;

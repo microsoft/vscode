@@ -192,13 +192,9 @@ const group: IJSONSchema = {
 			properties: {
 				kind: groupStrings,
 				isDefault: {
-					type: 'boolean',
+					type: ['boolean', 'string'],
 					default: false,
-					description: nls.localize('JsonSchema.tasks.group.isDefault', 'Defines if this task is the default task in the group.')
-				},
-				glob: {
-					type: 'string',
-					description: nls.localize('JsonSchema.tasks.group.glob', 'Defines a glob to match the active file, if the file matches this task will run automaticaly. This has higher priority than isDefault')
+					description: nls.localize('JsonSchema.tasks.group.isDefault', 'Defines if this task is the default task in the group, or a glob to match the file which should trigger this task.')
 				}
 			}
 		},
