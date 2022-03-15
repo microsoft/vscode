@@ -183,7 +183,7 @@
 	position: absolute;
 }
 
-.xterm-decoration-scrollbar {
+.xterm-decoration-overview-ruler {
 	z-index: 7;
 	position: absolute;
 	top: 0;

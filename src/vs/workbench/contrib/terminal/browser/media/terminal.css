@@ -417,10 +417,10 @@
 .terminal-command-decoration.default {
 	pointer-events: none;
 }
-.xterm-decoration-scrollbar canvas {
-    z-index: 7;
-    position: fixed;
-    top: 0px;
-    right: 0px;
-    width: 50px;
+
+.xterm-decoration-overview-ruler {
+	z-index: 7;
+	position: fixed;
+	top: 0px;
+	right: 0px;
 }
