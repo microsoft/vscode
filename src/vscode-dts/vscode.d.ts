@@ -2065,12 +2065,14 @@ declare module 'vscode' {
 		readonly language?: string;
 
 		/**
-		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter`. This allows
+		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter-notebook`. This allows
 		 * to narrow down on the type of a notebook that a {@link NotebookCell.document cell document} belongs to.
 		 *
-		 * *Note* that combining `notebookType` and {@link DocumentFilter.scheme `scheme`} with a value
-		 * different than `"vscode-notebook-cell"` or `undefined` is invalid and will not match
-		 * any document.
+		 * *Note* that setting the `notebookType`-property changes how `scheme` and `pattern` are interpreted. When set
+		 * they are evaluated against the {@link NotebookDocument.uri notebook uri}, not the document uri.
+		 *
+		 * @example <caption>Match python document inside jupyter notebook that aren't stored yet</caption>
+		 * { language: 'python', notebookType: 'jupyter-notebook', scheme: 'untitled' }
 		 */
 		readonly notebookType?: string;
 

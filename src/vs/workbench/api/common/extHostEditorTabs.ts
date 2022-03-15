@@ -22,7 +22,7 @@ export interface IEditorTab {
 	isDirty: boolean;
 	additionalResourcesAndViewTypes: { resource: vscode.Uri | undefined; viewType: string | undefined }[];
 	move(index: number, viewColumn: ViewColumn): Promise<void>;
-	close(): Promise<void>;
+	close(preserveFocus: boolean): Promise<void>;
 }
 
 export interface IEditorTabGroup {
@@ -122,13 +122,11 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			move: async (index: number, viewColumn: ViewColumn) => {
 				this._proxy.$moveTab(tabDto, index, typeConverters.ViewColumn.from(viewColumn));
 				// TODO: Need an on did change tab event at the group level
-				// await raceTimeout(Event.toPromise(this._onDidChangeTabs.event), 1000);
 				return;
 			},
-			close: async () => {
-				await this._proxy.$closeTab(tabDto);
+			close: async (preserveFocus) => {
+				await this._proxy.$closeTab(tabDto, preserveFocus);
 				// TODO: Need an on did change tab event at the group level
-				// await raceTimeout(Event.toPromise(this._onDidChangeTabs.event), 1000);
 				return;
 			}
 		});

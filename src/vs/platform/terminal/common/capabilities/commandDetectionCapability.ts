@@ -6,8 +6,11 @@
 import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IBuffer, IDisposable, IMarker, Terminal } from 'xterm';
+import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+// Importing types is safe in any layer
+// eslint-disable-next-line code-import-patterns
+import type { IBuffer, IDisposable, IMarker, Terminal } from 'xterm-headless';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -140,7 +143,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 
 		// Sanity check optional props
-		if (!this._currentCommand.commandStartMarker || !this._currentCommand.commandExecutedMarker || !this._currentCommand.commandStartX) {
+		if (!this._currentCommand.commandStartMarker || !this._currentCommand.commandExecutedMarker || this._currentCommand.commandStartX === undefined) {
 			return;
 		}
 
@@ -197,17 +200,19 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 
 		if (command !== undefined && !command.startsWith('\\')) {
 			const buffer = this._terminal.buffer.active;
-			const clonedPartialCommand = { ...this._currentCommand };
 			const timestamp = Date.now();
-			const newCommand = {
+			const executedMarker = this._currentCommand.commandExecutedMarker;
+			const endMarker = this._currentCommand.commandFinishedMarker;
+			const newCommand: ITerminalCommand = {
 				command,
 				marker: this._currentCommand.commandStartMarker,
-				endMarker: this._currentCommand.commandFinishedMarker,
+				endMarker,
+				executedMarker,
 				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
-				hasOutput: !!(this._currentCommand.commandExecutedMarker && this._currentCommand.commandFinishedMarker && this._currentCommand.commandExecutedMarker?.line < this._currentCommand.commandFinishedMarker!.line),
-				getOutput: () => getOutputForCommand(clonedPartialCommand, buffer)
+				hasOutput: !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)
 			};
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -221,11 +226,78 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine);
 		this._currentCommand.command = commandLine;
 	}
+
+	serializeCommands(): ISerializedCommand[] {
+		const serialized: ISerializedCommand[] = this.commands.map(e => {
+			return {
+				startLine: e.marker?.line,
+				startX: undefined,
+				endLine: e.endMarker?.line,
+				executedLine: e.executedMarker?.line,
+				command: e.command,
+				cwd: e.cwd,
+				exitCode: e.exitCode,
+				timestamp: e.timestamp
+			};
+		});
+		if (this._currentCommand.commandStartMarker) {
+			serialized.push({
+				startLine: this._currentCommand.commandStartMarker.line,
+				startX: this._currentCommand.commandStartX,
+				endLine: undefined,
+				executedLine: undefined,
+				command: '',
+				cwd: this._cwd,
+				exitCode: undefined,
+				timestamp: 0,
+			});
+		}
+		return serialized;
+	}
+
+	restoreCommands(serialized: ISerializedCommand[]): void {
+		const buffer = this._terminal.buffer.normal;
+		for (const e of serialized) {
+			const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			// Check for invalid command
+			if (!marker) {
+				continue;
+			}
+			// Partial command
+			if (!e.endLine) {
+				this._currentCommand.commandStartMarker = marker;
+				this._currentCommand.commandStartX = e.startX;
+				this._cwd = e.cwd;
+				this._onCommandStarted.fire({ marker } as ITerminalCommand);
+				continue;
+			}
+			// Full command
+			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			const newCommand = {
+				command: e.command,
+				marker,
+				endMarker,
+				executedMarker,
+				timestamp: e.timestamp,
+				cwd: e.cwd,
+				exitCode: e.exitCode,
+				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)
+			};
+			this._commands.push(newCommand);
+			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
+			this._onCommandFinished.fire(newCommand);
+		}
+	}
 }
 
-function getOutputForCommand(command: ICurrentPartialCommand, buffer: IBuffer): string | undefined {
-	const startLine = command.commandExecutedMarker!.line;
-	const endLine = command.commandFinishedMarker!.line;
+function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer): string | undefined {
+	if (!executedMarker || !endMarker) {
+		return undefined;
+	}
+	const startLine = executedMarker.line;
+	const endLine = endMarker.line;
 
 	if (startLine === endLine) {
 		return undefined;

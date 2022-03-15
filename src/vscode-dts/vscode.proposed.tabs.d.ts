@@ -25,6 +25,7 @@ declare module 'vscode' {
 		/**
 		 * The column which the tab belongs to
 		 */
+		// TODO@API point to TabGroup instead?
 		readonly viewColumn: ViewColumn;
 
 		/**
@@ -78,13 +79,16 @@ declare module 'vscode' {
 		 * @param index The index to move the tab to
 		 * @param viewColumn The column to move the tab into
 		 */
+		// TODO@API move into TabGroups
 		move(index: number, viewColumn: ViewColumn): Thenable<void>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
 		 * should no longer be used for further actions.
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
 		 */
-		close(): Thenable<void>;
+		// TODO@API move into TabGroups, support one or many tabs or tab groups
+		close(preserveFocus: boolean): Thenable<void>;
 	}
 
 	export namespace window {
@@ -94,7 +98,7 @@ declare module 'vscode' {
 		export const tabGroups: TabGroups;
 	}
 
-	interface TabGroups {
+	export interface TabGroups {
 		/**
 		 * All the groups within the group container
 		 */
@@ -117,7 +121,7 @@ declare module 'vscode' {
 		onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 	}
 
-	interface TabGroup {
+	export interface TabGroup {
 		/**
 		 * Whether or not the group is currently active
 		 */
