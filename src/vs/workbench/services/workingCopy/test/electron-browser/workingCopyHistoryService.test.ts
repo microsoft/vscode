@@ -24,7 +24,7 @@ import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEvent } from 'vs/workbench
 import { IFileService } from 'vs/platform/files/common/files';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
-import { TestLifecycleService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { dirname } from 'path';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
@@ -41,6 +41,8 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 	readonly _fileService: IFileService;
 	readonly _configurationService: TestConfigurationService;
 	readonly _lifecycleService: TestLifecycleService;
+
+	getModels() { return Array.from(this.models.values()); }
 
 	constructor(testDir: string) {
 		const environmentService = new TestWorkbenchEnvironmentService(testDir);
@@ -227,7 +229,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assertEntryEqual(entries[0], entry3);
 	});
 
-	test('getEntries - metadata preserved between shutdown', async () => {
+	test('getEntries - metadata preserved when stored', async () => {
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
 
@@ -240,10 +242,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const entry3 = await service.addEntry({ resource: workingCopy2.resource, source: 'other-source' }, CancellationToken.None);
 		assert.ok(entry3);
 
-		// Simulate shutdown
-		const event = new TestWillShutdownEvent();
-		service._lifecycleService.fireWillShutdown(event);
-		await Promise.allSettled(event.value);
+		// Simulate shutdown by storing models
+		for (const model of service.getModels()) {
+			await model.store();
+		}
 
 		// Resolve from disk fresh and verify again
 
@@ -266,10 +268,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const entry1 = await service.addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 		assert.ok(entry1);
 
-		// Simulate shutdown
-		const event = new TestWillShutdownEvent();
-		service._lifecycleService.fireWillShutdown(event);
-		await Promise.allSettled(event.value);
+		// Simulate shutdown by storing models
+		for (const model of service.getModels()) {
+			await model.store();
+		}
 
 		// Resolve from disk fresh and verify again
 
@@ -294,10 +296,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const entry2 = await service.addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
 		assert.ok(entry2);
 
-		// Simulate shutdown
-		const event = new TestWillShutdownEvent();
-		service._lifecycleService.fireWillShutdown(event);
-		await Promise.allSettled(event.value);
+		// Simulate shutdown by storing models
+		for (const model of service.getModels()) {
+			await model.store();
+		}
 
 		// Resolve from disk fresh and verify again
 
@@ -320,10 +322,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const entry2 = await service.addEntry({ resource: workingCopy1.resource, source: 'other-source' }, CancellationToken.None);
 		assert.ok(entry2);
 
-		// Simulate shutdown
-		const event = new TestWillShutdownEvent();
-		service._lifecycleService.fireWillShutdown(event);
-		await Promise.allSettled(event.value);
+		// Simulate shutdown by storing models
+		for (const model of service.getModels()) {
+			await model.store();
+		}
 
 		// Resolve from disk fresh and verify again
 
@@ -406,10 +408,15 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		service._configurationService.setUserConfiguration('workbench.localHistory.maxFileEntries', 2);
 
-		// Simulate shutdown
-		let event = new TestWillShutdownEvent();
-		service._lifecycleService.fireWillShutdown(event);
-		await Promise.allSettled(event.value);
+		// Simulate shutdown by storing models
+		for (const model of service.getModels()) {
+			await model.store();
+		}
+
+		assert.ok(!existsSync(entry1.location.fsPath));
+		assert.ok(!existsSync(entry2.location.fsPath));
+		assert.ok(existsSync(entry3.location.fsPath));
+		assert.ok(existsSync(entry4.location.fsPath));
 
 		// Resolve from disk fresh and verify again
 
@@ -426,10 +433,10 @@ flakySuite('WorkingCopyHistoryService', () => {
 		const entry5 = await service.addEntry({ resource: workingCopy1.resource, source: 'other-source' }, CancellationToken.None);
 		assert.ok(entry5);
 
-		// Simulate shutdown
-		event = new TestWillShutdownEvent();
-		service._lifecycleService.fireWillShutdown(event);
-		await Promise.allSettled(event.value);
+		// Simulate shutdown by storing models
+		for (const model of service.getModels()) {
+			await model.store();
+		}
 
 		assert.ok(existsSync(entry3.location.fsPath));
 		assert.ok(existsSync(entry4.location.fsPath));
