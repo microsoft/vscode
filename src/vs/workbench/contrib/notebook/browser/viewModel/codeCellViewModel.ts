@@ -204,8 +204,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			const outputContainerOffset = notebookLayoutConfiguration.editorToolbarHeight
 				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
 				+ editorHeight
-				+ statusBarHeight
-				+ commentHeight;
+				+ statusBarHeight;
 			const outputShowMoreContainerOffset = totalHeight
 				- bottomToolbarDimensions.bottomToolbarGap
 				- bottomToolbarDimensions.bottomToolbarHeight / 2
