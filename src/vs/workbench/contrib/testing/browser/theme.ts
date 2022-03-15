@@ -34,7 +34,8 @@ export const testingColorIconPassed = registerColor('testing.iconPassed', {
 export const testingColorRunAction = registerColor('testing.runAction', {
 	dark: testingColorIconPassed,
 	light: testingColorIconPassed,
-	hcDark: testingColorIconPassed
+	hcDark: testingColorIconPassed,
+	hcLight: testingColorIconPassed
 }, localize('testing.runAction', "Color for 'run' icons in the editor."));
 
 export const testingColorIconQueued = registerColor('testing.iconQueued', {
@@ -93,7 +94,7 @@ export const testMessageSeverityColors: {
 	[TestMessageType.Info]: {
 		decorationForeground: registerColor(
 			'testing.message.info.decorationForeground',
-			{ dark: transparent(editorForeground, 0.5), light: transparent(editorForeground, 0.5), hcDark: transparent(editorForeground, 0.5) },
+			{ dark: transparent(editorForeground, 0.5), light: transparent(editorForeground, 0.5), hcDark: transparent(editorForeground, 0.5), hcLight: transparent(editorForeground, 0.5) },
 			localize('testing.message.info.decorationForeground', 'Text color of test info messages shown inline in the editor.')
 		),
 		marginBackground: registerColor(
