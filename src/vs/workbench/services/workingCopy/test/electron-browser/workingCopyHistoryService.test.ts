@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { flakySuite } from 'vs/base/test/common/testUtils';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { TestNativePathService, TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestContextService, TestProductService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
@@ -70,7 +69,7 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 	}
 }
 
-flakySuite('WorkingCopyHistoryService', () => {
+suite.skip('WorkingCopyHistoryService', () => {
 
 	let testDir: string;
 	let historyHome: string;
