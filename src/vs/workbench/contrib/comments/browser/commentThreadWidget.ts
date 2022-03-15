@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/review';
 import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -19,6 +20,11 @@ import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/comme
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { CommentNode } from 'vs/workbench/contrib/comments/common/commentModel';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { PANEL_BORDER } from 'vs/workbench/common/theme';
+import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 
 export class CommentThreadWidget extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader;
@@ -27,6 +33,7 @@ export class CommentThreadWidget extends Disposable implements ICommentThreadWid
 	private _commentMenus: CommentMenus;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
+	private _styleElement: HTMLStyleElement;
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
@@ -77,6 +84,8 @@ export class CommentThreadWidget extends Disposable implements ICommentThreadWid
 			this._scopedInstatiationService,
 			this
 		);
+
+		this._styleElement = dom.createStyleSheet(this.container);
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread) {
@@ -198,7 +207,81 @@ export class CommentThreadWidget extends Disposable implements ICommentThreadWid
 		this._containerDelegate.collapse();
 	}
 
-	applyTheme() {
+	applyTheme(theme: IColorTheme, fontInfo: FontInfo) {
+		const content: string[] = [];
+
+		const borderColor = theme.getColor(peekViewBorder);
+
+		if (borderColor) {
+			content.push(`.review-widget > .body { border-top: 1px solid ${borderColor} }`);
+		}
+
+		const linkColor = theme.getColor(textLinkForeground);
+		if (linkColor) {
+			content.push(`.review-widget .body .comment-body a { color: ${linkColor} }`);
+		}
+
+		const linkActiveColor = theme.getColor(textLinkActiveForeground);
+		if (linkActiveColor) {
+			content.push(`.review-widget .body .comment-body a:hover, a:active { color: ${linkActiveColor} }`);
+		}
+
+		const focusColor = theme.getColor(focusBorder);
+		if (focusColor) {
+			content.push(`.review-widget .body .comment-body a:focus { outline: 1px solid ${focusColor}; }`);
+			content.push(`.review-widget .body .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
+		}
+
+		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
+		if (blockQuoteBackground) {
+			content.push(`.review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
+		}
+
+		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
+		if (blockQuoteBOrder) {
+			content.push(`.review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
+		}
+
+		const border = theme.getColor(PANEL_BORDER);
+		if (border) {
+			content.push(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label { border-color: ${border}; }`);
+		}
+
+		const hcBorder = theme.getColor(contrastBorder);
+		if (hcBorder) {
+			content.push(`.review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
+			content.push(`.review-widget .body .monaco-editor { outline: 1px solid ${hcBorder}; }`);
+		}
+
+		const errorBorder = theme.getColor(inputValidationErrorBorder);
+		if (errorBorder) {
+			content.push(`.review-widget .validation-error { border: 1px solid ${errorBorder}; }`);
+		}
+
+		const errorBackground = theme.getColor(inputValidationErrorBackground);
+		if (errorBackground) {
+			content.push(`.review-widget .validation-error { background: ${errorBackground}; }`);
+		}
+
+		const errorForeground = theme.getColor(inputValidationErrorForeground);
+		if (errorForeground) {
+			content.push(`.review-widget .body .comment-form .validation-error { color: ${errorForeground}; }`);
+		}
+
+		const fontFamilyVar = '--comment-thread-editor-font-family';
+		const fontSizeVar = '--comment-thread-editor-font-size';
+		const fontWeightVar = '--comment-thread-editor-font-weight';
+		this.container?.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
+		this.container?.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
+		this.container?.style.setProperty(fontWeightVar, fontInfo.fontWeight);
+
+		content.push(`.review-widget .body code {
+			font-family: var(${fontFamilyVar});
+			font-weight: var(${fontWeightVar});
+			font-size: var(${fontSizeVar});
+		}`);
+
+		this._styleElement.textContent = content.join('\n');
 		this._commentReply?.setCommentEditorDecorations();
 	}
 }

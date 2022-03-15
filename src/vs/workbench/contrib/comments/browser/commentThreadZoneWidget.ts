@@ -16,14 +16,12 @@ import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
@@ -80,7 +78,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private _commentGlyph?: CommentGlyphWidget;
 	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
-	private _styleElement: HTMLStyleElement;
 	private _contextKeyService: IContextKeyService;
 	private _commentThreadContextValue: IContextKey<string | undefined>;
 	private _scopedInstatiationService: IInstantiationService;
@@ -126,7 +123,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadDisposables = [];
 		this.create();
 
-		this._styleElement = dom.createStyleSheet(this.domNode);
 		this._globalToDispose.add(this.themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._globalToDispose.add(this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
@@ -412,83 +408,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			arrowColor: borderColor || Color.transparent,
 			frameColor: borderColor || Color.transparent
 		});
-
-		const content: string[] = [];
-
-		if (borderColor) {
-			content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid ${borderColor} }`);
-		}
-
-		const linkColor = theme.getColor(textLinkForeground);
-		if (linkColor) {
-			content.push(`.monaco-editor .review-widget .body .comment-body a { color: ${linkColor} }`);
-		}
-
-		const linkActiveColor = theme.getColor(textLinkActiveForeground);
-		if (linkActiveColor) {
-			content.push(`.monaco-editor .review-widget .body .comment-body a:hover, a:active { color: ${linkActiveColor} }`);
-		}
-
-		const focusColor = theme.getColor(focusBorder);
-		if (focusColor) {
-			content.push(`.monaco-editor .review-widget .body .comment-body a:focus { outline: 1px solid ${focusColor}; }`);
-			content.push(`.monaco-editor .review-widget .body .monaco-editor.focused { outline: 1px solid ${focusColor}; }`);
-		}
-
-		const blockQuoteBackground = theme.getColor(textBlockQuoteBackground);
-		if (blockQuoteBackground) {
-			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { background: ${blockQuoteBackground}; }`);
-		}
-
-		const blockQuoteBOrder = theme.getColor(textBlockQuoteBorder);
-		if (blockQuoteBOrder) {
-			content.push(`.monaco-editor .review-widget .body .review-comment blockquote { border-color: ${blockQuoteBOrder}; }`);
-		}
-
-		const border = theme.getColor(PANEL_BORDER);
-		if (border) {
-			content.push(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label { border-color: ${border}; }`);
-		}
-
-		const hcBorder = theme.getColor(contrastBorder);
-		if (hcBorder) {
-			content.push(`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button { outline-color: ${hcBorder}; }`);
-			content.push(`.monaco-editor .review-widget .body .monaco-editor { outline: 1px solid ${hcBorder}; }`);
-		}
-
-		const errorBorder = theme.getColor(inputValidationErrorBorder);
-		if (errorBorder) {
-			content.push(`.monaco-editor .review-widget .validation-error { border: 1px solid ${errorBorder}; }`);
-		}
-
-		const errorBackground = theme.getColor(inputValidationErrorBackground);
-		if (errorBackground) {
-			content.push(`.monaco-editor .review-widget .validation-error { background: ${errorBackground}; }`);
-		}
-
-		const errorForeground = theme.getColor(inputValidationErrorForeground);
-		if (errorForeground) {
-			content.push(`.monaco-editor .review-widget .body .comment-form .validation-error { color: ${errorForeground}; }`);
-		}
-
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
-		const fontFamilyVar = '--comment-thread-editor-font-family';
-		const fontSizeVar = '--comment-thread-editor-font-size';
-		const fontWeightVar = '--comment-thread-editor-font-weight';
-		this.container?.style.setProperty(fontFamilyVar, fontInfo.fontFamily);
-		this.container?.style.setProperty(fontSizeVar, `${fontInfo.fontSize}px`);
-		this.container?.style.setProperty(fontWeightVar, fontInfo.fontWeight);
-
-		content.push(`.monaco-editor .review-widget .body code {
-			font-family: var(${fontFamilyVar});
-			font-weight: var(${fontWeightVar});
-			font-size: var(${fontSizeVar});
-		}`);
-
-		this._styleElement.textContent = content.join('\n');
 
 		// Editor decorations should also be responsive to theme changes
-		this._commentThreadWidget.applyTheme();
+		this._commentThreadWidget.applyTheme(theme, fontInfo);
 	}
 
 	override show(rangeOrPos: IRange | IPosition, heightInLines: number): void {

@@ -148,6 +148,7 @@ export class CellComments extends CellPart {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
+		this.container.classList.add('review-widget');
 	}
 
 	private initialize(element: ICellViewModel) {
@@ -180,7 +181,12 @@ export class CellComments extends CellPart {
 			const layoutInfo = this.notebookEditor.getLayoutInfo();
 
 			this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight);
+			this._bindListeners();
+		}
+	}
 
+	private _bindListeners() {
+		if (this._commentThreadWidget) {
 			this.elementDisposables.add(this._commentThreadWidget.onDidResize(() => {
 				if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
 					this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
@@ -190,41 +196,41 @@ export class CellComments extends CellPart {
 	}
 
 	private _getCommentThreadForCell(element: ICellViewModel) {
-		// const commentThread = new TestCommentThread(
-		// 	element.handle,
-		// 	0,
-		// 	'',
-		// 	'test',
-		// 	element.uri.toString(),
-		// 	{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-		// 	true
-		// );
-		// commentThread.label = 'Discussion';
+		const commentThread = new TestCommentThread(
+			element.handle,
+			0,
+			'',
+			'test',
+			element.uri.toString(),
+			{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+			true
+		);
+		commentThread.label = 'Discussion';
 
-		// commentThread.comments = [
-		// 	{
-		// 		body: '#test',
-		// 		uniqueIdInThread: 1,
-		// 		userName: 'rebornix',
-		// 		userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
-		// 	},
-		// 	{
-		// 		body: 'yet another test',
-		// 		uniqueIdInThread: 2,
-		// 		userName: 'rebornix',
-		// 		label: 'pending',
-		// 		userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
-		// 	}
-		// ];
+		commentThread.comments = [
+			{
+				body: '#test',
+				uniqueIdInThread: 1,
+				userName: 'rebornix',
+				userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
+			},
+			{
+				body: 'yet another test',
+				uniqueIdInThread: 2,
+				userName: 'rebornix',
+				label: 'pending',
+				userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
+			}
+		];
 
-		// return commentThread;
-		return undefined;
+		return commentThread;
 	}
 
 	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
 		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
 			this.initialize(element);
+			this._bindListeners();
 		}
 	}
 
