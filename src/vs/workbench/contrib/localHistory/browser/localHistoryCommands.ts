@@ -12,13 +12,15 @@ import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistor
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { basename } from 'vs/base/common/resources';
+import { basename, basenameOrAuthority } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
+import { Codicon } from 'vs/base/common/codicons';
 
 export const LOCAL_HISTORY_MENU_CONTEXT_VALUE = 'localHistory:item';
 export const LOCAL_HISTORY_MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LOCAL_HISTORY_MENU_CONTEXT_VALUE);
@@ -39,7 +41,7 @@ registerAction2(class extends Action2 {
 			title: COMPARE_WITH_FILE_LABEL,
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: 'navigation',
+				group: '1_compare',
 				order: 1,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
@@ -67,7 +69,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('localHistory.compareWithPrevious', "Compare with Previous"), original: 'Compare with Previous' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: 'navigation',
+				group: '1_compare',
 				order: 2,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
@@ -83,12 +85,7 @@ registerAction2(class extends Action2 {
 
 			// Without a previous entry, just show the entry directly
 			if (!previous) {
-				await editorService.openEditor({
-					resource: LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
-					label: localize('localHistoryEditorLabel', "{0} ({1})", entry.workingCopy.name, entry.timestamp.label),
-					description: entry?.source ? SaveSourceRegistry.getSourceLabel(entry.source) : undefined
-				});
-				return;
+				return openEntry(entry, editorService);
 			}
 
 			// Open real diff editor
@@ -97,78 +94,139 @@ registerAction2(class extends Action2 {
 	}
 });
 
+async function openEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditorService): Promise<void> {
+	await editorService.openEditor({
+		resource: LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
+		label: localize('localHistoryEditorLabel', "{0} ({1})", entry.workingCopy.name, entry.timestamp.label),
+		description: entry?.source ? SaveSourceRegistry.getSourceLabel(entry.source) : undefined
+	});
+}
+
 //#endregion
 
-//#region Restore
-
-const restoreSaveSource = SaveSourceRegistry.registerSource('localHistoryRestore.source', localize('localHistoryRestore.source', "File Restored"));
+//#region Show Contents
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.localHistory.restore',
-			title: { value: localize('localHistory.restore', "Restore..."), original: 'Restore...' },
+			id: 'workbench.action.localHistory.open',
+			title: { value: localize('localHistory.open', "Show Contents"), original: 'Show Contents' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '1_dangerzone',
+				group: '2_contents',
 				order: 1,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
 		});
 	}
 	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
-		const fileService = accessor.get(IFileService);
-		const dialogService = accessor.get(IDialogService);
-		const workingCopyService = accessor.get(IWorkingCopyService);
 		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
 		const editorService = accessor.get(IEditorService);
 
 		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
 		if (entry) {
-
-			// Ask for confirmation
-			const { confirmed } = await dialogService.confirm({
-				message: localize('confirmRestoreMessage', "Do you want to restore the contents of '{0}'?", basename(entry.workingCopy.resource)),
-				detail: localize('confirmRestoreDetail', "Restoring will discard any unsaved changes."),
-				primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore"),
-				type: 'warning'
-			});
-
-			if (!confirmed) {
-				return;
-			}
-
-			// Revert all dirty working copies for target
-			const workingCopies = workingCopyService.getAll(entry.workingCopy.resource);
-			if (workingCopies) {
-				for (const workingCopy of workingCopies) {
-					if (workingCopy.isDirty()) {
-						await workingCopy.revert({ soft: true });
-					}
-				}
-			}
-
-			// Replace target with contents of history entry
-			await fileService.cloneFile(entry.location, entry.workingCopy.resource);
-
-			// Restore all working copies for target
-			if (workingCopies) {
-				for (const workingCopy of workingCopies) {
-					await workingCopy.revert({ force: true });
-				}
-			}
-
-			// Open target
-			await editorService.openEditor({ resource: entry.workingCopy.resource });
-
-			// Add new entry
-			await workingCopyHistoryService.addEntry({
-				resource: entry.workingCopy.resource,
-				source: restoreSaveSource
-			}, CancellationToken.None);
+			return openEntry(entry, editorService);
 		}
 	}
 });
+
+//#region Restore Contents
+
+const RESTORE_CONTENTS_LABEL = { value: localize('localHistory.restore', "Restore Contents"), original: 'Restore Contents' };
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.restoreFromEditor',
+			title: RESTORE_CONTENTS_LABEL,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: -10,
+				when: ResourceContextKey.Scheme.isEqualTo(LocalHistoryFileSystemProvider.SCHEMA)
+			},
+			icon: Codicon.check
+		});
+	}
+	async run(accessor: ServicesAccessor, uri: URI): Promise<void> {
+		const { associatedResource, location } = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri);
+
+		return restore(accessor, { uri: associatedResource, handle: basenameOrAuthority(location) });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.restore',
+			title: RESTORE_CONTENTS_LABEL,
+			menu: {
+				id: MenuId.TimelineItemContext,
+				group: '2_contents',
+				order: 2,
+				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
+		return restore(accessor, item);
+	}
+});
+
+const restoreSaveSource = SaveSourceRegistry.registerSource('localHistoryRestore.source', localize('localHistoryRestore.source', "File Restored"));
+
+async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
+	const fileService = accessor.get(IFileService);
+	const dialogService = accessor.get(IDialogService);
+	const workingCopyService = accessor.get(IWorkingCopyService);
+	const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+	const editorService = accessor.get(IEditorService);
+
+	const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
+	if (entry) {
+
+		// Ask for confirmation
+		const { confirmed } = await dialogService.confirm({
+			message: localize('confirmRestoreMessage', "Do you want to restore the contents of '{0}'?", basename(entry.workingCopy.resource)),
+			detail: localize('confirmRestoreDetail', "Restoring will discard any unsaved changes."),
+			primaryButton: localize({ key: 'restoreButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Restore"),
+			type: 'warning'
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		// Revert all dirty working copies for target
+		const workingCopies = workingCopyService.getAll(entry.workingCopy.resource);
+		if (workingCopies) {
+			for (const workingCopy of workingCopies) {
+				if (workingCopy.isDirty()) {
+					await workingCopy.revert({ soft: true });
+				}
+			}
+		}
+
+		// Replace target with contents of history entry
+		await fileService.cloneFile(entry.location, entry.workingCopy.resource);
+
+		// Restore all working copies for target
+		if (workingCopies) {
+			for (const workingCopy of workingCopies) {
+				await workingCopy.revert({ force: true });
+			}
+		}
+
+		// Open target
+		await editorService.openEditor({ resource: entry.workingCopy.resource });
+
+		// Add new entry
+		await workingCopyHistoryService.addEntry({
+			resource: entry.workingCopy.resource,
+			source: restoreSaveSource
+		}, CancellationToken.None);
+	}
+}
 
 //#endregion
 
@@ -178,11 +236,11 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.delete',
-			title: { value: localize('localHistory.delete', "Delete..."), original: 'Delete...' },
+			title: { value: localize('localHistory.delete', "Delete"), original: 'Delete' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '1_dangerzone',
-				order: 2,
+				group: '3_edit',
+				order: 1,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
 		});
