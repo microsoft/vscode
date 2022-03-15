@@ -372,30 +372,28 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			extraClasses.push('cut');
 		}
 
-		// Always render chevrons for file nests, or else may not be able to identify them.
-		const twistieContainer = (templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie') as HTMLElement);
-		if (twistieContainer) {
-			if (stat.hasNests) {
-				twistieContainer.classList.add('force-twistie');
-			} else {
-				twistieContainer.classList.remove('force-twistie');
-			}
-		}
-
-
 		const setResourceData = () => {
 			const theme = this.themeService.getFileIconTheme();
-			// Dont render file icons for nest parents unless folders have both chevrons and icons, otherwise alignment breaks
-			const hideNestParentFileIcons = theme.hidesExplorerArrows || !theme.hasFolderIcons;
+			// Hack to always render chevrons for file nests when no theme support, or else may not be able to identify them.
+			const twistieContainer = (templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie') as HTMLElement);
+			const forceChevron = stat.hasNests && theme.hidesExplorerArrows && !theme.hasNestingIcons;
+			if (twistieContainer) {
+				if (forceChevron) {
+					twistieContainer.classList.add('force-twistie');
+				} else {
+					twistieContainer.classList.remove('force-twistie');
+				}
+			}
 
 			templateData.label.setResource({ resource: stat.resource, name: label }, {
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 				extraClasses,
-				hideIcon: stat.hasNests && hideNestParentFileIcons,
+				hideIcon: forceChevron && !theme.hasFolderIcons,
+				nestParent: stat.hasNests,
 				fileDecorations: this.config.explorer.decorations,
 				matches: createMatches(filterData),
 				separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
-				domId
+				domId,
 			});
 		};
 

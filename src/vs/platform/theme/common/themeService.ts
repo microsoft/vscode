@@ -147,6 +147,7 @@ export interface IColorTheme {
 export interface IFileIconTheme {
 	readonly hasFileIcons: boolean;
 	readonly hasFolderIcons: boolean;
+	readonly hasNestingIcons: boolean;
 	readonly hidesExplorerArrows: boolean;
 }
 

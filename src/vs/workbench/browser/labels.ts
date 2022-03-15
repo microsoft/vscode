@@ -57,6 +57,11 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Will take the provided label as is and e.g. not override it for untitled files.
 	 */
 	readonly forceLabel?: boolean;
+
+	/**
+	 * Hint to style the file icon as a nesting parent
+	 */
+	readonly nestParent?: boolean;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -440,6 +445,7 @@ class ResourceLabelWidget extends IconLabel {
 		const hasResourceChanged = this.hasResourceChanged(label);
 		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);
 		const hasFileKindChanged = this.hasFileKindChanged(options);
+		const hasNestParentChanged = this.hasNestParentChanged(options);
 
 		this.label = label;
 		this.options = options;
@@ -449,7 +455,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		this.render({
-			updateIcon: hasResourceChanged || hasFileKindChanged,
+			updateIcon: hasResourceChanged || hasFileKindChanged || hasNestParentChanged,
 			updateDecoration: hasResourceChanged || hasFileKindChanged
 		});
 	}
@@ -459,6 +465,13 @@ class ResourceLabelWidget extends IconLabel {
 		const oldFileKind = this.options?.fileKind;
 
 		return newFileKind !== oldFileKind; // same resource but different kind (file, folder)
+	}
+
+	private hasNestParentChanged(newOptions?: IResourceLabelOptions): boolean {
+		const newNestParent = newOptions?.nestParent;
+		const oldNestParent = this.options?.nestParent;
+
+		return newNestParent !== oldNestParent; // singular child was added/removed
 	}
 
 	private hasResourceChanged(newLabel: IResourceLabelProps): boolean {
@@ -546,7 +559,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
-				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind);
+				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.nestParent);
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);
