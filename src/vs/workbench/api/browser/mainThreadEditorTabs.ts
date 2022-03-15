@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -16,13 +16,12 @@ import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
-export class MainThreadEditorTabs {
+export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 
 	private readonly _dispoables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private _tabGroupModel: IEditorTabGroupDto[] = [];
 	private readonly _groupModel: Map<number, IEditorTabGroupDto> = new Map();
-
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
@@ -47,7 +46,6 @@ export class MainThreadEditorTabs {
 	 * @returns A tab object
 	 */
 	private _buildTabObject(group: IEditorGroup, editor: EditorInput, editorIndex: number): IEditorTabDto {
-		// Even though the id isn't a diff / sideBySide on the main side we need to let the ext host know what type of editor it is
 		const editorId = editor.editorId;
 		const tabKind = editor instanceof DiffEditorInput ? TabKind.Diff : editor instanceof SideBySideEditorInput ? TabKind.SidebySide : TabKind.Singular;
 		const tab: IEditorTabDto = {
@@ -350,7 +348,7 @@ export class MainThreadEditorTabs {
 		return;
 	}
 
-	async $closeTab(tab: IEditorTabDto): Promise<void> {
+	async $closeTab(tab: IEditorTabDto, preserveFocus: boolean): Promise<void> {
 		const group = this._editorGroupsService.getGroup(columnToEditorGroup(this._editorGroupsService, tab.viewColumn));
 		if (!group) {
 			return;
@@ -360,7 +358,7 @@ export class MainThreadEditorTabs {
 		if (!editor) {
 			return;
 		}
-		await group.closeEditor(editor);
+		await group.closeEditor(editor, { preserveFocus });
 	}
 	//#endregion
 }

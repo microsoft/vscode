@@ -287,15 +287,15 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.'), optionsAsChildren: true });
+		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', "Output Channels"), optionsAsChildren: true });
 
 		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));
-		this._register(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions()));
-		this._register(this.outputService.onActiveOutputChannel(() => this.updateOtions()));
+		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOptions()));
+		this._register(outputChannelRegistry.onDidRemoveChannel(() => this.updateOptions()));
+		this._register(this.outputService.onActiveOutputChannel(() => this.updateOptions()));
 		this._register(attachSelectBoxStyler(this.selectBox, themeService));
 
-		this.updateOtions();
+		this.updateOptions();
 	}
 
 	override render(container: HTMLElement): void {
@@ -311,7 +311,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		return channel ? channel.id : option;
 	}
 
-	private updateOtions(): void {
+	private updateOptions(): void {
 		const groups = groupBy(this.outputService.getChannelDescriptors(), (c1: IOutputChannelDescriptor, c2: IOutputChannelDescriptor) => {
 			if (!c1.log && c2.log) {
 				return -1;

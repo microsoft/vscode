@@ -1418,6 +1418,49 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 // -- sanitize and trusted html
 
 /**
+ * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
+ * attributes are valid.
+ */
+export function hookDomPurifyHrefAndSrcSanitizer(allowedProtocols: readonly string[], allowDataImages = false): IDisposable {
+	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
+
+	// build an anchor to map URLs to
+	const anchor = document.createElement('a');
+
+	dompurify.addHook('afterSanitizeAttributes', (node) => {
+		// check all href/src attributes for validity
+		for (const attr of ['href', 'src']) {
+			if (node.hasAttribute(attr)) {
+				const attrValue = node.getAttribute(attr) as string;
+				if (attr === 'href' && attrValue.startsWith('#')) {
+					// Allow fragment links
+					continue;
+				}
+
+				anchor.href = attrValue;
+				if (!allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
+					if (allowDataImages && attr === 'src' && anchor.href.startsWith('data:')) {
+						continue;
+					}
+
+					node.removeAttribute(attr);
+				}
+			}
+		}
+	});
+
+	return toDisposable(() => {
+		dompurify.removeHook('afterSanitizeAttributes');
+	});
+}
+
+const defaultSafeProtocols = [
+	Schemas.http,
+	Schemas.https,
+	Schemas.command,
+];
+
+/**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
@@ -1428,29 +1471,12 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 		RETURN_DOM_FRAGMENT: false,
 	};
 
-	const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// build an anchor to map URLs to
-		const anchor = document.createElement('a');
-
-		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
-					node.removeAttribute(attr);
-				}
-			}
-		}
-	});
-
+	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
 	try {
 		const html = dompurify.sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
 		node.innerHTML = html as unknown as string;
 	} finally {
-		dompurify.removeHook('afterSanitizeAttributes');
+		hook.dispose();
 	}
 }
 

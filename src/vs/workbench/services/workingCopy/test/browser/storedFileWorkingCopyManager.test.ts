@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
-import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
+import { StoredFileWorkingCopyManager, IStoredFileWorkingCopyManager, IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
 import { IStoredFileWorkingCopy, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { FileChangesEvent, FileChangeType, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -305,8 +305,10 @@ suite('StoredFileWorkingCopyManager', () => {
 			}
 		});
 
-		manager.onDidSave(({ workingCopy }) => {
-			if (workingCopy.resource.toString() === resource1.toString()) {
+		let lastSaveEvent: IStoredFileWorkingCopySaveEvent<TestStoredFileWorkingCopyModel> | undefined = undefined;
+		manager.onDidSave((e) => {
+			if (e.workingCopy.resource.toString() === resource1.toString()) {
+				lastSaveEvent = e;
 				savedCounter++;
 			}
 		});
@@ -352,6 +354,8 @@ suite('StoredFileWorkingCopyManager', () => {
 		assert.strictEqual(gotNonDirtyCounter, 2);
 		assert.strictEqual(revertedCounter, 1);
 		assert.strictEqual(savedCounter, 1);
+		assert.strictEqual(lastSaveEvent!.workingCopy, workingCopy1);
+		assert.ok(lastSaveEvent!.stat);
 		assert.strictEqual(saveErrorCounter, 1);
 		assert.strictEqual(createdCounter, 2);
 
