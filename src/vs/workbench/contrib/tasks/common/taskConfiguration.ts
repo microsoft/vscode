@@ -282,8 +282,7 @@ export interface CommandProperties extends BaseCommandProperties {
 
 export interface GroupKind {
 	kind?: string;
-	isDefault?: boolean;
-	glob?: string;
+	isDefault?: boolean | string;
 }
 
 export interface ConfigurationProperties {
@@ -1246,10 +1245,9 @@ export namespace GroupKind {
 			return { _id: external, isDefault: false };
 		} else if (Types.isString(external.kind) && Tasks.TaskGroup.is(external.kind)) {
 			let group: string = external.kind;
-			let isDefault: boolean = !!external.isDefault;
-			let glob = external.glob;
+			let isDefault: boolean | string = Types.isUndefined(external.isDefault) ? false : external.isDefault;
 
-			return { _id: group, isDefault, glob };
+			return { _id: group, isDefault };
 		}
 		return undefined;
 	}
@@ -1263,7 +1261,6 @@ export namespace GroupKind {
 		return {
 			kind: group._id,
 			isDefault: group.isDefault,
-			glob: group.glob
 		};
 	}
 }
