@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
-import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEditorModel, ITextFileStreamContent, ITextFileResolveOptions, IResolvedTextFileEditorModel, ITextFileSaveOptions, TextFileResolveReason, ITextFileEditorModelSaveEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -58,7 +58,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private readonly _onDidSaveError = this._register(new Emitter<void>());
 	readonly onDidSaveError = this._onDidSaveError.event;
 
-	private readonly _onDidSave = this._register(new Emitter<SaveReason>());
+	private readonly _onDidSave = this._register(new Emitter<ITextFileEditorModelSaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidRevert = this._register(new Emitter<void>());
@@ -886,7 +886,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.setOrphaned(false);
 
 		// Emit Save Event
-		this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
+		this._onDidSave.fire({ reason: options.reason, stat, source: options.source });
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: ITextFileSaveOptions): void {

@@ -21,7 +21,6 @@ import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-
 const timelineViewIcon = registerIcon('timeline-view-icon', Codicon.history, localize('timelineViewIcon', 'View icon of the timeline view.'));
 const timelineOpenIcon = registerIcon('timeline-open', Codicon.history, localize('timelineOpenIcon', 'Icon for the open timeline action.'));
 
@@ -49,14 +48,6 @@ configurationRegistry.registerConfiguration({
 	title: localize('timelineConfigurationTitle', "Timeline"),
 	type: 'object',
 	properties: {
-		'timeline.excludeSources': {
-			type: [
-				'array',
-				'null'
-			],
-			default: null,
-			description: localize('timeline.excludeSources', "An array of Timeline sources that should be excluded from the Timeline view."),
-		},
 		'timeline.pageSize': {
 			type: ['number', 'null'],
 			default: null,

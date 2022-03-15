@@ -26,6 +26,7 @@ import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editO
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 import { Promises } from 'vs/base/common/async';
+import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -91,6 +92,8 @@ export class ReplaceService implements IReplaceService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private static readonly REPLACE_SAVE_SOURCE = SaveSourceRegistry.registerSource('searchReplace.source', nls.localize('searchReplace.source', "Search & Replace"));
+
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -106,7 +109,7 @@ export class ReplaceService implements IReplaceService {
 		const edits = this.createEdits(arg, resource);
 		await this.bulkEditorService.apply(edits, { progress });
 
-		return Promises.settled(edits.map(async e => this.textFileService.files.get(e.resource)?.save()));
+		return Promises.settled(edits.map(async e => this.textFileService.files.get(e.resource)?.save({ source: ReplaceService.REPLACE_SAVE_SOURCE })));
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
