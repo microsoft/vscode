@@ -186,7 +186,7 @@ export class GettingStartedDetailsRenderer {
 
 	private readAndCacheSVGFile(path: URI): Promise<string> {
 		if (!this.svgCache.has(path)) {
-			this.svgCache.set(path, this.readContentsOfPath(path));
+			this.svgCache.set(path, this.readContentsOfPath(path, false));
 		}
 		return assertIsDefined(this.svgCache.get(path));
 	}
@@ -200,10 +200,10 @@ export class GettingStartedDetailsRenderer {
 		return assertIsDefined(this.mdCache.get(path));
 	}
 
-	private async readContentsOfPath(path: URI): Promise<string> {
+	private async readContentsOfPath(path: URI, useModuleId = true): Promise<string> {
 		try {
 			const moduleId = JSON.parse(path.query).moduleId;
-			if (moduleId) {
+			if (useModuleId && moduleId) {
 				const contents = await new Promise<string>(c => {
 					require([moduleId], content => {
 						c(content.default());

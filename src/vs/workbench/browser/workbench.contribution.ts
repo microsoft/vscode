@@ -296,7 +296,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'right'],
 				'default': 'left',
-				'description': localize('sideBarLocation', "Controls the location of the sidebar and activity bar. They can either show on the left or right of the workbench.")
+				'description': localize('sideBarLocation', "Controls the location of the primary sidebar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
@@ -374,7 +374,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.reduceMotion': {
 				type: 'string',
-				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animated effects."),
+				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animations."),
 				'enumDescriptions': [
 					localize('workbench.reduceMotion.on', "Always render with reduced motion."),
 					localize('workbench.reduceMotion.off', "Do not render with reduced motion"),
@@ -398,7 +398,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
 				],
 				'tags': ['experimental'],
-				'default': 'menu',
+				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
 		}

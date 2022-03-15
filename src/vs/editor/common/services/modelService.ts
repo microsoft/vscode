@@ -237,7 +237,8 @@ export class ModelService extends Disposable implements IModelService {
 		let bracketPairColorizationOptions = EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions;
 		if (config.editor?.bracketPairColorization && typeof config.editor.bracketPairColorization === 'object') {
 			bracketPairColorizationOptions = {
-				enabled: !!config.editor.bracketPairColorization.enabled
+				enabled: !!config.editor.bracketPairColorization.enabled,
+				useIndependentColorPoolPerBracketType: !!config.editor.bracketPairColorization.useIndependentColorPoolPerBracketType
 			};
 		}
 

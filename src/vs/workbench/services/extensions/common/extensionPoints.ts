@@ -12,9 +12,9 @@ import * as arrays from 'vs/base/common/arrays';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { getGalleryExtensionId, groupByExtension, ExtensionIdentifierWithVersion, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId, groupByExtension, getExtensionId, ExtensionKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
-import { ExtensionIdentifier, IExtensionDescription, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -133,9 +133,8 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 			if (json.getNodeType(manifest) !== 'object') {
 				this._error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
 			} else if (errors.length === 0) {
-				if (manifest.__metadata) {
-					manifest.uuid = manifest.__metadata.id;
-				}
+				manifest.uuid = manifest.__metadata?.id;
+				manifest.targetPlatform = manifest.__metadata?.targetPlatform ?? TargetPlatform.UNDEFINED;
 				manifest.isUserBuiltin = !!manifest.__metadata?.isBuiltin;
 				delete manifest.__metadata;
 				return manifest;
@@ -365,6 +364,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 export interface IRelaxedExtensionDescription {
 	id: string;
 	uuid?: string;
+	targetPlatform: TargetPlatform;
 	identifier: ExtensionIdentifier;
 	name: string;
 	version: string;
@@ -658,7 +658,7 @@ export class ExtensionScanner {
 			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
 			let _extensionDescriptions = await Promise.all(refs.map(r => this.scanExtension(input.ourVersion, input.ourProductDate, host, r.path, isBuiltin, isUnderDevelopment, nlsConfig)));
 			let extensionDescriptions = arrays.coalesce(_extensionDescriptions);
-			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[new ExtensionIdentifierWithVersion({ id: getGalleryExtensionId(item.publisher, item.name) }, item.version).key()]);
+			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[new ExtensionKey({ id: getGalleryExtensionId(item.publisher, item.name) }, item.version, item.targetPlatform).toString()]);
 
 			if (!isBuiltin) {
 				// Filter out outdated extensions

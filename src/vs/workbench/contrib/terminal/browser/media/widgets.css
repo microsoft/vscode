@@ -5,20 +5,11 @@
 
 .monaco-workbench .terminal-widget-container {
 	position: absolute;
-	left: 10px;
-	bottom: 2px;
-	right: 10px;
+	left: 0;
+	bottom: 0;
+	right: 0;
 	top: 0;
 	overflow: visible;
-}
-
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-widget-container,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-widget-container {
-	left: 20px;
-}
-.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-widget-container,
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-widget-container {
-	right: 20px;
 }
 
 .monaco-workbench .terminal-overlay-widget {

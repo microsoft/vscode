@@ -469,8 +469,9 @@ class Widget {
 				this._cachedDomNodeOffsetHeight = preferredDimensions.height;
 			} else {
 				const domNode = this.domNode.domNode;
-				this._cachedDomNodeOffsetWidth = domNode.offsetWidth;
-				this._cachedDomNodeOffsetHeight = domNode.offsetHeight;
+				const clientRect = domNode.getBoundingClientRect();
+				this._cachedDomNodeOffsetWidth = Math.round(clientRect.width);
+				this._cachedDomNodeOffsetHeight = Math.round(clientRect.height);
 			}
 		}
 

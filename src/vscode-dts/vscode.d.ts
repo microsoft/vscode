@@ -2065,6 +2065,18 @@ declare module 'vscode' {
 		readonly language?: string;
 
 		/**
+		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter-notebook`. This allows
+		 * to narrow down on the type of a notebook that a {@link NotebookCell.document cell document} belongs to.
+		 *
+		 * *Note* that setting the `notebookType`-property changes how `scheme` and `pattern` are interpreted. When set
+		 * they are evaluated against the {@link NotebookDocument.uri notebook uri}, not the document uri.
+		 *
+		 * @example <caption>Match python document inside jupyter notebook that aren't stored yet</caption>
+		 * { language: 'python', notebookType: 'jupyter-notebook', scheme: 'untitled' }
+		 */
+		readonly notebookType?: string;
+
+		/**
 		 * A Uri {@link Uri.scheme scheme}, like `file` or `untitled`.
 		 */
 		readonly scheme?: string;
@@ -9391,11 +9403,16 @@ declare module 'vscode' {
 		export function createInputBox(): InputBox;
 
 		/**
-		 * Creates a new {@link OutputChannel output channel} with the given name.
+		 * Creates a new {@link OutputChannel output channel} with the given name and language id
+		 * If language id is not provided, then **Log** is used as default language id.
+		 *
+		 * You can access the visible or active output channel as a {@link TextDocument text document} from {@link window.visibleTextEditors visible editors} or {@link window.activeTextEditor active editor}
+		 * and use the langage id to contribute language features like syntax coloring, code lens etc.,
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param languageId The identifier of the language associated with the channel.
 		 */
-		export function createOutputChannel(name: string): OutputChannel;
+		export function createOutputChannel(name: string, languageId?: string): OutputChannel;
 
 		/**
 		 * Create and show a new webview panel.
