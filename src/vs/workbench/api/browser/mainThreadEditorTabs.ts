@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -16,13 +16,12 @@ import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
-export class MainThreadEditorTabs {
+export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 
 	private readonly _dispoables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private _tabGroupModel: IEditorTabGroupDto[] = [];
 	private readonly _groupModel: Map<number, IEditorTabGroupDto> = new Map();
-
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
