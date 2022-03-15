@@ -128,6 +128,7 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
     displayName: Build Server
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
@@ -300,7 +301,7 @@ steps:
       # package Remote Extension Host (Web)
       pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-web && zip -Xry vscode-server-darwin-web-$(VSCODE_ARCH).zip vscode-server-darwin-web && popd
     displayName: Prepare to publish servers
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
@@ -310,12 +311,12 @@ steps:
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH).zip
     artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web-$(VSCODE_ARCH).zip
     artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - task: AzureCLI@2
     inputs:
@@ -357,9 +358,9 @@ steps:
     inputs:
       BuildDropPath: $(agent.builddirectory)/vscode-server-darwin
       PackageName: Visual Studio Code Server
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - publish: $(agent.builddirectory)/vscode-server-darwin/_manifest
     displayName: Publish SBOM (server)
     artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
