@@ -187,7 +187,7 @@ class LoadMoreCommand {
 	readonly handle = 'vscode-command:loadMore';
 	readonly timestamp = 0;
 	readonly description = undefined;
-	readonly detail = undefined;
+	readonly tooltip = undefined;
 	readonly contextValue = undefined;
 	// Make things easier for duck typing
 	readonly id = undefined;
@@ -1157,14 +1157,14 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 			template.icon.style.backgroundImage = '';
 			template.icon.style.color = '';
 		}
-		const detail = item.detail
-			? isString(item.detail)
-				? item.detail
-				: { markdown: item.detail, markdownNotSupportedFallback: renderMarkdownAsPlaintext(item.detail) }
+		const tooltip = item.tooltip
+			? isString(item.tooltip)
+				? item.tooltip
+				: { markdown: item.tooltip, markdownNotSupportedFallback: renderMarkdownAsPlaintext(item.tooltip) }
 			: undefined;
 
 		template.iconLabel.setLabel(item.label, item.description, {
-			title: detail,
+			title: tooltip,
 			matches: createMatches(node.filterData)
 		});
 
