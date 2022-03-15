@@ -57,7 +57,7 @@ declare module 'vscode' {
 
 		// TODO@API signal to extensions that this can grow in the future
 		// TODO@API better name than "input"
-		readonly input: TabInput | unknown;
+		readonly input: TabInput | undefined | unknown;
 
 		/**
 		 * Whether or not the tab is currently active
