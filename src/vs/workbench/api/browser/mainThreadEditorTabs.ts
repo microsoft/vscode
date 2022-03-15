@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -14,14 +14,20 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { generateUuid } from 'vs/base/common/uuid';
+
 
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
-export class MainThreadEditorTabs {
+export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 
 	private readonly _dispoables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private _tabGroupModel: IEditorTabGroupDto[] = [];
+
+	private readonly _editorInput: Map<string, { group: IEditorGroup; input: EditorInput }> = new Map();
 	private readonly _groupModel: Map<number, IEditorTabGroupDto> = new Map();
+
+	private readonly _editorIdPool = new WeakMap<EditorInput, Map<number, string>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -40,6 +46,20 @@ export class MainThreadEditorTabs {
 		this._dispoables.dispose();
 	}
 
+	private _getIdForEditorInput(group: IEditorGroup, input: EditorInput): string {
+		let groupToId = this._editorIdPool.get(input);
+		if (!groupToId) {
+			groupToId = new Map();
+			this._editorIdPool.set(input, groupToId);
+		}
+		let result = groupToId.get(group.id);
+		if (result === undefined) {
+			result = generateUuid();
+			groupToId.set(group.id, result);
+		}
+		return result;
+	}
+
 	/**
 	 * Creates a tab object with the correct properties
 	 * @param editor The editor input represented by the tab
@@ -50,6 +70,7 @@ export class MainThreadEditorTabs {
 		const editorId = editor.editorId;
 		const tabKind = editor instanceof DiffEditorInput ? TabKind.Diff : editor instanceof SideBySideEditorInput ? TabKind.SidebySide : TabKind.Singular;
 		const tab: IEditorTabDto = {
+			id: this._getIdForEditorInput(group, editor),
 			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 			label: editor.getName(),
 			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
@@ -361,5 +382,20 @@ export class MainThreadEditorTabs {
 		}
 		await group.closeEditor(editor, { preserveFocus });
 	}
+
+
+	async $closeTab2(id: string, preserveFocus: boolean): Promise<void> {
+		const { group, input } = this._findEditorInputById(id);
+		group.closeEditor(input, { preserveFocus });
+	}
+
+	private _findEditorInputById(id: string): { input: EditorInput; group: IEditorGroup } {
+		const result = this._editorInput.get(id);
+		if (!result) {
+			throw Error(`Unknown editor ${id}`);
+		}
+		return result;
+	}
+
 	//#endregion
 }

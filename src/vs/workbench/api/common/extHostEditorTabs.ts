@@ -44,6 +44,37 @@ export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 	tabGroups: IEditorTabGroups;
 }
 
+class ExtHostTab {
+
+	private _apiObject: vscode.Tab | undefined;
+
+	private _dto: IEditorTabDto;
+
+
+	constructor(dto: IEditorTabDto) {
+		this._dto = dto;
+	}
+
+	get apiObject(): vscode.Tab {
+		const that = this;
+		if (!this._apiObject) {
+			this._apiObject = {
+				get isActive() {
+					return that._dto.isActive;
+				},
+				get label() {
+					return that._dto.label;
+				}
+			};
+		}
+		return this._apiObject;
+	}
+
+	acceptUpdate(dto: IEditorTabDto) {
+		this._dto = dto;
+	}
+}
+
 export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostEditorTabs');
 
 export class ExtHostEditorTabs implements IExtHostEditorTabs {
@@ -61,12 +92,23 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		onDidChangeActiveTabGroup: this._onDidChangeActiveTabGroup.event
 	};
 
+	private readonly _tab = new Map<string, ExtHostTab>();
+
 	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadEditorTabs);
 	}
 
 	get tabGroups(): IEditorTabGroups {
 		return this._tabGroups;
+	}
+
+	$acceptTabUpdate(dto: IEditorTabDto): void {
+		const tab = this._tab.get(dto.id);
+		if (!tab) {
+			throw new Error('unknown tab');
+		}
+		tab.acceptUpdate(dto);
+		// this._onDidChangeTab.fire(tab.apiObject)
 	}
 
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void {
@@ -125,7 +167,9 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 				return;
 			},
 			close: async (preserveFocus) => {
-				await this._proxy.$closeTab(tabDto, preserveFocus);
+				// await this._proxy.$closeTab(tabDto, preserveFocus);
+				await this._proxy.$closeTab2(tabDto.id, preserveFocus ?? false);
+
 				// TODO: Need an on did change tab event at the group level
 				return;
 			}

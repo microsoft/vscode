@@ -613,6 +613,7 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
 	$moveTab(tab: IEditorTabDto, index: number, viewColumn: EditorGroupColumn): void;
 	$closeTab(tab: IEditorTabDto, preserveFocus: boolean): Promise<void>;
+	$closeTab2(id: string, preserveFocus: boolean): Promise<void>;
 }
 
 export interface IEditorTabGroupDto {
@@ -632,6 +633,7 @@ export enum TabKind {
 }
 
 export interface IEditorTabDto {
+	id: string;
 	viewColumn: EditorGroupColumn;
 	label: string;
 	resource?: UriComponents;
