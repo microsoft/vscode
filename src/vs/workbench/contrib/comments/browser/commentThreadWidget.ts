@@ -71,6 +71,8 @@ export class CommentThreadWidget extends Disposable implements ICommentThreadWid
 			this._scopedInstatiationService
 		);
 
+		this._header.updateCommentThread(this._commentThread);
+
 		const bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(bodyElement);
 

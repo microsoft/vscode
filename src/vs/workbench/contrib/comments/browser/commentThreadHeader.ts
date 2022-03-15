@@ -81,6 +81,7 @@ export class CommentThreadHeader extends Disposable {
 		this._actionbarWidget.context = this._commentThread;
 		this.createThreadLabel();
 	}
+
 	createThreadLabel() {
 		let label: string | undefined;
 		label = this._commentThread.label;
