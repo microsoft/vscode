@@ -76,9 +76,22 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+		const editorService = accessor.get(IEditorService);
 
 		const { entry, previous } = await findLocalHistoryEntry(workingCopyHistoryService, item);
-		if (entry && previous) {
+		if (entry) {
+
+			// Without a previous entry, just show the entry directly
+			if (!previous) {
+				await editorService.openEditor({
+					resource: LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
+					label: localize('localHistoryEditorLabel', "{0} ({1})", entry.workingCopy.name, entry.timestamp.label),
+					description: entry?.source ? SaveSourceRegistry.getSourceLabel(entry.source) : undefined
+				});
+				return;
+			}
+
+			// Open real diff editor
 			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(previous, entry));
 		}
 	}
@@ -161,29 +174,36 @@ registerAction2(class extends Action2 {
 
 //#region Helpers
 
-export function toDiffEditorArguments(original: IWorkingCopyHistoryEntry, arg2: IWorkingCopyHistoryEntry | URI): unknown[] {
+export function toDiffEditorArguments(entry: IWorkingCopyHistoryEntry, resource: URI): unknown[];
+export function toDiffEditorArguments(previousEntry: IWorkingCopyHistoryEntry, entry: IWorkingCopyHistoryEntry): unknown[];
+export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWorkingCopyHistoryEntry | URI): unknown[] {
 
 	// Left hand side is always a working copy history entry
-	const originalResource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: original.location, associatedResource: original.workingCopy.resource, label: original.workingCopy.name });
+	const originalResource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: arg1.location, associatedResource: arg1.workingCopy.resource, label: arg1.workingCopy.name });
 
 	let label: string;
-	let description = original?.source ? SaveSourceRegistry.getSourceLabel(original.source) : undefined;
+	let description = arg1?.source ? SaveSourceRegistry.getSourceLabel(arg1.source) : undefined;
 
 	// Right hand side depends on how the method was called
 	// and is either another working copy history entry
 	// or the file on disk.
 
 	let modifiedResource: URI;
+
+	// Compare with file on disk
 	if (URI.isUri(arg2)) {
 		const resource = arg2;
 
 		modifiedResource = resource;
-		label = localize('localHistoryCompareToFileEditorLabel', "{0} ({1}) ↔ {2} (File)", original!.workingCopy.name, original!.timestamp.label, original!.workingCopy.name);
-	} else {
+		label = localize('localHistoryCompareToFileEditorLabel', "{0} ({1}) ↔ {2}", arg1.workingCopy.name, arg1.timestamp.label, arg1.workingCopy.name);
+	}
+
+	// Compare with another entry
+	else {
 		const modified = arg2;
 
 		modifiedResource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: modified.location, associatedResource: modified.workingCopy.resource, label: modified.workingCopy.name });
-		label = localize('localHistoryCompareToPreviousEditorLabel', "{0} ({1}) ↔ {2} ({3})", original.workingCopy.name, original.timestamp.label, modified.workingCopy.name, modified.timestamp.label);
+		label = localize('localHistoryCompareToPreviousEditorLabel', "{0} ({1}) ↔ {2} ({3})", arg1.workingCopy.name, arg1.timestamp.label, modified.workingCopy.name, modified.timestamp.label);
 	}
 
 	return [
