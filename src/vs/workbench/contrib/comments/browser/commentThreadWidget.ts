@@ -30,9 +30,8 @@ export class CommentThreadWidget extends Disposable implements ICommentThreadWid
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
-
 	constructor(
-		container: HTMLElement,
+		readonly container: HTMLElement,
 		private _owner: string,
 		private _parentResourceUri: URI,
 		private _contextKeyService: IContextKeyService,

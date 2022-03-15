@@ -9,17 +9,14 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRange } from 'vs/editor/common/core/range';
-import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
-import { CommentNode } from 'vs/workbench/contrib/comments/browser/commentNode';
-import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentThreadHeader } from 'vs/workbench/contrib/comments/browser/commentThreadHeader';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class TestCommentThread implements languages.CommentThread {
 	private _input?: languages.CommentInput;
@@ -139,101 +136,105 @@ export class TestCommentThread implements languages.CommentThread {
 
 export class CellComments extends CellPart {
 	private _initialized: boolean = false;
-	private _header: CommentThreadHeader | null = null;
-	private _commentsElement!: HTMLElement;
-	private _commentNodes: CommentNode[] = [];
-	private _commentMenus: CommentMenus;
+	private _commentThreadWidget: CommentThreadWidget | null = null;
 	private currentElement: CodeCellViewModel | undefined;
+	private readonly elementDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly notebookEditor: INotebookEditorDelegate,
 		private readonly container: HTMLElement,
-		@ICommentService private commentService: ICommentService,
 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-
-		this._commentMenus = this.commentService.getCommentMenus(this.notebookEditor.getId());
 	}
 
-	_initialize(element: ICellViewModel) {
+	private initialize(element: ICellViewModel) {
 		if (this._initialized) {
 			return;
 		}
 
 		this._initialized = true;
-		const commentThread = new TestCommentThread(
-			element.handle,
-			0,
-			'',
-			'test',
-			element.uri.toString(),
-			{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-			false
-		);
-		commentThread.label = 'Discussion';
+		const commentThread = this._getCommentThreadForCell(element);
+		if (commentThread) {
+			this._commentThreadWidget = this.instantiationService.createInstance(
+				CommentThreadWidget,
+				this.container,
+				this.notebookEditor.getId(),
+				this.notebookEditor.textModel!.uri,
+				this.contextKeyService,
+				this.instantiationService,
+				commentThread,
+				null,
+				{},
+				undefined,
+				{
+					actionRunner: () => {
 
-		commentThread.comments = [
-			{
-				body: '#test',
-				uniqueIdInThread: 1,
-				userName: 'rebornix',
-				userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
-			},
-			{
-				body: 'yet another test',
-				uniqueIdInThread: 2,
-				userName: 'peng',
-				label: 'pending',
-				userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
-			}
-		];
-
-		this._header = new CommentThreadHeader(this.container, {
-			collapse: () => {
-			}
-		}, this._commentMenus, commentThread, this.contextKeyService, this.instantiationService);
-
-		const bodyElement = dom.append(this.container, dom.$('.body'));
-		this._commentsElement = dom.append(bodyElement, dom.$('div.comments-container'));
-
-		const markdownRenderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
-		this._commentNodes = [];
-		if (commentThread.comments) {
-			for (const comment of commentThread.comments) {
-				const newCommentNode = this.instantiationService.createInstance(CommentNode,
-					commentThread,
-					comment,
-					`${element.handle}`,
-					element.uri,
-					{
-						submitComment: async () => { },
-						collapse: () => { }
 					},
-					markdownRenderer
-				);
-
-				this._commentNodes.push(newCommentNode);
-				this._commentsElement.appendChild(newCommentNode.domNode);
-				if (comment.mode === languages.CommentMode.Editing) {
-					newCommentNode.switchToEditMode();
+					collapse: () => { }
 				}
-			}
+			);
+
+			const layoutInfo = this.notebookEditor.getLayoutInfo();
+
+			this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight);
+
+			this.elementDisposables.add(this._commentThreadWidget.onDidResize(() => {
+				if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
+					this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
+				}
+			}));
 		}
+	}
+
+	private _getCommentThreadForCell(element: ICellViewModel) {
+		// const commentThread = new TestCommentThread(
+		// 	element.handle,
+		// 	0,
+		// 	'',
+		// 	'test',
+		// 	element.uri.toString(),
+		// 	{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+		// 	true
+		// );
+		// commentThread.label = 'Discussion';
+
+		// commentThread.comments = [
+		// 	{
+		// 		body: '#test',
+		// 		uniqueIdInThread: 1,
+		// 		userName: 'rebornix',
+		// 		userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
+		// 	},
+		// 	{
+		// 		body: 'yet another test',
+		// 		uniqueIdInThread: 2,
+		// 		userName: 'rebornix',
+		// 		label: 'pending',
+		// 		userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
+		// 	}
+		// ];
+
+		// return commentThread;
+		return undefined;
 	}
 
 	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
 		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
-			this._initialize(element);
+			this.initialize(element);
 		}
 	}
 
+	override unrenderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		this.elementDisposables.clear();
+	}
+
 	prepareLayout(): void {
-		if (this.currentElement?.cellKind === CellKind.Code) {
-			this.currentElement.commentHeight = 25 + dom.getClientArea(this._commentsElement).height;
+		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
+			this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
 		}
 	}
 
