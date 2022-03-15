@@ -162,6 +162,39 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(addEvents.length, 4);
 	});
 
+	test('removeEntry', async () => {
+		let removeEvents: IWorkingCopyHistoryEvent[] = [];
+		service.onDidRemoveEntry(e => removeEvents.push(e));
+
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		const entry1 = await service.addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
+		const entry2 = await service.addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
+		const entry3 = await service.addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
+		const entry4 = await service.addEntry({ resource: workingCopy1.resource, source: 'My Source' }, CancellationToken.None);
+
+		assert.ok(entry1);
+		assert.ok(entry2);
+		assert.ok(entry3);
+		assert.ok(entry4);
+
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 4);
+
+		let removed = await service.removeEntry(entry2, CancellationToken.None);
+		assert.strictEqual(removed, true);
+
+		assert.strictEqual(removeEvents.length, 1);
+		assert.strictEqual(removeEvents[0].entry, entry2);
+
+		// Cannot remove same entry again
+		removed = await service.removeEntry(entry2, CancellationToken.None);
+		assert.strictEqual(removed, false);
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 3);
+	});
+
 	test('getEntries - simple', async () => {
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));

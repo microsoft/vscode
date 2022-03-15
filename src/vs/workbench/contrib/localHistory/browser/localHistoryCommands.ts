@@ -110,7 +110,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('localHistory.restore', "Restore..."), original: 'Restore...' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '1_restore',
+				group: '1_dangerzone',
 				order: 1,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
@@ -166,6 +166,48 @@ registerAction2(class extends Action2 {
 				resource: entry.workingCopy.resource,
 				source: restoreSaveSource
 			}, CancellationToken.None);
+		}
+	}
+});
+
+//#endregion
+
+//#region Delete
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.delete',
+			title: { value: localize('localHistory.delete', "Delete..."), original: 'Delete...' },
+			menu: {
+				id: MenuId.TimelineItemContext,
+				group: '1_dangerzone',
+				order: 2,
+				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
+		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+		const dialogService = accessor.get(IDialogService);
+
+		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
+		if (entry) {
+
+			// Ask for confirmation
+			const { confirmed } = await dialogService.confirm({
+				message: localize('confirmDeleteMessage', "Do you want to delete the local history entry of '{0}' from {1}?", entry.workingCopy.name, entry.timestamp.label),
+				detail: localize('confirmDeleteDetail', "This action is irreversible!"),
+				primaryButton: localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
+				type: 'warning'
+			});
+
+			if (!confirmed) {
+				return;
+			}
+
+			// Remove via service
+			await workingCopyHistoryService.removeEntry(entry, CancellationToken.None);
 		}
 	}
 });

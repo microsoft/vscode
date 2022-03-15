@@ -103,6 +103,21 @@ export class WorkingCopyHistoryModel {
 		return `${date.toLocaleString().replace(WorkingCopyHistoryModel.SEP, '-')}`;
 	}
 
+	async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {
+		const index = this.entries.indexOf(entry);
+		if (index === -1) {
+			return false;
+		}
+
+		// Delete from disk
+		await this.deleteEntry(entry);
+
+		// Remove from model
+		this.entries.splice(index, 1);
+
+		return true;
+	}
+
 	async getEntries(): Promise<readonly IWorkingCopyHistoryEntry[]> {
 
 		// Make sure to await resolving when all entries are asked for
@@ -194,7 +209,7 @@ export class WorkingCopyHistoryModel {
 		// Cleanup based on max-entries setting
 		await this.cleanUpEntries();
 
-		// Persist entries meta data on shutdown
+		// Persist entries meta data
 		await this.writeEntriesFile();
 	}
 
@@ -215,16 +230,20 @@ export class WorkingCopyHistoryModel {
 
 		// Delete entries from disk as instructed
 		for (const entryToDelete of entriesToDelete) {
-			try {
-				await this.fileService.del(entryToDelete.location);
-			} catch (error) {
-				this.traceError(error);
-			}
+			await this.deleteEntry(entryToDelete);
 		}
 
 		// Make sure to update our in-memory model as well
 		// because it will be persisted right after
 		this.entries = entriesToKeep;
+	}
+
+	private async deleteEntry(entry: IWorkingCopyHistoryEntry): Promise<void> {
+		try {
+			await this.fileService.del(entry.location);
+		} catch (error) {
+			this.traceError(error);
+		}
 	}
 
 	private async writeEntriesFile(): Promise<void> {
@@ -291,6 +310,9 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 	private readonly _onDidAddEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
 	readonly onDidAddEntry = this._onDidAddEntry.event;
 
+	private readonly _onDidRemoveEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
+	readonly onDidRemoveEntry = this._onDidRemoveEntry.event;
+
 	private readonly localHistoryHome = new DeferredPromise<URI>();
 
 	protected readonly models = new ResourceMap<WorkingCopyHistoryModel>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
@@ -348,6 +370,25 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		this._onDidAddEntry.fire({ entry });
 
 		return entry;
+	}
+
+	async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {
+
+		// Resolve history model for working copy
+		const model = await this.getModel(entry.workingCopy.resource);
+		if (token.isCancellationRequested) {
+			return false;
+		}
+
+		// Remove from model
+		const removed = await model.removeEntry(entry, token);
+
+		// Events
+		if (removed) {
+			this._onDidRemoveEntry.fire({ entry });
+		}
+
+		return removed;
 	}
 
 	async getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]> {

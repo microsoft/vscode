@@ -27,6 +27,15 @@ class BrowserWorkingCopyHistoryModel extends WorkingCopyHistoryModel {
 
 		return entry;
 	}
+
+	override async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {
+		const removed = await super.removeEntry(entry, token);
+		if (removed && !token.isCancellationRequested) {
+			await this.store(); // need to store on each remove because we do not have long running shutdown support in web
+		}
+
+		return removed;
+	}
 }
 
 export class BrowserWorkingCopyHistoryService extends WorkingCopyHistoryService {
