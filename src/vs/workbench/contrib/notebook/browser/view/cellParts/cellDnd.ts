@@ -10,7 +10,7 @@ import * as platform from 'vs/base/common/platform';
 import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellEditType, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellMoveEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 const $ = DOM.$;
@@ -257,40 +257,7 @@ export class CellDragAndDropController extends Disposable {
 			], true, { kind: SelectionStateType.Index, focus: this.notebookEditor.getFocus(), selections: this.notebookEditor.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }), undefined, true);
 			this.notebookEditor.revealCellRangeInView(finalSelection);
 		} else {
-			const draggedCellIndex = this.notebookEditor.getCellIndex(draggedCell);
-			const range = this.getCellRangeAroundDragTarget(draggedCellIndex);
-			let originalToIdx = this.notebookEditor.getCellIndex(draggedOverCell);
-			if (dropDirection === 'below') {
-				const relativeToIndex = this.notebookEditor.getCellIndex(draggedOverCell);
-				const newIdx = this.notebookEditor.getNextVisibleCellIndex(relativeToIndex);
-				originalToIdx = newIdx;
-			}
-
-			if (originalToIdx >= range.start && originalToIdx <= range.end) {
-				return;
-			}
-
-			let finalSelection: ICellRange;
-			let finalFocus: ICellRange;
-
-			if (originalToIdx <= range.start) {
-				finalSelection = { start: originalToIdx, end: originalToIdx + range.end - range.start };
-				finalFocus = { start: originalToIdx + draggedCellIndex - range.start, end: originalToIdx + draggedCellIndex - range.start + 1 };
-			} else {
-				const delta = (originalToIdx - range.end);
-				finalSelection = { start: range.start + delta, end: range.end + delta };
-				finalFocus = { start: draggedCellIndex + delta, end: draggedCellIndex + delta + 1 };
-			}
-
-			textModel.applyEdits([
-				{
-					editType: CellEditType.Move,
-					index: range.start,
-					length: range.end - range.start,
-					newIdx: originalToIdx <= range.start ? originalToIdx : (originalToIdx - (range.end - range.start))
-				}
-			], true, { kind: SelectionStateType.Index, focus: this.notebookEditor.getFocus(), selections: this.notebookEditor.getSelections() }, () => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }), undefined, true);
-			this.notebookEditor.revealCellRangeInView(finalSelection);
+			performCellDropEdits(this.notebookEditor, draggedCell, dropDirection, draggedOverCell);
 		}
 	}
 
@@ -422,4 +389,89 @@ export class CellDragAndDropController extends Disposable {
 
 		return this.getDropInsertDirection(dragPosRatio);
 	}
+}
+
+export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCell: ICellViewModel, dropDirection: 'above' | 'below', draggedOverCell: ICellViewModel): void {
+	const draggedCellIndex = editor.getCellIndex(draggedCell)!;
+	let originalToIdx = editor.getCellIndex(draggedOverCell)!;
+
+	if (typeof draggedCellIndex !== 'number' || typeof originalToIdx !== 'number') {
+		return;
+	}
+
+	// If dropped on a folded markdown range, insert after the folding range
+	if (dropDirection === 'below') {
+		const newIdx = editor.getNextVisibleCellIndex(originalToIdx) ?? originalToIdx;
+		originalToIdx = newIdx;
+	}
+
+	let selections = editor.getSelections();
+	if (!selections.length) {
+		selections = [editor.getFocus()];
+	}
+
+	const droppedInSelection = selections.find(range => range.start <= originalToIdx && range.end > originalToIdx);
+	if (droppedInSelection) {
+		originalToIdx = droppedInSelection.start;
+	}
+
+	const originalFocusIdx = editor.getFocus().start;
+	let numCells = 0;
+	let focusNewIdx = originalToIdx;
+	let newInsertionIdx = originalToIdx;
+
+	// Compute a set of edits which will be applied in reverse order by the notebook text model.
+	// `index`: the starting index of the range, after previous edits have been applied
+	// `newIdx`: the destination index, after this edit's range has been removed
+	selections.sort((a, b) => b.start - a.start);
+	const edits = selections.map(range => {
+		const length = range.end - range.start;
+
+		// If this range is before the insertion point, subtract the cells in this range from the "to" index
+		let toIndexDelta = 0;
+		if (range.end <= newInsertionIdx) {
+			toIndexDelta = -length;
+		}
+
+		const newIdx = newInsertionIdx + toIndexDelta;
+
+		// If this range contains the focused cell, set the new focus index to the new index of the cell
+		if (originalFocusIdx >= range.start && originalFocusIdx <= range.end) {
+			const offset = originalFocusIdx - range.start;
+			focusNewIdx = newIdx + offset;
+		}
+
+		// If below the insertion point, the original index will have been shifted down
+		const fromIndexDelta = range.start >= originalToIdx ? numCells : 0;
+
+		const edit: ICellMoveEdit = {
+			editType: CellEditType.Move,
+			index: range.start + fromIndexDelta,
+			length,
+			newIdx
+		};
+		numCells += length;
+
+		// If a range was moved down, the insertion index needs to be adjusted
+		if (range.end < newInsertionIdx) {
+			newInsertionIdx -= length;
+		}
+
+		return edit;
+	});
+
+	const lastEdit = edits[edits.length - 1];
+	const finalSelection = { start: lastEdit.newIdx, end: lastEdit.newIdx + numCells };
+	const finalFocus = { start: focusNewIdx, end: focusNewIdx + 1 };
+
+	// console.log(JSON.stringify(edits));
+	// console.log(JSON.stringify(finalSelection));
+	// console.log(JSON.stringify(finalFocus));
+	editor.textModel!.applyEdits(
+		edits,
+		true,
+		{ kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() },
+		() => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }),
+		undefined);
+	editor.revealCellRangeInView(finalSelection);
 }
