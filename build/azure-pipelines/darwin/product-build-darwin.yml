@@ -299,7 +299,7 @@ steps:
       pushd .. && mv vscode-reh-darwin-$(VSCODE_ARCH) vscode-server-darwin && zip -Xry vscode-server-darwin-$(VSCODE_ARCH).zip vscode-server-darwin && popd
 
       # package Remote Extension Host (Web)
-      pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-web && zip -Xry vscode-server-darwin-web-$(VSCODE_ARCH).zip vscode-server-darwin-web && popd
+      pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-web && popd
     displayName: Prepare to publish servers
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
@@ -308,15 +308,31 @@ steps:
     displayName: Publish client archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH).zip
-    artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
-    displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+  - script: |
+      mv $(agent.builddirectory)/vscode-server-darwin-x64.zip $(agent.builddirectory)/vscode-server-darwin.zip
+      mv $(agent.builddirectory)/vscode-server-darwin-x64-web.zip $(agent.builddirectory)/vscode-server-darwin-web.zip
+    displayName: Rename x64 server builds to their legacy names
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
 
-  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web-$(VSCODE_ARCH).zip
-    artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
-    displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-arm64.zip
+    artifact: vscode_server_darwin_arm64_archive-unsigned
+    displayName: Publish arm64 server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-arm64-web.zip
+    artifact: vscode_web_darwin_arm64_archive-unsigned
+    displayName: Publish arm64 web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
+    artifact: vscode_server_darwin_x64_archive-unsigned
+    displayName: Publish x64 server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web.zip
+    artifact: vscode_web_darwin_x64_archive-unsigned
+    displayName: Publish x64 web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - task: AzureCLI@2
     inputs:
