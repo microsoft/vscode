@@ -7,11 +7,39 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
-	export enum TabKind {
-		Singular = 0,
-		Diff = 1,
-		SidebySide = 2
+	// TODO@API names: XYZInput -> XYZDescriptor, XYZDescription, XYZOptions
+	export class TextTabInput {
+		readonly uri: Uri;
 	}
+
+	export class TextDiffTabInput {
+		readonly original: Uri;
+		readonly modified: Uri;
+	}
+
+	export class NotebookTabInput {
+		readonly notebookType: string;
+		readonly uri: Uri;
+	}
+
+	export class NotebookDiffTabInput {
+		readonly notebookType: string;
+		readonly original: Uri;
+		readonly modified: Uri;
+	}
+
+	export class CustomTabInput {
+		readonly viewType: string;
+		readonly uri: Uri;
+	}
+
+	// TODO@API add direction
+	export class SplitTabInput {
+		readonly inputs: readonly (TextTabInput | NotebookTabInput | CustomTabInput | unknown)[];
+	}
+
+	// TODO@API what about terminals
+	export type TabInput = TextTabInput | TextDiffTabInput | NotebookTabInput | NotebookDiffTabInput | CustomTabInput | SplitTabInput;
 
 	/**
 	 * Represents a tab within the window
@@ -27,28 +55,9 @@ declare module 'vscode' {
 		 */
 		readonly viewColumn: ViewColumn;
 
-		/**
-		 * The resource represented by the tab if available.
-		 * Note: Not all tabs have a resource associated with them.
-		 */
-		readonly resource: Uri | undefined;
-
-		/**
-		 * The type of view contained in the tab
-		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
-		 * The built-in text editor has an id of 'default' for all configurations.
-		 */
-		readonly viewType: string | undefined;
-
-		/**
-		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
-		 * always be at index 0.
-		 */
-		readonly additionalResourcesAndViewTypes: readonly {
-			readonly resource: Uri | undefined;
-			readonly viewType: string | undefined;
-		}[];
+		// TODO@API signal to extensions that this can grow in the future
+		// TODO@API better name than "input"
+		readonly input: TabInput | unknown;
 
 		/**
 		 * Whether or not the tab is currently active
@@ -65,11 +74,6 @@ declare module 'vscode' {
 		 * Whether or not the tab is pinned
 		 */
 		readonly isPinned: boolean;
-
-		/**
-		 * Indicates the type of tab it is.
-		 */
-		readonly kind: TabKind;
 
 		/**
 		 * Moves a tab to the given index within the column.
