@@ -78,12 +78,14 @@ declare module 'vscode' {
 		 * @param index The index to move the tab to
 		 * @param viewColumn The column to move the tab into
 		 */
+		// TODO@API move into TabGroups
 		move(index: number, viewColumn: ViewColumn): Thenable<void>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
 		 * should no longer be used for further actions.
 		 */
+		// TODO@API move into TabGroups
 		close(): Thenable<void>;
 	}
 
@@ -94,7 +96,7 @@ declare module 'vscode' {
 		export const tabGroups: TabGroups;
 	}
 
-	interface TabGroups {
+	export interface TabGroups {
 		/**
 		 * All the groups within the group container
 		 */
@@ -117,7 +119,7 @@ declare module 'vscode' {
 		onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 	}
 
-	interface TabGroup {
+	export interface TabGroup {
 		/**
 		 * Whether or not the group is currently active
 		 */
