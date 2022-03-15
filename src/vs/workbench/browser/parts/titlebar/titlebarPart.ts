@@ -293,7 +293,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		// vscode-remtoe: use as is
 		// otherwise figure out if we have a virtual folder opened
 		let remoteName: string | undefined = undefined;
-		if (this.environmentService.remoteAuthority) {
+		if (this.environmentService.remoteAuthority && !isWeb) {
 			remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
 		} else {
 			const virtualWorkspaceLocation = getVirtualWorkspaceLocation(workspace);
