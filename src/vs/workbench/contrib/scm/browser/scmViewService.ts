@@ -11,9 +11,22 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { SCMMenus } from 'vs/workbench/contrib/scm/browser/menus';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { debounce } from 'vs/base/common/decorators';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { compareFileNames } from 'vs/base/common/comparers';
+import { basename } from 'vs/base/common/resources';
+import { binarySearch } from 'vs/base/common/arrays';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
+}
+
+function getRepositoryName(workspaceContextService: IWorkspaceContextService, repository: ISCMRepository): string {
+	if (!repository.provider.rootUri) {
+		return repository.provider.label;
+	}
+
+	const folder = workspaceContextService.getWorkspaceFolder(repository.provider.rootUri);
+	return folder?.uri.toString() === repository.provider.rootUri.toString() ? folder.name : basename(repository.provider.rootUri);
 }
 
 export interface ISCMViewServiceState {
@@ -31,6 +44,15 @@ export class SCMViewService implements ISCMViewService {
 	private provisionalVisibleRepository: ISCMRepository | undefined;
 	private previousState: ISCMViewServiceState | undefined;
 	private disposables = new DisposableStore();
+
+	private _repositories: ISCMRepository[] = [];
+
+	get repositories(): ISCMRepository[] {
+		return this._repositories;
+	}
+
+	private _onDidChangeRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
+	readonly onDidChangeRepositories = this._onDidChangeRepositories.event;
 
 	private _visibleRepositoriesSet = new Set<ISCMRepository>();
 	private _visibleRepositories: ISCMRepository[] = [];
@@ -60,7 +82,7 @@ export class SCMViewService implements ISCMViewService {
 			return;
 		}
 
-		this._visibleRepositories = visibleRepositories;
+		this._visibleRepositories = visibleRepositories.sort(this._compareRepositories);
 		this._visibleRepositoriesSet = set;
 		this._onDidSetVisibleRepositories.fire({ added, removed });
 
@@ -69,7 +91,6 @@ export class SCMViewService implements ISCMViewService {
 		}
 	}
 
-	private _onDidChangeRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
 	private _onDidSetVisibleRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
 	readonly onDidChangeVisibleRepositories = Event.any(
 		this._onDidSetVisibleRepositories.event,
@@ -96,12 +117,22 @@ export class SCMViewService implements ISCMViewService {
 	private _onDidFocusRepository = new Emitter<ISCMRepository | undefined>();
 	readonly onDidFocusRepository = this._onDidFocusRepository.event;
 
+	private _compareRepositories: (op1: ISCMRepository, op2: ISCMRepository) => number;
+
 	constructor(
 		@ISCMService private readonly scmService: ISCMService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceContextService readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
+
+		this._compareRepositories = (op1: ISCMRepository, op2: ISCMRepository): number => {
+			const name1 = getRepositoryName(workspaceContextService, op1);
+			const name2 = getRepositoryName(workspaceContextService, op2);
+
+			return compareFileNames(name1, name2);
+		};
 
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
@@ -138,8 +169,11 @@ export class SCMViewService implements ISCMViewService {
 					}
 				}
 
-				this._visibleRepositories = [...this.scmService.repositories];
-				this._visibleRepositoriesSet = new Set(this.scmService.repositories);
+				const sortedRepositories = this.scmService.repositories.sort(this._compareRepositories);
+
+				this._repositories = [...sortedRepositories];
+				this._visibleRepositories = [...sortedRepositories];
+				this._visibleRepositoriesSet = new Set(sortedRepositories);
 				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 				this.finishLoading();
 				return;
@@ -163,7 +197,9 @@ export class SCMViewService implements ISCMViewService {
 			}
 		}
 
-		this._visibleRepositories.push(repository);
+		this.insertRepository(this._repositories, repository);
+		this.insertRepository(this._visibleRepositories, repository);
+
 		this._visibleRepositoriesSet.add(repository);
 		this._onDidChangeRepositories.fire({ added: [repository], removed });
 
@@ -177,12 +213,17 @@ export class SCMViewService implements ISCMViewService {
 			this.eventuallyFinishLoading();
 		}
 
-		const index = this._visibleRepositories.indexOf(repository);
+		let added: Iterable<ISCMRepository> = Iterable.empty();
 
-		if (index > -1) {
-			let added: Iterable<ISCMRepository> = Iterable.empty();
+		const repositoriesIndex = this._repositories.indexOf(repository);
+		const visibleRepositoriesIndex = this._visibleRepositories.indexOf(repository);
 
-			this._visibleRepositories.splice(index, 1);
+		if (repositoriesIndex > -1) {
+			this._repositories.splice(repositoriesIndex, 1);
+		}
+
+		if (visibleRepositoriesIndex > -1) {
+			this._visibleRepositories.splice(visibleRepositoriesIndex, 1);
 			this._visibleRepositoriesSet.delete(repository);
 
 			if (this._visibleRepositories.length === 0 && this.scmService.repositories.length > 0) {
@@ -192,7 +233,9 @@ export class SCMViewService implements ISCMViewService {
 				this._visibleRepositoriesSet.add(first);
 				added = [first];
 			}
+		}
 
+		if (repositoriesIndex > -1 || visibleRepositoriesIndex > -1) {
 			this._onDidChangeRepositories.fire({ added, removed: [repository] });
 		}
 
@@ -233,6 +276,13 @@ export class SCMViewService implements ISCMViewService {
 
 		this._focusedRepository = repository;
 		this._onDidFocusRepository.fire(repository);
+	}
+
+	private insertRepository(repositories: ISCMRepository[], repository: ISCMRepository): void {
+		const index = binarySearch(repositories, repository, this._compareRepositories);
+		if (index < 0) {
+			repositories.splice(~index, 0, repository);
+		}
 	}
 
 	private onWillSaveState(): void {
