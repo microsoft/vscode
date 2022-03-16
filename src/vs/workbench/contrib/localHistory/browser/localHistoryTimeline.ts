@@ -141,7 +141,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			description: entry.timestamp.label,
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp.value,
-			themeIcon: Codicon.save,
+			themeIcon: Codicon.circleOutline,
 			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
 			command: {
 				id: API_OPEN_DIFF_EDITOR_COMMAND_ID,

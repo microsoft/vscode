@@ -371,7 +371,7 @@ registerAction2(class extends Action2 {
 		entryPicker.matchOnDescription = true;
 		entryPicker.items = Array.from(entries).reverse().map(entry => ({
 			entry,
-			label: `$(save) ${SaveSourceRegistry.getSourceLabel(entry.source)}`,
+			label: `$(circle-outline) ${SaveSourceRegistry.getSourceLabel(entry.source)}`,
 			description: entry.timestamp.label
 		}));
 
