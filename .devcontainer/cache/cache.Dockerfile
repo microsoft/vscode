@@ -4,7 +4,7 @@
 # This first stage generates cache.tar
 FROM mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:dev as cache
 ARG USERNAME=node
-ARG CACHE_FOLDER="$HOME/.devcontainer-cache"
+ARG CACHE_FOLDER="/home/${USERNAME}/.devcontainer-cache"
 COPY --chown=${USERNAME}:${USERNAME} . /repo-source-tmp/
 RUN mkdir -p ${CACHE_FOLDER} && chown ${USERNAME} ${CACHE_FOLDER} /repo-source-tmp \
 	&& su ${USERNAME} -c "\
@@ -16,6 +16,6 @@ RUN mkdir -p ${CACHE_FOLDER} && chown ${USERNAME} ${CACHE_FOLDER} /repo-source-t
 # devcontainer.json file is then setup to have postCreateCommand fire restore-diff.sh to expand it.
 FROM mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:dev as dev-container
 ARG USERNAME=node
-ARG CACHE_FOLDER="$HOME/.devcontainer-cache"
+ARG CACHE_FOLDER="/home/${USERNAME}/.devcontainer-cache"
 RUN mkdir -p "${CACHE_FOLDER}" && chown "${USERNAME}:${USERNAME}" "${CACHE_FOLDER}"
 COPY --from=cache ${CACHE_FOLDER}/cache.tar ${CACHE_FOLDER}/
