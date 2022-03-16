@@ -257,30 +257,32 @@ export const EXTENSION_CATEGORIES = [
 	'Other',
 ];
 
-export interface IExtensionManifest {
-	readonly name: string;
-	readonly displayName?: string;
-	readonly publisher: string;
-	readonly version: string;
-	readonly engines: { readonly vscode: string };
-	readonly description?: string;
-	readonly main?: string;
-	readonly browser?: string;
-	readonly icon?: string;
-	readonly categories?: string[];
-	readonly keywords?: string[];
-	readonly activationEvents?: string[];
-	readonly extensionDependencies?: string[];
-	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind | ExtensionKind[];
-	readonly contributes?: IExtensionContributions;
-	readonly repository?: { url: string };
-	readonly bugs?: { url: string };
-	readonly enabledApiProposals?: readonly string[];
-	readonly api?: string;
-	readonly scripts?: { [key: string]: string };
-	readonly capabilities?: IExtensionCapabilities;
+export interface IRelaxedExtensionManifest {
+	name: string;
+	displayName?: string;
+	publisher: string;
+	version: string;
+	engines: { readonly vscode: string };
+	description?: string;
+	main?: string;
+	browser?: string;
+	icon?: string;
+	categories?: string[];
+	keywords?: string[];
+	activationEvents?: string[];
+	extensionDependencies?: string[];
+	extensionPack?: string[];
+	extensionKind?: ExtensionKind | ExtensionKind[];
+	contributes?: IExtensionContributions;
+	repository?: { url: string };
+	bugs?: { url: string };
+	enabledApiProposals?: readonly string[];
+	api?: string;
+	scripts?: { [key: string]: string };
+	capabilities?: IExtensionCapabilities;
 }
+
+export type IExtensionManifest = Readonly<IRelaxedExtensionManifest>;
 
 export const enum ExtensionType {
 	System,
@@ -375,15 +377,18 @@ export class ExtensionIdentifier {
 	}
 }
 
-export interface IExtensionDescription extends IExtensionManifest {
-	readonly identifier: ExtensionIdentifier;
-	readonly uuid?: string;
-	readonly targetPlatform: TargetPlatform;
-	readonly isBuiltin: boolean;
-	readonly isUserBuiltin: boolean;
-	readonly isUnderDevelopment: boolean;
-	readonly extensionLocation: URI;
+export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
+	id?: string;
+	identifier: ExtensionIdentifier;
+	uuid?: string;
+	targetPlatform: TargetPlatform;
+	isBuiltin: boolean;
+	isUserBuiltin: boolean;
+	isUnderDevelopment: boolean;
+	extensionLocation: URI;
 }
+
+export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
 
 export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;

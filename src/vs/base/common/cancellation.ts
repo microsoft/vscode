@@ -46,12 +46,12 @@ export namespace CancellationToken {
 	}
 
 
-	export const None: CancellationToken = Object.freeze({
+	export const None = Object.freeze<CancellationToken>({
 		isCancellationRequested: false,
 		onCancellationRequested: Event.None
 	});
 
-	export const Cancelled: CancellationToken = Object.freeze({
+	export const Cancelled = Object.freeze<CancellationToken>({
 		isCancellationRequested: true,
 		onCancellationRequested: shortcutEvent
 	});

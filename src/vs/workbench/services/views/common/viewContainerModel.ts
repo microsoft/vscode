@@ -477,10 +477,12 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		return this.find(id).viewDescriptorItem.state.size;
 	}
 
-	setSize(id: string, size: number): void {
-		const { viewDescriptorItem } = this.find(id);
-		if (viewDescriptorItem.state.size !== size) {
-			viewDescriptorItem.state.size = size;
+	setSizes(newSizes: readonly { id: string; size: number }[]): void {
+		for (const { id, size } of newSizes) {
+			const { viewDescriptorItem } = this.find(id);
+			if (viewDescriptorItem.state.size !== size) {
+				viewDescriptorItem.state.size = size;
+			}
 		}
 		this.viewDescriptorsState.updateState(this.allViewDescriptors);
 	}

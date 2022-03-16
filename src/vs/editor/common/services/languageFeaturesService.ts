@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { LanguageFeatureRegistry, NotebookTypeResolver } from 'vs/editor/common/languageFeatureRegistry';
+import { LanguageFeatureRegistry, NotebookInfo, NotebookInfoResolver } from 'vs/editor/common/languageFeatureRegistry';
 import { CodeActionProvider, CodeLensProvider, CompletionItemProvider, DeclarationProvider, DefinitionProvider, DocumentColorProvider, DocumentFormattingEditProvider, DocumentHighlightProvider, DocumentRangeFormattingEditProvider, DocumentRangeSemanticTokensProvider, DocumentSemanticTokensProvider, DocumentSymbolProvider, EvaluatableExpressionProvider, FoldingRangeProvider, HoverProvider, ImplementationProvider, InlayHintsProvider, InlineCompletionsProvider, InlineValuesProvider, LinkedEditingRangeProvider, LinkProvider, OnTypeFormattingEditProvider, ReferenceProvider, RenameProvider, SelectionRangeProvider, SignatureHelpProvider, TypeDefinitionProvider } from 'vs/editor/common/languages';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -42,13 +42,13 @@ export class LanguageFeaturesService implements ILanguageFeaturesService {
 	readonly documentSemanticTokensProvider = new LanguageFeatureRegistry<DocumentSemanticTokensProvider>(this._score.bind(this));
 
 
-	private _notebookTypeResolver?: NotebookTypeResolver;
+	private _notebookTypeResolver?: NotebookInfoResolver;
 
-	setNotebookTypeResolver(resolver: NotebookTypeResolver | undefined) {
+	setNotebookTypeResolver(resolver: NotebookInfoResolver | undefined) {
 		this._notebookTypeResolver = resolver;
 	}
 
-	private _score(uri: URI): string | undefined {
+	private _score(uri: URI): NotebookInfo | undefined {
 		return this._notebookTypeResolver?.(uri);
 	}
 

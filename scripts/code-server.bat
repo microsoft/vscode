@@ -3,7 +3,9 @@ setlocal
 
 title VSCode Server
 
-pushd %~dp0\..
+set ROOT_DIR=%~dp0..
+
+pushd %ROOT_DIR%
 
 :: Configuration
 set NODE_ENV=development
@@ -20,9 +22,10 @@ if not exist "%NODE%" (
 	call yarn gulp node
 )
 
-:: Launch Server
-call "%NODE%" scripts\code-server.js %*
-
 popd
+
+:: Launch Server
+call "%NODE%" %ROOT_DIR%\scripts\code-server.js %*
+
 
 endlocal

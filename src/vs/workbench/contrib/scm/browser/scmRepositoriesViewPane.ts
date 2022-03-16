@@ -188,6 +188,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this.list.setSelection(selection);
 
 		if (selection.length > 0) {
+			this.list.setAnchor(selection[0]);
 			this.list.setFocus([selection[0]]);
 		}
 	}

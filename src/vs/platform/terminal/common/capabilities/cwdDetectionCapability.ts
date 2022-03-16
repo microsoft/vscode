@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ICwdDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
-export class CwdDetectionCapability {
+export class CwdDetectionCapability implements ICwdDetectionCapability {
 	readonly type = TerminalCapability.CwdDetection;
 	private _cwd = '';
 	private _cwds = new Map</*cwd*/string, /*frequency*/number>();

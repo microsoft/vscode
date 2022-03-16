@@ -4,8 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, IExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { IFileService } from 'vs/platform/files/common/files';
+import { isLinux, platform } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { getErrorMessage } from 'vs/base/common/errors';
+import { ILogService } from 'vs/platform/log/common/log';
+import { arch } from 'vs/base/common/process';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -52,6 +58,15 @@ export class ExtensionKey {
 		}
 		return areSameExtensions(this, o) && this.version === o.version && this.targetPlatform === o.targetPlatform;
 	}
+}
+
+const EXTENSION_IDENTIFIER_WITH_VERSION_REGEX = /^([^.]+\..+)@((prerelease)|(\d+\.\d+\.\d+(-.*)?))$/;
+export function getIdAndVersion(id: string): [string, string | undefined] {
+	const matches = EXTENSION_IDENTIFIER_WITH_VERSION_REGEX.exec(id);
+	if (matches && matches[1]) {
+		return [adoptToGalleryExtensionId(matches[1]), matches[2]];
+	}
+	return [adoptToGalleryExtensionId(id), undefined];
 }
 
 export function getExtensionId(publisher: string, name: string): string {
@@ -160,4 +175,31 @@ export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExt
 	}
 
 	return dependencies;
+}
+
+export async function isAlpineLinux(fileService: IFileService, logService: ILogService): Promise<boolean> {
+	if (!isLinux) {
+		return false;
+	}
+	let content: string | undefined;
+	try {
+		const fileContent = await fileService.readFile(URI.file('/etc/os-release'));
+		content = fileContent.value.toString();
+	} catch (error) {
+		try {
+			const fileContent = await fileService.readFile(URI.file('/usr/lib/os-release'));
+			content = fileContent.value.toString();
+		} catch (error) {
+			/* Ignore */
+			logService.debug(`Error while getting the os-release file.`, getErrorMessage(error));
+		}
+	}
+	return !!content && (content.match(/^ID=([^\u001b\r\n]*)/m) || [])[1] === 'alpine';
+}
+
+export async function computeTargetPlatform(fileService: IFileService, logService: ILogService): Promise<TargetPlatform> {
+	const alpineLinux = await isAlpineLinux(fileService, logService);
+	const targetPlatform = getTargetPlatform(alpineLinux ? 'alpine' : platform, arch);
+	logService.debug('ComputeTargetPlatform:', targetPlatform);
+	return targetPlatform;
 }

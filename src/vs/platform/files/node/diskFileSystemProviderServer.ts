@@ -47,6 +47,7 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 			case 'writeFile': return this.writeFile(uriTransformer, arg[0], arg[1], arg[2]);
 			case 'rename': return this.rename(uriTransformer, arg[0], arg[1], arg[2]);
 			case 'copy': return this.copy(uriTransformer, arg[0], arg[1], arg[2]);
+			case 'cloneFile': return this.cloneFile(uriTransformer, arg[0], arg[1]);
 			case 'mkdir': return this.mkdir(uriTransformer, arg[0]);
 			case 'delete': return this.delete(uriTransformer, arg[0], arg[1]);
 			case 'watch': return this.watch(uriTransformer, arg[0], arg[1], arg[2], arg[3]);
@@ -183,6 +184,17 @@ export abstract class AbstractDiskFileSystemProviderChannel<T> extends Disposabl
 		const target = this.transformIncoming(uriTransformer, _target);
 
 		return this.provider.copy(source, target, opts);
+	}
+
+	//#endregion
+
+	//#region Clone File
+
+	private cloneFile(uriTransformer: IURITransformer, _source: UriComponents, _target: UriComponents): Promise<void> {
+		const source = this.transformIncoming(uriTransformer, _source);
+		const target = this.transformIncoming(uriTransformer, _target);
+
+		return this.provider.cloneFile(source, target);
 	}
 
 	//#endregion

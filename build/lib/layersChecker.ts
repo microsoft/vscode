@@ -34,6 +34,7 @@ const CORE_TYPES = [
 	'info',
 	'warn',
 	'error',
+	'trace',
 	'group',
 	'groupEnd',
 	'table',
