@@ -75,6 +75,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 	let testFile1Path: string;
 	let testFile2Path: string;
+	let testFile3Path: string;
 
 	const testFile1PathContents = 'Hello Foo';
 	const testFile2PathContents = [
@@ -83,6 +84,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 		'adipiscing ßß elit',
 		'consectetur '
 	].join('');
+	const testFile3PathContents = 'Hello Bar';
 
 	setup(async () => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'workingcopyhistoryservice');
@@ -94,9 +96,11 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		testFile1Path = join(testDir, 'foo.txt');
 		testFile2Path = join(testDir, 'bar.txt');
+		testFile3Path = join(testDir, 'foo-bar.txt');
 
 		await Promises.writeFile(testFile1Path, testFile1PathContents);
 		await Promises.writeFile(testFile2Path, testFile2PathContents);
+		await Promises.writeFile(testFile3Path, testFile3PathContents);
 	});
 
 	let increasingTimestampCounter = 1;
@@ -447,6 +451,48 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 4);
+	});
+
+	test('getAll', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+
+		let resources = await service.getAll(CancellationToken.None);
+		assert.strictEqual(resources.length, 0);
+
+		await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+		await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+		await addEntry({ resource: workingCopy2.resource, source: 'test-source' }, CancellationToken.None);
+		await addEntry({ resource: workingCopy2.resource, source: 'test-source' }, CancellationToken.None);
+
+		resources = await service.getAll(CancellationToken.None);
+		assert.strictEqual(resources.length, 2);
+		for (const resource of resources) {
+			if (resource.toString() !== workingCopy1.resource.toString() && resource.toString() !== workingCopy2.resource.toString()) {
+				assert.fail(`Unexpected history resource: ${resource.toString()}`);
+			}
+		}
+
+		// Simulate shutdown
+		const event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		const workingCopy3 = new TestWorkingCopy(URI.file(testFile3Path));
+		await addEntry({ resource: workingCopy3.resource, source: 'test-source' }, CancellationToken.None);
+
+		resources = await service.getAll(CancellationToken.None);
+		assert.strictEqual(resources.length, 3);
+		for (const resource of resources) {
+			if (resource.toString() !== workingCopy1.resource.toString() && resource.toString() !== workingCopy2.resource.toString() && resource.toString() !== workingCopy3.resource.toString()) {
+				assert.fail(`Unexpected history resource: ${resource.toString()}`);
+			}
+		}
 	});
 
 	function assertEntryEqual(entryA: IWorkingCopyHistoryEntry, entryB: IWorkingCopyHistoryEntry, assertTimestamp = true): void {

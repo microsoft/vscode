@@ -44,7 +44,7 @@ export class WorkingCopyHistoryModel {
 
 	private static readonly SEP = /\//g;
 
-	private static readonly ENTRIES_FILE = 'entries.json';
+	static readonly ENTRIES_FILE = 'entries.json';
 
 	private static readonly DEFAULT_ENTRY_SOURCE = SaveSourceRegistry.registerSource('default.source', localize('default.source', "File Saved"));
 
@@ -447,6 +447,45 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 		const entries = await model.getEntries();
 		return entries ?? [];
+	}
+
+	async getAll(token: CancellationToken): Promise<readonly URI[]> {
+		const historyHome = await this.localHistoryHome.p;
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		const all = new ResourceMap<true>();
+
+		// Fill in all known model resources (they might not have yet persisted to disk)
+		for (const [resource] of this.models) {
+			all.set(resource, true);
+		}
+
+		// Resolve all other resources by iterating the history home folder
+		try {
+			const resolvedHistoryHome = await this.fileService.resolve(historyHome);
+			if (resolvedHistoryHome.children) {
+				for (const child of resolvedHistoryHome.children) {
+					if (token.isCancellationRequested) {
+						break;
+					}
+
+					const entriesFile = joinPath(child.resource, WorkingCopyHistoryModel.ENTRIES_FILE);
+
+					try {
+						const serializedModel: ISerializedWorkingCopyHistoryModel = JSON.parse((await this.fileService.readFile(entriesFile)).value.toString());
+						all.set(URI.parse(serializedModel.resource), true);
+					} catch (error) {
+						// ignore - model might be missing or corrupt, but we need it
+					}
+				}
+			}
+		} catch (error) {
+			// ignore - history might be entirely empty
+		}
+
+		return Array.from(all.keys());
 	}
 
 	private async getModel(resource: URI): Promise<WorkingCopyHistoryModel> {
