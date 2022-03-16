@@ -123,7 +123,7 @@ export class SCMViewService implements ISCMViewService {
 		@ISCMService private readonly scmService: ISCMService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
 
