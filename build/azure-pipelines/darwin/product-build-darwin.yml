@@ -124,11 +124,11 @@ steps:
   - script: |
       set -e
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-darwin-min-ci
+        yarn gulp vscode-reh-darwin-$(VSCODE_ARCH)-min-ci
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-        yarn gulp vscode-reh-web-darwin-min-ci
+        yarn gulp vscode-reh-web-darwin-$(VSCODE_ARCH)-min-ci
     displayName: Build Server
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
@@ -200,7 +200,7 @@ steps:
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
+      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)" \
       ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
     timeoutInMinutes: 20
@@ -208,7 +208,7 @@ steps:
 
   - script: |
       set -e
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
+      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin-$(VSCODE_ARCH)" \
       ./scripts/test-web-integration.sh --browser webkit
     displayName: Run integration tests (Browser, Webkit)
     timeoutInMinutes: 20
@@ -219,7 +219,7 @@ steps:
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
+      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)" \
       ./scripts/test-remote-integration.sh
     displayName: Run integration tests (Remote)
     timeoutInMinutes: 20
@@ -227,7 +227,7 @@ steps:
 
   - script: |
       set -e
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
+      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --web --headless
     timeoutInMinutes: 10
     displayName: Run smoke tests (Browser, Chromium)
@@ -247,7 +247,7 @@ steps:
       set -e
       APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
       APP_NAME="`ls $APP_ROOT | head -n 1`"
-      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
+      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --remote
     timeoutInMinutes: 10
     displayName: Run smoke tests (Remote)
@@ -296,27 +296,43 @@ steps:
       set -e
 
       # package Remote Extension Host
-      pushd .. && mv vscode-reh-darwin vscode-server-darwin && zip -Xry vscode-server-darwin.zip vscode-server-darwin && popd
+      pushd .. && mv vscode-reh-darwin-$(VSCODE_ARCH) vscode-server-darwin && zip -Xry vscode-server-darwin-$(VSCODE_ARCH).zip vscode-server-darwin && popd
 
       # package Remote Extension Host (Web)
-      pushd .. && mv vscode-reh-web-darwin vscode-server-darwin-web && zip -Xry vscode-server-darwin-web.zip vscode-server-darwin-web && popd
+      pushd .. && mv vscode-reh-web-darwin-$(VSCODE_ARCH) vscode-server-darwin-web && zip -Xry vscode-server-darwin-$(VSCODE_ARCH)-web.zip vscode-server-darwin-web && popd
     displayName: Prepare to publish servers
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - publish: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH).zip
     artifact: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
     displayName: Publish client archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
+  - script: |
+      mv $(agent.builddirectory)/vscode-server-darwin-x64.zip $(agent.builddirectory)/vscode-server-darwin.zip
+      mv $(agent.builddirectory)/vscode-server-darwin-x64-web.zip $(agent.builddirectory)/vscode-server-darwin-web.zip
+    displayName: Rename x64 server builds to their legacy names
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-arm64.zip
+    artifact: vscode_server_darwin_arm64_archive-unsigned
+    displayName: Publish arm64 server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+  - publish: $(Agent.BuildDirectory)/vscode-server-darwin-arm64-web.zip
+    artifact: vscode_web_darwin_arm64_archive-unsigned
+    displayName: Publish arm64 web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'arm64'))
+
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin.zip
-    artifact: vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
-    displayName: Publish server archive
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+    artifact: vscode_server_darwin_x64_archive-unsigned
+    displayName: Publish x64 server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-darwin-web.zip
-    artifact: vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
-    displayName: Publish web server archive
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+    artifact: vscode_web_darwin_x64_archive-unsigned
+    displayName: Publish x64 web server archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
 
   - task: AzureCLI@2
     inputs:
@@ -358,9 +374,9 @@ steps:
     inputs:
       BuildDropPath: $(agent.builddirectory)/vscode-server-darwin
       PackageName: Visual Studio Code Server
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - publish: $(agent.builddirectory)/vscode-server-darwin/_manifest
     displayName: Publish SBOM (server)
     artifact: vscode_server_darwin_$(VSCODE_ARCH)_sbom
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), eq(variables['VSCODE_ARCH'], 'x64'))
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'universal'))

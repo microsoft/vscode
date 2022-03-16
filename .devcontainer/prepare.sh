@@ -7,3 +7,7 @@
 
 yarn install
 yarn electron
+
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
+sudo chown root .build/electron/chrome-sandbox
+sudo chmod 4755  .build/electron/chrome-sandbox

@@ -224,7 +224,7 @@ async function launchServer(options: LaunchOptions) {
 		...process.env
 	};
 
-	const args = ['--disable-telemetry', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder, '--accept-server-license-terms'];
+	const args = ['--disable-telemetry', '--disable-workspace-trust', '--port', `${port++}`, '--driver', 'web', '--extensions-dir', extensionsPath, '--server-data-dir', agentFolder, '--accept-server-license-terms'];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {

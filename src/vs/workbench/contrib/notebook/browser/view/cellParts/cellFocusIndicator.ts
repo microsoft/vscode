@@ -5,9 +5,11 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellLayoutInfo, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -20,6 +22,7 @@ export class CellFocusIndicator extends CellPart {
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
+		readonly titleToolbar: CellTitleToolbarPart,
 		readonly top: FastDomNode<HTMLElement>,
 		readonly left: FastDomNode<HTMLElement>,
 		readonly right: FastDomNode<HTMLElement>,
@@ -51,9 +54,26 @@ export class CellFocusIndicator extends CellPart {
 				this.currentElement.isOutputCollapsed = !this.currentElement.isOutputCollapsed;
 			}
 		}));
+
+		this._register(DOM.addDisposableListener(this.left.domNode, DOM.EventType.DBLCLICK, e => {
+			if (!this.currentElement || !this.notebookEditor.hasModel()) {
+				return;
+			}
+
+			const clickedOnInput = e.offsetY < (this.currentElement.layoutInfo as CodeCellLayoutInfo).outputContainerOffset;
+			if (clickedOnInput) {
+				this.currentElement.isInputCollapsed = !this.currentElement.isInputCollapsed;
+			} else {
+				this.currentElement.isOutputCollapsed = !this.currentElement.isOutputCollapsed;
+			}
+		}));
+
+		this._register(this.titleToolbar.onDidUpdateActions(() => {
+			this.updateFocusIndicatorsForTitleMenu();
+		}));
 	}
 
-	renderCell(element: ICellViewModel): void {
+	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
 		this.currentElement = element;
 	}
 
@@ -81,9 +101,22 @@ export class CellFocusIndicator extends CellPart {
 			this.outputFocusIndicator.setHeight(Math.max(cell.layoutInfo.outputIndicatorHeight - cell.viewContext.notebookOptions.getLayoutConfiguration().focusIndicatorGap, 0));
 			this.bottom.domNode.style.transform = `translateY(${cell.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px)`;
 		}
+
+		this.updateFocusIndicatorsForTitleMenu();
 	}
 
 	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 		// nothing to update
+	}
+
+	private updateFocusIndicatorsForTitleMenu(): void {
+		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
+		if (this.titleToolbar.hasActions) {
+			this.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+			this.right.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+		} else {
+			this.left.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+			this.right.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+		}
 	}
 }

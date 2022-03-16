@@ -30,11 +30,11 @@ declare module 'vscode' {
 		/**
 		 * Cells that have been added to the document.
 		 */
-		readonly addedCells: NotebookCell[];
+		readonly addedCells: readonly NotebookCell[];
 		/**
 		 * Cells that have been removed from the document.
 		 */
-		readonly removedCells: NotebookCell[];
+		readonly removedCells: readonly NotebookCell[];
 	}
 
 	export interface NotebookDocumentChangeEvent {
@@ -51,7 +51,7 @@ declare module 'vscode' {
 
 		readonly contentChanges: readonly NotebookDocumentContentChange[];
 
-		readonly cellChanges: NotebookDocumentContentCellChange[];
+		readonly cellChanges: readonly NotebookDocumentContentCellChange[];
 	}
 
 	export namespace workspace {

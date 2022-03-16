@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { localize } from 'vs/nls';
 
@@ -21,13 +21,25 @@ export function dedupExtensions(system: IExtensionDescription[], user: IExtensio
 		const extensionKey = ExtensionIdentifier.toKey(userExtension.identifier);
 		const extension = result.get(extensionKey);
 		if (extension) {
-			log.warn(userExtension.extensionLocation.fsPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
+			if (extension.isBuiltin) {
+				// Overwriting a builtin extension inherits the `isBuiltin` property and it doesn't show a warning
+				(<IRelaxedExtensionDescription>userExtension).isBuiltin = true;
+			} else {
+				log.warn(userExtension.extensionLocation.fsPath, localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
+			}
 		}
 		result.set(extensionKey, userExtension);
 	});
 	development.forEach(developedExtension => {
 		log.info('', localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));
 		const extensionKey = ExtensionIdentifier.toKey(developedExtension.identifier);
+		const extension = result.get(extensionKey);
+		if (extension) {
+			if (extension.isBuiltin) {
+				// Overwriting a builtin extension inherits the `isBuiltin` property
+				(<IRelaxedExtensionDescription>developedExtension).isBuiltin = true;
+			}
+		}
 		result.set(extensionKey, developedExtension);
 	});
 	let r: IExtensionDescription[] = [];

@@ -24,7 +24,7 @@ import { defaultSearchConfig, parseSavedSearchEditor, serializeSearchConfigurati
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextFileSaveOptions, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
@@ -75,6 +75,9 @@ export class SearchEditorInput extends EditorInput {
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave: Event<IWorkingCopySaveEvent> = this._onDidSave.event;
+
 	private oldDecorationsIDs: string[] = [];
 
 	get resource() {
@@ -118,6 +121,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly capabilities = input.hasCapability(EditorInputCapabilities.Untitled) ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
 			readonly onDidChangeContent = input.onDidChangeContent;
+			readonly onDidSave = input.onDidSave;
 			isDirty(): boolean { return input.isDirty(); }
 			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return input.backup(token); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
@@ -133,6 +137,7 @@ export class SearchEditorInput extends EditorInput {
 		if (this.backingUri) {
 			await this.textFileService.write(this.backingUri, await this.serializeForDisk(), options);
 			this.setDirty(false);
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
 			return this;
 		} else {
 			return this.saveAs(group, options);

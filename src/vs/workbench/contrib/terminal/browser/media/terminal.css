@@ -93,6 +93,10 @@
 	display: block;
 }
 
+.monaco-workbench .editor-instance .xterm {
+	padding-left: 20px !important;
+}
+
 .monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm,
 .integrated-terminal.shell-integration .xterm {
 	padding-left: 20px !important;

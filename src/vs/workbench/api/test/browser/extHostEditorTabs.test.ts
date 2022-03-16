@@ -21,7 +21,7 @@ suite('ExtHostEditorTabs', function () {
 			})
 		);
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 0);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 0);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, undefined);
 	});
 
@@ -34,13 +34,14 @@ suite('ExtHostEditorTabs', function () {
 		);
 
 		const tab: IEditorTabDto = {
+			id: 'uniquestring',
 			isActive: true,
 			isDirty: true,
 			isPinned: true,
 			label: 'label1',
 			viewColumn: 0,
 			additionalResourcesAndViewTypes: [],
-			kind: TabKind.Other
+			kind: TabKind.Singular
 		};
 
 		extHostEditorTabs.$acceptEditorTabModel([{
@@ -50,8 +51,8 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tab],
 			activeTab: { ...tab }
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
-		const [first] = extHostEditorTabs.tabGroups.all;
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.groups;
 		assert.ok(first.activeTab);
 		assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 
@@ -63,8 +64,8 @@ suite('ExtHostEditorTabs', function () {
 				tabs: [tab],
 				activeTab: undefined! // TODO@lramos15 unused
 			}]);
-			assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
-			const [first] = extHostEditorTabs.tabGroups.all;
+			assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+			const [first] = extHostEditorTabs.tabGroups.groups;
 			assert.ok(first.activeTab);
 			assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 		}
@@ -84,8 +85,8 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [],
 			activeTab: undefined
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
-		const [first] = extHostEditorTabs.tabGroups.all;
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.groups;
 		assert.strictEqual(first.activeTab, undefined);
 		assert.strictEqual(first.tabs.length, 0);
 	});
@@ -101,7 +102,7 @@ suite('ExtHostEditorTabs', function () {
 		extHostEditorTabs.tabGroups.onDidChangeTabGroup(() => count++);
 
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 0);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 0);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, undefined);
 		assert.strictEqual(count, 0);
 		extHostEditorTabs.$acceptEditorTabModel([{
@@ -113,7 +114,7 @@ suite('ExtHostEditorTabs', function () {
 		}]);
 		assert.ok(extHostEditorTabs.tabGroups.activeTabGroup);
 		const activeTabGroup: IEditorTabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
-		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
 		assert.strictEqual(activeTabGroup.tabs.length, 0);
 		assert.strictEqual(count, 1);
 	});
@@ -125,6 +126,7 @@ suite('ExtHostEditorTabs', function () {
 			})
 		);
 		const tab: IEditorTabDto = {
+			id: 'uniquestring',
 			isActive: true,
 			isDirty: true,
 			isPinned: true,
@@ -143,8 +145,8 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tab],
 			activeTab: { ...tab }
 		}]);
-		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 1);
-		const [first] = extHostEditorTabs.tabGroups.all;
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		const [first] = extHostEditorTabs.tabGroups.groups;
 		assert.ok(first.activeTab);
 		assert.strictEqual(first.tabs.indexOf(first.activeTab), 0);
 		assert.strictEqual(first.activeTab, first.tabs[0]);
@@ -166,7 +168,7 @@ suite('ExtHostEditorTabs', function () {
 		});
 
 
-		assert.strictEqual(extHostEditorTabs.tabGroups.all.length, 0);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 0);
 		assert.strictEqual(extHostEditorTabs.tabGroups.activeTabGroup, undefined);
 		assert.strictEqual(count, 0);
 		const tabModel = [{
@@ -220,6 +222,7 @@ suite('ExtHostEditorTabs', function () {
 			})
 		);
 		const tabDto: IEditorTabDto = {
+			id: 'uniquestring',
 			isActive: true,
 			isDirty: true,
 			isPinned: true,
@@ -240,7 +243,7 @@ suite('ExtHostEditorTabs', function () {
 			tabs: [tabDto],
 			activeTab: undefined // NOT needed
 		}]);
-		let all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
+		let all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab1 = all[0];
 		assert.strictEqual(apiTab1.resource?.toString(), URI.revive(tabDto.resource)?.toString());
@@ -258,7 +261,7 @@ suite('ExtHostEditorTabs', function () {
 			activeTab: undefined // NOT needed
 		}]);
 
-		all = extHostEditorTabs.tabGroups.all.map(group => group.tabs).flat();
+		all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab2 = all[0];
 		assert.strictEqual(apiTab2.resource?.toString(), URI.revive(tabDto.resource)?.toString());

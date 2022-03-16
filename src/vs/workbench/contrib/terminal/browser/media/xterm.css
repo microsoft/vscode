@@ -186,4 +186,11 @@
 .xterm-find-result-decoration {
 	background-color: blue;
 	opacity: 60%;
- }
+}
+
+.xterm-decoration-overview-ruler {
+	z-index: 7;
+	position: absolute;
+	top: 0;
+	right: 0;
+}

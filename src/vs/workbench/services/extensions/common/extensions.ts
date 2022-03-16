@@ -13,6 +13,7 @@ import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionMana
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
+import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 
 export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	identifier: new ExtensionIdentifier('nullExtensionDescription'),
@@ -36,31 +37,48 @@ export interface IMessage {
 	extensionPointId: string;
 }
 
-export const enum ExtensionRunningLocation {
-	None,
-	LocalProcess,
-	LocalWebWorker,
-	Remote
-}
-
-export function extensionRunningLocationToString(location: ExtensionRunningLocation) {
-	switch (location) {
-		case ExtensionRunningLocation.None:
-			return 'None';
-		case ExtensionRunningLocation.LocalProcess:
+export class LocalProcessRunningLocation {
+	public readonly kind = ExtensionHostKind.LocalProcess;
+	constructor(
+		public readonly affinity: number
+	) { }
+	public equals(other: ExtensionRunningLocation) {
+		return (this.kind === other.kind && this.affinity === other.affinity);
+	}
+	public asString(): string {
+		if (this.affinity === 0) {
 			return 'LocalProcess';
-		case ExtensionRunningLocation.LocalWebWorker:
-			return 'LocalWebWorker';
-		case ExtensionRunningLocation.Remote:
-			return 'Remote';
+		}
+		return `LocalProcess${this.affinity}`;
 	}
 }
+export class LocalWebWorkerRunningLocation {
+	public readonly kind = ExtensionHostKind.LocalWebWorker;
+	public readonly affinity = 0;
+	public equals(other: ExtensionRunningLocation) {
+		return (this.kind === other.kind);
+	}
+	public asString(): string {
+		return 'LocalWebWorker';
+	}
+}
+export class RemoteRunningLocation {
+	public readonly kind = ExtensionHostKind.Remote;
+	public readonly affinity = 0;
+	public equals(other: ExtensionRunningLocation) {
+		return (this.kind === other.kind);
+	}
+	public asString(): string {
+		return 'Remote';
+	}
+}
+export type ExtensionRunningLocation = LocalProcessRunningLocation | LocalWebWorkerRunningLocation | RemoteRunningLocation;
 
 export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes | undefined;
 	runtimeErrors: Error[];
-	runningLocation: ExtensionRunningLocation;
+	runningLocation: ExtensionRunningLocation | null;
 }
 
 export class MissingExtensionDependency {
@@ -108,12 +126,15 @@ export interface IExtensionHostProfile {
 }
 
 export const enum ExtensionHostKind {
-	LocalProcess,
-	LocalWebWorker,
-	Remote
+	LocalProcess = 1,
+	LocalWebWorker = 2,
+	Remote = 3
 }
 
-export function extensionHostKindToString(kind: ExtensionHostKind): string {
+export function extensionHostKindToString(kind: ExtensionHostKind | null): string {
+	if (kind === null) {
+		return 'None';
+	}
 	switch (kind) {
 		case ExtensionHostKind.LocalProcess: return 'LocalProcess';
 		case ExtensionHostKind.LocalWebWorker: return 'LocalWebWorker';
@@ -122,9 +143,14 @@ export function extensionHostKindToString(kind: ExtensionHostKind): string {
 }
 
 export interface IExtensionHost {
-	readonly kind: ExtensionHostKind;
+	readonly runningLocation: ExtensionRunningLocation;
 	readonly remoteAuthority: string | null;
 	readonly lazyStart: boolean;
+	/**
+	 * A collection of extensions that will execute or are executing on this extension host.
+	 * **NOTE**: this will reflect extensions correctly only after `start()` resolves.
+	 */
+	readonly extensions: ExtensionDescriptionRegistry;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;
@@ -186,6 +212,8 @@ export interface IWillActivateEvent {
 }
 
 export interface IResponsiveStateChangeEvent {
+	extensionHostId: string;
+	extensionHostKind: ExtensionHostKind;
 	isResponsive: boolean;
 }
 
@@ -288,10 +316,15 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 
 	/**
-	 * Return the inspect port or `0`, the latter means inspection
-	 * is not possible.
+	 * Return the inspect port or `0` for a certain extension host.
+	 * `0` means inspection is not possible.
 	 */
-	getInspectPort(tryEnableInspector: boolean): Promise<number>;
+	getInspectPort(extensionHostId: string, tryEnableInspector: boolean): Promise<number>;
+
+	/**
+	 * Return the inspect ports (if inspection is possible) for extension hosts of kind `extensionHostKind`.
+	 */
+	getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<number[]>;
 
 	/**
 	 * Stops the extension hosts.
@@ -340,6 +373,7 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 		identifier: { id: getGalleryExtensionId(extensionDescription.publisher, extensionDescription.name), uuid: extensionDescription.uuid },
 		manifest: extensionDescription,
 		location: extensionDescription.extensionLocation,
+		targetPlatform: extensionDescription.targetPlatform,
 	};
 }
 
@@ -351,7 +385,8 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		isUnderDevelopment: !!isUnderDevelopment,
 		extensionLocation: extension.location,
 		...extension.manifest,
-		uuid: extension.identifier.uuid
+		uuid: extension.identifier.uuid,
+		targetPlatform: extension.targetPlatform
 	};
 }
 
@@ -370,7 +405,8 @@ export class NullExtensionService implements IExtensionService {
 	getExtension() { return Promise.resolve(undefined); }
 	readExtensionPointContributions<T>(_extPoint: IExtensionPoint<T>): Promise<ExtensionPointContribution<T>[]> { return Promise.resolve(Object.create(null)); }
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus } { return Object.create(null); }
-	getInspectPort(_tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
+	getInspectPort(_extensionHostId: string, _tryEnableInspector: boolean): Promise<number> { return Promise.resolve(0); }
+	getInspectPorts(_extensionHostKind: ExtensionHostKind, _tryEnableInspector: boolean): Promise<number[]> { return Promise.resolve([]); }
 	stopExtensionHosts(): void { }
 	async restartExtensionHost(): Promise<void> { }
 	async startExtensionHosts(): Promise<void> { }

@@ -87,6 +87,7 @@ export class ExplorerItem {
 	public isError = false;
 	private _isExcluded = false;
 
+	public isNestedChild = false;
 	private nestedChildren: ExplorerItem[] | undefined;
 
 	constructor(
@@ -324,6 +325,7 @@ export class ExplorerItem {
 				const fileChildren: [string, ExplorerItem][] = [];
 				const dirChildren: [string, ExplorerItem][] = [];
 				for (const child of this.children.entries()) {
+					child[1].isNestedChild = false;
 					if (child[1].isDirectory) {
 						dirChildren.push(child);
 					} else {
@@ -338,7 +340,9 @@ export class ExplorerItem {
 					if (nestedItems !== undefined) {
 						fileEntryItem.nestedChildren = [];
 						for (const name of nestedItems.keys()) {
-							fileEntryItem.nestedChildren.push(assertIsDefined(this.children.get(name)));
+							const child = assertIsDefined(this.children.get(name));
+							fileEntryItem.nestedChildren.push(child);
+							child.isNestedChild = true;
 						}
 						items.push(fileEntryItem);
 					} else {

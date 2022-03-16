@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import { ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Extension } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
-import { IGalleryExtension, IGalleryExtensionProperties, ILocalExtension, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IGalleryExtension, IGalleryExtensionProperties, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -54,6 +54,16 @@ suite('Extension Test', () => {
 	test('extension is outdated when local and gallery are on same version but on different target platforms', () => {
 		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_IA32 }), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_X64 }));
 		assert.strictEqual(extension.outdated, true);
+	});
+
+	test('extension is not outdated when local and gallery are on same version and local is on web', () => {
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }), aGalleryExtension('somext'));
+		assert.strictEqual(extension.outdated, false);
+	});
+
+	test('extension is not outdated when local and gallery are on same version and gallery is on web', () => {
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext'), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }));
+		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is not outdated when local is not pre-release but gallery is pre-release', () => {

@@ -953,7 +953,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				if (activeEditor) {
 					return activeEditor.document.uri;
 				}
-				const activeTab = editorTabs.tabGroups.all.find(group => group.isActive)?.activeTab;
+				const activeTab = editorTabs.tabGroups.groups.find(group => group.isActive)?.activeTab;
 				if (activeTab !== undefined) {
 					// Resolve a resource from the tab
 					const asSideBySideResource = activeTab.resource as { primary?: URI; secondary?: URI } | undefined;

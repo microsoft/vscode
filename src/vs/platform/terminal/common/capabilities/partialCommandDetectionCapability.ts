@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IPartialCommandDetectionCapability, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { IMarker, Terminal } from 'xterm';
+import { IPartialCommandDetectionCapability, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+// Importing types is safe in any layer
+// eslint-disable-next-line code-import-patterns
+import { IMarker, Terminal } from 'xterm-headless';
 
 const enum Constants {
 	/**
@@ -31,11 +33,11 @@ export class PartialCommandDetectionCapability implements IPartialCommandDetecti
 	constructor(
 		private readonly _terminal: Terminal,
 	) {
-		this._terminal.onKey(e => this._onKey(e.key));
+		this._terminal.onData(e => this._onData(e));
 	}
 
-	private _onKey(key: string): void {
-		if (key === '\x0d') {
+	private _onData(data: string): void {
+		if (data === '\x0d') {
 			this._onEnter();
 		}
 	}

@@ -41,8 +41,11 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	/* ----- vs code web options ----- */
 
-	'folder': { type: 'string', deprecationMessage: 'No longer supported. Folder needs to be provided in the browser URL.' },
-	'workspace': { type: 'string', deprecationMessage: 'No longer supported. Workspace needs to be provided in the browser URL.' },
+	'folder': { type: 'string', deprecationMessage: 'No longer supported. Folder needs to be provided in the browser URL or with `default-folder`.' },
+	'workspace': { type: 'string', deprecationMessage: 'No longer supported. Workspace needs to be provided in the browser URL or with `default-workspace`.' },
+
+	'default-folder': { type: 'string', description: nls.localize('default-folder', 'The workspace folder to open when no input is specified in the browser URL') },
+	'default-workspace': { type: 'string', description: nls.localize('default-workspace', 'The workspace to open when no input is specified in the browser URL') },
 
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
@@ -148,10 +151,16 @@ export interface ServerParsedArgs {
 	'force-disable-user-env'?: boolean;
 
 	/* ----- vs code web options ----- */
-	/** @deprecated */
+
+	'default-workspace'?: string;
+	'default-folder'?: string;
+
+	/** @deprecated, use default-workspace instead */
 	workspace: string;
-	/** @deprecated */
+	/** @deprecated, use default-folder instead */
 	folder: string;
+
+
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
 

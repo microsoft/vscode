@@ -588,12 +588,7 @@ interface ITrustedUriHostColumnTemplateData {
 }
 
 function getHostLabel(labelService: ILabelService, item: ITrustedUriItem): string {
-	const hostLabel = item.uri.authority ? labelService.getHostLabel(item.uri.scheme, item.uri.authority) : localize('localAuthority', "Local");
-	if (hostLabel === undefined || hostLabel.length === 0) {
-		return item.uri.authority;
-	}
-
-	return hostLabel;
+	return item.uri.authority ? labelService.getHostLabel(item.uri.scheme, item.uri.authority) : localize('localAuthority', "Local");
 }
 
 class TrustedUriHostColumnRenderer implements ITableRenderer<ITrustedUriItem, ITrustedUriHostColumnTemplateData> {

@@ -7,7 +7,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
-import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessReplayEvent, ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
 import { URI } from 'vs/base/common/uri';
 
 /**
@@ -36,6 +36,8 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit = this._onProcessExit.event;
+	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommand[]>());
+	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	constructor(
 		readonly id: number,
@@ -137,6 +139,10 @@ export class LocalPty extends Disposable implements ITerminalChildProcess {
 			}
 		} finally {
 			this._inReplay = false;
+		}
+
+		if (e.commands.length > 0) {
+			this._onRestoreCommands.fire(e.commands);
 		}
 
 		// remove size override

@@ -656,6 +656,7 @@ export interface ISettingChangeEvent {
 	key: string;
 	value: any; // undefined => reset/unconfigure
 	type: SettingValueType | SettingValueType[];
+	manualReset: boolean;
 }
 
 export interface ISettingLinkClickEvent {
@@ -782,7 +783,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "Modified");
+		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
@@ -883,7 +884,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		template.miscLabel.updateOtherOverrides(element, template.elementDisposables, this._onDidClickOverrideElement);
 
-		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
+		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType, manualReset: false });
 		const deprecationText = element.setting.deprecationMessage || '';
 		if (deprecationText && element.setting.deprecationMessageIsMarkdown) {
 			const disposables = new DisposableStore();
@@ -1449,7 +1450,8 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,
 				value: Object.keys(newValue).length === 0 ? undefined : sortKeys(newValue),
-				type: template.context.valueType
+				type: template.context.valueType,
+				manualReset: false
 			});
 		}
 	}
@@ -1765,7 +1767,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "Modified");
+		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
 
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
@@ -1904,7 +1906,7 @@ export class SettingTreeRenderers {
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
 				if (context instanceof SettingsTreeSettingElement) {
 					if (!context.isUntrusted) {
-						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
+						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType, manualReset: true });
 					}
 				}
 			}),
