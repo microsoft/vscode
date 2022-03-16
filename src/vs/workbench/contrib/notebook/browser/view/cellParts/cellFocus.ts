@@ -8,12 +8,14 @@ import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/b
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 
 export class CellFocusPart extends CellPart {
 	private currentCell: ICellViewModel | undefined;
 
 	constructor(
 		containerElement: HTMLElement,
+		focusSinkElement: HTMLElement | undefined,
 		notebookEditor: INotebookEditor
 	) {
 		super();
@@ -23,6 +25,14 @@ export class CellFocusPart extends CellPart {
 				notebookEditor.focusElement(this.currentCell);
 			}
 		}, true));
+
+		if (focusSinkElement) {
+			this._register(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {
+				if (this.currentCell && (this.currentCell as CodeCellViewModel).outputsViewModels.length) {
+					notebookEditor.focusNotebookCell(this.currentCell, 'output');
+				}
+			}));
+		}
 	}
 
 	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {

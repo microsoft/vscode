@@ -178,7 +178,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			focusIndicator,
 			foldedCellHint,
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
-			templateDisposables.add(new CellFocusPart(container, this.notebookEditor)),
+			templateDisposables.add(new CellFocusPart(container, undefined, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart()),
 		];
 
@@ -286,7 +286,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				width: 0,
 				height: 0
 			},
-			// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 		}, {
 			contributions: this.notebookEditor.creationOptions.cellEditorContributions
 		});
@@ -330,7 +329,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateDisposables.add(new CellExecutionPart(this.notebookEditor, executionOrderLabel)),
 			templateDisposables.add(this.instantiationService.createInstance(CollapsedCellOutput, this.notebookEditor, cellOutputCollapsedContainer)),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
-			templateDisposables.add(new CellFocusPart(container, this.notebookEditor)),
+			templateDisposables.add(new CellFocusPart(container, focusSinkElement, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart()),
 		];
 
@@ -359,11 +358,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const dragHandles = [focusIndicatorLeft.domNode, focusIndicatorPart.codeFocusIndicator.domNode, focusIndicatorPart.outputFocusIndicator.domNode];
 		this.dndController?.registerDragHandle(templateData, rootContainer, dragHandles, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 
-		templateDisposables.add(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {
-			if (templateData.currentRenderedCell && (templateData.currentRenderedCell as CodeCellViewModel).outputsViewModels.length) {
-				this.notebookEditor.focusNotebookCell(templateData.currentRenderedCell, 'output');
-			}
-		}));
+
 
 		return templateData;
 	}
@@ -384,9 +379,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputContainer.domNode.innerText = '';
 		templateData.outputContainer.domNode.appendChild(templateData.cellOutputCollapsedContainer);
 
-		const elementDisposables = templateData.elementDisposables;
-
-		elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
+		templateData.elementDisposables.add(templateData.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
 	}
 
