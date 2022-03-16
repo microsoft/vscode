@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:chrome/installer/linux/rpm/additional_deps
-
 // Additional dependencies not in the rpm find-requires output.
 export const additionalDeps = [
 	'ca-certificates', // Make sure users have SSL certificates.
@@ -15,4 +14,17 @@ export const additionalDeps = [
 	'libvulkan.so.1()(64bit)',
 	'libcurl.so.4()(64bit)',
 	'xdg-utils' // OS integration
+];
+
+// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/98.0.4758.109:chrome/installer/linux/BUILD.gn;l=64-80
+// and the Linux Archive build
+// Shared library dependencies that we already bundle.
+export const bundledDeps = [
+	'libEGL.so',
+	'libGLESv2.so',
+	'libvulkan.so',
+	'swiftshader_libEGL.so',
+	'swiftshader_libGLESv2.so',
+	'libvk_swiftshader.so',
+	'libffmpeg.so'
 ];

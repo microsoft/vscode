@@ -8,7 +8,7 @@
 import { spawnSync } from 'child_process';
 import { constants, statSync } from 'fs';
 import path = require('path');
-import { additionalDeps } from './additional-deps';
+import { additionalDeps, bundledDeps } from './dep-lists';
 
 export function getDependencies(buildDir: string, applicationName: string): string[] {
 	// Get the files for which we want to find dependencies.
@@ -25,8 +25,9 @@ export function getDependencies(buildDir: string, applicationName: string): stri
 	const appPath = path.join(buildDir, applicationName);
 	files.push(appPath);
 
-	const chromeSandboxPath = path.join(buildDir, 'chrome-sandbox');
-	files.push(chromeSandboxPath);
+	// Add chrome sandbox and crashpad handler.
+	files.push(path.join(buildDir, 'chrome-sandbox'));
+	files.push(path.join(buildDir, 'chrome_crashpad_handler'));
 
 	// Generate the dependencies.
 	const dependencies: Set<string>[] = files.map((file) => calculatePackageDeps(file));
@@ -37,11 +38,17 @@ export function getDependencies(buildDir: string, applicationName: string): stri
 
 	// Merge all the dependencies.
 	const mergedDependencies = mergePackageDeps(dependencies);
-	const sortedDependencies: string[] = [];
+	let sortedDependencies: string[] = [];
 	for (const dependency of mergedDependencies) {
 		sortedDependencies.push(dependency);
 	}
 	sortedDependencies.sort();
+
+	// Exclude bundled dependencies
+	sortedDependencies = sortedDependencies.filter(dependency => {
+		return !bundledDeps.some(bundledDep => dependency.startsWith(bundledDep));
+	});
+
 	return sortedDependencies;
 }
 
@@ -51,8 +58,8 @@ function calculatePackageDeps(binaryPath: string): Set<string> {
 			throw new Error(`Binary ${binaryPath} needs to have an executable bit set.`);
 		}
 	} catch (e) {
+		// The package might not exist. Don't re-throw the error here.
 		console.error('Tried to stat ' + binaryPath + ' but failed.');
-		throw e;
 	}
 
 	const findRequiresResult = spawnSync('/usr/lib/rpm/find-requires', { input: binaryPath + '\n' });
