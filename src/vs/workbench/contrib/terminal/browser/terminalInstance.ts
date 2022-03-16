@@ -836,7 +836,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			for (const [label, info] of history.entries) {
 				// Only add previous session item if it's not in this session
 				if (!commandMap.has(label) && info.shellType === this.shellType) {
-					previousSessionItems.push({
+					previousSessionItems.unshift({
 						label,
 						buttons: [removeFromCommandHistoryButton]
 					});
@@ -864,7 +864,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Only add previous session item if it's not in this session and it matches the remote authority
 			for (const [label, info] of history.entries) {
 				if ((info === null || info.remoteAuthority === this.remoteAuthority) && !cwds.includes(label)) {
-					previousSessionItems.push({
+					previousSessionItems.unshift({
 						label,
 						buttons: [removeFromCommandHistoryButton]
 					});
