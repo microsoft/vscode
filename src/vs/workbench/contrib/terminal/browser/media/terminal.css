@@ -427,3 +427,9 @@
 .terminal-command-decoration.default {
 	pointer-events: none;
 }
+
+.terminal-scroll-highlight {
+	left: 0;
+	right: 0;
+	border: 1px solid #ffffff;
+}
