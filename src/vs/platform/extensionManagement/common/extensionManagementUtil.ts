@@ -6,7 +6,6 @@
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, IExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import * as semver from 'vs/base/common/semver/semver';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isLinux, platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -101,23 +100,6 @@ export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t:
 		}
 	}
 	return byExtension;
-}
-
-export function filterOutdatedExtensions<T extends IExtension>(extensions: T[], targetPlatform: TargetPlatform): T[] {
-	const result: T[] = [];
-	const byExtension = groupByExtension(extensions, e => e.identifier);
-	for (const extensions of byExtension) {
-		let extension = extensions.splice(0, 1)[0];
-		for (const e of extensions) {
-			if (semver.gt(e.manifest.version, extension.manifest.version)
-				|| (semver.eq(e.manifest.version, extension.manifest.version) && e.targetPlatform === targetPlatform)
-			) {
-				extension = e;
-			}
-		}
-		result.push(extension);
-	}
-	return result;
 }
 
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
