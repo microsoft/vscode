@@ -461,19 +461,17 @@ const applyStyles = (document, body) => {
 	}
 
 	if (body) {
-		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'reduce-motion', 'enable-motion', 'using-screen-reader');
+		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-reduce-motion', 'vscode-using-screen-reader');
 		if (initData.activeTheme) {
 			body.classList.add(initData.activeTheme);
 		}
 
 		if (initData.reduceMotion) {
-			body.classList.add('reduce-motion');
-		} else {
-			body.classList.add('enable-motion');
+			body.classList.add('vscode-reduce-motion');
 		}
 
 		if (initData.screenReader) {
-			body.classList.add('using-screen-reader');
+			body.classList.add('vscode-using-screen-reader');
 		}
 
 		body.dataset.vscodeThemeKind = initData.activeTheme;
