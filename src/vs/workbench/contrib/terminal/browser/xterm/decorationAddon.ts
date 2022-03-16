@@ -70,12 +70,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIcon) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconSuccess) ||
 				e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationIconError)) {
-				this._refreshClasses();
+				this._refreshStyles();
 			} else if (e.affectsConfiguration(TerminalSettingId.FontSize) || e.affectsConfiguration(TerminalSettingId.LineHeight)) {
 				this.refreshLayouts();
 			}
 		});
-		this._themeService.onDidColorThemeChange(() => this._refreshClasses(true));
+		this._themeService.onDidColorThemeChange(() => this._refreshStyles(true));
 	}
 
 	public refreshLayouts(): void {
@@ -85,7 +85,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _refreshClasses(refreshOverviewRulerColors?: boolean): void {
+	private _refreshStyles(refreshOverviewRulerColors?: boolean): void {
 		if (refreshOverviewRulerColors) {
 			for (const decoration of this._decorations.values()) {
 				let color = decoration.exitCode === undefined ? defaultColor : decoration.exitCode ? errorColor : successColor;
