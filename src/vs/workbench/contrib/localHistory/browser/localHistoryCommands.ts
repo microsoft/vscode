@@ -9,7 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { basename, basenameOrAuthority } from 'vs/base/common/resources';
@@ -102,6 +102,80 @@ async function openEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditor
 		description: entry?.source ? SaveSourceRegistry.getSourceLabel(entry.source) : undefined
 	});
 }
+
+//#endregion
+
+//#region Select for Compare / Compare with Selected
+
+let itemSelectedForCompare: ITimelineCommandArgument | undefined = undefined;
+
+const LocalHistoryItemSelectedForCompare = new RawContextKey<boolean>('localHistoryItemSelectedForCompare', false, true);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.selectForCompare',
+			title: { value: localize('localHistory.selectForCompare', "Select for Compare"), original: 'Select for Compare' },
+			menu: {
+				id: MenuId.TimelineItemContext,
+				group: '1_compare',
+				order: 3,
+				when: ContextKeyExpr.and(LOCAL_HISTORY_MENU_CONTEXT_KEY, LocalHistoryItemSelectedForCompare.toNegated())
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
+		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+		const contextKeyService = accessor.get(IContextKeyService);
+
+		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
+		if (entry) {
+			itemSelectedForCompare = item;
+			LocalHistoryItemSelectedForCompare.bindTo(contextKeyService).set(true);
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.compareWithSelected',
+			title: { value: localize('localHistory.compareWithSelected', "Compare with Selected"), original: 'Compare with Selected' },
+			menu: {
+				id: MenuId.TimelineItemContext,
+				group: '1_compare',
+				order: 3,
+				when: ContextKeyExpr.and(LOCAL_HISTORY_MENU_CONTEXT_KEY, LocalHistoryItemSelectedForCompare)
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
+		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const commandService = accessor.get(ICommandService);
+
+		if (!itemSelectedForCompare) {
+			return this.reset(contextKeyService);
+		}
+
+		const selectedEntry = (await findLocalHistoryEntry(workingCopyHistoryService, itemSelectedForCompare)).entry;
+		if (!selectedEntry) {
+			return this.reset(contextKeyService);
+		}
+
+		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
+		if (entry) {
+			this.reset(contextKeyService);
+
+			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(selectedEntry, entry));
+		}
+	}
+
+	private reset(contextKeyService: IContextKeyService): void {
+		itemSelectedForCompare = undefined;
+		LocalHistoryItemSelectedForCompare.bindTo(contextKeyService).set(false);
+	}
+});
 
 //#endregion
 
