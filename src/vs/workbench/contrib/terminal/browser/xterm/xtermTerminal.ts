@@ -130,7 +130,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			fastScrollSensitivity: config.fastScrollSensitivity,
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
-			wordSeparator: config.wordSeparators
+			wordSeparator: config.wordSeparators,
+			overviewRulerWidth: 10
 		}));
 		this._core = (this.raw as any)._core as IXtermCore;
 

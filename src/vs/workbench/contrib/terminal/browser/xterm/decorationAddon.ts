@@ -36,7 +36,6 @@ const enum DecorationSelector {
 const enum DecorationStyles {
 	DefaultDimension = 16,
 	MarginLeft = -17,
-	OverlayRulerWidth = 10
 }
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number }
@@ -168,7 +167,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
-		this._terminal.options.overviewRulerWidth = DecorationStyles.OverlayRulerWidth;
 	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
@@ -180,19 +178,16 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 
 		this._placeholderDecoration?.dispose();
-
-		const decoration = this._terminal.registerDecoration({ marker: command.marker });
-		if (!decoration) {
-			return undefined;
-		}
 		let color = command.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
 		if (color && typeof color !== 'string') {
 			color = color.toString();
 		} else {
 			color = '';
 		}
-
-		this._overviewRuler = this._terminal.registerDecoration({ marker: command.marker, overviewRulerOptions: { color } });
+		const decoration = this._terminal.registerDecoration({ marker: command.marker, overviewRulerOptions: { color } });
+		if (!decoration) {
+			return undefined;
+		}
 
 		decoration.onRender(element => {
 			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
