@@ -155,6 +155,7 @@ export class SCMViewService implements ISCMViewService {
 			this.eventuallyFinishLoading();
 		}
 
+		this.insertRepository(this._repositories, repository);
 		let removed: Iterable<ISCMRepository> = Iterable.empty();
 
 		if (this.previousState) {
@@ -168,11 +169,8 @@ export class SCMViewService implements ISCMViewService {
 					}
 				}
 
-				const sortedRepositories = this.scmService.repositories.sort(this._compareRepositories);
-
-				this._repositories = [...sortedRepositories];
-				this._visibleRepositories = [...sortedRepositories];
-				this._visibleRepositoriesSet = new Set(sortedRepositories);
+				this._visibleRepositoriesSet = new Set(this.scmService.repositories);
+				this._visibleRepositories = [...this.scmService.repositories.sort(this._compareRepositories)];
 				this._onDidChangeRepositories.fire({ added, removed: Iterable.empty() });
 				this.finishLoading();
 				return;
@@ -184,6 +182,7 @@ export class SCMViewService implements ISCMViewService {
 				if (this._visibleRepositories.length === 0) { // should make it visible, until other repos come along
 					this.provisionalVisibleRepository = repository;
 				} else {
+					this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
 					return;
 				}
 			} else {
@@ -196,10 +195,8 @@ export class SCMViewService implements ISCMViewService {
 			}
 		}
 
-		this.insertRepository(this._repositories, repository);
-		this.insertRepository(this._visibleRepositories, repository);
-
 		this._visibleRepositoriesSet.add(repository);
+		this.insertRepository(this._visibleRepositories, repository);
 		this._onDidChangeRepositories.fire({ added: [repository], removed });
 
 		if (!this._focusedRepository) {
@@ -225,8 +222,8 @@ export class SCMViewService implements ISCMViewService {
 			this._visibleRepositories.splice(visibleRepositoriesIndex, 1);
 			this._visibleRepositoriesSet.delete(repository);
 
-			if (this._visibleRepositories.length === 0 && this.scmService.repositories.length > 0) {
-				const first = this.scmService.repositories[0];
+			if (this._repositories.length > 0 && this._visibleRepositories.length === 0) {
+				const first = this._repositories[0];
 
 				this._visibleRepositories.push(first);
 				this._visibleRepositoriesSet.add(first);
@@ -289,7 +286,7 @@ export class SCMViewService implements ISCMViewService {
 			return;
 		}
 
-		const all = this.scmService.repositories.map(r => getProviderStorageKey(r.provider));
+		const all = this.repositories.map(r => getProviderStorageKey(r.provider));
 		const visible = this.visibleRepositories.map(r => all.indexOf(getProviderStorageKey(r.provider)));
 		const raw = JSON.stringify({ all, visible });
 
