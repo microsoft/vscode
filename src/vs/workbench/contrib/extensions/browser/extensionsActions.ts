@@ -2733,19 +2733,22 @@ CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsWith
 export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
 	dark: buttonBackground,
 	light: buttonBackground,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, localize('extensionButtonProminentBackground', "Button background color for actions extension that stand out (e.g. install button)."));
 
 export const extensionButtonProminentForeground = registerColor('extensionButton.prominentForeground', {
 	dark: buttonForeground,
 	light: buttonForeground,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, localize('extensionButtonProminentForeground', "Button foreground color for actions extension that stand out (e.g. install button)."));
 
 export const extensionButtonProminentHoverBackground = registerColor('extensionButton.prominentHoverBackground', {
 	dark: buttonHoverBackground,
 	light: buttonHoverBackground,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, localize('extensionButtonProminentHoverBackground', "Button background hover color for actions extension that stand out (e.g. install button)."));
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {

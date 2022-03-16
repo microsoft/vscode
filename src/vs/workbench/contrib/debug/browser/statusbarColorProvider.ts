@@ -17,19 +17,22 @@ import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statu
 export const STATUS_BAR_DEBUGGING_BACKGROUND = registerColor('statusBar.debuggingBackground', {
 	dark: '#CC6633',
 	light: '#CC6633',
-	hc: '#CC6633'
+	hcDark: '#CC6633',
+	hcLight: '#CC6633'
 }, localize('statusBarDebuggingBackground', "Status bar background color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_DEBUGGING_FOREGROUND = registerColor('statusBar.debuggingForeground', {
 	dark: STATUS_BAR_FOREGROUND,
 	light: STATUS_BAR_FOREGROUND,
-	hc: STATUS_BAR_FOREGROUND
+	hcDark: STATUS_BAR_FOREGROUND,
+	hcLight: STATUS_BAR_FOREGROUND
 }, localize('statusBarDebuggingForeground', "Status bar foreground color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBorder', {
 	dark: STATUS_BAR_BORDER,
 	light: STATUS_BAR_BORDER,
-	hc: STATUS_BAR_BORDER
+	hcDark: STATUS_BAR_BORDER,
+	hcLight: STATUS_BAR_BORDER
 }, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export class StatusBarColorProvider implements IWorkbenchContribution {

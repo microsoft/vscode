@@ -2385,7 +2385,11 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			.monaco-workbench.hc-black .editor-instance .xterm.focus::before,
 			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
 			.monaco-workbench.hc-black .editor-instance .xterm:focus::before,
-			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
+			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before,
+			.monaco-workbench.hc-light .editor-instance .xterm.focus::before,
+			.monaco-workbench.hc-light .pane-body.integrated-terminal .xterm.focus::before,
+			.monaco-workbench.hc-light .editor-instance .xterm:focus::before,
+			.monaco-workbench.hc-light .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
 		);
 	}
 

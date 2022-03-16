@@ -2949,135 +2949,157 @@ registerZIndex(ZIndex.Sash, 3, 'notebook-cell-toolbar-dropdown-active');
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	dark: transparent(listInactiveSelectionBackground, 1),
 	light: transparent(listInactiveSelectionBackground, 1),
-	hc: PANEL_BORDER
+	hcDark: PANEL_BORDER,
+	hcLight: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
 export const focusedEditorBorderColor = registerColor('notebook.focusedEditorBorder', {
 	light: focusBorder,
 	dark: focusBorder,
-	hc: focusBorder
+	hcDark: focusBorder,
+	hcLight: focusBorder
 }, nls.localize('notebook.focusedEditorBorder', "The color of the notebook cell editor border."));
 
 export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.foreground', {
 	light: debugIconStartForeground,
 	dark: debugIconStartForeground,
-	hc: debugIconStartForeground
+	hcDark: debugIconStartForeground,
+	hcLight: debugIconStartForeground
 }, nls.localize('notebookStatusSuccessIcon.foreground', "The error icon color of notebook cells in the cell status bar."));
 
 export const cellStatusIconError = registerColor('notebookStatusErrorIcon.foreground', {
 	light: errorForeground,
 	dark: errorForeground,
-	hc: errorForeground
+	hcDark: errorForeground,
+	hcLight: errorForeground
 }, nls.localize('notebookStatusErrorIcon.foreground', "The error icon color of notebook cells in the cell status bar."));
 
 export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.foreground', {
 	light: foreground,
 	dark: foreground,
-	hc: foreground
+	hcDark: foreground,
+	hcLight: foreground
 }, nls.localize('notebookStatusRunningIcon.foreground', "The running icon color of notebook cells in the cell status bar."));
 
 export const notebookOutputContainerBorderColor = registerColor('notebook.outputContainerBorderColor', {
 	dark: null,
 	light: null,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, nls.localize('notebook.outputContainerBorderColor', "The border color of the notebook output container."));
 
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
 	dark: null,
 	light: null,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, nls.localize('notebook.outputContainerBackgroundColor', "The color of the notebook output container background."));
 
 // TODO@rebornix currently also used for toolbar border, if we keep all of this, pick a generic name
 export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparator', {
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
-	hc: contrastBorder
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
 }, nls.localize('notebook.cellToolbarSeparator', "The color of the separator in the cell bottom toolbar"));
 
 export const focusedCellBackground = registerColor('notebook.focusedCellBackground', {
 	dark: null,
 	light: null,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, nls.localize('focusedCellBackground', "The background color of a cell when the cell is focused."));
 
 export const selectedCellBackground = registerColor('notebook.selectedCellBackground', {
 	dark: listInactiveSelectionBackground,
 	light: listInactiveSelectionBackground,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, nls.localize('selectedCellBackground', "The background color of a cell when the cell is selected."));
 
 
 export const cellHoverBackground = registerColor('notebook.cellHoverBackground', {
 	dark: transparent(focusedCellBackground, .5),
 	light: transparent(focusedCellBackground, .7),
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, nls.localize('notebook.cellHoverBackground', "The background color of a cell when the cell is hovered."));
 
 export const selectedCellBorder = registerColor('notebook.selectedCellBorder', {
 	dark: notebookCellBorder,
 	light: notebookCellBorder,
-	hc: contrastBorder
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
 }, nls.localize('notebook.selectedCellBorder', "The color of the cell's top and bottom border when the cell is selected but not focused."));
 
 export const inactiveSelectedCellBorder = registerColor('notebook.inactiveSelectedCellBorder', {
 	dark: null,
 	light: null,
-	hc: focusBorder
+	hcDark: focusBorder,
+	hcLight: focusBorder
 }, nls.localize('notebook.inactiveSelectedCellBorder', "The color of the cell's borders when multiple cells are selected."));
 
 export const focusedCellBorder = registerColor('notebook.focusedCellBorder', {
 	dark: focusBorder,
 	light: focusBorder,
-	hc: focusBorder
+	hcDark: focusBorder,
+	hcLight: focusBorder
 }, nls.localize('notebook.focusedCellBorder', "The color of the cell's focus indicator borders when the cell is focused."));
 
 export const inactiveFocusedCellBorder = registerColor('notebook.inactiveFocusedCellBorder', {
 	dark: notebookCellBorder,
 	light: notebookCellBorder,
-	hc: notebookCellBorder
+	hcDark: notebookCellBorder,
+	hcLight: notebookCellBorder
 }, nls.localize('notebook.inactiveFocusedCellBorder', "The color of the cell's top and bottom border when a cell is focused while the primary focus is outside of the editor."));
 
 export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
 	light: new Color(new RGBA(0, 0, 0, 0.08)),
 	dark: new Color(new RGBA(255, 255, 255, 0.15)),
-	hc: new Color(new RGBA(255, 255, 255, 0.15)),
+	hcDark: new Color(new RGBA(255, 255, 255, 0.15)),
+	hcLight: new Color(new RGBA(0, 0, 0, 0.08)),
 }, nls.localize('notebook.cellStatusBarItemHoverBackground', "The background color of notebook cell status bar items."));
 
 export const cellInsertionIndicator = registerColor('notebook.cellInsertionIndicator', {
 	light: focusBorder,
 	dark: focusBorder,
-	hc: focusBorder
+	hcDark: focusBorder,
+	hcLight: focusBorder
 }, nls.localize('notebook.cellInsertionIndicator', "The color of the notebook cell insertion indicator."));
 
 export const listScrollbarSliderBackground = registerColor('notebookScrollbarSlider.background', {
 	dark: scrollbarSliderBackground,
 	light: scrollbarSliderBackground,
-	hc: scrollbarSliderBackground
+	hcDark: scrollbarSliderBackground,
+	hcLight: scrollbarSliderBackground
 }, nls.localize('notebookScrollbarSliderBackground', "Notebook scrollbar slider background color."));
 
 export const listScrollbarSliderHoverBackground = registerColor('notebookScrollbarSlider.hoverBackground', {
 	dark: scrollbarSliderHoverBackground,
 	light: scrollbarSliderHoverBackground,
-	hc: scrollbarSliderHoverBackground
+	hcDark: scrollbarSliderHoverBackground,
+	hcLight: scrollbarSliderHoverBackground
 }, nls.localize('notebookScrollbarSliderHoverBackground', "Notebook scrollbar slider background color when hovering."));
 
 export const listScrollbarSliderActiveBackground = registerColor('notebookScrollbarSlider.activeBackground', {
 	dark: scrollbarSliderActiveBackground,
 	light: scrollbarSliderActiveBackground,
-	hc: scrollbarSliderActiveBackground
+	hcDark: scrollbarSliderActiveBackground,
+	hcLight: scrollbarSliderActiveBackground
 }, nls.localize('notebookScrollbarSliderActiveBackground', "Notebook scrollbar slider background color when clicked on."));
 
 export const cellSymbolHighlight = registerColor('notebook.symbolHighlightBackground', {
 	dark: Color.fromHex('#ffffff0b'),
 	light: Color.fromHex('#fdff0033'),
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, nls.localize('notebook.symbolHighlightBackground', "Background color of highlighted cell"));
 
 export const cellEditorBackground = registerColor('notebook.cellEditorBackground', {
 	light: SIDE_BAR_BACKGROUND,
 	dark: SIDE_BAR_BACKGROUND,
-	hc: null
+	hcDark: null,
+	hcLight: null
 }, nls.localize('notebook.cellEditorBackground', "Cell editor background color."));
 
 registerThemingParticipant((theme, collector) => {
