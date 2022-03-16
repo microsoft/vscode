@@ -738,7 +738,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	function createOutputItem(
 		id: string,
-		element: HTMLElement,
 		mime: string,
 		metadata: unknown,
 		valueBytes: Uint8Array
@@ -2030,7 +2029,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			} else {
 				const rendererApi = preloadsAndErrors[0] as rendererApi.RendererApi;
 				try {
-					rendererApi.renderOutputItem(createOutputItem(this.outputId, this.element, content.mimeType, content.metadata, content.valueBytes), this.element);
+					rendererApi.renderOutputItem(createOutputItem(this.outputId, content.mimeType, content.metadata, content.valueBytes), this.element);
 				} catch (e) {
 					showPreloadErrors(this.element, e);
 				}
