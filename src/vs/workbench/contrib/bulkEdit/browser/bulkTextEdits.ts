@@ -249,7 +249,7 @@ export class BulkTextEdits {
 				// This edit touches a single model => keep things simple
 				const task = tasks[0];
 				if (!task.isNoOp()) {
-					const singleModelEditStackElement = new SingleModelEditStackElement(task.model, task.getBeforeCursorState());
+					const singleModelEditStackElement = new SingleModelEditStackElement(this._label, task.model, task.getBeforeCursorState());
 					this._undoRedoService.pushElement(singleModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 					task.apply();
 					singleModelEditStackElement.close();
@@ -259,7 +259,7 @@ export class BulkTextEdits {
 				// prepare multi model undo element
 				const multiModelEditStackElement = new MultiModelEditStackElement(
 					this._label,
-					tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
+					tasks.map(t => new SingleModelEditStackElement(this._label, t.model, t.getBeforeCursorState()))
 				);
 				this._undoRedoService.pushElement(multiModelEditStackElement, this._undoRedoGroup, this._undoRedoSource);
 				for (const task of tasks) {

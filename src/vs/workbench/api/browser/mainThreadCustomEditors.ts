@@ -38,7 +38,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopySaveEvent, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
@@ -447,6 +447,9 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	private readonly _onDidSave: Emitter<IWorkingCopySaveEvent> = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave: Event<IWorkingCopySaveEvent> = this._onDidSave.event;
+
 	readonly onDidChangeReadonly = Event.None;
 
 	//#endregion
@@ -567,7 +570,14 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	}
 
 	public async save(options?: ISaveOptions): Promise<boolean> {
-		return !!await this.saveCustomEditor(options);
+		const result = !!await this.saveCustomEditor(options);
+
+		// Emit Save Event
+		if (result) {
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
+		}
+
+		return result;
 	}
 
 	public async saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined> {

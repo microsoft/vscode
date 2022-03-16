@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { deepFreeze } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
@@ -32,7 +31,7 @@ export class ExtHostNotebookDocuments implements extHostProtocol.ExtHostNotebook
 	$acceptModelChanged(uri: UriComponents, event: SerializableObjectWithBuffers<extHostProtocol.NotebookCellsChangedEventDto>, isDirty: boolean, newMetadata?: NotebookDocumentMetadata): void {
 		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
 		const e = document.acceptModelChanged(event.value, isDirty, newMetadata);
-		this._onDidChangeNotebookDocument.fire(deepFreeze(e));
+		this._onDidChangeNotebookDocument.fire(e);
 	}
 
 	$acceptDirtyStateChanged(uri: UriComponents, isDirty: boolean): void {

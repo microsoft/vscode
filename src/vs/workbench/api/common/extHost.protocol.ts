@@ -612,7 +612,7 @@ export interface ExtHostEditorInsetsShape {
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
 	$moveTab(tab: IEditorTabDto, index: number, viewColumn: EditorGroupColumn): void;
-	$closeTab(tab: IEditorTabDto): Promise<void>;
+	$closeTab(tab: IEditorTabDto, preserveFocus: boolean): Promise<void>;
 }
 
 export interface IEditorTabGroupDto {
@@ -628,8 +628,7 @@ export interface IEditorTabGroupDto {
 export enum TabKind {
 	Singular = 0,
 	Diff = 1,
-	SidebySide = 2,
-	Other = 3
+	SidebySide = 2
 }
 
 export interface IEditorTabDto {
@@ -1339,7 +1338,10 @@ export interface ExtHostSearchShape {
 
 export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
-	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents>;
+	/**
+	 * Returns `null` if no resolver for `remoteAuthority` is found.
+	 */
+	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents | null>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	$extensionTestsExecute(): Promise<number>;
 	$extensionTestsExit(code: number): Promise<void>;

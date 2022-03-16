@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
@@ -164,6 +164,31 @@ suite('ExtensionsActivator', () => {
 		assert.deepStrictEqual(host.errors[1][0], idA);
 	});
 
+	test('issue #144518: Problem with git extension and vscode-icons', async () => {
+		const extActivationA = new ExtensionActivationPromiseSource();
+		const extActivationB = new ExtensionActivationPromiseSource();
+		const extActivationC = new ExtensionActivationPromiseSource();
+		const host = new PromiseExtensionsActivatorHost([
+			[idA, extActivationA],
+			[idB, extActivationB],
+			[idC, extActivationC]
+		]);
+		const activator = createActivator(host, [
+			desc(idA, [idB]),
+			desc(idB),
+			desc(idC),
+		]);
+
+		activator.activateByEvent('*', false);
+		assert.deepStrictEqual(host.activateCalls, [idB, idC]);
+
+		extActivationB.resolve();
+		await timeout(0);
+
+		assert.deepStrictEqual(host.activateCalls, [idB, idC, idA]);
+		extActivationA.resolve();
+	});
+
 	class SimpleExtensionsActivatorHost implements IExtensionsActivatorHost {
 		public readonly activateCalls: ExtensionIdentifier[] = [];
 		public readonly errors: [ExtensionIdentifier, Error | null, MissingExtensionDependency | null][] = [];
@@ -236,6 +261,7 @@ suite('ExtensionsActivator', () => {
 			isUserBuiltin: false,
 			activationEvents,
 			main: 'index.js',
+			targetPlatform: TargetPlatform.UNDEFINED,
 			extensionDependencies: deps.map(d => d.value)
 		};
 	}

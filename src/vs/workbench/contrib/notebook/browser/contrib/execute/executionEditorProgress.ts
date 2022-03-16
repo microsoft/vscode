@@ -19,7 +19,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 	) {
 		super();
 
-		this._register(_notebookEditor.onDidChangeVisibleRanges(() => this._update()));
+		this._register(_notebookEditor.onDidScroll(() => this._update()));
 
 		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
 			if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
@@ -44,7 +44,10 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 			for (const range of this._notebookEditor.visibleRanges) {
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
 					if (cell.handle === exe.cellHandle) {
-						return true;
+						const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
+						if (this._notebookEditor.scrollTop < top + 30) {
+							return true;
+						}
 					}
 				}
 			}

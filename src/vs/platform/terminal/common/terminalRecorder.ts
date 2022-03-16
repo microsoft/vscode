@@ -84,7 +84,9 @@ export class TerminalRecorder {
 			}
 		});
 		return {
-			events: this._entries.map(entry => ({ cols: entry.cols, rows: entry.rows, data: entry.data[0] ?? '' }))
+			events: this._entries.map(entry => ({ cols: entry.cols, rows: entry.rows, data: entry.data[0] ?? '' })),
+			// No command restoration is needed when relaunching terminals
+			commands: []
 		};
 	}
 

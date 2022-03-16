@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -13,9 +12,6 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 
 export class TroubleshootController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.troubleshoot';
@@ -148,23 +144,5 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const notebookService = accessor.get(INotebookService);
 		notebookService.clearEditorCache();
-	}
-});
-
-registerAction2(class DedicatedExtensionHostAction extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.experiment.runInDedicatedExtensionHost',
-			title: localize('notebook.experiment.runInDedicatedExtensionHost', 'Run Notebook Extensions In Dedicated Extension Host'),
-			f1: true,
-			category: CATEGORIES.Developer
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const service = accessor.get(IConfigurationService);
-		const commandService = accessor.get(ICommandService);
-		await service.updateValue('extensions.experimental.dedicatedNotebookProcess', true);
-		await commandService.executeCommand(ReloadWindowAction.ID);
 	}
 });

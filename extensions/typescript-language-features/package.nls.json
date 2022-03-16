@@ -71,6 +71,8 @@
 	"configuration.tsserver.maxTsServerMemory": "The maximum amount of memory (in MB) to allocate to the TypeScript server process.",
 	"configuration.tsserver.experimental.enableProjectDiagnostics": "(Experimental) Enables project wide error reporting.",
 	"typescript.locale": "Sets the locale used to report JavaScript and TypeScript errors. Defaults to use VS Code's locale.",
+	"configuration.implicitProjectConfig.module": "Sets the module system for the program. See more: https://www.typescriptlang.org/tsconfig#module.",
+	"configuration.implicitProjectConfig.target": "Set target JavaScript language version for emitted JavaScript and include library declarations. See more: https://www.typescriptlang.org/tsconfig#target.",
 	"configuration.implicitProjectConfig.checkJs": "Enable/disable semantic checking of JavaScript files. Existing `jsconfig.json` or `tsconfig.json` files override this setting.",
 	"configuration.javascript.checkJs.checkJs.deprecation": "This setting has been deprecated in favor of `js/ts.implicitProjectConfig.checkJs`.",
 	"configuration.implicitProjectConfig.experimentalDecorators": "Enable/disable `experimentalDecorators` in JavaScript files that are not part of a project. Existing `jsconfig.json` or `tsconfig.json` files override this setting.",

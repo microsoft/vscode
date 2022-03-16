@@ -6,7 +6,7 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
+import { ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 
 enum Boundary {
