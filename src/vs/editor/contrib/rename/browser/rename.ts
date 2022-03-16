@@ -237,6 +237,7 @@ class RenameController implements IEditorContribution {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
 				label: nls.localize('label', "Renaming '{0}'", loc?.text),
+				code: 'undoredo.rename',
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0}", loc?.text),
 			}).then(result => {
 				if (result.ariaSummary) {

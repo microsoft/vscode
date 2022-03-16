@@ -169,6 +169,7 @@ export class ExplorerService implements IExplorerService {
 			await this.bulkEditService.apply(edit, {
 				undoRedoSource: UNDO_REDO_SOURCE,
 				label: options.undoLabel,
+				code: 'undoredo.explorerOperation',
 				progress,
 				token: cancellationTokenSource.token,
 				confirmBeforeUndo: options.confirmBeforeUndo
