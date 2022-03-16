@@ -292,7 +292,7 @@ export class CommentController implements IEditorContribution {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 
 			if (editorURI) {
-				return this.commentService.getComments(editorURI);
+				return this.commentService.getDocumentComments(editorURI);
 			}
 
 			return Promise.resolve([]);
@@ -315,7 +315,7 @@ export class CommentController implements IEditorContribution {
 				const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 
 				if (editorURI) {
-					return this.commentService.getComments(editorURI);
+					return this.commentService.getDocumentComments(editorURI);
 				}
 
 				return Promise.resolve([]);

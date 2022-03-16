@@ -26,6 +26,13 @@ export interface ICommentInfo extends CommentInfo {
 	label?: string;
 }
 
+export interface INotebookCommentInfo {
+	extensionId?: string;
+	threads: CommentThread<ICellRange>[];
+	owner: string;
+	label?: string;
+}
+
 export interface IWorkspaceCommentThreadsEvent {
 	ownerId: string;
 	commentThreads: CommentThread[];
@@ -45,6 +52,7 @@ export interface ICommentController {
 	deleteCommentThreadMain(commentThreadId: string): void;
 	toggleReaction(uri: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
 	getDocumentComments(resource: URI, token: CancellationToken): Promise<ICommentInfo>;
+	getNotebookComments(resource: URI, token: CancellationToken): Promise<INotebookCommentInfo>;
 	getCommentingRanges(resource: URI, token: CancellationToken): Promise<IRange[]>;
 }
 
@@ -69,7 +77,8 @@ export interface ICommentService {
 	getCommentMenus(owner: string): CommentMenus;
 	updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange | ICellRange>): void;
 	disposeCommentThread(ownerId: string, threadId: string): void;
-	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
+	getDocumentComments(resource: URI): Promise<(ICommentInfo | null)[]>;
+	getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]>;
 	updateCommentingRanges(ownerId: string): void;
 	getCommentingRanges(resource: URI): Promise<IRange[]>;
 	hasReactionHandler(owner: string): boolean;
@@ -215,11 +224,24 @@ export class CommentService extends Disposable implements ICommentService {
 		return false;
 	}
 
-	async getComments(resource: URI): Promise<(ICommentInfo | null)[]> {
+	async getDocumentComments(resource: URI): Promise<(ICommentInfo | null)[]> {
 		let commentControlResult: Promise<ICommentInfo | null>[] = [];
 
 		this._commentControls.forEach(control => {
 			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
+				.catch(_ => {
+					return null;
+				}));
+		});
+
+		return Promise.all(commentControlResult);
+	}
+
+	async getNotebookComments(resource: URI): Promise<(INotebookCommentInfo | null)[]> {
+		let commentControlResult: Promise<INotebookCommentInfo | null>[] = [];
+
+		this._commentControls.forEach(control => {
+			commentControlResult.push(control.getNotebookComments(resource, CancellationToken.None)
 				.catch(_ => {
 					return null;
 				}));

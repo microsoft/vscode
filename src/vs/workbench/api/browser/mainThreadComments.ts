@@ -13,7 +13,7 @@ import * as languages from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
 import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
@@ -311,7 +311,7 @@ export class MainThreadCommentController {
 		let ret: languages.CommentThread<IRange | ICellRange>[] = [];
 		for (let thread of [...this._threads.keys()]) {
 			const commentThread = this._threads.get(thread)!;
-			if (commentThread.resource === resource.toString()) {
+			if (commentThread.resource === resource.toString() && commentThread.isDocumentCommentThread()) {
 				ret.push(commentThread);
 			}
 		}
@@ -326,6 +326,22 @@ export class MainThreadCommentController {
 				resource: resource,
 				ranges: commentingRanges || []
 			}
+		};
+	}
+
+	async getNotebookComments(resource: URI, token: CancellationToken) {
+		let ret: languages.CommentThread<IRange | ICellRange>[] = [];
+		for (let thread of [...this._threads.keys()]) {
+			const commentThread = this._threads.get(thread)!;
+			if (commentThread.resource === resource.toString() && !commentThread.isDocumentCommentThread()) {
+				ret.push(commentThread);
+			}
+		}
+
+		return <INotebookCommentInfo>{
+			owner: this._uniqueId,
+			label: this.label,
+			threads: ret
 		};
 	}
 
