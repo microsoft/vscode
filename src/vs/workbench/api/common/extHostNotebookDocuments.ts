@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { deepFreeze } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
