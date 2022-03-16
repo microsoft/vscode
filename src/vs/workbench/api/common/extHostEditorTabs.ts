@@ -24,12 +24,21 @@ class ExtHostEditorTabGroup {
 	private _apiObject: vscode.TabGroup | undefined;
 	private _dto: IEditorTabGroupDto;
 	private _tabs: ExtHostEditorTab[] = [];
-	// private _activeTabId: string = '';
+	private _proxy: MainThreadEditorTabsShape;
+	private _activeTabId: string = '';
+	private _activeGroupIdGetter: () => number | undefined;
 
-	constructor(dto: IEditorTabGroupDto, proxy: MainThreadEditorTabsShape) {
+	constructor(dto: IEditorTabGroupDto, proxy: MainThreadEditorTabsShape, activeGroupIdGetter: () => number | undefined) {
 		this._dto = dto;
+		this._proxy = proxy;
+		this._activeGroupIdGetter = activeGroupIdGetter;
 		// Construct all tabs from the given dto
-		this._tabs = dto.tabs.map(tab => new ExtHostEditorTab(tab, proxy));
+		for (const tabDto of dto.tabs) {
+			if (tabDto.isActive) {
+				this._activeTabId = tabDto.id;
+			}
+			this._tabs.push(new ExtHostEditorTab(tabDto, proxy, this.activeTabId));
+		}
 	}
 
 	get apiObject(): vscode.TabGroup {
@@ -38,14 +47,14 @@ class ExtHostEditorTabGroup {
 		if (!this._apiObject) {
 			this._apiObject = Object.freeze({
 				get isActive() {
-					return that._dto.isActive;
+					// We use a getter function here to always ensure at most 1 active group and prevent iteration for being required
+					return that._dto.groupId === that._activeGroupIdGetter();
 				},
 				get viewColumn() {
 					return typeConverters.ViewColumn.to(that._dto.viewColumn);
 				},
 				get activeTab() {
-					return that._tabs.find(tab => that._dto.activeTab?.id === tab.tabId)?.apiObject;
-					// return that._tabs.find(tab => tab.tabId === that._activeTabId)?.apiObject;
+					return that._tabs.find(tab => tab.tabId === that._activeTabId)?.apiObject;
 				},
 				get tabs() {
 					return that._tabs.map(tab => tab.apiObject);
@@ -59,6 +68,26 @@ class ExtHostEditorTabGroup {
 		return this._dto.groupId;
 	}
 
+	acceptGroupDtoUpdate(dto: IEditorTabGroupDto) {
+		this._dto = dto;
+		this._tabs = dto.tabs.map(tab => new ExtHostEditorTab(tab, this._proxy, this.activeTabId));
+	}
+
+	acceptTabDtoUpdate(dto: IEditorTabDto) {
+		const tab = this._tabs.find(extHostTab => extHostTab.tabId === dto.id);
+		if (tab) {
+			if (dto.isActive) {
+				this._activeTabId = dto.id;
+			}
+			tab.acceptDtoUpdate(dto);
+		}
+	}
+
+	// Not a getter since it must be a function to be used as a callback for the tabs
+	activeTabId(): string {
+		return this._activeTabId;
+	}
+
 	findExtHostTabFromApi(apiTab: vscode.Tab): ExtHostEditorTab | undefined {
 		return this._tabs.find(extHostTab => extHostTab.apiObject === apiTab);
 	}
@@ -68,10 +97,12 @@ class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
 	private _dto: IEditorTabDto;
 	private _proxy: MainThreadEditorTabsShape;
+	private _activeTabIdGetter: () => string;
 
-	constructor(dto: IEditorTabDto, proxy: MainThreadEditorTabsShape) {
+	constructor(dto: IEditorTabDto, proxy: MainThreadEditorTabsShape, activeTabIdGetter: () => string) {
 		this._dto = dto;
 		this._proxy = proxy;
+		this._activeTabIdGetter = activeTabIdGetter;
 	}
 
 	get apiObject(): vscode.Tab {
@@ -80,7 +111,8 @@ class ExtHostEditorTab {
 		if (!this._apiObject) {
 			this._apiObject = Object.freeze({
 				get isActive() {
-					return that._dto.isActive;
+					// We use a getter function here to always ensure at most 1 active tab per group and prevent iteration for being required
+					return that._dto.id === that._activeTabIdGetter();
 				},
 				get label() {
 					return that._dto.label;
@@ -107,11 +139,11 @@ class ExtHostEditorTab {
 					return that._dto.additionalResourcesAndViewTypes.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewType: viewId }));
 				},
 				move: async (index: number, viewColumn: ViewColumn) => {
-					this._proxy.$moveTab(that._dto, index, typeConverters.ViewColumn.from(viewColumn));
+					this._proxy.$moveTab(that._dto.id, index, typeConverters.ViewColumn.from(viewColumn));
 					return;
 				},
 				close: async (preserveFocus) => {
-					this._proxy.$closeTab(that._dto, preserveFocus);
+					this._proxy.$closeTab(that._dto.id, preserveFocus);
 					return;
 				}
 			});
@@ -121,6 +153,10 @@ class ExtHostEditorTab {
 
 	get tabId(): string {
 		return this._dto.id;
+	}
+
+	acceptDtoUpdate(dto: IEditorTabDto) {
+		this._dto = dto;
 	}
 
 }
@@ -152,25 +188,55 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		return this._tabGroups;
 	}
 
+	activeGroupIdGetter(): number | undefined {
+		return this._activeGroupId;
+	}
+
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void {
 		// Clears the tab groups array
 		this._tabGroups.groups.length = 0;
 		this._extHostTabGroups = tabGroups.map(tabGroup => {
-			const group = new ExtHostEditorTabGroup(tabGroup, this._proxy);
+			const group = new ExtHostEditorTabGroup(tabGroup, this._proxy, this.activeGroupIdGetter);
 			return group;
 		});
 		for (const group of this._extHostTabGroups) {
 			this._tabGroups.groups.push(group.apiObject);
 		}
 		// Set the active tab group id
-		const activeTabGroup = this._extHostTabGroups.find(group => group.apiObject.isActive === true);
-		const activeTabGroupId = activeTabGroup?.groupId;
+		const activeTabGroupId = tabGroups.find(group => group.isActive === true)?.groupId;
+		const activeTabGroup = activeTabGroupId ? this._extHostTabGroups.find(group => group.groupId === activeTabGroupId) : undefined;
 		if (activeTabGroupId !== this._activeGroupId) {
 			this._activeGroupId = activeTabGroupId;
-			this._onDidChangeActiveTabGroup.fire(activeTabGroup?.apiObject);
 			// TODO @lramos15 how do we set this without messing up readonly
 			this._tabGroups.activeTabGroup = activeTabGroup?.apiObject;
+			this._onDidChangeActiveTabGroup.fire(activeTabGroup?.apiObject);
 		}
+		this._onDidChangeTabGroup.fire();
+	}
+
+	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto) {
+		const group = this._extHostTabGroups.find(group => group.groupId === groupDto.groupId);
+		if (!group) {
+			throw new Error('Update Group IPC call received before group creation.');
+		}
+		group.acceptGroupDtoUpdate(groupDto);
+		if (groupDto.isActive) {
+			const oldActiveGroupId = this._activeGroupId;
+			this._activeGroupId = groupDto.groupId;
+			if (oldActiveGroupId !== this._activeGroupId) {
+				this._onDidChangeActiveTabGroup.fire(group.apiObject);
+				this._tabGroups.activeTabGroup = group.apiObject;
+			}
+		}
+		this._onDidChangeTabGroup.fire();
+	}
+
+	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto) {
+		const group = this._extHostTabGroups.find(group => group.groupId === groupId);
+		if (!group) {
+			throw new Error('Update Tabs IPC call received before group creation.');
+		}
+		group.acceptTabDtoUpdate(tabDto);
 		this._onDidChangeTabGroup.fire();
 	}
 

@@ -428,6 +428,8 @@
 	pointer-events: none;
 }
 
-.xterm-decoration-overview-ruler {
-	z-index: 50;
+.terminal-scroll-highlight {
+	left: 0;
+	right: 0;
+	border: 1px solid #ffffff;
 }
