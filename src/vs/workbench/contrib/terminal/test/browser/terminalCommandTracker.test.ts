@@ -83,7 +83,7 @@ suite('Workbench - TerminalCommandTracker', function () {
 		teardown(() => {
 			document.body.removeChild(container);
 		});
-		test('should scroll to the next and previous commands', async () => {
+		test.skip('should scroll to the next and previous commands', async () => {
 			await writeP(xterm, '\x1b[3G'); // Move cursor to column 3
 			xterm._core._onData.fire('\x0d'); // Mark line #10
 			assert.strictEqual(xterm.markers[0].line, 9);
@@ -137,7 +137,7 @@ suite('Workbench - TerminalCommandTracker', function () {
 			commandTracker.selectToNextCommand();
 			assert.strictEqual(xterm.getSelection(), isWindows ? '\r\n' : '\n');
 		});
-		test('should select to the next and previous lines & commands', async () => {
+		test.skip('should select to the next and previous lines & commands', async () => {
 			await writeP(xterm,
 				'\r0' +
 				'\n\r1' +

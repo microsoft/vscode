@@ -18,7 +18,8 @@ import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 
 const DEFAULT_THEME_DARK_SETTING_VALUE = 'Default Dark+';
 const DEFAULT_THEME_LIGHT_SETTING_VALUE = 'Default Light+';
-const DEFAULT_THEME_HC_SETTING_VALUE = 'Default High Contrast';
+const DEFAULT_THEME_HC_DARK_SETTING_VALUE = 'Default High Contrast';
+const DEFAULT_THEME_HC_LIGHT_SETTING_VALUE = 'Default High Contrast Light';
 
 const DEFAULT_FILE_ICON_THEME_SETTING_VALUE = 'vs-seti';
 
@@ -58,10 +59,20 @@ const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 	enumItemLabels: colorThemeSettingEnumItemLabels,
 	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
 };
-const preferredHCThemeSettingSchema: IConfigurationPropertySchema = {
+const preferredHCDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	markdownDescription: nls.localize({ key: 'preferredHCColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme used in high contrast mode when `#{0}#` is enabled.', ThemeSettings.DETECT_HC),
-	default: DEFAULT_THEME_HC_SETTING_VALUE,
+	markdownDescription: nls.localize({ key: 'preferredHCDarkColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme used in high contrast dark mode when `#{0}#` is enabled.', ThemeSettings.DETECT_HC),
+	default: DEFAULT_THEME_HC_DARK_SETTING_VALUE,
+	enum: colorThemeSettingEnum,
+	enumDescriptions: colorThemeSettingEnumDescriptions,
+	enumItemLabels: colorThemeSettingEnumItemLabels,
+	included: isWindows || isMacintosh,
+	errorMessage: nls.localize('colorThemeError', "Theme is unknown or not installed."),
+};
+const preferredHCLightThemeSettingSchema: IConfigurationPropertySchema = {
+	type: 'string',
+	markdownDescription: nls.localize({ key: 'preferredHCLightColorTheme', comment: ['`#{0}#` will become a link to an other setting. Do not remove backtick or #'] }, 'Specifies the preferred color theme used in high contrast light mode when `#{0}#` is enabled.', ThemeSettings.DETECT_HC),
+	default: DEFAULT_THEME_HC_LIGHT_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
 	enumItemLabels: colorThemeSettingEnumItemLabels,
@@ -106,7 +117,7 @@ const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 const detectHCSchemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'boolean',
 	default: true,
-	markdownDescription: nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme. The high contrast theme to use is specified by `#{0}#`", ThemeSettings.PREFERRED_HC_THEME),
+	markdownDescription: nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme. The high contrast theme to use is specified by `#{0}#` and `#{1}#`", ThemeSettings.PREFERRED_HC_DARK_THEME, ThemeSettings.PREFERRED_HC_LIGHT_THEME),
 	scope: ConfigurationScope.APPLICATION
 };
 
@@ -118,7 +129,8 @@ const themeSettingsConfiguration: IConfigurationNode = {
 		[ThemeSettings.COLOR_THEME]: colorThemeSettingSchema,
 		[ThemeSettings.PREFERRED_DARK_THEME]: preferredDarkThemeSettingSchema,
 		[ThemeSettings.PREFERRED_LIGHT_THEME]: preferredLightThemeSettingSchema,
-		[ThemeSettings.PREFERRED_HC_THEME]: preferredHCThemeSettingSchema,
+		[ThemeSettings.PREFERRED_HC_DARK_THEME]: preferredHCDarkThemeSettingSchema,
+		[ThemeSettings.PREFERRED_HC_LIGHT_THEME]: preferredHCLightThemeSettingSchema,
 		[ThemeSettings.FILE_ICON_THEME]: fileIconThemeSettingSchema,
 		[ThemeSettings.COLOR_CUSTOMIZATIONS]: colorCustomizationsSchema,
 		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema

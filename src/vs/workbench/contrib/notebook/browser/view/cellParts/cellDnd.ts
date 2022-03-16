@@ -8,6 +8,8 @@ import { Delayer } from 'vs/base/common/async';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, ICellMoveEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -26,6 +28,25 @@ interface CellDragEvent {
 	cellTop: number;
 	cellHeight: number;
 	dragPosRatio: number;
+}
+
+export class CellDragAndDropPart extends CellPart {
+	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+		if (element.dragging) {
+			templateData.container.classList.add(DRAGGING_CLASS);
+		} else {
+			templateData.container.classList.remove(DRAGGING_CLASS);
+		}
+	}
+
+	prepareLayout(): void {
+	}
+
+	updateInternalLayoutNow(element: ICellViewModel): void {
+	}
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+	}
 }
 
 export class CellDragAndDropController extends Disposable {
@@ -95,14 +116,6 @@ export class CellDragAndDropController extends Disposable {
 				this.isScrolling = false;
 			});
 		});
-	}
-
-	renderElement(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		if (element.dragging) {
-			templateData.container.classList.add(DRAGGING_CLASS);
-		} else {
-			templateData.container.classList.remove(DRAGGING_CLASS);
-		}
 	}
 
 	private setInsertIndicatorVisibility(visible: boolean) {

@@ -344,44 +344,48 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 
-		// Go through each configured affinity and try to accomodate it
-		const configuredAffinities = this._configurationService.getValue<{ [extensionId: string]: number } | undefined>('extensions.experimental.affinity') || {};
-		const configuredExtensionIds = Object.keys(configuredAffinities);
-		const configuredAffinityToResultingAffinity = new Map<number, number>();
-		for (const extensionId of configuredExtensionIds) {
-			const configuredAffinity = configuredAffinities[extensionId];
-			if (typeof configuredAffinity !== 'number' || configuredAffinity <= 0 || Math.floor(configuredAffinity) !== configuredAffinity) {
-				this._logService.info(`Ignoring configured affinity for '${extensionId}' because the value is not a positive integer.`);
-				continue;
-			}
-			const group = groups.get(ExtensionIdentifier.toKey(extensionId));
-			if (!group) {
-				this._logService.info(`Ignoring configured affinity for '${extensionId}' because the extension is unknown or cannot execute.`);
-				continue;
-			}
+		// When doing extension host debugging, we will ignore the configured affinity
+		// because we can currently debug a single extension host
+		if (!this._environmentService.isExtensionDevelopment) {
+			// Go through each configured affinity and try to accomodate it
+			const configuredAffinities = this._configurationService.getValue<{ [extensionId: string]: number } | undefined>('extensions.experimental.affinity') || {};
+			const configuredExtensionIds = Object.keys(configuredAffinities);
+			const configuredAffinityToResultingAffinity = new Map<number, number>();
+			for (const extensionId of configuredExtensionIds) {
+				const configuredAffinity = configuredAffinities[extensionId];
+				if (typeof configuredAffinity !== 'number' || configuredAffinity <= 0 || Math.floor(configuredAffinity) !== configuredAffinity) {
+					this._logService.info(`Ignoring configured affinity for '${extensionId}' because the value is not a positive integer.`);
+					continue;
+				}
+				const group = groups.get(ExtensionIdentifier.toKey(extensionId));
+				if (!group) {
+					this._logService.info(`Ignoring configured affinity for '${extensionId}' because the extension is unknown or cannot execute.`);
+					continue;
+				}
 
-			const affinity1 = resultingAffinities.get(group);
-			if (affinity1) {
-				// Affinity for this group is already established
-				configuredAffinityToResultingAffinity.set(configuredAffinity, affinity1);
-				continue;
-			}
+				const affinity1 = resultingAffinities.get(group);
+				if (affinity1) {
+					// Affinity for this group is already established
+					configuredAffinityToResultingAffinity.set(configuredAffinity, affinity1);
+					continue;
+				}
 
-			const affinity2 = configuredAffinityToResultingAffinity.get(configuredAffinity);
-			if (affinity2) {
-				// Affinity for this configuration is already established
-				resultingAffinities.set(group, affinity2);
-				continue;
-			}
+				const affinity2 = configuredAffinityToResultingAffinity.get(configuredAffinity);
+				if (affinity2) {
+					// Affinity for this configuration is already established
+					resultingAffinities.set(group, affinity2);
+					continue;
+				}
 
-			if (!isInitialAllocation) {
-				this._logService.info(`Ignoring configured affinity for '${extensionId}' because extension host(s) are already running. Reload window.`);
-				continue;
-			}
+				if (!isInitialAllocation) {
+					this._logService.info(`Ignoring configured affinity for '${extensionId}' because extension host(s) are already running. Reload window.`);
+					continue;
+				}
 
-			const affinity3 = ++lastAffinity;
-			configuredAffinityToResultingAffinity.set(configuredAffinity, affinity3);
-			resultingAffinities.set(group, affinity3);
+				const affinity3 = ++lastAffinity;
+				configuredAffinityToResultingAffinity.set(configuredAffinity, affinity3);
+				resultingAffinities.set(group, affinity3);
+			}
 		}
 
 		const result = new Map<string, number>();

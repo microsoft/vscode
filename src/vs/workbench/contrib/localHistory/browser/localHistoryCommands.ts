@@ -5,14 +5,15 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { basename, basenameOrAuthority } from 'vs/base/common/resources';
+import { basename, basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -21,10 +22,13 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-
-export const LOCAL_HISTORY_MENU_CONTEXT_VALUE = 'localHistory:item';
-export const LOCAL_HISTORY_MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LOCAL_HISTORY_MENU_CONTEXT_VALUE);
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { firstOrDefault } from 'vs/base/common/arrays';
+import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 
 const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
 
@@ -100,7 +104,7 @@ registerAction2(class extends Action2 {
 async function openEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditorService): Promise<void> {
 	await editorService.openEditor({
 		resource: LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
-		label: localize('localHistoryEditorLabel', "{0} ({1} {2})", entry.workingCopy.name, SaveSourceRegistry.getSourceLabel(entry.source), entry.timestamp.label)
+		label: localize('localHistoryEditorLabel', "{0} ({1} • {2})", entry.workingCopy.name, SaveSourceRegistry.getSourceLabel(entry.source), toLocalHistoryEntryDateLabel(entry.timestamp))
 	});
 }
 
@@ -296,6 +300,92 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 	}
 }
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.restoreViaPicker',
+			title: { value: localize('localHistory.restoreViaPicker', "Find Entry to Restore"), original: 'Find Entry to Restore' },
+			f1: true,
+			category: LOCAL_HISTORY_CATEGORY
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const modelService = accessor.get(IModelService);
+		const languageService = accessor.get(ILanguageService);
+		const labelService = accessor.get(ILabelService);
+		const editorService = accessor.get(IEditorService);
+
+		// Show all resources with associated history entries in picker
+		// with progress because this operation will take longer the more
+		// files have been saved overall.
+
+		const resourcePicker = quickInputService.createQuickPick<IQuickPickItem & { resource: URI }>();
+
+		let cts = new CancellationTokenSource();
+		resourcePicker.onDidHide(() => cts.dispose(true));
+
+		resourcePicker.busy = true;
+		resourcePicker.show();
+
+		const resources = await workingCopyHistoryService.getAll(cts.token);
+
+		resourcePicker.busy = false;
+		resourcePicker.placeholder = localize('restoreViaPicker.filePlaceholder', "Select the file to show local history for");
+		resourcePicker.matchOnLabel = true;
+		resourcePicker.matchOnDescription = true;
+		resourcePicker.items = resources.map(resource => ({
+			resource,
+			label: basenameOrAuthority(resource),
+			description: labelService.getUriLabel(dirname(resource), { relative: true }),
+			iconClasses: getIconClasses(modelService, languageService, resource)
+		})).sort((r1, r2) => r1.resource.fsPath < r2.resource.fsPath ? -1 : 1);
+
+		await Event.toPromise(resourcePicker.onDidAccept);
+		resourcePicker.dispose();
+
+		const resource = firstOrDefault(resourcePicker.selectedItems)?.resource;
+		if (!resource) {
+			return;
+		}
+
+		// Show all entries for the picked resource in another picker
+		// and open the entry in the end that was selected by the user
+
+		const entryPicker = quickInputService.createQuickPick<IQuickPickItem & { entry: IWorkingCopyHistoryEntry }>();
+
+		cts = new CancellationTokenSource();
+		entryPicker.onDidHide(() => cts.dispose(true));
+
+		entryPicker.busy = true;
+		entryPicker.show();
+
+		const entries = await workingCopyHistoryService.getEntries(resource, cts.token);
+
+		entryPicker.busy = false;
+		entryPicker.placeholder = localize('restoreViaPicker.entryPlaceholder', "Select the local history entry to open");
+		entryPicker.matchOnLabel = true;
+		entryPicker.matchOnDescription = true;
+		entryPicker.items = Array.from(entries).reverse().map(entry => ({
+			entry,
+			label: `$(circle-outline) ${SaveSourceRegistry.getSourceLabel(entry.source)}`,
+			description: toLocalHistoryEntryDateLabel(entry.timestamp)
+		}));
+
+		await Event.toPromise(entryPicker.onDidAccept);
+		entryPicker.dispose();
+
+		const entry = firstOrDefault(entryPicker.selectedItems);
+		if (!entry) {
+			return;
+		}
+
+		return openEntry(entry.entry, editorService);
+	}
+});
+
+
 //#endregion
 
 //#region Rename
@@ -361,7 +451,7 @@ registerAction2(class extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
-				message: localize('confirmDeleteMessage', "Do you want to delete the local history entry of '{0}' from {1}?", entry.workingCopy.name, entry.timestamp.label),
+				message: localize('confirmDeleteMessage', "Do you want to delete the local history entry of '{0}' from {1}?", entry.workingCopy.name, toLocalHistoryEntryDateLabel(entry.timestamp)),
 				detail: localize('confirmDeleteDetail', "This action is irreversible!"),
 				primaryButton: localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
 				type: 'warning'
@@ -435,7 +525,7 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 		const resource = arg2;
 
 		modifiedResource = resource;
-		label = localize('localHistoryCompareToFileEditorLabel', "{0} ({1} {2}) ↔ {3}", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), arg1.timestamp.label, arg1.workingCopy.name);
+		label = localize('localHistoryCompareToFileEditorLabel', "{0} ({1} • {2}) ↔ {3}", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), toLocalHistoryEntryDateLabel(arg1.timestamp), arg1.workingCopy.name);
 	}
 
 	// Compare with another entry
@@ -443,7 +533,7 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 		const modified = arg2;
 
 		modifiedResource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: modified.location, associatedResource: modified.workingCopy.resource, label: modified.workingCopy.name });
-		label = localize('localHistoryCompareToPreviousEditorLabel', "{0} ({1} {2}) ↔ {3} ({4} {5})", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), arg1.timestamp.label, modified.workingCopy.name, SaveSourceRegistry.getSourceLabel(modified.source), modified.timestamp.label);
+		label = localize('localHistoryCompareToPreviousEditorLabel', "{0} ({1} • {2}) ↔ {3} ({4} • {5})", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), toLocalHistoryEntryDateLabel(arg1.timestamp), modified.workingCopy.name, SaveSourceRegistry.getSourceLabel(modified.source), toLocalHistoryEntryDateLabel(modified.timestamp));
 	}
 
 	return [
@@ -473,6 +563,11 @@ async function findLocalHistoryEntry(workingCopyHistoryService: IWorkingCopyHist
 		entry: currentEntry,
 		previous: previousEntry
 	};
+}
+
+const SEP = /\//g;
+function toLocalHistoryEntryDateLabel(timestamp: number): string {
+	return `${LOCAL_HISTORY_DATE_FORMATTER.format(timestamp).replace(SEP, '-')}`; // preserving `/` will break editor labels, so replace it with a non-path symbol
 }
 
 //#endregion
