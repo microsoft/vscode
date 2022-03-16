@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId, groupByExtension, getExtensionId, ExtensionKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
+import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -115,12 +116,6 @@ abstract class ExtensionManifestHandler {
 	}
 }
 
-interface ILocalExtensionMetadata {
-	id?: string;
-	targetPlatform?: TargetPlatform;
-	isBuiltin?: boolean;
-}
-
 class ExtensionManifestParser extends ExtensionManifestHandler {
 
 	private static _fastParseJSON<T>(text: string, errors: json.ParseError[]): T {
@@ -135,7 +130,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	public parse(): Promise<IExtensionDescription | null> {
 		return this._host.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
-			const manifest = ExtensionManifestParser._fastParseJSON<IRelaxedExtensionDescription & { __metadata?: ILocalExtensionMetadata }>(manifestContents, errors);
+			const manifest = ExtensionManifestParser._fastParseJSON<IRelaxedExtensionDescription & { __metadata?: Metadata }>(manifestContents, errors);
 			if (json.getNodeType(manifest) !== 'object') {
 				this._error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
 			} else if (errors.length === 0) {

@@ -30,7 +30,7 @@ class Settings {
 	public readonly hideCursor: boolean;
 	public readonly cursorColor: string | null;
 
-	public readonly themeType: 'light' | 'dark' | 'hc';
+	public readonly themeType: 'light' | 'dark' | 'hcLight' | 'hcDark';
 	public readonly backgroundColor: string | null;
 
 	public readonly top: number;

@@ -60,7 +60,8 @@
 	display: block;
 }
 
-.monaco-workbench.hc-black .part.editor>.content .gettingStartedContainer .subtitle {
+.monaco-workbench.hc-black .part.editor>.content .gettingStartedContainer .subtitle,
+.monaco-workbench.hc-light .part.editor>.content .gettingStartedContainer .subtitle {
 	font-weight: 200;
 }
 
