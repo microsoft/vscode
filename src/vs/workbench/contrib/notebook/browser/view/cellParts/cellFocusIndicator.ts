@@ -5,9 +5,12 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -20,6 +23,7 @@ export class CellFocusIndicator extends CellPart {
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
+		readonly titleToolbar: CellTitleToolbarPart,
 		readonly top: FastDomNode<HTMLElement>,
 		readonly left: FastDomNode<HTMLElement>,
 		readonly right: FastDomNode<HTMLElement>,
@@ -53,8 +57,9 @@ export class CellFocusIndicator extends CellPart {
 		}));
 	}
 
-	renderCell(element: ICellViewModel): void {
+	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
 		this.currentElement = element;
+		this.updateFocusIndicatorsForTitleMenuAndSubscribe(element, templateData.elementDisposables);
 	}
 
 	prepareLayout(): void {
@@ -86,4 +91,33 @@ export class CellFocusIndicator extends CellPart {
 	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 		// nothing to update
 	}
+
+	private updateFocusIndicatorsForTitleMenuAndSubscribe(element: ICellViewModel, disposables: DisposableStore) {
+		// todo@rebornix, consolidate duplicated requests in next frame
+		disposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+			this.updateFocusIndicatorsForTitleMenu();
+		}));
+
+		disposables.add(element.onDidChangeLayout(() => {
+			disposables.add(DOM.scheduleAtNextAnimationFrame(() => {
+				this.updateFocusIndicatorsForTitleMenu();
+			}));
+		}));
+
+		disposables.add(this.titleToolbar.onDidUpdateActions(() => {
+			this.updateFocusIndicatorsForTitleMenu();
+		}));
+	}
+
+	private updateFocusIndicatorsForTitleMenu(): void {
+		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
+		if (this.titleToolbar.hasActions) {
+			this.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+			this.right.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+		} else {
+			this.left.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+			this.right.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+		}
+	}
+
 }

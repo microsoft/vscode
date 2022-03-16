@@ -45,7 +45,6 @@ export class CodeCell extends Disposable {
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
 		private readonly viewCell: CodeCellViewModel,
 		private readonly templateData: CodeCellRenderTemplate,
-		cellPartTemplates: CellPart[],
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
 		@IKeybindingService readonly keybindingService: IKeybindingService,
@@ -58,7 +57,7 @@ export class CodeCell extends Disposable {
 
 		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, this.viewCell.language));
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 2 });
-		this.cellParts = [...cellPartTemplates, cellEditorOptions, this._outputContainerRenderer];
+		this.cellParts = [...templateData.cellParts, cellEditorOptions, this._outputContainerRenderer];
 
 		const editorHeight = this.calculateInitEditorHeight();
 		this.initializeEditor(editorHeight);
