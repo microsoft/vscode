@@ -118,9 +118,9 @@ registerAction2(class extends Action2 {
 			title: { value: localize('localHistory.selectForCompare', "Select for Compare"), original: 'Select for Compare' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '1_compare',
-				order: 3,
-				when: ContextKeyExpr.and(LOCAL_HISTORY_MENU_CONTEXT_KEY, LocalHistoryItemSelectedForCompare.toNegated())
+				group: '2_compare_with',
+				order: 2,
+				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
 		});
 	}
@@ -143,37 +143,29 @@ registerAction2(class extends Action2 {
 			title: { value: localize('localHistory.compareWithSelected', "Compare with Selected"), original: 'Compare with Selected' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '1_compare',
-				order: 3,
+				group: '2_compare_with',
+				order: 1,
 				when: ContextKeyExpr.and(LOCAL_HISTORY_MENU_CONTEXT_KEY, LocalHistoryItemSelectedForCompare)
 			}
 		});
 	}
 	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
 		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
-		const contextKeyService = accessor.get(IContextKeyService);
 		const commandService = accessor.get(ICommandService);
 
 		if (!itemSelectedForCompare) {
-			return this.reset(contextKeyService);
+			return;
 		}
 
 		const selectedEntry = (await findLocalHistoryEntry(workingCopyHistoryService, itemSelectedForCompare)).entry;
 		if (!selectedEntry) {
-			return this.reset(contextKeyService);
+			return;
 		}
 
 		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
 		if (entry) {
-			this.reset(contextKeyService);
-
 			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(selectedEntry, entry));
 		}
-	}
-
-	private reset(contextKeyService: IContextKeyService): void {
-		itemSelectedForCompare = undefined;
-		LocalHistoryItemSelectedForCompare.bindTo(contextKeyService).set(false);
 	}
 });
 
@@ -188,7 +180,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('localHistory.open', "Show Contents"), original: 'Show Contents' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '2_contents',
+				group: '3_contents',
 				order: 1,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
@@ -237,7 +229,7 @@ registerAction2(class extends Action2 {
 			title: RESTORE_CONTENTS_LABEL,
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '2_contents',
+				group: '3_contents',
 				order: 2,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
@@ -314,7 +306,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('localHistory.rename', "Rename"), original: 'Rename' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '3_edit',
+				group: '4_edit',
 				order: 1,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
@@ -353,7 +345,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('localHistory.delete', "Delete"), original: 'Delete' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '3_edit',
+				group: '4_edit',
 				order: 2,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
