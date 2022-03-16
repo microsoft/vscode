@@ -159,15 +159,6 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 			const line = this._getTargetScrollLine(this._terminal, marker, position);
 			this._terminal.scrollToLine(line);
 		}
-	}
-
-	private _getTargetScrollLine(terminal: Terminal, marker: IMarker, position: ScrollPosition) {
-		// Middle is treated at 1/4 of the viewport's size because context below is almost always
-		// more important than context above in the terminal.
-		if (position === ScrollPosition.Middle) {
-			return Math.max(marker.line - Math.floor(terminal.rows / 4), 0);
-		}
-		this._terminal.scrollToLine(line);
 		this._navigationDecoration?.dispose();
 		const decoration = this._terminal.registerDecoration({
 			marker,
@@ -193,6 +184,14 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 			timeout(350).then(() => {
 				decoration.dispose();
 			});
+		}
+	}
+
+	private _getTargetScrollLine(terminal: Terminal, marker: IMarker, position: ScrollPosition) {
+		// Middle is treated at 1/4 of the viewport's size because context below is almost always
+		// more important than context above in the terminal.
+		if (position === ScrollPosition.Middle) {
+			return Math.max(marker.line - Math.floor(terminal.rows / 4), 0);
 		}
 		return marker.line;
 	}
