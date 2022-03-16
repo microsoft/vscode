@@ -312,7 +312,7 @@ export class EditorsObserver extends Disposable {
 		}
 
 		const limit = this.editorGroupsService.partOptions.limit.value;
-		const ignoreDirtyTab: boolean = this.editorGroupsService.partOptions.limit.ignoreDirtyTab ?? false;
+		const ignoreDirtyTabs: boolean = this.editorGroupsService.partOptions.limit.ignoreDirtyTabs ?? false;
 
 		// In editor group
 		if (this.editorGroupsService.partOptions.limit?.perEditorGroup) {
@@ -321,7 +321,7 @@ export class EditorsObserver extends Disposable {
 			if (typeof groupId === 'number') {
 				const group = this.editorGroupsService.getGroup(groupId);
 				if (group) {
-					await this.doEnsureOpenedEditorsLimit(limit, ignoreDirtyTab, group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
+					await this.doEnsureOpenedEditorsLimit(limit, ignoreDirtyTabs, group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map(editor => ({ editor, groupId })), exclude);
 				}
 			}
 
@@ -335,11 +335,11 @@ export class EditorsObserver extends Disposable {
 
 		// Across all editor groups
 		else {
-			await this.doEnsureOpenedEditorsLimit(limit, ignoreDirtyTab, [...this.mostRecentEditorsMap.values()], exclude);
+			await this.doEnsureOpenedEditorsLimit(limit, ignoreDirtyTabs, [...this.mostRecentEditorsMap.values()], exclude);
 		}
 	}
 
-	private async doEnsureOpenedEditorsLimit(limit: number, ignoreDirtyTab: boolean, mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
+	private async doEnsureOpenedEditorsLimit(limit: number, ignoreDirtyTabs: boolean, mostRecentEditors: IEditorIdentifier[], exclude?: IEditorIdentifier): Promise<void> {
 		if (limit >= mostRecentEditors.length) {
 			return; // only if opened editors exceed setting and is valid and enabled
 		}
@@ -361,7 +361,7 @@ export class EditorsObserver extends Disposable {
 			return true;
 		});
 		let editorsToCloseCount: number;
-		if (ignoreDirtyTab === true) {
+		if (ignoreDirtyTabs === true) {
 			editorsToCloseCount = leastRecentlyClosableEditors.length - limit + 1;
 		} else {
 			editorsToCloseCount = mostRecentEditors.length - limit;
