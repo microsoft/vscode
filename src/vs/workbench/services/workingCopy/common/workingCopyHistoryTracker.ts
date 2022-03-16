@@ -122,7 +122,11 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 	private resolveSourceFromUndoRedo(e: IWorkingCopySaveEvent): SaveSource | undefined {
 		const lastStackElement = this.undoRedoService.getLastElement(e.workingCopy.resource);
 		if (lastStackElement) {
-			return lastStackElement.label !== 'Typing' ? lastStackElement.label : undefined; // TODO@bpasero do not hardcode this label
+			if (lastStackElement.code === 'undoredo.textBufferEdit') {
+				return undefined; // ignore any unspecific stack element that resulted just from typing
+			}
+
+			return lastStackElement.label;
 		}
 
 		const allStackElements = this.undoRedoService.getElements(e.workingCopy.resource);
