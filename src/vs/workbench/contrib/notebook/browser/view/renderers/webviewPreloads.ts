@@ -743,9 +743,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		metadata: unknown,
 		valueBytes: Uint8Array
 	): rendererApi.OutputItem {
-		return Object.freeze(<rendererApi.OutputItem>{
+		return Object.freeze<rendererApi.OutputItem>({
 			id,
-			element,
 			mime,
 			metadata,
 

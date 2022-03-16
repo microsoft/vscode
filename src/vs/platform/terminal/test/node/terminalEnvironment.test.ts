@@ -137,7 +137,7 @@ suite('platform - terminalEnvironment', () => {
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: undefined }, enabledProcessOptions), enabledExpectedResult);
 					});
 					suite('should set login env variable and not modify args', () => {
-						const enabledExpectedResult = Object.freeze({
+						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 							newArgs: [
 								'--init-file',
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
@@ -145,7 +145,7 @@ suite('platform - terminalEnvironment', () => {
 							envMixin: {
 								VSCODE_SHELL_LOGIN: '1'
 							}
-						} as IShellIntegrationConfigInjection);
+						});
 						test('when array', () => {
 							deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: ['-l'] }, enabledProcessOptions), enabledExpectedResult);
 						});
