@@ -29,7 +29,7 @@ import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/co
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, resolveColorValue, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorForeground, registerColor, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, resolveColorValue, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
@@ -56,6 +56,21 @@ export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
 const COMMENT_SCHEME = 'comment';
 
+
+export const resolvedCommentBorder = registerColor('resolvedComment.border', { dark: Color.fromHex('#c5c5c5'), light: Color.fromHex('#555'), hc: contrastBorder }, nls.localize('resolvedCommentBorder', 'Color of borders and arrow for resolved comments.'));
+export const unresolvedCommentBorder = registerColor('unresolvedComment.border', { dark: Color.fromHex('#f4cd5d'), light: Color.fromHex('#ff0'), hc: contrastBorder }, nls.localize('unresolvedCommentBorder', 'Color of borders and arrow for unresolved comments.'));
+
+const commentThreadStateColors = new Map([
+	[languages.CommentThreadState.Unresolved, unresolvedCommentBorder],
+	[languages.CommentThreadState.Resolved, resolvedCommentBorder],
+]);
+
+const commentThreadStateColorVar = '--comment-thread-state-color';
+
+function getCommentThreadStateColor(thread: languages.CommentThread, theme: IColorTheme): Color | undefined {
+	const colorId = thread.state !== undefined ? commentThreadStateColors.get(thread.state) : undefined;
+	return colorId !== undefined ? theme.getColor(colorId) : undefined;
+}
 
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	const range = e.target.range;
@@ -639,8 +654,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			await this.update(this._commentThread);
 		}));
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(async _ => {
-			await this.update(this._commentThread);
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(() => {
+			const borderColor =
+				getCommentThreadStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
+			this.style({
+				frameColor: borderColor,
+				arrowColor: borderColor,
+			});
+			this.container?.style.setProperty(commentThreadStateColorVar, `${borderColor}`);
 		}));
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeLabel(_ => {
@@ -894,17 +915,16 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		const borderColor = Color.fromHex('#ff0000') || theme.getColor(peekViewBorder);
+		const borderColor = getCommentThreadStateColor(this._commentThread, theme) || Color.transparent;
 		this.style({
-			arrowColor: borderColor || Color.transparent,
-			frameColor: borderColor || Color.transparent
+			arrowColor: borderColor,
+			frameColor: borderColor,
 		});
 
 		const content: string[] = [];
 
-		if (borderColor) {
-			content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid ${borderColor} }`);
-		}
+		this.container?.style.setProperty(commentThreadStateColorVar, `${borderColor}`);
+		content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid var(${commentThreadStateColorVar}) }`);
 
 		const linkColor = theme.getColor(textLinkForeground);
 		if (linkColor) {
