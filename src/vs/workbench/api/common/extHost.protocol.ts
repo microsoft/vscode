@@ -611,8 +611,8 @@ export interface ExtHostEditorInsetsShape {
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
-	$moveTab(tab: IEditorTabDto, index: number, viewColumn: EditorGroupColumn): void;
-	$closeTab(tab: IEditorTabDto, preserveFocus: boolean): Promise<void>;
+	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn): void;
+	$closeTab(tabId: string, preserveFocus: boolean): Promise<void>;
 }
 
 export interface IEditorTabGroupDto {
@@ -620,7 +620,6 @@ export interface IEditorTabGroupDto {
 	viewColumn: EditorGroupColumn;
 	// Decided not to go with simple index here due to opening and closing causing index shifts
 	// This allows us to patch the model without having to do full rebuilds
-	activeTab: IEditorTabDto | undefined;
 	tabs: IEditorTabDto[];
 	groupId: number;
 }
@@ -646,6 +645,8 @@ export interface IEditorTabDto {
 
 export interface IExtHostEditorTabsShape {
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void;
+	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto): void;
+	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto): void;
 }
 
 //#endregion
