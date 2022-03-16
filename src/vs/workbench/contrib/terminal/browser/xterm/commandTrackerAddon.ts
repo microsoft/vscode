@@ -7,7 +7,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
+import type { Terminal, IMarker, ITerminalAddon, IDecoration } from 'xterm';
 import { timeout } from 'vs/base/common/async';
 import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -27,6 +27,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
 	protected _terminal: Terminal | undefined;
+	private _navigationDecoration: IDecoration | undefined;
 
 	private _commandDetection?: ICommandDetectionCapability | IPartialCommandDetectionCapability;
 
@@ -155,10 +156,12 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 			line = Math.max(line - Math.floor(this._terminal.rows / 2), 0);
 		}
 		this._terminal.scrollToLine(line);
+		this._navigationDecoration?.dispose();
 		const decoration = this._terminal.registerDecoration({
 			marker,
 			width: this._terminal.cols
 		});
+		this._navigationDecoration = decoration;
 		if (decoration) {
 			let isRendered = false;
 			decoration.onRender(element => {
@@ -169,8 +172,15 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 					}
 				}
 			});
+			decoration.onDispose(() => {
+				if (decoration === this._navigationDecoration) {
+					this._navigationDecoration = undefined;
+				}
+			});
 			// Number picked to align with symbol highlight in the editor
-			timeout(350).then(() => decoration.dispose());
+			timeout(350).then(() => {
+				decoration.dispose();
+			});
 		}
 	}
 
