@@ -94,7 +94,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				} else {
 					color = '';
 				}
-				decoration.decoration.overviewRulerDecorationColor = color;
+				if (decoration.decoration.overviewRulerOptions) {
+					decoration.decoration.overviewRulerOptions.color = color;
+				} else {
+					decoration.decoration.overviewRulerOptions = { color };
+				}
 			}
 		}
 		this._updateClasses(this._placeholderDecoration?.element);
