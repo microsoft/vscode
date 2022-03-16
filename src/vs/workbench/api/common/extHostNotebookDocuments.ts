@@ -32,8 +32,7 @@ export class ExtHostNotebookDocuments implements extHostProtocol.ExtHostNotebook
 	$acceptModelChanged(uri: UriComponents, event: SerializableObjectWithBuffers<extHostProtocol.NotebookCellsChangedEventDto>, isDirty: boolean, newMetadata?: NotebookDocumentMetadata): void {
 		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
 		const e = document.acceptModelChanged(event.value, isDirty, newMetadata);
-		// We can't freeze outputs (as they will be modified in the future), so exclude them from our freeze
-		this._onDidChangeNotebookDocument.fire(deepFreeze(e, ['outputs']));
+		this._onDidChangeNotebookDocument.fire(e);
 	}
 
 	$acceptDirtyStateChanged(uri: UriComponents, isDirty: boolean): void {

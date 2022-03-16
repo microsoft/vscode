@@ -24,7 +24,7 @@ export function deepClone<T>(obj: T): T {
 	return result;
 }
 
-export function deepFreeze<T>(obj: T, keysToExclude: string[] = []): T {
+export function deepFreeze<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
 	}
@@ -33,7 +33,7 @@ export function deepFreeze<T>(obj: T, keysToExclude: string[] = []): T {
 		const obj = stack.shift();
 		Object.freeze(obj);
 		for (const key in obj) {
-			if (!keysToExclude.includes(key) && _hasOwnProperty.call(obj, key)) {
+			if (_hasOwnProperty.call(obj, key)) {
 				const prop = obj[key];
 				if (typeof prop === 'object' && !Object.isFrozen(prop) && !isTypedArray(prop)) {
 					stack.push(prop);

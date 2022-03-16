@@ -294,6 +294,10 @@ export class ExtHostNotebookDocument {
 			}
 		}
 
+		// Freeze event properties so handlers cannot accidentally modify them
+		deepFreeze(result.cellChanges);
+		deepFreeze(result.contentChanges);
+
 		return result;
 	}
 
