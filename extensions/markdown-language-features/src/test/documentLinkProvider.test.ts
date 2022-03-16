@@ -173,7 +173,7 @@ suite('markdown.DocumentLinkProvider', () => {
 		assert.strictEqual(links.length, 1);
 	});
 
-	test('Should not find link for reference using one [] when it does not exist (#141285)', async () => {
+	test('Should not find link for reference using one [] when source does not exist (#141285)', async () => {
 		const links = await getLinksForFile('[Works]');
 		assert.strictEqual(links.length, 0);
 	});
