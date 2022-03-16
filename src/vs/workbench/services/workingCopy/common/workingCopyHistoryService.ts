@@ -325,6 +325,9 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 	protected readonly _onDidRemoveEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
 	readonly onDidRemoveEntry = this._onDidRemoveEntry.event;
 
+	private readonly _onDidRemoveAllEntries = this._register(new Emitter<void>());
+	readonly onDidRemoveAllEntries = this._onDidRemoveAllEntries.event;
+
 	private readonly localHistoryHome = new DeferredPromise<URI>();
 
 	protected readonly models = new ResourceMap<WorkingCopyHistoryModel>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
@@ -389,6 +392,22 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 		// Remove from model
 		return model.removeEntry(entry, token);
+	}
+
+	async removeAll(token: CancellationToken): Promise<void> {
+		const historyHome = await this.localHistoryHome.p;
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		// Clear models
+		this.models.clear();
+
+		// Remove from disk
+		await this.fileService.del(historyHome, { recursive: true });
+
+		// Events
+		this._onDidRemoveAllEntries.fire();
 	}
 
 	async getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]> {

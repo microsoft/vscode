@@ -96,6 +96,11 @@ export interface IWorkingCopyHistoryService {
 	onDidRemoveEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
+	 * An event when all entries are removed from the history.
+	 */
+	onDidRemoveAllEntries: Event<void>;
+
+	/**
 	 * Adds a new entry to the history for the given working copy
 	 * with an optional associated descriptor.
 	 */
@@ -105,6 +110,11 @@ export interface IWorkingCopyHistoryService {
 	 * Removes an entry from the local history if found.
 	 */
 	removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean>;
+
+	/**
+	 * Removes all entries from all of local history.
+	 */
+	removeAll(token: CancellationToken): Promise<void>;
 
 	/**
 	 * Gets all history entries for the provided resource.

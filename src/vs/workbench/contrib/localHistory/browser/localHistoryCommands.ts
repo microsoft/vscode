@@ -272,6 +272,42 @@ registerAction2(class extends Action2 {
 
 //#endregion
 
+//#region Delete All
+
+const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.deleteAll',
+			title: { value: localize('localHistory.deleteAll', "Delete All..."), original: 'Delete All...' },
+			f1: true,
+			category: LOCAL_HISTORY_CATEGORY
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const dialogService = accessor.get(IDialogService);
+		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+
+		// Ask for confirmation
+		const { confirmed } = await dialogService.confirm({
+			message: localize('confirmDeleteAllMessage', "Do you want to delete all entries of the local history?"),
+			detail: localize('confirmDeleteAllDetail', "This action is irreversible!"),
+			primaryButton: localize({ key: 'deleteAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete All"),
+			type: 'warning'
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		// Remove via service
+		await workingCopyHistoryService.removeAll(CancellationToken.None);
+	}
+});
+
+//#endregion
+
 //#region Helpers
 
 export function toDiffEditorArguments(entry: IWorkingCopyHistoryEntry, resource: URI): unknown[];
