@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 declare module 'vscode' {
-	export interface CommentThread<T = NotebookCell> {
-		position: T;
-	}
+	// export interface CommentThread<T = NotebookCell> {
+	// 	position: T;
+	// }
 
-	export interface CommentController {
-		createCommentThread(uri: Uri, cell: NotebookCell, comments: readonly Comment[]): CommentThread<NotebookCell>;
-	}
+	// export interface CommentController {
+	// 	createCommentThread(uri: Uri, cell: NotebookCell, comments: readonly Comment[]): CommentThread<NotebookCell>;
+	// }
 }

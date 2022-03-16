@@ -25,6 +25,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { localize } from 'vs/nls';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { Schemas } from 'vs/base/common/network';
 
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
@@ -308,10 +309,22 @@ export class MainThreadCommentController {
 	}
 
 	async getDocumentComments(resource: URI, token: CancellationToken) {
+		if (resource.scheme === Schemas.vscodeNotebookCell) {
+			return {
+				owner: this._uniqueId,
+				label: this.label,
+				threads: [],
+				commentingRanges: {
+					resource: resource,
+					ranges: []
+				}
+			};
+		}
+
 		let ret: languages.CommentThread<IRange | ICellRange>[] = [];
 		for (let thread of [...this._threads.keys()]) {
 			const commentThread = this._threads.get(thread)!;
-			if (commentThread.resource === resource.toString() && commentThread.isDocumentCommentThread()) {
+			if (commentThread.resource === resource.toString()) {
 				ret.push(commentThread);
 			}
 		}
@@ -330,10 +343,18 @@ export class MainThreadCommentController {
 	}
 
 	async getNotebookComments(resource: URI, token: CancellationToken) {
+		if (resource.scheme !== Schemas.vscodeNotebookCell) {
+			return <INotebookCommentInfo>{
+				owner: this._uniqueId,
+				label: this.label,
+				threads: []
+			};
+		}
+
 		let ret: languages.CommentThread<IRange | ICellRange>[] = [];
 		for (let thread of [...this._threads.keys()]) {
 			const commentThread = this._threads.get(thread)!;
-			if (commentThread.resource === resource.toString() && !commentThread.isDocumentCommentThread()) {
+			if (commentThread.resource === resource.toString()) {
 				ret.push(commentThread);
 			}
 		}

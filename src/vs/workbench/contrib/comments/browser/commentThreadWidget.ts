@@ -39,6 +39,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
+	get commentThread() {
+		return this._commentThread;
+	}
+
 	constructor(
 		readonly container: HTMLElement,
 		private _owner: string,

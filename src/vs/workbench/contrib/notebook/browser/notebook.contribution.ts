@@ -104,6 +104,8 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { NotebookInfo } from 'vs/editor/common/languageFeatureRegistry';
+import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -209,6 +211,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	constructor(
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super();
 
@@ -222,6 +225,9 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				return NotebookContribution._getCellUndoRedoComparisonKey(uri);
 			}
 		}));
+
+		// register comment decoration
+		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 	}
 
 	private static _getCellUndoRedoComparisonKey(uri: URI) {

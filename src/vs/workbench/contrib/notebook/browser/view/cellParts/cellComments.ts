@@ -19,6 +19,8 @@ import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/comme
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class TestCommentThread implements languages.CommentThread<ICellRange> {
 	private _input?: languages.CommentInput;
@@ -143,7 +145,7 @@ export class CellComments extends CellPart {
 	private _initialized: boolean = false;
 	private _commentThreadWidget: CommentThreadWidget<ICellRange> | null = null;
 	private currentElement: CodeCellViewModel | undefined;
-	private readonly elementDisposables = this._register(new DisposableStore());
+	private readonly commentTheadDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly notebookEditor: INotebookEditorDelegate,
@@ -151,6 +153,7 @@ export class CellComments extends CellPart {
 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ICommentService private readonly commentService: ICommentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -162,80 +165,88 @@ export class CellComments extends CellPart {
 		this._applyTheme();
 	}
 
-	private initialize(element: ICellViewModel) {
+	private async initialize(element: ICellViewModel, templateData: BaseCellRenderTemplate) {
 		if (this._initialized) {
 			return;
 		}
 
 		this._initialized = true;
-		const commentThread = this._getCommentThreadForCell(element);
+		const commentThread = await this._getCommentThreadForCell(element);
+
 		if (commentThread) {
-			this._commentThreadWidget = this.instantiationService.createInstance(
-				CommentThreadWidget,
-				this.container,
-				this.notebookEditor.getId(),
-				this.notebookEditor.textModel!.uri,
-				this.contextKeyService,
-				this.instantiationService,
-				commentThread,
-				null,
-				{},
-				undefined,
-				{
-					actionRunner: () => {
-
-					},
-					collapse: () => { }
-				}
-			) as unknown as CommentThreadWidget<ICellRange>;
-
-			const layoutInfo = this.notebookEditor.getLayoutInfo();
-
-			this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight);
-			this._applyTheme();
-			this._bindListeners();
+			this._createCommentTheadWidget(commentThread);
 		}
 	}
 
-	private _bindListeners() {
-		if (this._commentThreadWidget) {
-			this.elementDisposables.add(this._commentThreadWidget.onDidResize(() => {
-				if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
-					this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
-				}
-			}));
-		}
-	}
-
-	private _getCommentThreadForCell(element: ICellViewModel) {
-		const commentThread = new TestCommentThread(
-			element.handle,
-			0,
-			'',
-			'test',
-			element.uri.toString(),
-			{ start: 0, end: 1 },
-			true
-		);
-		commentThread.label = 'Discussion';
-
-		commentThread.comments = [
+	private _createCommentTheadWidget(commentThread: languages.CommentThread<ICellRange>) {
+		this._commentThreadWidget?.dispose();
+		this.commentTheadDisposables.clear();
+		this._commentThreadWidget = this.instantiationService.createInstance(
+			CommentThreadWidget,
+			this.container,
+			this.notebookEditor.getId(),
+			this.notebookEditor.textModel!.uri,
+			this.contextKeyService,
+			this.instantiationService,
+			commentThread,
+			null,
+			{},
+			undefined,
 			{
-				body: '#test',
-				uniqueIdInThread: 1,
-				userName: 'rebornix',
-				userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
-			},
-			{
-				body: 'yet another test',
-				uniqueIdInThread: 2,
-				userName: 'rebornix',
-				label: 'pending',
-				userIconPath: 'https://avatars.githubusercontent.com/u/876920?v%3D4'
+				actionRunner: () => {
+				},
+				collapse: () => { }
 			}
-		];
+		) as unknown as CommentThreadWidget<ICellRange>;
 
-		return commentThread;
+		const layoutInfo = this.notebookEditor.getLayoutInfo();
+
+		this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight);
+		this._applyTheme();
+
+		this.commentTheadDisposables.add(this._commentThreadWidget.onDidResize(() => {
+			if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
+				this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
+			}
+		}));
+	}
+
+	private _bindListeners(templateData: BaseCellRenderTemplate) {
+		templateData.elementDisposables.add(this.commentService.onDidUpdateCommentThreads(async () => {
+			if (this.currentElement) {
+				const commentThread = await this._getCommentThreadForCell(this.currentElement);
+				if (!this._commentThreadWidget && commentThread) {
+					this._createCommentTheadWidget(commentThread);
+					const layoutInfo = (this.currentElement as CodeCellViewModel).layoutInfo;
+					this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
+
+					this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget!.container).height;
+
+					return;
+				}
+
+				if (this._commentThreadWidget) {
+					if (commentThread) {
+						this._commentThreadWidget.updateCommentThread(commentThread);
+						this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
+					} else {
+						this._commentThreadWidget.dispose();
+						this.currentElement.commentHeight = 0;
+					}
+				}
+			}
+		}));
+	}
+
+	private async _getCommentThreadForCell(element: ICellViewModel) {
+		if (this.notebookEditor.hasModel()) {
+			const commentInfos = coalesce(await this.commentService.getNotebookComments(element.uri));
+			if (commentInfos.length && commentInfos[0].threads.length) {
+				return commentInfos[0].threads[0];
+			}
+		}
+
+		return null;
 	}
 
 	private _applyTheme() {
@@ -247,13 +258,9 @@ export class CellComments extends CellPart {
 	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
 		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
-			this.initialize(element);
-			this._bindListeners();
+			this.initialize(element, templateData);
+			this._bindListeners(templateData);
 		}
-	}
-
-	override unrenderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.elementDisposables.clear();
 	}
 
 	prepareLayout(): void {
