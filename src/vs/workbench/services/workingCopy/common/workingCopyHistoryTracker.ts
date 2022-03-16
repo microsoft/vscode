@@ -11,7 +11,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { isStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -91,7 +92,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 			const contentVersion = this.getContentVersion(e.workingCopy);
 
 			// Add entry
-			await this.workingCopyHistoryService.addEntry({ resource: e.workingCopy.resource, source: e.source }, cts.token);
+			await this.workingCopyHistoryService.addEntry({ resource: e.workingCopy.resource, source: e.source, timestamp: e.stat.mtime }, cts.token);
 
 			// Remember content version as being added to history
 			this.historyEntryContentVersion.set(e.workingCopy.resource, contentVersion);
@@ -105,7 +106,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 		});
 	}
 
-	private shouldTrackHistory(e: IWorkingCopySaveEvent): boolean {
+	private shouldTrackHistory(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent<IStoredFileWorkingCopyModel> {
 		if (e.workingCopy.resource.scheme !== this.pathService.defaultUriScheme) {
 			return false; // drop schemes such as `vscode-userdata` (settings)
 		}

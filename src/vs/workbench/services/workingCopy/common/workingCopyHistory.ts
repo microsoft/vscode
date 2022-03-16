@@ -69,6 +69,13 @@ export interface IWorkingCopyHistoryEntryDescriptor {
 	readonly resource: URI;
 
 	/**
+	 * Optional associated timestamp to use for the
+	 * history entry. If not provided, the current
+	 * time will be used.
+	 */
+	readonly timestamp?: number;
+
+	/**
 	 * Optional source why the entry was added.
 	 */
 	readonly source?: SaveSource;
@@ -84,10 +91,20 @@ export interface IWorkingCopyHistoryService {
 	onDidAddEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
+	 * An event when entries are removed from the history.
+	 */
+	onDidRemoveEntry: Event<IWorkingCopyHistoryEvent>;
+
+	/**
 	 * Adds a new entry to the history for the given working copy
 	 * with an optional associated descriptor.
 	 */
 	addEntry(descriptor: IWorkingCopyHistoryEntryDescriptor, token: CancellationToken): Promise<IWorkingCopyHistoryEntry | undefined>;
+
+	/**
+	 * Removes an entry from the local history if found.
+	 */
+	removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean>;
 
 	/**
 	 * Gets all history entries for the provided resource.

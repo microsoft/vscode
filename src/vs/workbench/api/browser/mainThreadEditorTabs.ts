@@ -5,7 +5,7 @@
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -15,13 +15,20 @@ import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+
+interface TabInfo {
+	tab: IEditorTabDto;
+	group: IEditorGroup;
+	editorInput: EditorInput;
+}
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
-export class MainThreadEditorTabs {
+export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 
 	private readonly _dispoables = new DisposableStore();
 	private readonly _proxy: IExtHostEditorTabsShape;
 	private _tabGroupModel: IEditorTabGroupDto[] = [];
 	private readonly _groupModel: Map<number, IEditorTabGroupDto> = new Map();
+	private readonly _tabInfoLookup: Map<string, TabInfo> = new Map();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -67,6 +74,16 @@ export class MainThreadEditorTabs {
 		return tab;
 	}
 
+	/**
+	 * Generates a unique id for a tab
+	 * @param editor The editor input
+	 * @param groupId The group id
+	 * @returns A unique identifier for a specific tab
+	 */
+	private _generateTabId(editor: EditorInput, groupId: number) {
+		return `${groupId}~${editor.editorId}-${editor.typeId}-${editor.resource?.toString()}`;
+	}
+
 
 	private _tabToUntypedEditorInput(tab: IEditorTabDto): IUntypedEditorInput {
 		if (tab.kind !== TabKind.Diff && tab.kind !== TabKind.SidebySide) {
@@ -104,9 +121,10 @@ export class MainThreadEditorTabs {
 	 * @param editorIndex The index of the editor within that group
 	 */
 	private _onDidTabLabelChange(groupId: number, editorInput: EditorInput, editorIndex: number) {
-		const tabs = this._groupModel.get(groupId)?.tabs;
-		if (tabs) {
-			tabs[editorIndex].label = editorInput.getName();
+		const tabId = this._generateTabId(editorInput, groupId);
+		const tabInfo = this._tabInfoLookup.get(tabId);
+		if (tabInfo) {
+			tabInfo.tab.label = editorInput.getName();
 		}
 	}
 
@@ -223,6 +241,7 @@ export class MainThreadEditorTabs {
 	private _createTabsModel(): void {
 		this._tabGroupModel = [];
 		this._groupModel.clear();
+		this._tabInfoLookup.clear();
 		let tabs: IEditorTabDto[] = [];
 		for (const group of this._editorGroupsService.groups) {
 			const currentTabGroupModel: IEditorTabGroupDto = {
@@ -239,6 +258,12 @@ export class MainThreadEditorTabs {
 					currentTabGroupModel.activeTab = tab;
 				}
 				tabs.push(tab);
+				// Add information about the tab to the lookup
+				this._tabInfoLookup.set(this._generateTabId(editor, group.id), {
+					group,
+					tab,
+					editorInput: editor
+				});
 			});
 			currentTabGroupModel.tabs = tabs;
 			this._tabGroupModel.push(currentTabGroupModel);

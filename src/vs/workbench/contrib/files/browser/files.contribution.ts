@@ -406,7 +406,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
 				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
+			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
@@ -468,6 +468,11 @@ configurationRegistry.registerConfiguration({
 		'explorer.experimental.fileNesting.expand': {
 			'type': 'boolean',
 			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expanded. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
+			'default': true,
+		},
+		'explorer.experimental.fileNesting.hideIconsToMatchFolders': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('hideIconsToMatchFolders', "Experimental. Controls whether alignment is maintained by hiding file nest icons when folder icons or explorer arrows are hidden. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
 			'default': true,
 		},
 		'explorer.experimental.fileNesting.patterns': {

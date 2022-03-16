@@ -77,7 +77,8 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 	private registerListeners(): void {
 
 		// History changes
-		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidAddWorkingCopyHistoryEntry(e.entry)));
+		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry added */)));
+		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry removed */)));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -87,13 +88,13 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		}));
 	}
 
-	private onDidAddWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry): void {
+	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry, entryRemoved: boolean): void {
 
 		// Re-emit as timeline change event
 		this._onDidChange.fire({
 			id: LocalHistoryTimeline.ID,
 			uri: entry.workingCopy.resource,
-			reset: false
+			reset: entryRemoved
 		});
 	}
 

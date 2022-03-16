@@ -6538,8 +6538,8 @@ declare module 'vscode' {
 		extensionKind: ExtensionKind;
 
 		/**
-		 * The public API exported by this extension. It is an invalid action
-		 * to access this field before this extension has been activated.
+		 * The public API exported by this extension (return value of `activate`).
+		 * It is an invalid action to access this field before this extension has been activated.
 		 */
 		readonly exports: T;
 

@@ -37,7 +37,7 @@ export interface TimelineItem {
 
 	label: string;
 	description?: string;
-	detail?: string | IMarkdownString | undefined;
+	tooltip?: string | IMarkdownString | undefined;
 
 	timestamp: number;
 

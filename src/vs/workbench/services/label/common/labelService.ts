@@ -269,7 +269,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	getHostLabel(scheme: string, authority?: string): string {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter?.workspaceSuffix || '';
+		return formatter?.workspaceSuffix || authority || '';
 	}
 
 	getHostTooltip(scheme: string, authority?: string): string | undefined {
