@@ -17,16 +17,18 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { IMarkdownRendererOptions, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { IRange } from 'vs/editor/common/core/range';
 
-export class CommentThreadBody extends Disposable {
+export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends Disposable {
 	private _commentsElement!: HTMLElement;
-	private _commentElements: CommentNode[] = [];
+	private _commentElements: CommentNode<T>[] = [];
 	private _resizeObserver: any;
 	private _focusedComment: number | undefined = undefined;
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
-	private _commentDisposable = new Map<CommentNode, IDisposable>();
+	private _commentDisposable = new Map<CommentNode<T>, IDisposable>();
 	private _markdownRenderer: MarkdownRenderer;
 
 	get length() {
@@ -43,7 +45,7 @@ export class CommentThreadBody extends Disposable {
 		readonly parentResourceUri: URI,
 		readonly container: HTMLElement,
 		private _options: IMarkdownRendererOptions,
-		private _commentThread: languages.CommentThread,
+		private _commentThread: languages.CommentThread<T>,
 		private _scopedInstatiationService: IInstantiationService,
 		private _parentCommentThreadWidget: ICommentThreadWidget,
 		@ICommentService private commentService: ICommentService,
@@ -53,6 +55,7 @@ export class CommentThreadBody extends Disposable {
 		super();
 
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS_IN, e => {
+			// TODO @rebornix, limit T to IRange | ICellRange
 			this.commentService.setActiveCommentThread(this._commentThread);
 		}));
 
@@ -130,11 +133,11 @@ export class CommentThreadBody extends Disposable {
 		return;
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread) {
+	updateCommentThread(commentThread: languages.CommentThread<T>) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 
-		let commentElementsToDel: CommentNode[] = [];
+		let commentElementsToDel: CommentNode<T>[] = [];
 		let commentElementsToDelIndex: number[] = [];
 		for (let i = 0; i < oldCommentsLen; i++) {
 			let comment = this._commentElements[i].comment;
@@ -160,8 +163,8 @@ export class CommentThreadBody extends Disposable {
 
 
 		let lastCommentElement: HTMLElement | null = null;
-		let newCommentNodeList: CommentNode[] = [];
-		let newCommentsInEditMode: CommentNode[] = [];
+		let newCommentNodeList: CommentNode<T>[] = [];
+		let newCommentsInEditMode: CommentNode<T>[] = [];
 		for (let i = newCommentsLen - 1; i >= 0; i--) {
 			let currentComment = commentThread.comments![i];
 			let oldCommentNode = this._commentElements.filter(commentNode => commentNode.comment.uniqueIdInThread === currentComment.uniqueIdInThread);
@@ -211,14 +214,14 @@ export class CommentThreadBody extends Disposable {
 		}
 	}
 
-	private createNewCommentNode(comment: languages.Comment): CommentNode {
+	private createNewCommentNode(comment: languages.Comment): CommentNode<T> {
 		let newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
 			this._commentThread,
 			comment,
 			this.owner,
 			this.parentResourceUri,
 			this._parentCommentThreadWidget,
-			this._markdownRenderer);
+			this._markdownRenderer) as unknown as CommentNode<T>;
 
 		this._register(newCommentNode);
 		this._commentDisposable.set(newCommentNode, newCommentNode.onDidClick(clickedNode =>

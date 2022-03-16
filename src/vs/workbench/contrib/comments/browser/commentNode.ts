@@ -38,8 +38,10 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { TimestampWidget } from 'vs/workbench/contrib/comments/browser/timestamp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IRange } from 'vs/editor/common/core/range';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export class CommentNode extends Disposable {
+export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
 	private _md: HTMLElement | undefined;
@@ -64,7 +66,7 @@ export class CommentNode extends Disposable {
 	protected toolbar: ToolBar | undefined;
 	private _commentFormActions: CommentFormActions | null = null;
 
-	private readonly _onDidClick = new Emitter<CommentNode>();
+	private readonly _onDidClick = new Emitter<CommentNode<T>>();
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
@@ -73,7 +75,7 @@ export class CommentNode extends Disposable {
 	public isEditing: boolean = false;
 
 	constructor(
-		private commentThread: languages.CommentThread,
+		private commentThread: languages.CommentThread<T>,
 		public comment: languages.Comment,
 		private owner: string,
 		private resource: URI,
@@ -131,7 +133,7 @@ export class CommentNode extends Disposable {
 		}
 	}
 
-	public get onDidClick(): Event<CommentNode> {
+	public get onDidClick(): Event<CommentNode<T>> {
 		return this._onDidClick.event;
 	}
 

@@ -10,6 +10,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import * as languages from 'vs/editor/common/languages';
+import { IRange } from 'vs/editor/common/core/range';
 import * as nls from 'vs/nls';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -23,7 +24,7 @@ const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, 
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
 
 
-export class CommentThreadHeader extends Disposable {
+export class CommentThreadHeader<T = IRange> extends Disposable {
 	private _headElement: HTMLElement;
 	private _headingLabel!: HTMLElement;
 	private _actionbarWidget!: ActionBar;
@@ -33,7 +34,7 @@ export class CommentThreadHeader extends Disposable {
 		container: HTMLElement,
 		private _delegate: { collapse: () => void },
 		private _commentMenus: CommentMenus,
-		private _commentThread: languages.CommentThread,
+		private _commentThread: languages.CommentThread<T>,
 		private _contextKeyService: IContextKeyService,
 		private instantiationService: IInstantiationService
 	) {
@@ -58,7 +59,7 @@ export class CommentThreadHeader extends Disposable {
 
 		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => this._delegate.collapse());
 
-		const menu = this._commentMenus.getCommentThreadTitleActions(this._commentThread, this._contextKeyService);
+		const menu = this._commentMenus.getCommentThreadTitleActions(this._contextKeyService);
 		this.setActionBarActions(menu);
 
 		this._register(menu);
@@ -75,7 +76,7 @@ export class CommentThreadHeader extends Disposable {
 		this._actionbarWidget.push([...groups, this._collapseAction], { label: false, icon: true });
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread) {
+	updateCommentThread(commentThread: languages.CommentThread<T>) {
 		this._commentThread = commentThread;
 
 		this._actionbarWidget.context = this._commentThread;

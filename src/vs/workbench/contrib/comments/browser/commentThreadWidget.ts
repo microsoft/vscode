@@ -25,11 +25,13 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { IRange } from 'vs/editor/common/core/range';
 
-export class CommentThreadWidget extends Disposable implements ICommentThreadWidget {
-	private _header!: CommentThreadHeader;
-	private _body!: CommentThreadBody;
-	private _commentReply?: CommentReply;
+export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
+	private _header!: CommentThreadHeader<T>;
+	private _body!: CommentThreadBody<T>;
+	private _commentReply?: CommentReply<T>;
 	private _commentMenus: CommentMenus;
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
@@ -43,7 +45,7 @@ export class CommentThreadWidget extends Disposable implements ICommentThreadWid
 		private _parentResourceUri: URI,
 		private _contextKeyService: IContextKeyService,
 		private _scopedInstatiationService: IInstantiationService,
-		private _commentThread: languages.CommentThread,
+		private _commentThread: languages.CommentThread<T>,
 		private _pendingComment: string | null,
 		private _markdownOptions: IMarkdownRendererOptions,
 		private _commentOptions: languages.CommentOptions | undefined,
@@ -60,7 +62,7 @@ export class CommentThreadWidget extends Disposable implements ICommentThreadWid
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._header = new CommentThreadHeader(
+		this._header = new CommentThreadHeader<T>(
 			container,
 			{
 				collapse: this.collapse.bind(this)
@@ -85,12 +87,12 @@ export class CommentThreadWidget extends Disposable implements ICommentThreadWid
 			this._commentThread,
 			this._scopedInstatiationService,
 			this
-		);
+		) as unknown as CommentThreadBody<T>;
 
 		this._styleElement = dom.createStyleSheet(this.container);
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread) {
+	updateCommentThread(commentThread: languages.CommentThread<T>) {
 		if (this._commentThread !== commentThread) {
 			this._commentThreadDisposables.forEach(disposable => disposable.dispose());
 		}

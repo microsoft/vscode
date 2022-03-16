@@ -23,6 +23,7 @@ import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/comme
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	const range = e.target.range;
@@ -189,7 +190,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.editor.getModel()!.uri,
 			this._contextKeyService,
 			this._scopedInstatiationService,
-			this._commentThread,
+			this._commentThread as unknown as languages.CommentThread<IRange | ICellRange>,
 			this._pendingComment,
 			{ editor: this.editor },
 			this._commentOptions,
@@ -207,7 +208,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					this.collapse();
 				}
 			}
-		);
+		) as unknown as CommentThreadWidget<IRange>;
 
 		this._disposables.add(this._commentThreadWidget);
 	}
@@ -248,7 +249,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 	}
 
-	async update(commentThread: languages.CommentThread) {
+	async update(commentThread: languages.CommentThread<IRange>) {
 		if (this._commentThread !== commentThread) {
 			this._commentThreadDisposables.forEach(disposable => disposable.dispose());
 			this._commentThread = commentThread;

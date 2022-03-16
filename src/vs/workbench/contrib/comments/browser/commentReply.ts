@@ -11,6 +11,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IRange } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
@@ -25,13 +26,14 @@ import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { SimpleCommentEditor } from './simpleCommentEditor';
 
 const COMMENT_SCHEME = 'comment';
 let INMEM_MODEL_ID = 0;
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
-export class CommentReply extends Disposable {
+export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	commentEditor: ICodeEditor;
 	form: HTMLElement;
 	commentEditorIsEmpty: IContextKey<boolean>;
@@ -44,7 +46,7 @@ export class CommentReply extends Disposable {
 	constructor(
 		readonly owner: string,
 		container: HTMLElement,
-		private _commentThread: languages.CommentThread,
+		private _commentThread: languages.CommentThread<T>,
 		private _scopedInstatiationService: IInstantiationService,
 		private _contextKeyService: IContextKeyService,
 		private _commentMenus: CommentMenus,
@@ -104,7 +106,7 @@ export class CommentReply extends Disposable {
 		this.createCommentWidgetActions(this._formActions, model);
 	}
 
-	public updateCommentThread(commentThread: languages.CommentThread) {
+	public updateCommentThread(commentThread: languages.CommentThread<IRange | ICellRange>) {
 		const isReplying = this.commentEditor.hasTextFocus();
 
 		if (!this._reviewThreadReplyButton) {
@@ -240,9 +242,7 @@ export class CommentReply extends Disposable {
 	 * Command based actions.
 	 */
 	private createCommentWidgetActions(container: HTMLElement, model: ITextModel) {
-		const commentThread = this._commentThread;
-
-		const menu = this._commentMenus.getCommentThreadActions(commentThread, this._contextKeyService);
+		const menu = this._commentMenus.getCommentThreadActions(this._contextKeyService);
 
 		this._register(menu);
 		this._register(menu.onDidChange(() => {

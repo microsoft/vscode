@@ -12,6 +12,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -58,7 +59,7 @@ export interface ICommentService {
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<string>;
 	setDocumentComments(resource: URI, commentInfos: ICommentInfo[]): void;
-	setWorkspaceComments(owner: string, commentsByResource: CommentThread[]): void;
+	setWorkspaceComments(owner: string, commentsByResource: CommentThread<IRange | ICellRange>[]): void;
 	removeWorkspaceComments(owner: string): void;
 	registerCommentController(owner: string, commentControl: ICommentController): void;
 	unregisterCommentController(owner: string): void;
@@ -66,14 +67,14 @@ export interface ICommentService {
 	createCommentThreadTemplate(owner: string, resource: URI, range: Range): void;
 	updateCommentThreadTemplate(owner: string, threadHandle: number, range: Range): Promise<void>;
 	getCommentMenus(owner: string): CommentMenus;
-	updateComments(ownerId: string, event: CommentThreadChangedEvent): void;
+	updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange | ICellRange>): void;
 	disposeCommentThread(ownerId: string, threadId: string): void;
 	getComments(resource: URI): Promise<(ICommentInfo | null)[]>;
 	updateCommentingRanges(ownerId: string): void;
 	getCommentingRanges(resource: URI): Promise<IRange[]>;
 	hasReactionHandler(owner: string): boolean;
-	toggleReaction(owner: string, resource: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction): Promise<void>;
-	setActiveCommentThread(commentThread: CommentThread | null): void;
+	toggleReaction(owner: string, resource: URI, thread: CommentThread<IRange | ICellRange>, comment: Comment, reaction: CommentReaction): Promise<void>;
+	setActiveCommentThread(commentThread: CommentThread<IRange | ICellRange> | null): void;
 }
 
 export class CommentService extends Disposable implements ICommentService {
@@ -185,7 +186,7 @@ export class CommentService extends Disposable implements ICommentService {
 		return menu;
 	}
 
-	updateComments(ownerId: string, event: CommentThreadChangedEvent): void {
+	updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange | ICellRange>): void {
 		const evt: ICommentThreadChangedEvent = Object.assign({}, event, { owner: ownerId });
 		this._onDidUpdateCommentThreads.fire(evt);
 	}

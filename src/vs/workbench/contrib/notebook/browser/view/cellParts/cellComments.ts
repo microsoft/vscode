@@ -18,8 +18,9 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export class TestCommentThread implements languages.CommentThread {
+export class TestCommentThread implements languages.CommentThread<ICellRange> {
 	private _input?: languages.CommentInput;
 	get input(): languages.CommentInput | undefined {
 		return this._input;
@@ -71,12 +72,12 @@ export class TestCommentThread implements languages.CommentThread {
 	private readonly _onDidChangeComments = new Emitter<languages.Comment[] | undefined>();
 	get onDidChangeComments(): Event<languages.Comment[] | undefined> { return this._onDidChangeComments.event; }
 
-	set range(range: IRange) {
+	set range(range: ICellRange) {
 		this._range = range;
 		this._onDidChangeRange.fire(this._range);
 	}
 
-	get range(): IRange {
+	get range(): ICellRange {
 		return this._range;
 	}
 
@@ -91,7 +92,7 @@ export class TestCommentThread implements languages.CommentThread {
 		return this._canReply;
 	}
 
-	private readonly _onDidChangeRange = new Emitter<IRange>();
+	private readonly _onDidChangeRange = new Emitter<ICellRange>();
 	public onDidChangeRange = this._onDidChangeRange.event;
 
 	private _collapsibleState: languages.CommentThreadCollapsibleState | undefined;
@@ -119,10 +120,13 @@ export class TestCommentThread implements languages.CommentThread {
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
-		private _range: IRange,
+		private _range: ICellRange,
 		private _canReply: boolean
 	) {
 		this._isDisposed = false;
+	}
+	isDocumentCommentThread(): this is languages.CommentThread<IRange> {
+		return false;
 	}
 
 	dispose() {
@@ -137,7 +141,7 @@ export class TestCommentThread implements languages.CommentThread {
 
 export class CellComments extends CellPart {
 	private _initialized: boolean = false;
-	private _commentThreadWidget: CommentThreadWidget | null = null;
+	private _commentThreadWidget: CommentThreadWidget<ICellRange> | null = null;
 	private currentElement: CodeCellViewModel | undefined;
 	private readonly elementDisposables = this._register(new DisposableStore());
 
@@ -183,7 +187,7 @@ export class CellComments extends CellPart {
 					},
 					collapse: () => { }
 				}
-			);
+			) as unknown as CommentThreadWidget<ICellRange>;
 
 			const layoutInfo = this.notebookEditor.getLayoutInfo();
 
@@ -210,7 +214,7 @@ export class CellComments extends CellPart {
 			'',
 			'test',
 			element.uri.toString(),
-			{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
+			{ start: 0, end: 1 },
 			true
 		);
 		commentThread.label = 'Discussion';
