@@ -42,8 +42,6 @@ interface ISerializedWorkingCopyHistoryModelEntry {
 
 export class WorkingCopyHistoryModel {
 
-	private static readonly SEP = /\//g;
-
 	static readonly ENTRIES_FILE = 'entries.json';
 
 	private static readonly DEFAULT_ENTRY_SOURCE = SaveSourceRegistry.registerSource('default.source', localize('default.source', "File Saved"));
@@ -88,10 +86,7 @@ export class WorkingCopyHistoryModel {
 			id,
 			workingCopy: this.workingCopy,
 			location,
-			timestamp: {
-				value: timestamp,
-				label: this.toDateLabel(timestamp)
-			},
+			timestamp,
 			source
 		};
 		this.entries.push(entry);
@@ -100,12 +95,6 @@ export class WorkingCopyHistoryModel {
 		this.entryAddedEmitter.fire({ entry });
 
 		return entry;
-	}
-
-	private toDateLabel(timestamp: number): string {
-		const date = new Date(timestamp);
-
-		return `${date.toLocaleString().replace(WorkingCopyHistoryModel.SEP, '-')}`;
 	}
 
 	async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {
@@ -175,7 +164,7 @@ export class WorkingCopyHistoryModel {
 		}
 
 		// Set as entries, sorted by timestamp
-		this.entries = Array.from(entries.values()).sort((entryA, entryB) => entryA.timestamp.value - entryB.timestamp.value);
+		this.entries = Array.from(entries.values()).sort((entryA, entryB) => entryA.timestamp - entryB.timestamp);
 	}
 
 	private async resolveEntriesFromDisk(): Promise<Map<string /* ID */, IWorkingCopyHistoryEntry>> {
@@ -196,10 +185,7 @@ export class WorkingCopyHistoryModel {
 					id: entryStat.name,
 					workingCopy: this.workingCopy,
 					location: entryStat.resource,
-					timestamp: {
-						value: entryStat.mtime,
-						label: this.toDateLabel(entryStat.mtime)
-					},
+					timestamp: entryStat.mtime,
 					source: WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE
 				});
 			}
@@ -212,10 +198,7 @@ export class WorkingCopyHistoryModel {
 				if (existingEntry) {
 					entries.set(entry.id, {
 						...existingEntry,
-						timestamp: {
-							value: entry.timestamp,
-							label: this.toDateLabel(entry.timestamp)
-						},
+						timestamp: entry.timestamp,
 						source: entry.source ?? existingEntry.source
 					});
 				}
@@ -280,7 +263,7 @@ export class WorkingCopyHistoryModel {
 				return {
 					id: entry.id,
 					source: entry.source !== WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE ? entry.source : undefined,
-					timestamp: entry.timestamp.value
+					timestamp: entry.timestamp
 				};
 			})
 		};

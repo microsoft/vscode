@@ -27,11 +27,16 @@ import { TestLifecycleService, TestWillShutdownEvent } from 'vs/workbench/test/b
 import { dirname } from 'path';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
+import { joinPath } from 'vs/base/common/resources';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
-	constructor(testDir: string) {
+	constructor(private readonly testDir: string) {
 		super({ ...TestNativeWindowConfiguration, 'user-data-dir': testDir }, TestProductService);
+	}
+
+	override get localHistoryHome() {
+		return joinPath(URI.file(this.testDir), 'History');
 	}
 }
 
@@ -499,8 +504,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entryA.id, entryB.id);
 		assert.strictEqual(entryA.location.toString(), entryB.location.toString());
 		if (assertTimestamp) {
-			assert.strictEqual(entryA.timestamp.value, entryB.timestamp.value);
-			assert.strictEqual(entryA.timestamp.label, entryB.timestamp.label);
+			assert.strictEqual(entryA.timestamp, entryB.timestamp);
 		}
 		assert.strictEqual(entryA.source, entryB.source);
 		assert.strictEqual(entryA.workingCopy.name, entryB.workingCopy.name);

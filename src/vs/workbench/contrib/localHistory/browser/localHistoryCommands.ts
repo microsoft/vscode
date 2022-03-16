@@ -28,9 +28,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { firstOrDefault } from 'vs/base/common/arrays';
-
-export const LOCAL_HISTORY_MENU_CONTEXT_VALUE = 'localHistory:item';
-export const LOCAL_HISTORY_MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LOCAL_HISTORY_MENU_CONTEXT_VALUE);
+import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 
 const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
 
@@ -106,7 +104,7 @@ registerAction2(class extends Action2 {
 async function openEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditorService): Promise<void> {
 	await editorService.openEditor({
 		resource: LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
-		label: localize('localHistoryEditorLabel', "{0} ({1} {2})", entry.workingCopy.name, SaveSourceRegistry.getSourceLabel(entry.source), entry.timestamp.label)
+		label: localize('localHistoryEditorLabel', "{0} ({1} • {2})", entry.workingCopy.name, SaveSourceRegistry.getSourceLabel(entry.source), toLocalHistoryEntryDateLabel(entry.timestamp))
 	});
 }
 
@@ -372,7 +370,7 @@ registerAction2(class extends Action2 {
 		entryPicker.items = Array.from(entries).reverse().map(entry => ({
 			entry,
 			label: `$(circle-outline) ${SaveSourceRegistry.getSourceLabel(entry.source)}`,
-			description: entry.timestamp.label
+			description: toLocalHistoryEntryDateLabel(entry.timestamp)
 		}));
 
 		await Event.toPromise(entryPicker.onDidAccept);
@@ -453,7 +451,7 @@ registerAction2(class extends Action2 {
 
 			// Ask for confirmation
 			const { confirmed } = await dialogService.confirm({
-				message: localize('confirmDeleteMessage', "Do you want to delete the local history entry of '{0}' from {1}?", entry.workingCopy.name, entry.timestamp.label),
+				message: localize('confirmDeleteMessage', "Do you want to delete the local history entry of '{0}' from {1}?", entry.workingCopy.name, toLocalHistoryEntryDateLabel(entry.timestamp)),
 				detail: localize('confirmDeleteDetail', "This action is irreversible!"),
 				primaryButton: localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete"),
 				type: 'warning'
@@ -527,7 +525,7 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 		const resource = arg2;
 
 		modifiedResource = resource;
-		label = localize('localHistoryCompareToFileEditorLabel', "{0} ({1} {2}) ↔ {3}", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), arg1.timestamp.label, arg1.workingCopy.name);
+		label = localize('localHistoryCompareToFileEditorLabel', "{0} ({1} • {2}) ↔ {3}", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), toLocalHistoryEntryDateLabel(arg1.timestamp), arg1.workingCopy.name);
 	}
 
 	// Compare with another entry
@@ -535,7 +533,7 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 		const modified = arg2;
 
 		modifiedResource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: modified.location, associatedResource: modified.workingCopy.resource, label: modified.workingCopy.name });
-		label = localize('localHistoryCompareToPreviousEditorLabel', "{0} ({1} {2}) ↔ {3} ({4} {5})", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), arg1.timestamp.label, modified.workingCopy.name, SaveSourceRegistry.getSourceLabel(modified.source), modified.timestamp.label);
+		label = localize('localHistoryCompareToPreviousEditorLabel', "{0} ({1} • {2}) ↔ {3} ({4} • {5})", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), toLocalHistoryEntryDateLabel(arg1.timestamp), modified.workingCopy.name, SaveSourceRegistry.getSourceLabel(modified.source), toLocalHistoryEntryDateLabel(modified.timestamp));
 	}
 
 	return [
@@ -565,6 +563,11 @@ async function findLocalHistoryEntry(workingCopyHistoryService: IWorkingCopyHist
 		entry: currentEntry,
 		previous: previousEntry
 	};
+}
+
+const SEP = /\//g;
+function toLocalHistoryEntryDateLabel(timestamp: number): string {
+	return `${LOCAL_HISTORY_DATE_FORMATTER.format(timestamp).replace(SEP, '-')}`; // preserving `/` will break editor labels, so replace it with a non-path symbol
 }
 
 //#endregion
