@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { CodeCellLayoutInfo, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
@@ -68,11 +67,14 @@ export class CellFocusIndicator extends CellPart {
 				this.currentElement.isOutputCollapsed = !this.currentElement.isOutputCollapsed;
 			}
 		}));
+
+		this._register(this.titleToolbar.onDidUpdateActions(() => {
+			this.updateFocusIndicatorsForTitleMenu();
+		}));
 	}
 
 	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
 		this.currentElement = element;
-		this.updateFocusIndicatorsForTitleMenuAndSubscribe(element, templateData.elementDisposables);
 	}
 
 	prepareLayout(): void {
@@ -99,27 +101,12 @@ export class CellFocusIndicator extends CellPart {
 			this.outputFocusIndicator.setHeight(Math.max(cell.layoutInfo.outputIndicatorHeight - cell.viewContext.notebookOptions.getLayoutConfiguration().focusIndicatorGap, 0));
 			this.bottom.domNode.style.transform = `translateY(${cell.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px)`;
 		}
+
+		this.updateFocusIndicatorsForTitleMenu();
 	}
 
 	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 		// nothing to update
-	}
-
-	private updateFocusIndicatorsForTitleMenuAndSubscribe(element: ICellViewModel, disposables: DisposableStore) {
-		// todo@rebornix, consolidate duplicated requests in next frame
-		disposables.add(DOM.scheduleAtNextAnimationFrame(() => {
-			this.updateFocusIndicatorsForTitleMenu();
-		}));
-
-		disposables.add(element.onDidChangeLayout(() => {
-			disposables.add(DOM.scheduleAtNextAnimationFrame(() => {
-				this.updateFocusIndicatorsForTitleMenu();
-			}));
-		}));
-
-		disposables.add(this.titleToolbar.onDidUpdateActions(() => {
-			this.updateFocusIndicatorsForTitleMenu();
-		}));
 	}
 
 	private updateFocusIndicatorsForTitleMenu(): void {
@@ -132,5 +119,4 @@ export class CellFocusIndicator extends CellPart {
 			this.right.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
 		}
 	}
-
 }
