@@ -26,6 +26,8 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 export const LOCAL_HISTORY_MENU_CONTEXT_VALUE = 'localHistory:item';
 export const LOCAL_HISTORY_MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LOCAL_HISTORY_MENU_CONTEXT_VALUE);
 
+const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
+
 interface ITimelineCommandArgument {
 	uri: URI;
 	handle: string;
@@ -203,7 +205,7 @@ const RESTORE_CONTENTS_LABEL = { value: localize('localHistory.restore', "Restor
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.localHistory.restoreFromEditor',
+			id: 'workbench.action.localHistory.restoreViaEditor',
 			title: RESTORE_CONTENTS_LABEL,
 			menu: {
 				id: MenuId.EditorTitle,
@@ -379,13 +381,11 @@ registerAction2(class extends Action2 {
 
 //#region Delete All
 
-const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.deleteAll',
-			title: { value: localize('localHistory.deleteAll', "Delete All..."), original: 'Delete All...' },
+			title: { value: localize('localHistory.deleteAll', "Delete All"), original: 'Delete All' },
 			f1: true,
 			category: LOCAL_HISTORY_CATEGORY
 		});
@@ -396,7 +396,7 @@ registerAction2(class extends Action2 {
 
 		// Ask for confirmation
 		const { confirmed } = await dialogService.confirm({
-			message: localize('confirmDeleteAllMessage', "Do you want to delete all entries of the local history?"),
+			message: localize('confirmDeleteAllMessage', "Do you want to delete all entries of all files in local history?"),
 			detail: localize('confirmDeleteAllDetail', "This action is irreversible!"),
 			primaryButton: localize({ key: 'deleteAllButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete All"),
 			type: 'warning'

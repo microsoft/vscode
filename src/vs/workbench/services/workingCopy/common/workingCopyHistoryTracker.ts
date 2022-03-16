@@ -19,6 +19,7 @@ import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCo
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { Schemas } from 'vs/base/common/network';
 
 export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchContribution {
 
@@ -133,8 +134,11 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 	}
 
 	private shouldTrackHistory(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent<IStoredFileWorkingCopyModel> {
-		if (e.workingCopy.resource.scheme !== this.pathService.defaultUriScheme) {
-			return false; // drop schemes such as `vscode-userdata` (settings)
+		if (
+			e.workingCopy.resource.scheme !== this.pathService.defaultUriScheme && 	// track history for all workspace resources
+			e.workingCopy.resource.scheme !== Schemas.userData						// track history for all settings
+		) {
+			return false; // do not support unknown resources
 		}
 
 		if (!isStoredFileWorkingCopySaveEvent(e)) {
