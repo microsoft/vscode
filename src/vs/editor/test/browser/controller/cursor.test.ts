@@ -6053,6 +6053,34 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #144690: Quotes do not overtype when using US Intl PC keyboard layout', () => {
+		const mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				''
+			],
+			languageId: mode.languageId
+		}, (editor, model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
+
+			// Pressing ' + ' + ;
+
+			viewModel.startComposition();
+			viewModel.type(`'`, 'keyboard');
+			viewModel.compositionType(`'`, 1, 0, 0, 'keyboard');
+			viewModel.compositionType(`'`, 1, 0, 0, 'keyboard');
+			viewModel.endComposition('keyboard');
+			viewModel.startComposition();
+			viewModel.type(`'`, 'keyboard');
+			viewModel.compositionType(`';`, 1, 0, 0, 'keyboard');
+			viewModel.compositionType(`';`, 2, 0, 0, 'keyboard');
+			viewModel.endComposition('keyboard');
+
+			assert.strictEqual(model.getValue(), `'';`);
+		});
+		mode.dispose();
+	});
+
 	test('issue #82701: auto close does not execute when IME is canceled via backspace', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({

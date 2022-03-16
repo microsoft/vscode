@@ -8,8 +8,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
-import { isLinux, isMacintosh, platform } from 'vs/base/common/platform';
-import { arch } from 'vs/base/common/process';
+import { isMacintosh } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { isBoolean } from 'vs/base/common/types';
@@ -22,10 +21,10 @@ import { IDownloadService } from 'vs/platform/download/common/download';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, IUninstallExtensionTask, joinErrors, UninstallExtensionTaskOptions } from 'vs/platform/extensionManagement/common/abstractExtensionManagementService';
 import {
-	ExtensionManagementError, ExtensionManagementErrorCode, getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation, InstallOptions,
+	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, IGalleryMetadata, ILocalExtension, InstallOperation, InstallOptions,
 	InstallVSIXOptions, Metadata
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, computeTargetPlatform, ExtensionKey, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsDownloader } from 'vs/platform/extensionManagement/node/extensionDownloader';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
@@ -66,7 +65,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	) {
 		super(galleryService, telemetryService, logService, productService);
 		const extensionLifecycle = this._register(instantiationService.createInstance(ExtensionsLifecycle));
-		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension)));
+		this.extensionsScanner = this._register(instantiationService.createInstance(ExtensionsScanner, extension => extensionLifecycle.postUninstall(extension), this.getTargetPlatform()));
 		this.manifestCache = this._register(new ExtensionsManifestCache(environmentService, this));
 		this.extensionsDownloader = this._register(instantiationService.createInstance(ExtensionsDownloader));
 		const extensionsWatcher = this._register(new ExtensionsWatcher(this, fileService, environmentService, logService, uriIdentityService));
@@ -82,34 +81,9 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	private _targetPlatformPromise: Promise<TargetPlatform> | undefined;
 	getTargetPlatform(): Promise<TargetPlatform> {
 		if (!this._targetPlatformPromise) {
-			this._targetPlatformPromise = (async () => {
-				const isAlpineLinux = await this.isAlpineLinux();
-				const targetPlatform = getTargetPlatform(isAlpineLinux ? 'alpine' : platform, arch);
-				this.logService.debug('ExtensionManagementService#TargetPlatform:', targetPlatform);
-				return targetPlatform;
-			})();
+			this._targetPlatformPromise = computeTargetPlatform(this.fileService, this.logService);
 		}
 		return this._targetPlatformPromise;
-	}
-
-	private async isAlpineLinux(): Promise<boolean> {
-		if (!isLinux) {
-			return false;
-		}
-		let content: string | undefined;
-		try {
-			const fileContent = await this.fileService.readFile(URI.file('/etc/os-release'));
-			content = fileContent.value.toString();
-		} catch (error) {
-			try {
-				const fileContent = await this.fileService.readFile(URI.file('/usr/lib/os-release'));
-				content = fileContent.value.toString();
-			} catch (error) {
-				/* Ignore */
-				this.logService.debug(`Error while getting the os-release file.`, getErrorMessage(error));
-			}
-		}
-		return !!content && (content.match(/^ID=([^\u001b\r\n]*)/m) || [])[1] === 'alpine';
 	}
 
 	async zip(extension: ILocalExtension): Promise<URI> {
@@ -292,6 +266,7 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 		const installableExtension = await this.downloadInstallableExtension(this.gallery, this._operation);
 		installableExtension.metadata.isMachineScoped = this.options.isMachineScoped || existingExtension?.isMachineScoped;
 		installableExtension.metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
+		installableExtension.metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
 		installableExtension.metadata.isPreReleaseVersion = this.gallery.properties.isPreReleaseVersion;
 		installableExtension.metadata.preRelease = this.gallery.properties.isPreReleaseVersion ||
 			(isBoolean(this.options.installPreReleaseVersion)

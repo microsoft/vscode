@@ -21,6 +21,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 
 flakySuite('WorkingCopyHistoryTracker', () => {
 
@@ -54,7 +57,14 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		fileService = workingCopyHistoryService._fileService;
 		configurationService = workingCopyHistoryService._configurationService;
 
-		tracker = new WorkingCopyHistoryTracker(workingCopyService, workingCopyHistoryService, new UriIdentityService(new TestFileService()), new TestPathService(undefined, Schemas.file), configurationService);
+		tracker = new WorkingCopyHistoryTracker(
+			workingCopyService,
+			workingCopyHistoryService,
+			new UriIdentityService(new TestFileService()),
+			new TestPathService(undefined, Schemas.file),
+			configurationService,
+			new UndoRedoService(new TestDialogService(), new TestNotificationService())
+		);
 
 		await Promises.mkdir(historyHome, { recursive: true });
 

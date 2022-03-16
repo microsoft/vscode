@@ -79,7 +79,7 @@ export interface IWalkthroughStep {
 	order: number;
 	completionEvents: string[];
 	media:
-	| { type: 'image'; path: { hc: URI; light: URI; dark: URI }; altText: string }
+	| { type: 'image'; path: { hcDark: URI; hcLight: URI; light: URI; dark: URI }; altText: string }
 	| { type: 'svg'; path: URI; altText: string }
 	| { type: 'markdown'; path: URI; base: URI; root: URI };
 }
@@ -281,17 +281,18 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 			? URI.parse(path, true)
 			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
 
-		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string; dark: string; light: string }): { hc: URI; dark: URI; light: URI } => {
+		const convertExtensionRelativePathsToBrowserURIs = (path: string | { hc: string; hcLight?: string; dark: string; light: string }): { hcDark: URI; hcLight: URI; dark: URI; light: URI } => {
 			const convertPath = (path: string) => path.startsWith('https://')
 				? URI.parse(path, true)
 				: FileAccess.asBrowserUri(joinPath(extension.extensionLocation, path));
 
 			if (typeof path === 'string') {
 				const converted = convertPath(path);
-				return { hc: converted, dark: converted, light: converted };
+				return { hcDark: converted, hcLight: converted, dark: converted, light: converted };
 			} else {
 				return {
-					hc: convertPath(path.hc),
+					hcDark: convertPath(path.hc),
+					hcLight: convertPath(path.hcLight ?? path.light),
 					light: convertPath(path.light),
 					dark: convertPath(path.dark)
 				};
@@ -671,13 +672,14 @@ export const convertInternalMediaPathToFileURI = (path: string) => path.startsWi
 const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
 	? URI.parse(path, true)
 	: FileAccess.asBrowserUri('vs/workbench/contrib/welcomeGettingStarted/common/media/' + path, require);
-const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string; dark: string; light: string }): { hc: URI; dark: URI; light: URI } => {
+const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string; hcLight?: string; dark: string; light: string }): { hcDark: URI; hcLight: URI; dark: URI; light: URI } => {
 	if (typeof path === 'string') {
 		const converted = convertInternalMediaPathToBrowserURI(path);
-		return { hc: converted, dark: converted, light: converted };
+		return { hcDark: converted, hcLight: converted, dark: converted, light: converted };
 	} else {
 		return {
-			hc: convertInternalMediaPathToBrowserURI(path.hc),
+			hcDark: convertInternalMediaPathToBrowserURI(path.hc),
+			hcLight: convertInternalMediaPathToBrowserURI(path.hcLight ?? path.light),
 			light: convertInternalMediaPathToBrowserURI(path.light),
 			dark: convertInternalMediaPathToBrowserURI(path.dark)
 		};

@@ -17,7 +17,8 @@ enum CellOutputMimeTypes {
 }
 
 export function createJupyterCellFromNotebookCell(
-	vscCell: NotebookCellData
+	vscCell: NotebookCellData,
+	preferredLanguage: string | undefined
 ): nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell {
 	let cell: nbformat.IRawCell | nbformat.IMarkdownCell | nbformat.ICodeCell;
 	if (vscCell.kind === NotebookCellKind.Markup) {
@@ -25,7 +26,7 @@ export function createJupyterCellFromNotebookCell(
 	} else if (vscCell.languageId === 'raw') {
 		cell = createRawCellFromNotebookCell(vscCell);
 	} else {
-		cell = createCodeCellFromNotebookCell(vscCell);
+		cell = createCodeCellFromNotebookCell(vscCell, preferredLanguage);
 	}
 	return cell;
 }
@@ -56,14 +57,27 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 export function getCellMetadata(cell: NotebookCell | NotebookCellData) {
 	return cell.metadata?.custom as CellMetadata | undefined;
 }
-function createCodeCellFromNotebookCell(cell: NotebookCellData): nbformat.ICodeCell {
+function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguage: string | undefined): nbformat.ICodeCell {
 	const cellMetadata = getCellMetadata(cell);
+	let metadata = cellMetadata?.metadata || {}; // This cannot be empty.
+	if (cell.languageId !== preferredLanguage) {
+		metadata = {
+			...metadata,
+			vscode: {
+				languageId: cell.languageId
+			}
+		};
+	} else {
+		// cell current language is the same as the preferred cell language in the document, flush the vscode custom language id metadata
+		metadata.vscode = undefined;
+	}
+
 	const codeCell: any = {
 		cell_type: 'code',
 		execution_count: cell.executionSummary?.executionOrder ?? null,
 		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
-		metadata: cellMetadata?.metadata || {} // This cannot be empty.
+		metadata: metadata
 	};
 	if (cellMetadata?.id) {
 		codeCell.id = cellMetadata.id;

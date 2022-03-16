@@ -1136,8 +1136,8 @@ for (let i = 1; i <= 7; i++) {
 	);
 }
 
-export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
-export const editorFoldForeground = registerColor('editorGutter.foldingControlForeground', { dark: iconForeground, light: iconForeground, hc: iconForeground }, nls.localize('editorGutter.foldingControlForeground', 'Color of the folding control in the editor gutter.'));
+export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hcDark: null, hcLight: null }, nls.localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
+export const editorFoldForeground = registerColor('editorGutter.foldingControlForeground', { dark: iconForeground, light: iconForeground, hcDark: iconForeground, hcLight: iconForeground }, nls.localize('editorGutter.foldingControlForeground', 'Color of the folding control in the editor gutter.'));
 
 registerThemingParticipant((theme, collector) => {
 	const foldBackground = theme.getColor(foldBackgroundBackground);

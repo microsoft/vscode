@@ -78,7 +78,9 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 		// History changes
 		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry added */)));
+		this._register(this.workingCopyHistoryService.onDidChangeEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry changed */)));
 		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry removed */)));
+		this._register(this.workingCopyHistoryService.onDidRemoveAllEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all history */, true /* entry removed */)));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -88,12 +90,12 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		}));
 	}
 
-	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry, entryRemoved: boolean): void {
+	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined, entryRemoved: boolean): void {
 
 		// Re-emit as timeline change event
 		this._onDidChange.fire({
 			id: LocalHistoryTimeline.ID,
-			uri: entry.workingCopy.resource,
+			uri: entry?.workingCopy.resource,
 			reset: entryRemoved
 		});
 	}
@@ -121,11 +123,8 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			const entries = await this.workingCopyHistoryService.getEntries(resource, token);
 
 			// Convert to timeline items
-			for (let i = 0; i < entries.length; i++) {
-				const entry = entries[i];
-				const previousEntry: IWorkingCopyHistoryEntry | undefined = entries[i - 1];
-
-				items.push(this.toTimelineItem(entry, previousEntry));
+			for (const entry of entries) {
+				items.push(this.toTimelineItem(entry));
 			}
 		}
 
@@ -135,10 +134,10 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		};
 	}
 
-	private toTimelineItem(entry: IWorkingCopyHistoryEntry, previousEntry: IWorkingCopyHistoryEntry | undefined): TimelineItem {
+	private toTimelineItem(entry: IWorkingCopyHistoryEntry): TimelineItem {
 		return {
 			handle: entry.id,
-			label: SaveSourceRegistry.getSourceLabel(entry.source) ?? entry.source,
+			label: SaveSourceRegistry.getSourceLabel(entry.source),
 			description: entry.timestamp.label,
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp.value,

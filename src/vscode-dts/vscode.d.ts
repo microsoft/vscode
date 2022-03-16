@@ -6538,8 +6538,8 @@ declare module 'vscode' {
 		extensionKind: ExtensionKind;
 
 		/**
-		 * The public API exported by this extension. It is an invalid action
-		 * to access this field before this extension has been activated.
+		 * The public API exported by this extension (return value of `activate`).
+		 * It is an invalid action to access this field before this extension has been activated.
 		 */
 		readonly exports: T;
 
@@ -6825,7 +6825,8 @@ declare module 'vscode' {
 	export enum ColorThemeKind {
 		Light = 1,
 		Dark = 2,
-		HighContrast = 3
+		HighContrast = 3,
+		HighContrastLight = 4
 	}
 
 	/**
@@ -6834,7 +6835,7 @@ declare module 'vscode' {
 	export interface ColorTheme {
 
 		/**
-		 * The kind of this color theme: light, dark or high contrast.
+		 * The kind of this color theme: light, dark, high contrast dark and high contrast light.
 		 */
 		readonly kind: ColorThemeKind;
 	}

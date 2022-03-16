@@ -303,11 +303,13 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 		}
 
-		let fallbackLabel: string;
-		if (this._tunnelService.canTunnel(URI.parse(uri))) {
-			fallbackLabel = nls.localize('followForwardedLink', "Follow link using forwarded port");
-		} else {
-			fallbackLabel = nls.localize('followLink', "Follow link");
+		let fallbackLabel = nls.localize('followLink', "Follow link");
+		try {
+			if (this._tunnelService.canTunnel(URI.parse(uri))) {
+				fallbackLabel = nls.localize('followForwardedLink', "Follow link using forwarded port");
+			}
+		} catch {
+			// No-op, already set to fallback
 		}
 
 		const markdown = new MarkdownString('', true);

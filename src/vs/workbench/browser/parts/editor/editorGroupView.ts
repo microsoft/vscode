@@ -2010,7 +2010,7 @@ export interface EditorReplacement extends IEditorReplacement {
 registerThemingParticipant((theme, collector) => {
 
 	// Letterpress
-	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
+	const letterpress = `./media/letterpress-${theme.type}.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
 			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))}

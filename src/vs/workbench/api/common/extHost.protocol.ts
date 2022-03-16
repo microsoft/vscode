@@ -632,6 +632,7 @@ export enum TabKind {
 }
 
 export interface IEditorTabDto {
+	id: string;
 	viewColumn: EditorGroupColumn;
 	label: string;
 	resource?: UriComponents;

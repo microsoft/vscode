@@ -692,9 +692,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private saveViewSizes(): void {
 		// Save size only when the layout has happened
 		if (this.didLayout) {
-			for (const view of this.panes) {
-				this.viewContainerModel.setSize(view.id, this.getPaneSize(view));
-			}
+			this.viewContainerModel.setSizes(this.panes.map(view => ({ id: view.id, size: this.getPaneSize(view) })));
 		}
 	}
 

@@ -22,13 +22,15 @@ import { fromNow } from 'vs/base/common/date';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { Color } from 'vs/base/common/color';
 
 const enum DecorationSelector {
 	CommandDecoration = 'terminal-command-decoration',
 	ErrorColor = 'error',
 	DefaultColor = 'default',
 	Codicon = 'codicon',
-	XtermDecoration = 'xterm-decoration'
+	XtermDecoration = 'xterm-decoration',
+	OverviewRuler = 'xterm-decoration-overview-ruler'
 }
 
 const enum DecorationStyles {
@@ -161,7 +163,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		});
 	}
 
-	activate(terminal: Terminal): void { this._terminal = terminal; }
+	activate(terminal: Terminal): void {
+		this._terminal = terminal;
+	}
 
 	registerCommandDecoration(command: ITerminalCommand, beforeCommandExecution?: boolean): IDecoration | undefined {
 		if (!this._terminal) {
@@ -172,24 +176,32 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 
 		this._placeholderDecoration?.dispose();
-
-		const decoration = this._terminal.registerDecoration({ marker: command.marker });
+		let color = command.exitCode === undefined ? defaultColor : command.exitCode ? errorColor : successColor;
+		if (color && typeof color !== 'string') {
+			color = color.toString();
+		} else {
+			color = '';
+		}
+		const decoration = this._terminal.registerDecoration({ marker: command.marker, overviewRulerOptions: { color } });
 		if (!decoration) {
 			return undefined;
 		}
+
 		decoration.onRender(element => {
-			decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
+			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
+				return;
+			}
 			if (beforeCommandExecution && !this._placeholderDecoration) {
 				this._placeholderDecoration = decoration;
 				this._placeholderDecoration.onDispose(() => this._placeholderDecoration = undefined);
 			} else {
-				if (!this._decorations.has(decoration.marker.id)) {
-					this._decorations.set(decoration.marker.id, {
+				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
+				this._decorations.set(decoration.marker.id,
+					{
 						decoration,
 						disposables: command.exitCode === undefined ? [] : [this._createContextMenu(element, command), ...this._createHover(element, command)],
 						exitCode: command.exitCode
 					});
-				}
 			}
 			if (!element.classList.contains(DecorationSelector.Codicon) || command.marker?.line === 0) {
 				// first render or buffer was cleared
@@ -292,11 +304,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		return actions;
 	}
 }
-
+let successColor: string | Color | undefined;
+let errorColor: string | Color | undefined;
+let defaultColor: string | Color | undefined;
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	const successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
-	const errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
-	const defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
+	successColor = theme.getColor(TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR);
+	errorColor = theme.getColor(TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR);
+	defaultColor = theme.getColor(TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR);
 	const hoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 
 	if (successColor) {

@@ -352,7 +352,7 @@ export interface IViewContainerModel {
 	setCollapsed(id: string, collapsed: boolean): void;
 
 	getSize(id: string): number | undefined;
-	setSize(id: string, size: number): void;
+	setSizes(newSizes: readonly { id: string; size: number }[]): void;
 
 	move(from: string, to: string): void;
 }
