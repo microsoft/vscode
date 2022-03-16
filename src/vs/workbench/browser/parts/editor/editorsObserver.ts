@@ -312,7 +312,7 @@ export class EditorsObserver extends Disposable {
 		}
 
 		const limit = this.editorGroupsService.partOptions.limit.value;
-		const ignoreDirtyTab: boolean = this.editorGroupsService.partOptions.limit.ignoreDirtyTab ? this.editorGroupsService.partOptions.limit.ignoreDirtyTab : false;
+		const ignoreDirtyTab: boolean = this.editorGroupsService.partOptions.limit.ignoreDirtyTab ?? false;
 
 		// In editor group
 		if (this.editorGroupsService.partOptions.limit?.perEditorGroup) {
