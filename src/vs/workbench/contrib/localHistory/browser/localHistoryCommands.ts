@@ -98,8 +98,7 @@ registerAction2(class extends Action2 {
 async function openEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditorService): Promise<void> {
 	await editorService.openEditor({
 		resource: LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
-		label: localize('localHistoryEditorLabel', "{0} ({1})", entry.workingCopy.name, entry.timestamp.label),
-		description: entry?.source ? SaveSourceRegistry.getSourceLabel(entry.source) : undefined
+		label: localize('localHistoryEditorLabel', "{0} ({1} {2})", entry.workingCopy.name, SaveSourceRegistry.getSourceLabel(entry.source), entry.timestamp.label)
 	});
 }
 
@@ -322,7 +321,7 @@ registerAction2(class extends Action2 {
 			inputBox.title = localize('renameLocalHistoryEntryTitle', "Rename Local History Entry");
 			inputBox.ignoreFocusOut = true;
 			inputBox.placeholder = localize('renameLocalHistoryPlaceholder', "Enter the new name of the local history entry");
-			inputBox.value = SaveSourceRegistry.getSourceLabel(entry.source) ?? entry.source;
+			inputBox.value = SaveSourceRegistry.getSourceLabel(entry.source);
 			inputBox.show();
 			inputBox.onDidAccept(() => {
 				if (inputBox.value) {
@@ -424,7 +423,6 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 	const originalResource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: arg1.location, associatedResource: arg1.workingCopy.resource, label: arg1.workingCopy.name });
 
 	let label: string;
-	let description = arg1?.source ? SaveSourceRegistry.getSourceLabel(arg1.source) : undefined;
 
 	// Right hand side depends on how the method was called
 	// and is either another working copy history entry
@@ -437,7 +435,7 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 		const resource = arg2;
 
 		modifiedResource = resource;
-		label = localize('localHistoryCompareToFileEditorLabel', "{0} ({1}) ↔ {2}", arg1.workingCopy.name, arg1.timestamp.label, arg1.workingCopy.name);
+		label = localize('localHistoryCompareToFileEditorLabel', "{0} ({1} {2}) ↔ {3}", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), arg1.timestamp.label, arg1.workingCopy.name);
 	}
 
 	// Compare with another entry
@@ -445,13 +443,13 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 		const modified = arg2;
 
 		modifiedResource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: modified.location, associatedResource: modified.workingCopy.resource, label: modified.workingCopy.name });
-		label = localize('localHistoryCompareToPreviousEditorLabel', "{0} ({1}) ↔ {2} ({3})", arg1.workingCopy.name, arg1.timestamp.label, modified.workingCopy.name, modified.timestamp.label);
+		label = localize('localHistoryCompareToPreviousEditorLabel', "{0} ({1} {2}) ↔ {3} ({4} {5})", arg1.workingCopy.name, SaveSourceRegistry.getSourceLabel(arg1.source), arg1.timestamp.label, modified.workingCopy.name, SaveSourceRegistry.getSourceLabel(modified.source), modified.timestamp.label);
 	}
 
 	return [
 		originalResource,
 		modifiedResource,
-		{ label, description },
+		label,
 		undefined // important to keep order of arguments in command proper
 	];
 }

@@ -574,8 +574,8 @@ class SaveSourceFactory {
 		return sourceDescriptor.source;
 	}
 
-	getSourceLabel(source: SaveSource): string | undefined {
-		return this.mapIdToSaveSource.get(source)?.label;
+	getSourceLabel(source: SaveSource): string {
+		return this.mapIdToSaveSource.get(source)?.label ?? source;
 	}
 }
 
