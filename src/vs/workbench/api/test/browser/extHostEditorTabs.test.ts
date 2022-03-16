@@ -49,8 +49,7 @@ suite('ExtHostEditorTabs', function () {
 			isActive: true,
 			viewColumn: 0,
 			groupId: 12,
-			tabs: [tab],
-			activeTab: { ...tab }
+			tabs: [tab]
 		}]);
 		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
 		const [first] = extHostEditorTabs.tabGroups.groups;
@@ -62,8 +61,7 @@ suite('ExtHostEditorTabs', function () {
 				isActive: true,
 				viewColumn: 0,
 				groupId: 12,
-				tabs: [tab],
-				activeTab: tab
+				tabs: [tab]
 			}]);
 			assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
 			const [first] = extHostEditorTabs.tabGroups.groups;
@@ -83,8 +81,7 @@ suite('ExtHostEditorTabs', function () {
 			isActive: true,
 			viewColumn: 0,
 			groupId: 12,
-			tabs: [],
-			activeTab: undefined
+			tabs: []
 		}]);
 		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
 		const [first] = extHostEditorTabs.tabGroups.groups;
@@ -110,8 +107,7 @@ suite('ExtHostEditorTabs', function () {
 			isActive: true,
 			viewColumn: 0,
 			groupId: 12,
-			tabs: [],
-			activeTab: undefined
+			tabs: []
 		}]);
 		assert.ok(extHostEditorTabs.tabGroups.activeTabGroup);
 		const activeTabGroup: vscode.TabGroup = extHostEditorTabs.tabGroups.activeTabGroup;
@@ -143,8 +139,7 @@ suite('ExtHostEditorTabs', function () {
 			isActive: true,
 			viewColumn: 0,
 			groupId: 12,
-			tabs: [tab],
-			activeTab: { ...tab }
+			tabs: [tab]
 		}]);
 		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
 		const [first] = extHostEditorTabs.tabGroups.groups;
@@ -216,7 +211,7 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(activeTabGroup, activeTabGroupFromEvent);
 	});
 
-	test.skip('Ensure reference stability', function () {
+	test('Ensure reference stability', function () {
 
 		const extHostEditorTabs = new ExtHostEditorTabs(
 			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
@@ -242,8 +237,7 @@ suite('ExtHostEditorTabs', function () {
 			isActive: true,
 			viewColumn: 0,
 			groupId: 12,
-			tabs: [tabDto],
-			activeTab: undefined // NOT needed
+			tabs: [tabDto]
 		}]);
 		let all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
@@ -255,13 +249,8 @@ suite('ExtHostEditorTabs', function () {
 		// NOT DIRTY anymore
 
 		const tabDto2: IEditorTabDto = { ...tabDto, isDirty: false };
-		extHostEditorTabs.$acceptEditorTabModel([{
-			isActive: true,
-			viewColumn: 0,
-			groupId: 12,
-			tabs: [tabDto2],
-			activeTab: undefined // NOT needed
-		}]);
+		// Accept a simple update
+		extHostEditorTabs.$acceptTabUpdate(12, tabDto2);
 
 		all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
