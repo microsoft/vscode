@@ -9,7 +9,7 @@ import { IDecoration, ITerminalAddon, Terminal } from 'xterm';
 import * as dom from 'vs/base/browser/dom';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAction } from 'vs/base/common/actions';
@@ -57,7 +57,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 		this._attachToCommandCapability();
@@ -74,6 +75,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 				this.refreshLayouts();
 			}
 		});
+		this._themeService.onDidColorThemeChange(() => this._refreshClasses(true));
 	}
 
 	public refreshLayouts(): void {
@@ -83,7 +85,18 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 		}
 	}
 
-	private _refreshClasses(): void {
+	private _refreshClasses(refreshOverviewRulerColors?: boolean): void {
+		if (refreshOverviewRulerColors) {
+			for (const decoration of this._decorations.values()) {
+				let color = decoration.exitCode === undefined ? defaultColor : decoration.exitCode ? errorColor : successColor;
+				if (color && typeof color !== 'string') {
+					color = color.toString();
+				} else {
+					color = '';
+				}
+				decoration.decoration.overviewRulerDecorationColor = color;
+			}
+		}
 		this._updateClasses(this._placeholderDecoration?.element);
 		for (const decoration of this._decorations.values()) {
 			this._updateClasses(decoration.decoration.element, decoration.exitCode);

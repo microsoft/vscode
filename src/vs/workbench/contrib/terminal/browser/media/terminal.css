@@ -421,3 +421,7 @@
 .terminal-command-decoration.default {
 	pointer-events: none;
 }
+
+.xterm-decoration-overview-ruler {
+	z-index: 50;
+}
