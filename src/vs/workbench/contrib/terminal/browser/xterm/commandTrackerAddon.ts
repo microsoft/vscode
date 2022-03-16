@@ -65,7 +65,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		this._selectionStart = null;
 	}
 
-	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -74,9 +74,11 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		}
 
 		let markerIndex;
-		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
+		const currentLineY = typeof this._currentMarker === 'object'
+			? this._getTargetScrollLine(this._terminal, this._currentMarker, scrollPosition)
+			: Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
 		const viewportY = this._terminal.buffer.active.viewportY;
-		if (!retainSelection && currentLineY !== viewportY) {
+		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
 			const markersBelowViewport = this._getCommandMarkers().filter(e => e.line >= viewportY).length;
@@ -104,7 +106,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -113,9 +115,11 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		}
 
 		let markerIndex;
-		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
+		const currentLineY = typeof this._currentMarker === 'object'
+			? this._getTargetScrollLine(this._terminal, this._currentMarker, scrollPosition)
+			: Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
 		const viewportY = this._terminal.buffer.active.viewportY;
-		if (!retainSelection && currentLineY !== viewportY) {
+		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
 			const markersAboveViewport = this._getCommandMarkers().filter(e => e.line <= viewportY).length;
@@ -147,11 +151,24 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		if (!this._terminal) {
 			return;
 		}
-		let line = marker.line;
-		if (position === ScrollPosition.Middle) {
-			line = Math.max(line - Math.floor(this._terminal.rows / 2), 0);
+		if (!this._isMarkerInViewport(this._terminal, marker)) {
+			const line = this._getTargetScrollLine(this._terminal, marker, position);
+			this._terminal.scrollToLine(line);
 		}
-		this._terminal.scrollToLine(line);
+	}
+
+	private _getTargetScrollLine(terminal: Terminal, marker: IMarker, position: ScrollPosition) {
+		// Middle is treated at 1/4 of the viewport's size because context below is almost always
+		// more important than context above in the terminal.
+		if (position === ScrollPosition.Middle) {
+			return Math.max(marker.line - Math.floor(terminal.rows / 4), 0);
+		}
+		return marker.line;
+	}
+
+	private _isMarkerInViewport(terminal: Terminal, marker: IMarker) {
+		const viewportY = terminal.buffer.active.viewportY;
+		return marker.line >= viewportY && marker.line < viewportY + terminal.rows;
 	}
 
 	selectToPreviousCommand(): void {
@@ -232,7 +249,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		return marker.line;
 	}
 
-	scrollToPreviousLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	scrollToPreviousLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
@@ -255,7 +272,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	scrollToNextLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	scrollToNextLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}

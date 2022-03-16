@@ -70,6 +70,12 @@
 	z-index: 30;
 }
 
+.monaco-workbench .editor-instance .xterm-decoration-overview-ruler,
+.monaco-workbench .pane-body.integrated-terminal .xterm-decoration-overview-ruler {
+	z-index: 31; /* Must be higher than .xterm-viewport */
+	pointer-events: none;
+}
+
 .monaco-workbench .editor-instance .xterm-screen,
 .monaco-workbench .pane-body.integrated-terminal .xterm-screen {
 	z-index: 31;

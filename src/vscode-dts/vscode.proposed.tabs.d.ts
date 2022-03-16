@@ -107,7 +107,7 @@ declare module 'vscode' {
 		/**
 		 * The currently active group
 		 */
-		readonly activeTabGroup: TabGroup | undefined;
+		activeTabGroup: TabGroup | undefined;
 
 		/**
 		 * An {@link Event} which fires when a group changes.

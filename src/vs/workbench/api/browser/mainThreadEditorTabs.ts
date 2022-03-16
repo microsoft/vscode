@@ -41,7 +41,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditorTabs);
 
-		// Queue all events that arrive on the same event loop and then send them as a batch
+		// Main listener which responds to events from the editor service
 		this._dispoables.add(editorService.onDidEditorsChange((event) => this._updateTabsModel(event)));
 		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
 	}
