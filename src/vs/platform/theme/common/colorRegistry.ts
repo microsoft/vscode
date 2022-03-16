@@ -59,12 +59,6 @@ export interface ColorDefaults {
 	hcLight: ColorValue | null;
 }
 
-/** deprecated */
-export interface ColorDefaultsDeprecated {
-	light: ColorValue | null;
-	dark: ColorValue | null;
-	hcDark: ColorValue | null;
-}
 /**
  * A Color Value is either a color literal, a reference to an other color or a derived color
  */
@@ -207,7 +201,7 @@ function migrateColorDefaults(o: any): null | ColorDefaults {
 	return o as ColorDefaults;
 }
 
-export function registerColor(id: string, defaults: ColorDefaults | ColorDefaultsDeprecated | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
+export function registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
 	return colorRegistry.registerColor(id, migrateColorDefaults(defaults), description, needsTransparency, deprecationMessage);
 }
 
