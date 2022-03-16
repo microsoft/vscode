@@ -34,6 +34,7 @@ suite('ExtHostEditorTabs', function () {
 		);
 
 		const tab: IEditorTabDto = {
+			id: 'uniquestring',
 			isActive: true,
 			isDirty: true,
 			isPinned: true,
@@ -125,6 +126,7 @@ suite('ExtHostEditorTabs', function () {
 			})
 		);
 		const tab: IEditorTabDto = {
+			id: 'uniquestring',
 			isActive: true,
 			isDirty: true,
 			isPinned: true,
@@ -220,6 +222,7 @@ suite('ExtHostEditorTabs', function () {
 			})
 		);
 		const tabDto: IEditorTabDto = {
+			id: 'uniquestring',
 			isActive: true,
 			isDirty: true,
 			isPinned: true,
