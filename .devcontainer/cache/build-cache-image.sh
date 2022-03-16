@@ -20,6 +20,7 @@ echo "[$(date)] ${BRANCH} => ${TAG}"
 cd "${SCRIPT_PATH}/../.."
 
 echo "[$(date)] Starting image build and push..."
+export DOCKER_BUILDKIT=1
 docker run --privileged --rm tonistiigi/binfmt --install all
 docker buildx build --push --platform linux/amd64,linux/arm64 -t ${CONTAINER_IMAGE_REPOSITORY}:"${TAG}" -f "${SCRIPT_PATH}/cache.Dockerfile" .
 
