@@ -7,7 +7,10 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
+import type { Terminal, IMarker, ITerminalAddon, IDecoration } from 'xterm';
+import { timeout } from 'vs/base/common/async';
+import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
 
 enum Boundary {
 	Top,
@@ -24,6 +27,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
 	protected _terminal: Terminal | undefined;
+	private _navigationDecoration: IDecoration | undefined;
 
 	private _commandDetection?: ICommandDetectionCapability | IPartialCommandDetectionCapability;
 
@@ -154,6 +158,32 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		if (!this._isMarkerInViewport(this._terminal, marker)) {
 			const line = this._getTargetScrollLine(this._terminal, marker, position);
 			this._terminal.scrollToLine(line);
+		}
+		this._navigationDecoration?.dispose();
+		const decoration = this._terminal.registerDecoration({
+			marker,
+			width: this._terminal.cols
+		});
+		this._navigationDecoration = decoration;
+		if (decoration) {
+			let isRendered = false;
+			decoration.onRender(element => {
+				if (!isRendered) {
+					// TODO: Remove when https://github.com/xtermjs/xterm.js/issues/3686 is fixed
+					if (!element.classList.contains('xterm-decoration-overview-ruler')) {
+						element.classList.add('terminal-scroll-highlight');
+					}
+				}
+			});
+			decoration.onDispose(() => {
+				if (decoration === this._navigationDecoration) {
+					this._navigationDecoration = undefined;
+				}
+			});
+			// Number picked to align with symbol highlight in the editor
+			timeout(350).then(() => {
+				decoration.dispose();
+			});
 		}
 	}
 
@@ -349,3 +379,11 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		return this._getCommandMarkers().length;
 	}
 }
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	const focusBorderColor = theme.getColor(focusBorder);
+
+	if (focusBorderColor) {
+		collector.addRule(`.terminal-scroll-highlight { border-color: ${focusBorderColor.toString()}; } `);
+	}
+});
