@@ -205,9 +205,6 @@ export class Extension implements IExtension {
 		if (!this.gallery || !this.local) {
 			return false;
 		}
-		if (this.type !== ExtensionType.User) {
-			return false;
-		}
 		if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
 			return false;
 		}
@@ -1055,7 +1052,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		const infos: IExtensionInfo[] = [];
 		for (const installed of this.local) {
-			if (installed.type === ExtensionType.User && (!onlyBuiltin || installed.isBuiltin)) {
+			if (!onlyBuiltin || installed.isBuiltin) {
 				infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
 			}
 		}

@@ -46,9 +46,9 @@ suite('Extension Test', () => {
 		assert.strictEqual(extension.outdated, true);
 	});
 
-	test('extension is not outdated when local is built in and older than gallery', () => {
+	test('extension is outdated when local is built in and older than gallery', () => {
 		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }, { type: ExtensionType.System }), aGalleryExtension('somext', { version: '1.0.1' }));
-		assert.strictEqual(extension.outdated, false);
+		assert.strictEqual(extension.outdated, true);
 	});
 
 	test('extension is outdated when local and gallery are on same version but on different target platforms', () => {
