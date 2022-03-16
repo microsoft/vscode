@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Limiter } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
@@ -29,6 +32,8 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 		SIZE_LIMIT: 'workbench.localHistory.maxFileSize',
 	};
 
+	private static readonly UNDO_REDO_SAVE_SOURCE = SaveSourceRegistry.registerSource('undoRedo.source', localize('undoRedo.source', "Undo / Redo"));
+
 	private readonly limiter = this._register(new Limiter(WorkingCopyHistoryTracker.MAX_PARALLEL_HISTORY_WRITES));
 
 	private readonly pendingAddHistoryEntryOperations = new ResourceMap<CancellationTokenSource>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
@@ -41,7 +46,8 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 		@IWorkingCopyHistoryService private readonly workingCopyHistoryService: IWorkingCopyHistoryService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPathService private readonly pathService: IPathService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService
 	) {
 		super();
 
@@ -91,8 +97,14 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 
 			const contentVersion = this.getContentVersion(e.workingCopy);
 
+			// Figure out source of save operation if not provided already
+			let source = e.source;
+			if (!e.source) {
+				source = this.resolveSourceFromUndoRedo(e);
+			}
+
 			// Add entry
-			await this.workingCopyHistoryService.addEntry({ resource: e.workingCopy.resource, source: e.source, timestamp: e.stat.mtime }, cts.token);
+			await this.workingCopyHistoryService.addEntry({ resource: e.workingCopy.resource, source, timestamp: e.stat.mtime }, cts.token);
 
 			// Remember content version as being added to history
 			this.historyEntryContentVersion.set(e.workingCopy.resource, contentVersion);
@@ -104,6 +116,20 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 			// Finally remove from pending operations
 			this.pendingAddHistoryEntryOperations.delete(e.workingCopy.resource);
 		});
+	}
+
+	private resolveSourceFromUndoRedo(e: IWorkingCopySaveEvent): SaveSource | undefined {
+		const lastStackElement = this.undoRedoService.getLastElement(e.workingCopy.resource);
+		if (lastStackElement) {
+			return lastStackElement.label !== 'Typing' ? lastStackElement.label : undefined; // TODO@bpasero do not hardcode this label
+		}
+
+		const allStackElements = this.undoRedoService.getElements(e.workingCopy.resource);
+		if (allStackElements.future.length > 0 || allStackElements.past.length > 0) {
+			return WorkingCopyHistoryTracker.UNDO_REDO_SAVE_SOURCE;
+		}
+
+		return undefined;
 	}
 
 	private shouldTrackHistory(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent<IStoredFileWorkingCopyModel> {
