@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CodeCellLayoutInfo, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
@@ -52,6 +52,19 @@ export class CellFocusIndicator extends CellPart {
 		}));
 		this._register(DOM.addDisposableListener(this.outputFocusIndicator.domNode, DOM.EventType.CLICK, () => {
 			if (this.currentElement) {
+				this.currentElement.isOutputCollapsed = !this.currentElement.isOutputCollapsed;
+			}
+		}));
+
+		this._register(DOM.addDisposableListener(this.left.domNode, DOM.EventType.DBLCLICK, e => {
+			if (!this.currentElement || !this.notebookEditor.hasModel()) {
+				return;
+			}
+
+			const clickedOnInput = e.offsetY < (this.currentElement.layoutInfo as CodeCellLayoutInfo).outputContainerOffset;
+			if (clickedOnInput) {
+				this.currentElement.isInputCollapsed = !this.currentElement.isInputCollapsed;
+			} else {
 				this.currentElement.isOutputCollapsed = !this.currentElement.isOutputCollapsed;
 			}
 		}));

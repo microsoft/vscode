@@ -30,7 +30,6 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
-
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
 
@@ -521,7 +520,6 @@ export class CodeCell extends Disposable {
 		this.viewCell.detachTextEditor();
 		this._removeInputCollapsePreview();
 		this._outputContainerRenderer.dispose();
-		this.templateData.focusIndicator.left.setHeight(0);
 		this._pendingLayout?.dispose();
 
 		super.dispose();

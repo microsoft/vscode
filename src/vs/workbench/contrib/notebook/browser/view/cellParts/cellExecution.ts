@@ -12,7 +12,7 @@ import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/vi
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellExecutionPart extends CellPart {
-	private kernelDisposables = new DisposableStore();
+	private kernelDisposables = this._register(new DisposableStore());
 	private currentCell: ICellViewModel | undefined;
 
 	constructor(
