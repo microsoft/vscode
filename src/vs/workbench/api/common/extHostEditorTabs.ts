@@ -109,7 +109,7 @@ class ExtHostEditorTab {
 		// Don't want to lose reference to parent `this` in the getters
 		const that = this;
 		if (!this._apiObject) {
-			this._apiObject = Object.freeze({
+			this._apiObject = Object.freeze<vscode.Tab>({
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active tab per group and prevent iteration for being required
 					return that._dto.id === that._activeTabIdGetter();
@@ -142,7 +142,7 @@ class ExtHostEditorTab {
 					this._proxy.$moveTab(that._dto.id, index, typeConverters.ViewColumn.from(viewColumn));
 					return;
 				},
-				close: async (preserveFocus) => {
+				close: async (preserveFocus: boolean) => {
 					this._proxy.$closeTab(that._dto.id, preserveFocus);
 					return;
 				}
