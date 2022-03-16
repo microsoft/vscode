@@ -394,7 +394,7 @@ const newCommands: ApiCommand[] = [
 		'vscode.openWith', '_workbench.openWith', 'Opens the provided resource with a specific editor.',
 		[
 			ApiCommandArgument.Uri.with('resource', 'Resource to open'),
-			ApiCommandArgument.String.with('viewId', 'Custom editor view id or \'default\' to use VS Code\'s default editor'),
+			ApiCommandArgument.String.with('viewId', 'Custom editor view id. This should match the viewType from the customEditors contribution point. Use \'default\' to use VS Code\'s default editor'),
 			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [vscode.ViewColumn?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'number' || typeof v === 'object',
 				v => !v ? v : typeof v === 'number' ? [typeConverters.ViewColumn.from(v), undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)],
