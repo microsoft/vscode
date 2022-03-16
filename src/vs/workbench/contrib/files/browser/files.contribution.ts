@@ -470,11 +470,6 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expanded. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
 			'default': true,
 		},
-		'explorer.experimental.fileNesting.hideIconsToMatchFolders': {
-			'type': 'boolean',
-			'markdownDescription': nls.localize('hideIconsToMatchFolders', "Experimental. Controls whether alignment is maintained by hiding file nest icons when folder icons or explorer arrows are hidden. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
-			'default': true,
-		},
 		'explorer.experimental.fileNesting.patterns': {
 			'type': 'object',
 			'markdownDescription': nls.localize('fileNestingPatterns', "Experimental. Controls nesting of files in the explorer. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect. Each key describes a parent file pattern and each value should be a comma separated list of children file patterns that will be nested under the parent.\n\nA single `*` in a parent pattern may be used to capture any substring, which can then be matched against using `$\u200b(capture)` in a child pattern. Child patterns may also contain one `*` to match any substring.\n\nFor example, given the configuration `*.ts => $(capture).js, $(capture).*.ts`, and a directory containing `a.ts, a.js, a.d.ts`, and `b.js`, nesting would apply as follows: \n- `*.ts` matches `a.ts`, capturing `a`. This causes any sibilings matching `a.js` or `a.*.ts` to be nested under `a.ts`\n    - `a.js` matches `a.js` exactly, so is nested under `a.ts`\n    - `a.d.ts` matches `a.*.ts`, so is also nested under `a.ts`\n\nThe final directory will be rendered with `a.ts` containg `a.js` and `a.d.ts` as nested children, and `b.js` as normal file."),

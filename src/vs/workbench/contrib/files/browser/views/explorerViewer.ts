@@ -258,6 +258,7 @@ export interface IFileTemplateData {
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
+	private styler: HTMLStyleElement;
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController>();
@@ -276,11 +277,25 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
+
+		this.styler = DOM.createStyleSheet();
+		const buildOffsetStyles = () => {
+			const indent = this.configurationService.getValue<number>('workbench.tree.indent');
+			const offset = Math.max(22 - indent, 0); // derived via inspection
+			const rule = `.explorer-viewlet .explorer-item.align-nest-icon-with-parent-icon { margin-left: ${offset}px }`;
+			if (this.styler.innerText !== rule) { this.styler.innerText = rule; }
+		};
+
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('explorer')) {
 				this.config = this.configurationService.getValue();
 			}
+			if (e.affectsConfiguration('workbench.tree.indent')) {
+				buildOffsetStyles();
+			}
 		});
+
+		buildOffsetStyles();
 	}
 
 	getWidgetAriaLabel(): string {
@@ -372,13 +387,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			extraClasses.push('cut');
 		}
 
-
-
 		const setResourceData = () => {
 			// Offset nested children unless folders have both chevrons and icons, otherwise alignment breaks
 			const theme = this.themeService.getFileIconTheme();
 
-			// Always render chevrons for file nests, or else may not be able to identify them.
+			// Hack to always render chevrons for file nests, or else may not be able to identify them.
 			const twistieContainer = (templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie') as HTMLElement);
 			if (twistieContainer) {
 				if (stat.hasNests && theme.hidesExplorerArrows) {
@@ -388,13 +401,14 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				}
 			}
 
-
-			const hideIcon = stat.hasNests && (!theme.hasFolderIcons || theme.hidesExplorerArrows) && this.config.explorer.experimental.fileNesting.hideIconsToMatchFolders;
+			// when explorer arrows are hidden or there are no folder icons, nests get misaligned as they are forced to have arrows and files typically have icons
+			// Apply some CSS magic to get things looking as reasonable as possible.
+			const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
+			const realignNestedChildren = stat.isNestedChild && themeIsUnhappyWithNesting;
 
 			templateData.label.setResource({ resource: stat.resource, name: label }, {
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
-				extraClasses,
-				hideIcon,
+				extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
 				fileDecorations: this.config.explorer.decorations,
 				matches: createMatches(filterData),
 				separator: this.labelService.getSeparator(stat.resource.scheme, stat.resource.authority),
@@ -562,6 +576,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	dispose(): void {
 		this.configListener.dispose();
+		this.styler.innerText = '';
 	}
 }
 
