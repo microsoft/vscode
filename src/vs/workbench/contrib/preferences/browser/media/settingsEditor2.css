@@ -137,6 +137,10 @@
 	box-sizing: border-box;
 }
 
+.settings-editor > .settings-body > .monaco-split-view2 {
+	margin-top: 14px;
+}
+
 .settings-editor.no-results > .settings-body .settings-toc-container,
 .settings-editor.no-results > .settings-body .settings-tree-container {
 	display: none;

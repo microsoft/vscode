@@ -40,6 +40,7 @@ export interface IRemoteAgentEnvironmentDTO {
 	extensionHostLogsPath: UriComponents;
 	globalStorageHome: UriComponents;
 	workspaceStorageHome: UriComponents;
+	localHistoryHome: UriComponents;
 	userHome: UriComponents;
 	os: platform.OperatingSystem;
 	arch: string;
@@ -66,6 +67,7 @@ export class RemoteExtensionEnvironmentChannelClient {
 			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
 			globalStorageHome: URI.revive(data.globalStorageHome),
 			workspaceStorageHome: URI.revive(data.workspaceStorageHome),
+			localHistoryHome: URI.revive(data.localHistoryHome),
 			userHome: URI.revive(data.userHome),
 			os: data.os,
 			arch: data.arch,

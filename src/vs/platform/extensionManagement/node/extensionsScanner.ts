@@ -21,7 +21,7 @@ import { extract, ExtractError } from 'vs/base/node/zip';
 import { localize } from 'vs/nls';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionManagementError, ExtensionManagementErrorCode, Metadata, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, ExtensionKey, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, ExtensionKey, filterOutdatedExtensions, getGalleryExtensionId, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { ExtensionType, IExtensionIdentifier, IExtensionManifest, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -41,6 +41,7 @@ export class ExtensionsScanner extends Disposable {
 
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
+		private readonly targetPlatform: Promise<TargetPlatform>,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -82,8 +83,7 @@ export class ExtensionsScanner extends Disposable {
 		let [uninstalled, extensions] = await Promise.all([this.getUninstalledExtensions(), this.scanAllUserExtensions()]);
 		extensions = extensions.filter(e => !uninstalled[ExtensionKey.create(e).toString()]);
 		if (excludeOutdated) {
-			const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.identifier);
-			extensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
+			extensions = filterOutdatedExtensions(extensions, await this.targetPlatform);
 		}
 		this.logService.trace('Scanned user extensions:', extensions.length);
 		return extensions;
@@ -361,8 +361,18 @@ export class ExtensionsScanner extends Disposable {
 		const toRemove: ILocalExtension[] = [];
 
 		// Outdated extensions
+		const targetPlatform = await this.targetPlatform;
 		const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => e.identifier);
-		toRemove.push(...flatten(byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1))));
+		toRemove.push(...flatten(byExtension.map(p => p.sort((a, b) => {
+			const vcompare = semver.rcompare(a.manifest.version, b.manifest.version);
+			if (vcompare !== 0) {
+				return vcompare;
+			}
+			if (a.targetPlatform === targetPlatform) {
+				return -1;
+			}
+			return 1;
+		}).slice(1))));
 
 		await Promises.settled(toRemove.map(extension => this.removeExtension(extension, 'outdated')));
 	}

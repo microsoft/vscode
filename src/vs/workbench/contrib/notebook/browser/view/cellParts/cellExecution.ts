@@ -12,34 +12,34 @@ import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/vi
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellExecutionPart extends CellPart {
-	private kernelDisposables = new DisposableStore();
+	private kernelDisposables = this._register(new DisposableStore());
+	private currentCell: ICellViewModel | undefined;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		private readonly _executionOrderLabel: HTMLElement
 	) {
 		super();
-	}
 
-	setup(templateData: BaseCellRenderTemplate): void {
 		this._register(this._notebookEditor.onDidChangeActiveKernel(() => {
-			if (templateData.currentRenderedCell) {
+			if (this.currentCell) {
 				this.kernelDisposables.clear();
 
 				if (this._notebookEditor.activeKernel) {
 					this.kernelDisposables.add(this._notebookEditor.activeKernel.onDidChange(() => {
-						if (templateData.currentRenderedCell) {
-							this.updateExecutionOrder(templateData.currentRenderedCell.internalMetadata);
+						if (this.currentCell) {
+							this.updateExecutionOrder(this.currentCell.internalMetadata);
 						}
 					}));
 				}
 
-				this.updateExecutionOrder(templateData.currentRenderedCell.internalMetadata);
+				this.updateExecutionOrder(this.currentCell.internalMetadata);
 			}
 		}));
 	}
 
 	renderCell(element: ICellViewModel, _templateData: BaseCellRenderTemplate): void {
+		this.currentCell = element;
 		this.updateExecutionOrder(element.internalMetadata);
 	}
 

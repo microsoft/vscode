@@ -35,8 +35,7 @@ export class CursorsController extends Disposable {
 
 	private _hasFocus: boolean;
 	private _isHandling: boolean;
-	private _isDoingComposition: boolean;
-	private _selectionsWhenCompositionStarted: Selection[] | null;
+	private _compositionState: CompositionState | null;
 	private _columnSelectData: IColumnSelectData | null;
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
@@ -52,8 +51,7 @@ export class CursorsController extends Disposable {
 
 		this._hasFocus = false;
 		this._isHandling = false;
-		this._isDoingComposition = false;
-		this._selectionsWhenCompositionStarted = null;
+		this._compositionState = null;
 		this._columnSelectData = null;
 		this._autoClosedActions = [];
 		this._prevEditOperationType = EditOperationType.Other;
@@ -525,24 +523,22 @@ export class CursorsController extends Disposable {
 		}
 	}
 
-	public setIsDoingComposition(isDoingComposition: boolean): void {
-		this._isDoingComposition = isDoingComposition;
-	}
-
 	public getAutoClosedCharacters(): Range[] {
 		return AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
 	}
 
 	public startComposition(eventsCollector: ViewModelEventsCollector): void {
-		this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
+		this._compositionState = new CompositionState(this._model, this.getSelection());
 	}
 
 	public endComposition(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
+		const compositionInsertText = this._compositionState ? this._compositionState.deduceInsertedText(this._model, this.getSelection()) : null;
+		this._compositionState = null;
+
 		this._executeEdit(() => {
 			if (source === 'keyboard') {
 				// composition finishes, let's check if we need to auto complete if necessary.
-				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this._selectionsWhenCompositionStarted, this.getSelections(), this.getAutoClosedCharacters()));
-				this._selectionsWhenCompositionStarted = null;
+				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, compositionInsertText, this.getSelections(), this.getAutoClosedCharacters()));
 			}
 		}, eventsCollector, source);
 	}
@@ -559,7 +555,7 @@ export class CursorsController extends Disposable {
 					const chr = text.substr(offset, charLength);
 
 					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr));
 
 					offset += charLength;
 				}
@@ -1011,5 +1007,55 @@ class CommandExecutor {
 		}
 
 		return loserCursorsMap;
+	}
+}
+
+class CompositionLineState {
+	constructor(
+		public readonly text: string,
+		public readonly pos: number
+	) { }
+}
+
+class CompositionState {
+
+	private readonly _original: CompositionLineState | null;
+
+	private static _capture(textModel: ITextModel, selection: Selection): CompositionLineState | null {
+		if (!selection.isEmpty()) {
+			return null;
+		}
+		return new CompositionLineState(
+			textModel.getLineContent(selection.startLineNumber),
+			selection.startColumn - 1
+		);
+	}
+
+	constructor(textModel: ITextModel, selection: Selection) {
+		this._original = CompositionState._capture(textModel, selection);
+	}
+
+	/**
+	 * Returns the inserted text during this composition.
+	 * If the composition resulted in existing text being changed (i.e. not a pure insertion) it returns null.
+	 */
+	deduceInsertedText(textModel: ITextModel, selection: Selection): string | null {
+		if (!this._original) {
+			return null;
+		}
+		const current = CompositionState._capture(textModel, selection);
+		if (!current) {
+			return null;
+		}
+		const insertedTextLength = current.text.length - this._original.text.length;
+		if (insertedTextLength < 0) {
+			return null;
+		}
+		const originalPrefix = this._original.text.substring(0, this._original.pos);
+		const originalSuffix = this._original.text.substring(this._original.pos);
+		if (!current.text.startsWith(originalPrefix) || !current.text.endsWith(originalSuffix)) {
+			return null;
+		}
+		return current.text.substring(this._original.pos, this._original.pos + insertedTextLength);
 	}
 }
