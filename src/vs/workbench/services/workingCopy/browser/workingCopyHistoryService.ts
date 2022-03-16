@@ -28,6 +28,13 @@ class BrowserWorkingCopyHistoryModel extends WorkingCopyHistoryModel {
 		return entry;
 	}
 
+	override async updateEntry(entry: IWorkingCopyHistoryEntry, properties: { source: SaveSource }, token: CancellationToken): Promise<void> {
+		await super.updateEntry(entry, properties, token);
+		if (!token.isCancellationRequested) {
+			await this.store(); // need to store on each remove because we do not have long running shutdown support in web
+		}
+	}
+
 	override async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {
 		const removed = await super.removeEntry(entry, token);
 		if (removed && !token.isCancellationRequested) {
@@ -53,7 +60,7 @@ export class BrowserWorkingCopyHistoryService extends WorkingCopyHistoryService 
 	}
 
 	protected override createModel(resource: URI, historyHome: URI): WorkingCopyHistoryModel {
-		return new BrowserWorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidRemoveEntry, this.fileService, this.labelService, this.logService, this.configurationService);
+		return new BrowserWorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidChangeEntry, this._onDidRemoveEntry, this.fileService, this.labelService, this.logService, this.configurationService);
 	}
 }
 

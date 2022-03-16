@@ -78,6 +78,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 		// History changes
 		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry added */)));
+		this._register(this.workingCopyHistoryService.onDidChangeEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry changed */)));
 		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry removed */)));
 		this._register(this.workingCopyHistoryService.onDidRemoveAllEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all history */, true /* entry removed */)));
 

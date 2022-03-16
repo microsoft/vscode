@@ -21,6 +21,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { Codicon } from 'vs/base/common/codicons';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export const LOCAL_HISTORY_MENU_CONTEXT_VALUE = 'localHistory:item';
 export const LOCAL_HISTORY_MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LOCAL_HISTORY_MENU_CONTEXT_VALUE);
@@ -230,6 +231,45 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 
 //#endregion
 
+//#region Rename
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.localHistory.rename',
+			title: { value: localize('localHistory.rename', "Rename"), original: 'Rename' },
+			menu: {
+				id: MenuId.TimelineItemContext,
+				group: '3_edit',
+				order: 1,
+				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
+		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
+		if (entry) {
+			const inputBox = quickInputService.createInputBox();
+			inputBox.title = localize('renameLocalHistoryEntryTitle', "Rename Local History Entry");
+			inputBox.ignoreFocusOut = true;
+			inputBox.placeholder = localize('renameLocalHistoryPlaceholder', "Enter the new name of the local history entry");
+			inputBox.value = SaveSourceRegistry.getSourceLabel(entry.source) ?? entry.source;
+			inputBox.show();
+			inputBox.onDidAccept(() => {
+				if (inputBox.value) {
+					workingCopyHistoryService.updateEntry(entry, { source: inputBox.value }, CancellationToken.None);
+				}
+				inputBox.dispose();
+			});
+		}
+	}
+});
+
+//#endregion
+
 //#region Delete
 
 registerAction2(class extends Action2 {
@@ -240,7 +280,7 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '3_edit',
-				order: 1,
+				order: 2,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
 		});

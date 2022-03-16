@@ -173,6 +173,42 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(addEvents.length, 4);
 	});
 
+	test('renameEntry', async () => {
+		let changeEvents: IWorkingCopyHistoryEvent[] = [];
+		service.onDidChangeEntry(e => changeEvents.push(e));
+
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		const entry = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
+		await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
+		await addEntry({ resource: workingCopy1.resource, source: 'My Source' }, CancellationToken.None);
+
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 3);
+
+		await service.updateEntry(entry, { source: 'Hello Rename' }, CancellationToken.None);
+
+		assert.strictEqual(changeEvents.length, 1);
+		assert.strictEqual(changeEvents[0].entry, entry);
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries[0].source, 'Hello Rename');
+
+		// Simulate shutdown
+		const event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 3);
+		assert.strictEqual(entries[0].source, 'Hello Rename');
+	});
+
 	test('removeEntry', async () => {
 		let removeEvents: IWorkingCopyHistoryEvent[] = [];
 		service.onDidRemoveEntry(e => removeEvents.push(e));
@@ -199,6 +235,19 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 3);
+
+		// Simulate shutdown
+		const event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 3);
 	});
 
 	test('removeAll', async () => {
@@ -219,6 +268,8 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries.length, 2);
 
 		await service.removeAll(CancellationToken.None);
+
+		assert.strictEqual(removed, true);
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 0);
