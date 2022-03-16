@@ -94,7 +94,7 @@ export interface IProgressRunner {
 	done(): void;
 }
 
-export const emptyProgressRunner: IProgressRunner = Object.freeze({
+export const emptyProgressRunner = Object.freeze<IProgressRunner>({
 	total() { },
 	worked() { },
 	done() { }

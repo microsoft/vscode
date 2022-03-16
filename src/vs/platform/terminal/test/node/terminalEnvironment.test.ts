@@ -26,7 +26,7 @@ suite('platform - terminalEnvironment', () => {
 				? `${repoRoot}\\out\\vs\\workbench\\contrib\\terminal\\browser\\media\\shellIntegration.ps1`
 				: `${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration.ps1`;
 			suite('should override args', () => {
-				const enabledExpectedResult: IShellIntegrationConfigInjection = Object.freeze({
+				const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 					newArgs: [
 						'-noexit',
 						'-command',
@@ -53,7 +53,7 @@ suite('platform - terminalEnvironment', () => {
 				});
 			});
 			suite('should incorporate login arg', () => {
-				const enabledExpectedResult: IShellIntegrationConfigInjection = Object.freeze({
+				const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 					newArgs: [
 						'-l',
 						'-noexit',
@@ -125,7 +125,7 @@ suite('platform - terminalEnvironment', () => {
 			suite('bash', () => {
 				suite('should override args', () => {
 					test('when undefined, [], empty string', () => {
-						const enabledExpectedResult: IShellIntegrationConfigInjection = Object.freeze({
+						const enabledExpectedResult = Object.freeze<IShellIntegrationConfigInjection>({
 							newArgs: [
 								'--init-file',
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
