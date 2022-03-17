@@ -6271,9 +6271,14 @@ declare namespace monaco.languages {
 		 * The text can also be a snippet. In that case, a preview with default parameters is shown.
 		 * When accepting the suggestion, the full snippet is inserted.
 		*/
-		readonly text: string | {
+		readonly insertText: string | {
 			snippet: string;
 		};
+		/**
+		 * A text that is used to decide if this inline completion should be shown.
+		 * An inline completion is shown if the text to replace is a subword of the filter text.
+		 */
+		readonly filterText?: string;
 		/**
 		 * The range to replace.
 		 * Must begin and end on the same line.
