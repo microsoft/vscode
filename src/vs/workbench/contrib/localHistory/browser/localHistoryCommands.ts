@@ -15,7 +15,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { basename, basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { SaveSourceRegistry } from 'vs/workbench/common/editor';
+import { SaveSourceRegistry, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -99,13 +99,6 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
-
-async function openEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditorService): Promise<void> {
-	await editorService.openEditor({
-		resource: LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name }),
-		label: localize('localHistoryEditorLabel', "{0} ({1} • {2})", entry.workingCopy.name, SaveSourceRegistry.getSourceLabel(entry.source), toLocalHistoryEntryDateLabel(entry.timestamp))
-	});
-}
 
 //#endregion
 
@@ -296,6 +289,9 @@ async function restore(accessor: ServicesAccessor, item: ITimelineCommandArgumen
 			resource: entry.workingCopy.resource,
 			source: restoreSaveSource
 		}, CancellationToken.None);
+
+		// Close source
+		await closeEntry(entry, editorService);
 	}
 }
 
@@ -443,6 +439,7 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, item: ITimelineCommandArgument): Promise<void> {
 		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
+		const editorService = accessor.get(IEditorService);
 		const dialogService = accessor.get(IDialogService);
 
 		const { entry } = await findLocalHistoryEntry(workingCopyHistoryService, item);
@@ -462,6 +459,9 @@ registerAction2(class extends Action2 {
 
 			// Remove via service
 			await workingCopyHistoryService.removeEntry(entry, CancellationToken.None);
+
+			// Close any opened editors
+			await closeEntry(entry, editorService);
 		}
 	}
 });
@@ -503,6 +503,22 @@ registerAction2(class extends Action2 {
 //#endregion
 
 //#region Helpers
+
+async function openEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditorService): Promise<void> {
+	const resource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name });
+
+	await editorService.openEditor({
+		resource,
+		label: localize('localHistoryEditorLabel', "{0} ({1} • {2})", entry.workingCopy.name, SaveSourceRegistry.getSourceLabel(entry.source), toLocalHistoryEntryDateLabel(entry.timestamp))
+	});
+}
+
+async function closeEntry(entry: IWorkingCopyHistoryEntry, editorService: IEditorService): Promise<void> {
+	const resource = LocalHistoryFileSystemProvider.toLocalHistoryFileSystem({ location: entry.location, associatedResource: entry.workingCopy.resource, label: entry.workingCopy.name });
+
+	const editors = editorService.findEditors(resource, { supportSideBySide: SideBySideEditor.ANY });
+	await editorService.closeEditors(editors, { preserveFocus: true });
+}
 
 export function toDiffEditorArguments(entry: IWorkingCopyHistoryEntry, resource: URI): unknown[];
 export function toDiffEditorArguments(previousEntry: IWorkingCopyHistoryEntry, entry: IWorkingCopyHistoryEntry): unknown[];
