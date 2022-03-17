@@ -121,6 +121,7 @@ export type CommentThreadChanges = Partial<{
 	comments: CommentChanges[];
 	collapseState: languages.CommentThreadCollapsibleState;
 	canReply: boolean;
+	state: languages.CommentThreadState;
 }>;
 
 export interface MainThreadCommentsShape extends IDisposable {
