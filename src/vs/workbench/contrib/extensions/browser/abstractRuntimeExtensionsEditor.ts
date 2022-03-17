@@ -11,7 +11,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IExtensionService, IExtensionsStatus, IExtensionHostProfile, ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionsStatus, IExtensionHostProfile, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
@@ -36,6 +36,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 interface IExtensionProfileInformation {
 	/**
@@ -80,6 +81,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
 		super(AbstractRuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -370,7 +372,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				let extraLabel: string | null = null;
-				if (element.status.runningLocation === ExtensionRunningLocation.LocalWebWorker) {
+				if (element.status.runningLocation && element.status.runningLocation.equals(new LocalWebWorkerRunningLocation())) {
 					extraLabel = `$(globe) web worker`;
 				} else if (element.description.extensionLocation.scheme === Schemas.vscodeRemote) {
 					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
@@ -379,6 +381,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 					} else {
 						extraLabel = `$(remote) ${element.description.extensionLocation.authority}`;
 					}
+				} else if (element.status.runningLocation && element.status.runningLocation.affinity > 0) {
+					extraLabel = `$(server-process) local process ${element.status.runningLocation.affinity + 1}`;
 				}
 
 				if (extraLabel) {
@@ -427,11 +431,21 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 			const actions: IAction[] = [];
 
+			actions.push(new Action(
+				'runtimeExtensionsEditor.action.copyId',
+				nls.localize('copy id', "Copy id ({0})", e.element!.description.identifier.value),
+				undefined,
+				true,
+				() => {
+					this._clipboardService.writeText(e.element!.description.identifier.value);
+				}
+			));
+
 			const reportExtensionIssueAction = this._createReportExtensionIssueAction(e.element);
 			if (reportExtensionIssueAction) {
 				actions.push(reportExtensionIssueAction);
-				actions.push(new Separator());
 			}
+			actions.push(new Separator());
 
 			if (e.element!.marketplaceInfo) {
 				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));

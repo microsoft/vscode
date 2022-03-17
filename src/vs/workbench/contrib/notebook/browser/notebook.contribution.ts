@@ -103,6 +103,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { NotebookInfo } from 'vs/editor/common/languageFeatureRegistry';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -617,10 +618,10 @@ class NotebookLanguageSelectorScoreRefine {
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		languageFeaturesService.setNotebookTypeResolver(this._getNotebookType.bind(this));
+		languageFeaturesService.setNotebookTypeResolver(this._getNotebookInfo.bind(this));
 	}
 
-	private _getNotebookType(uri: URI): string | undefined {
+	private _getNotebookInfo(uri: URI): NotebookInfo | undefined {
 		const cellUri = CellUri.parse(uri);
 		if (!cellUri) {
 			return undefined;
@@ -629,7 +630,10 @@ class NotebookLanguageSelectorScoreRefine {
 		if (!notebook) {
 			return undefined;
 		}
-		return notebook.viewType;
+		return {
+			uri: notebook.uri,
+			type: notebook.viewType
+		};
 	}
 }
 

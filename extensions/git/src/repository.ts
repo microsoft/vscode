@@ -1273,7 +1273,7 @@ export class Repository implements Disposable {
 		const diffEditorTabsToClose: Tab[] = [];
 
 		// Index
-		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
+		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
 		diffEditorTabsToClose.push(...tabs
 			.filter(t =>
 				t.resource && t.resource.scheme === 'git' && t.kind === TabKind.Diff &&
@@ -1287,7 +1287,7 @@ export class Repository implements Disposable {
 				t.additionalResourcesAndViewTypes.find(r => r.resource!.scheme === 'git')));
 
 		// Close editors
-		diffEditorTabsToClose.forEach(t => t.close());
+		diffEditorTabsToClose.forEach(t => t.close(false));
 	}
 
 	async branch(name: string, _checkout: boolean, _ref?: string): Promise<void> {

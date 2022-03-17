@@ -346,13 +346,13 @@ export interface IViewContainerModel {
 	readonly onDidMoveVisibleViewDescriptors: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef }>;
 
 	isVisible(id: string): boolean;
-	setVisible(id: string, visible: boolean, size?: number): void;
+	setVisible(id: string, visible: boolean): void;
 
 	isCollapsed(id: string): boolean;
 	setCollapsed(id: string, collapsed: boolean): void;
 
 	getSize(id: string): number | undefined;
-	setSize(id: string, size: number): void;
+	setSizes(newSizes: readonly { id: string; size: number }[]): void;
 
 	move(from: string, to: string): void;
 }

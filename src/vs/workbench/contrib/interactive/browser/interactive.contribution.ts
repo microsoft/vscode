@@ -688,7 +688,8 @@ registerThemingParticipant((theme) => {
 	registerColor('interactive.activeCodeBorder', {
 		dark: theme.getColor(peekViewBorder) ?? '#007acc',
 		light: theme.getColor(peekViewBorder) ?? '#007acc',
-		hc: contrastBorder
+		hcDark: contrastBorder,
+		hcLight: contrastBorder
 	}, localize('interactive.activeCodeBorder', 'The border color for the current interactive code cell when the editor has focus.'));
 
 	// registerColor('interactive.activeCodeBackground', {
@@ -700,7 +701,8 @@ registerThemingParticipant((theme) => {
 	registerColor('interactive.inactiveCodeBorder', {
 		dark: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
 		light: theme.getColor(listInactiveSelectionBackground) ?? transparent(listInactiveSelectionBackground, 1),
-		hc: PANEL_BORDER
+		hcDark: PANEL_BORDER,
+		hcLight: PANEL_BORDER
 	}, localize('interactive.inactiveCodeBorder', 'The border color for the current interactive code cell when the editor does not have focus.'));
 
 	// registerColor('interactive.inactiveCodeBackground', {

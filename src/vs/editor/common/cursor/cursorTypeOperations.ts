@@ -821,30 +821,13 @@ export class TypeOperations {
 	/**
 	 * This is very similar with typing, but the character is already in the text buffer!
 	 */
-	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selectionsWhenCompositionStarted: Selection[] | null, selections: Selection[], autoClosedCharacters: Range[]): EditOperationResult | null {
-		if (!selectionsWhenCompositionStarted || Selection.selectionsArrEqual(selectionsWhenCompositionStarted, selections)) {
-			// no content was typed
+	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, compositionInsertText: string | null, selections: Selection[], autoClosedCharacters: Range[]): EditOperationResult | null {
+		if (!compositionInsertText || compositionInsertText.length === 0) {
+			// no content was typed or composition was not a pure insertion
 			return null;
 		}
 
-		let ch: string | null = null;
-		// extract last typed character
-		for (const selection of selections) {
-			if (!selection.isEmpty()) {
-				return null;
-			}
-			const position = selection.getPosition();
-			const currentChar = model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column));
-			if (ch === null) {
-				ch = currentChar;
-			} else if (ch !== currentChar) {
-				return null;
-			}
-		}
-
-		if (!ch) {
-			return null;
-		}
+		const ch = compositionInsertText.charAt(compositionInsertText.length - 1);
 
 		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
 			// Unfortunately, the close character is at this point "doubled", so we need to delete it...
@@ -894,7 +877,7 @@ export class TypeOperations {
 			}
 		}
 
-		if (!isDoingComposition && this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
+		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
 			return this._runAutoClosingOvertype(prevEditOperationType, config, model, selections, ch);
 		}
 

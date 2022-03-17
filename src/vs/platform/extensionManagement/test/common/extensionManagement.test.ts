@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { EXTENSION_IDENTIFIER_PATTERN, TargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 
 suite('Extension Identifier Pattern', () => {
 

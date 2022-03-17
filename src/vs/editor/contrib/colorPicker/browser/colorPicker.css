@@ -24,6 +24,7 @@
 }
 
 .hc-black .colorpicker-color-decoration,
+.hc-light .colorpicker-color-decoration,
 .vs-dark .colorpicker-color-decoration {
 	border: solid 0.1em #eee;
 }

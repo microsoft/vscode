@@ -25,6 +25,7 @@ import { localize } from 'vs/nls';
 import { ignoreProcessNames } from 'vs/platform/terminal/node/childProcessMonitor';
 import { TerminalAutoResponder } from 'vs/platform/terminal/common/terminalAutoResponder';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
+import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 
 type WorkspaceId = string;
 
@@ -500,7 +501,8 @@ export class PersistentTerminalProcess extends Disposable {
 			rows,
 			reconnectConstants.scrollback,
 			unicodeVersion,
-			reviveBuffer
+			reviveBuffer,
+			this._logService
 		);
 		this._fixedDimensions = fixedDimensions;
 		this._orphanQuestionBarrier = null;
@@ -723,35 +725,25 @@ export class PersistentTerminalProcess extends Disposable {
 }
 
 class XtermSerializer implements ITerminalSerializer {
-	private _xterm: XtermTerminal;
+	private readonly _xterm: XtermTerminal;
+	private readonly _shellIntegrationAddon: ShellIntegrationAddon;
 	private _unicodeAddon?: XtermUnicode11Addon;
-	private _shellIntegrationEnabled: boolean = false;
 
 	constructor(
 		cols: number,
 		rows: number,
 		scrollback: number,
 		unicodeVersion: '6' | '11',
-		reviveBuffer: string | undefined
+		reviveBuffer: string | undefined,
+		logService: ILogService
 	) {
 		this._xterm = new XtermTerminal({ cols, rows, scrollback });
 		if (reviveBuffer) {
 			this._xterm.writeln(reviveBuffer);
-			if (this._shellIntegrationEnabled) {
-				this._xterm.write('\x1b033]133;E\x1b007');
-			}
 		}
-		this._xterm.parser.registerOscHandler(133, (data => this._handleShellIntegration(data)));
 		this.setUnicodeVersion(unicodeVersion);
-	}
-
-	private _handleShellIntegration(data: string): boolean {
-		const [command,] = data.split(';');
-		if (command === 'E') {
-			this._shellIntegrationEnabled = true;
-			return true;
-		}
-		return false;
+		this._shellIntegrationAddon = new ShellIntegrationAddon(logService);
+		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 
 	handleData(data: string): void {
@@ -778,7 +770,8 @@ class XtermSerializer implements ITerminalSerializer {
 					rows: this._xterm.getOption('rows'),
 					data: serialized
 				}
-			]
+			],
+			commands: this._shellIntegrationAddon.serializeCommands()
 		};
 	}
 
