@@ -20,6 +20,7 @@ import { Translations, ILog, ExtensionScanner, ExtensionScannerInput, IExtension
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 interface IExtensionCacheData {
 	input: ExtensionScannerInput;
@@ -54,7 +55,8 @@ export class CachedExtensionScanner {
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IHostService private readonly _hostService: IHostService,
 		@IProductService private readonly _productService: IProductService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService
 	) {
 		this.scannedExtensions = new Promise<IExtensionDescription[]>((resolve, reject) => {
 			this._scannedExtensionsResolve = resolve;
@@ -108,7 +110,8 @@ export class CachedExtensionScanner {
 		const date = this._productService.date;
 		const devMode = !this._environmentService.isBuilt;
 		const locale = platform.language;
-		const input = new ExtensionScannerInput(version, date, commit, locale, devMode, path, isBuiltin, false, translations);
+		const targetPlatform = await this._extensionManagementService.getTargetPlatform();
+		const input = new ExtensionScannerInput(version, date, commit, locale, devMode, path, isBuiltin, false, targetPlatform, translations);
 		return ExtensionScanner.scanSingleExtension(input, this._createExtensionScannerHost(log));
 	}
 
@@ -247,7 +250,7 @@ export class CachedExtensionScanner {
 		return Object.create(null);
 	}
 
-	private _scanInstalledExtensions(
+	private async _scanInstalledExtensions(
 		log: ILog,
 		translations: Translations
 	): Promise<{ system: IExtensionDescription[]; user: IExtensionDescription[]; development: IExtensionDescription[] }> {
@@ -257,10 +260,11 @@ export class CachedExtensionScanner {
 		const date = this._productService.date;
 		const devMode = !this._environmentService.isBuilt;
 		const locale = platform.language;
+		const targetPlatform = await this._extensionManagementService.getTargetPlatform();
 
 		const builtinExtensions = this._scanExtensionsWithCache(
 			BUILTIN_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, date, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
+			new ExtensionScannerInput(version, date, commit, locale, devMode, getSystemExtensionsRoot(), true, false, targetPlatform, translations),
 			log
 		);
 
@@ -273,7 +277,7 @@ export class CachedExtensionScanner {
 			const controlFile = this._fileService.readFile(URI.file(controlFilePath))
 				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw.value.toString()), () => ({} as any));
 
-			const input = new ExtensionScannerInput(version, date, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
+			const input = new ExtensionScannerInput(version, date, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, targetPlatform, translations);
 			const extraBuiltinExtensions = Promise.all([builtInExtensions, controlFile])
 				.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
 				.then(resolver => ExtensionScanner.scanExtensions(input, this._createExtensionScannerHost(log), resolver));
@@ -283,7 +287,7 @@ export class CachedExtensionScanner {
 
 		const userExtensions = (this._scanExtensionsWithCache(
 			USER_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, date, commit, locale, devMode, this._environmentService.extensionsPath, false, false, translations),
+			new ExtensionScannerInput(version, date, commit, locale, devMode, this._environmentService.extensionsPath, false, false, targetPlatform, translations),
 			log
 		));
 
@@ -292,7 +296,7 @@ export class CachedExtensionScanner {
 		if (this._environmentService.isExtensionDevelopment && this._environmentService.extensionDevelopmentLocationURI) {
 			const extDescsP = this._environmentService.extensionDevelopmentLocationURI.filter(extLoc => extLoc.scheme === Schemas.file).map(extLoc => {
 				return ExtensionScanner.scanOneOrMultipleExtensions(
-					new ExtensionScannerInput(version, date, commit, locale, devMode, originalFSPath(extLoc), false, true, translations),
+					new ExtensionScannerInput(version, date, commit, locale, devMode, originalFSPath(extLoc), false, true, targetPlatform, translations),
 					this._createExtensionScannerHost(log)
 				);
 			});
