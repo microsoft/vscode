@@ -156,7 +156,7 @@ export class CellComments extends CellPart {
 	override updateInternalLayoutNow(element: ICellViewModel): void {
 		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
 			const layoutInfo = (element as CodeCellViewModel).layoutInfo;
-			this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight} px`;
+			this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
 		}
 	}
 }
