@@ -644,8 +644,11 @@ export interface IEditorTabDto {
 }
 
 export interface IExtHostEditorTabsShape {
+	// Accepts a whole new model
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void;
+	// Only when group property changes (not the tabs inside)
 	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto): void;
+	// Only when tab property changes
 	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto): void;
 }
 

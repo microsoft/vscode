@@ -96,8 +96,8 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const activeGroupId = this._editorGroupsService.activeGroup.id;
 		const activeGroup = this._groupLookup.get(activeGroupId);
 		if (activeGroup) {
+			// Ok not to loop as exthost accepts last active group
 			activeGroup.isActive = true;
-			// TODO @lramos15 Should we make this more efficient to not "update" all tabs within the group?
 			this._proxy.$acceptTabGroupUpdate(activeGroup);
 		}
 	}

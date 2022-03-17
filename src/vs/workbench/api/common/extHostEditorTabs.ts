@@ -24,13 +24,11 @@ class ExtHostEditorTabGroup {
 	private _apiObject: vscode.TabGroup | undefined;
 	private _dto: IEditorTabGroupDto;
 	private _tabs: ExtHostEditorTab[] = [];
-	private _proxy: MainThreadEditorTabsShape;
 	private _activeTabId: string = '';
 	private _activeGroupIdGetter: () => number | undefined;
 
 	constructor(dto: IEditorTabGroupDto, proxy: MainThreadEditorTabsShape, activeGroupIdGetter: () => number | undefined) {
 		this._dto = dto;
-		this._proxy = proxy;
 		this._activeGroupIdGetter = activeGroupIdGetter;
 		// Construct all tabs from the given dto
 		for (const tabDto of dto.tabs) {
@@ -70,7 +68,6 @@ class ExtHostEditorTabGroup {
 
 	acceptGroupDtoUpdate(dto: IEditorTabGroupDto) {
 		this._dto = dto;
-		this._tabs = dto.tabs.map(tab => new ExtHostEditorTab(tab, this._proxy, this.activeTabId));
 	}
 
 	acceptTabDtoUpdate(dto: IEditorTabDto) {
