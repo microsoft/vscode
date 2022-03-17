@@ -7,10 +7,24 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
+	// TODO@API remove
 	export enum TabKind {
 		Singular = 0,
 		Diff = 1,
 		SidebySide = 2
+	}
+
+	// TODO@API names
+	export class TextTabInput {
+		readonly uri: Uri;
+		constructor(uri: Uri);
+	}
+
+	// TODO@API names
+	export class TextDiffTabInput {
+		readonly original: Uri;
+		readonly modified: Uri;
+		constructor(original: Uri, modified: Uri);
 	}
 
 	/**
@@ -28,10 +42,15 @@ declare module 'vscode' {
 		// TODO@API point to TabGroup instead?
 		readonly viewColumn: ViewColumn;
 
+
+		// TODO@API NAME: optional
+		readonly input: TextTabInput | TextDiffTabInput | unknown;
+
 		/**
 		 * The resource represented by the tab if available.
 		 * Note: Not all tabs have a resource associated with them.
 		 */
+		// TODO@API remove
 		readonly resource: Uri | undefined;
 
 		/**
@@ -39,6 +58,7 @@ declare module 'vscode' {
 		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
+		// TODO@API remove
 		readonly viewType: string | undefined;
 
 		/**
@@ -46,6 +66,7 @@ declare module 'vscode' {
 		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
 		 * always be at index 0.
 		 */
+		// TODO@API remove
 		readonly additionalResourcesAndViewTypes: readonly {
 			readonly resource: Uri | undefined;
 			readonly viewType: string | undefined;
@@ -70,6 +91,7 @@ declare module 'vscode' {
 		/**
 		 * Indicates the type of tab it is.
 		 */
+		// TODO@API remove
 		readonly kind: TabKind;
 
 		/**

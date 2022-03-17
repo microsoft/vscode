@@ -7,12 +7,28 @@ import type * as vscode from 'vscode';
 import assert = require('assert');
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
-import { IEditorTabDto, MainThreadEditorTabsShape, TabKind } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, MainThreadEditorTabsShape, TabInputKind, TabKind } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 
 suite('ExtHostEditorTabs', function () {
 
+	const defaultTabDto: IEditorTabDto = {
+		id: 'uniquestring',
+		input: { kind: TabInputKind.UnknownInput },
+		resource: URI.parse('file://abc/def.txt'),
+		isActive: true,
+		isDirty: true,
+		isPinned: true,
+		label: 'label1',
+		viewColumn: 0,
+		additionalResourcesAndViewTypes: [],
+		kind: TabKind.Singular
+	};
+
+	function createTabDto(dto?: Partial<IEditorTabDto>): IEditorTabDto {
+		return { ...defaultTabDto, ...dto };
+	}
 
 	test('empty', function () {
 
@@ -34,7 +50,7 @@ suite('ExtHostEditorTabs', function () {
 			})
 		);
 
-		const tab: IEditorTabDto = {
+		const tab: IEditorTabDto = createTabDto({
 			id: 'uniquestring',
 			isActive: true,
 			isDirty: true,
@@ -43,7 +59,7 @@ suite('ExtHostEditorTabs', function () {
 			viewColumn: 0,
 			additionalResourcesAndViewTypes: [],
 			kind: TabKind.Singular
-		};
+		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{
 			isActive: true,
@@ -122,7 +138,7 @@ suite('ExtHostEditorTabs', function () {
 				// override/implement $moveTab or $closeTab
 			})
 		);
-		const tab: IEditorTabDto = {
+		const tab = createTabDto({
 			id: 'uniquestring',
 			isActive: true,
 			isDirty: true,
@@ -133,7 +149,7 @@ suite('ExtHostEditorTabs', function () {
 			viewColumn: 0,
 			additionalResourcesAndViewTypes: [],
 			kind: TabKind.Singular
-		};
+		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{
 			isActive: true,
@@ -218,18 +234,7 @@ suite('ExtHostEditorTabs', function () {
 				// override/implement $moveTab or $closeTab
 			})
 		);
-		const tabDto: IEditorTabDto = {
-			id: 'uniquestring',
-			isActive: true,
-			isDirty: true,
-			isPinned: true,
-			label: 'label1',
-			resource: URI.parse('file://abc/def.txt'),
-			editorId: 'default',
-			viewColumn: 0,
-			additionalResourcesAndViewTypes: [],
-			kind: TabKind.Singular
-		};
+		const tabDto = createTabDto();
 
 		// single dirty tab
 
@@ -268,7 +273,7 @@ suite('ExtHostEditorTabs', function () {
 				// override/implement $moveTab or $closeTab
 			})
 		);
-		const tabDtoAAA: IEditorTabDto = {
+		const tabDtoAAA = createTabDto({
 			id: 'AAA',
 			isActive: true,
 			isDirty: true,
@@ -279,9 +284,9 @@ suite('ExtHostEditorTabs', function () {
 			viewColumn: 0,
 			additionalResourcesAndViewTypes: [],
 			kind: TabKind.Singular
-		};
+		});
 
-		const tabDtoBBB: IEditorTabDto = {
+		const tabDtoBBB = createTabDto({
 			id: 'BBB',
 			isActive: false,
 			isDirty: true,
@@ -292,7 +297,7 @@ suite('ExtHostEditorTabs', function () {
 			viewColumn: 0,
 			additionalResourcesAndViewTypes: [],
 			kind: TabKind.Singular
-		};
+		});
 
 		// single dirty tab
 
@@ -354,7 +359,7 @@ suite('ExtHostEditorTabs', function () {
 				}
 			})
 		);
-		const tab: IEditorTabDto = {
+		const tab: IEditorTabDto = createTabDto({
 			id: 'uniquestring',
 			isActive: true,
 			isDirty: true,
@@ -365,7 +370,7 @@ suite('ExtHostEditorTabs', function () {
 			viewColumn: 0,
 			additionalResourcesAndViewTypes: [],
 			kind: TabKind.Singular
-		};
+		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{
 			isActive: true,

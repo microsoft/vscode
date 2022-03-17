@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind, MainThreadEditorTabsShape, AnyInputDto, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { EditorResourceAccessor, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -13,6 +13,9 @@ import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEdit
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 
 interface TabInfo {
@@ -64,8 +67,9 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			id: this._generateTabId(editor, group.id),
 			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 			label: editor.getName(),
-			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 			editorId,
+			input: this._editorInputToDto(editor),
+			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 			kind: tabKind,
 			additionalResourcesAndViewTypes: [],
 			isPinned: group.isSticky(editorIndex),
@@ -77,6 +81,52 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			tab.additionalResourcesAndViewTypes.push({ resource: EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY }), viewId: editor.primary.editorId ?? editor.editorId });
 		}
 		return tab;
+	}
+
+	private _editorInputToDto(editor: EditorInput): AnyInputDto {
+
+		if (editor instanceof AbstractTextResourceEditorInput) {
+			return {
+				kind: TabInputKind.TextInput,
+				uri: editor.resource
+			};
+		}
+
+		if (editor instanceof NotebookEditorInput) {
+			return {
+				kind: TabInputKind.NotebookInput,
+				notebookType: editor.viewType,
+				uri: editor.resource
+			};
+		}
+
+		if (editor instanceof CustomEditorInput) {
+			return {
+				kind: TabInputKind.CustomEditorInput,
+				viewType: editor.viewType,
+				uri: editor.resource,
+			};
+		}
+
+		if (editor instanceof DiffEditorInput) {
+			if (editor.modified instanceof AbstractTextResourceEditorInput && editor.original instanceof AbstractTextResourceEditorInput) {
+				return {
+					kind: TabInputKind.TextDiffInput,
+					modified: editor.modified.resource,
+					original: editor.original.resource
+				};
+			}
+			if (editor.modified instanceof NotebookEditorInput && editor.original instanceof NotebookEditorInput) {
+				return {
+					kind: TabInputKind.NotebookDiffInput,
+					notebookType: editor.original.viewType,
+					modified: editor.modified.resource,
+					original: editor.original.resource
+				};
+			}
+		}
+
+		return { kind: TabInputKind.UnknownInput };
 	}
 
 	/**

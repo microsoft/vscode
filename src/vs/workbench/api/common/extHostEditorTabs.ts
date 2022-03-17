@@ -5,11 +5,11 @@
 
 import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ViewColumn } from 'vs/workbench/api/common/extHostTypes';
+import { TextDiffTabInput, TextTabInput, ViewColumn } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -19,17 +19,19 @@ export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 
 export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostEditorTabs');
 
+type AnyTab = TextTabInput | TextDiffTabInput;
 
 class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
-	private _dto: IEditorTabDto;
-	private _proxy: MainThreadEditorTabsShape;
-	private _activeTabIdGetter: () => string;
+	private _dto!: IEditorTabDto;
+	private _input: AnyTab | undefined;
+	private readonly _proxy: MainThreadEditorTabsShape;
+	private readonly _activeTabIdGetter: () => string;
 
 	constructor(dto: IEditorTabDto, proxy: MainThreadEditorTabsShape, activeTabIdGetter: () => string) {
-		this._dto = dto;
 		this._proxy = proxy;
 		this._activeTabIdGetter = activeTabIdGetter;
+		this.acceptDtoUpdate(dto);
 	}
 
 	get apiObject(): vscode.Tab {
@@ -43,6 +45,9 @@ class ExtHostEditorTab {
 				},
 				get label() {
 					return that._dto.label;
+				},
+				get input() {
+					return that._input;
 				},
 				get resource() {
 					return URI.revive(that._dto.resource);
@@ -80,8 +85,19 @@ class ExtHostEditorTab {
 
 	acceptDtoUpdate(dto: IEditorTabDto) {
 		this._dto = dto;
+		this._input = this._initInput();
 	}
 
+	private _initInput() {
+		switch (this._dto.input.kind) {
+			case TabInputKind.TextInput:
+				return new TextTabInput(URI.revive(this._dto.input.uri));
+			case TabInputKind.TextDiffInput:
+				return new TextDiffTabInput(URI.revive(this._dto.input.original), URI.revive(this._dto.input.modified));
+			// TODO@lramos15 support all the cases
+		}
+		return undefined;
+	}
 }
 
 class ExtHostEditorTabGroup {

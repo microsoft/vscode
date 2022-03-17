@@ -1325,6 +1325,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			WorkspaceTrustState: extHostTypes.WorkspaceTrustState,
 			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
 			QuickPickItemKind: extHostTypes.QuickPickItemKind,
+			TextTabInput: extHostTypes.TextTabInput,
+			TextDiffTabInput: extHostTypes.TextDiffTabInput,
 		};
 	};
 }
