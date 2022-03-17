@@ -49,20 +49,20 @@ export class CellComments extends CellPart {
 		}
 
 		this._initialized = true;
-		const commentThread = await this._getCommentThreadForCell(element);
+		const info = await this._getCommentThreadForCell(element);
 
-		if (commentThread) {
-			this._createCommentTheadWidget(commentThread);
+		if (info) {
+			this._createCommentTheadWidget(info.owner, info.thread);
 		}
 	}
 
-	private _createCommentTheadWidget(commentThread: languages.CommentThread<ICellRange>) {
+	private _createCommentTheadWidget(owner: string, commentThread: languages.CommentThread<ICellRange>) {
 		this._commentThreadWidget?.dispose();
 		this.commentTheadDisposables.clear();
 		this._commentThreadWidget = this.instantiationService.createInstance(
 			CommentThreadWidget,
 			this.container,
-			this.notebookEditor.getId(),
+			owner,
 			this.notebookEditor.textModel!.uri,
 			this.contextKeyService,
 			this.instantiationService,
@@ -92,9 +92,9 @@ export class CellComments extends CellPart {
 	private _bindListeners() {
 		this.cellDisposables.add(this.commentService.onDidUpdateCommentThreads(async () => {
 			if (this.currentElement) {
-				const commentThread = await this._getCommentThreadForCell(this.currentElement);
-				if (!this._commentThreadWidget && commentThread) {
-					this._createCommentTheadWidget(commentThread);
+				const info = await this._getCommentThreadForCell(this.currentElement);
+				if (!this._commentThreadWidget && info) {
+					this._createCommentTheadWidget(info.owner, info.thread);
 					const layoutInfo = (this.currentElement as CodeCellViewModel).layoutInfo;
 					this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
 
@@ -104,8 +104,8 @@ export class CellComments extends CellPart {
 				}
 
 				if (this._commentThreadWidget) {
-					if (commentThread) {
-						this._commentThreadWidget.updateCommentThread(commentThread);
+					if (info) {
+						this._commentThreadWidget.updateCommentThread(info.thread);
 						this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
 					} else {
 						this._commentThreadWidget.dispose();
@@ -116,11 +116,11 @@ export class CellComments extends CellPart {
 		}));
 	}
 
-	private async _getCommentThreadForCell(element: ICellViewModel) {
+	private async _getCommentThreadForCell(element: ICellViewModel): Promise<{ thread: languages.CommentThread<ICellRange>; owner: string } | null> {
 		if (this.notebookEditor.hasModel()) {
 			const commentInfos = coalesce(await this.commentService.getNotebookComments(element.uri));
 			if (commentInfos.length && commentInfos[0].threads.length) {
-				return commentInfos[0].threads[0];
+				return { owner: commentInfos[0].owner, thread: commentInfos[0].threads[0] };
 			}
 		}
 

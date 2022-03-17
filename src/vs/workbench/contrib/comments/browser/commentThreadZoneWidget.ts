@@ -14,7 +14,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
@@ -80,7 +80,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private readonly _globalToDispose = new DisposableStore();
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _contextKeyService: IContextKeyService;
-	private _commentThreadContextValue: IContextKey<string | undefined>;
 	private _scopedInstatiationService: IInstantiationService;
 
 	public get owner(): string {
@@ -109,14 +108,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			[IContextKeyService, this._contextKeyService]
 		));
 
-		this._commentThreadContextValue = this._contextKeyService.createKey<string | undefined>('commentThread', undefined);
-		this._commentThreadContextValue.set(_commentThread.contextValue);
-
-		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
 		const controller = this.commentService.getCommentController(this._owner);
-
 		if (controller) {
-			commentControllerKey.set(controller.contextValue);
 			this._commentOptions = controller.options;
 		}
 
@@ -277,12 +270,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.show({ lineNumber, column: 1 }, 2);
 		} else {
 			this.hide();
-		}
-
-		if (this._commentThread.contextValue) {
-			this._commentThreadContextValue.set(this._commentThread.contextValue);
-		} else {
-			this._commentThreadContextValue.reset();
 		}
 	}
 

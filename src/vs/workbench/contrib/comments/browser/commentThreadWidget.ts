@@ -36,6 +36,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _commentThreadDisposables: IDisposable[] = [];
 	private _threadIsEmpty: IContextKey<boolean>;
 	private _styleElement: HTMLStyleElement;
+	private _commentThreadContextValue: IContextKey<string | undefined>;
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
@@ -94,6 +95,17 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		) as unknown as CommentThreadBody<T>;
 
 		this._styleElement = dom.createStyleSheet(this.container);
+
+
+		this._commentThreadContextValue = this._contextKeyService.createKey<string | undefined>('commentThread', undefined);
+		this._commentThreadContextValue.set(_commentThread.contextValue);
+
+		const commentControllerKey = this._contextKeyService.createKey<string | undefined>('commentController', undefined);
+		const controller = this.commentService.getCommentController(this._owner);
+
+		if (controller) {
+			commentControllerKey.set(controller.contextValue);
+		}
 	}
 
 	updateCommentThread(commentThread: languages.CommentThread<T>) {
@@ -109,6 +121,12 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._threadIsEmpty.set(!this._body.length);
 		this._header.updateCommentThread(commentThread);
 		this._commentReply?.updateCommentThread(commentThread);
+
+		if (this._commentThread.contextValue) {
+			this._commentThreadContextValue.set(this._commentThread.contextValue);
+		} else {
+			this._commentThreadContextValue.reset();
+		}
 	}
 
 	display(lineHeight: number) {
