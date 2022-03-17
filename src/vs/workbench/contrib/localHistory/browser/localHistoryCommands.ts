@@ -21,14 +21,13 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { Codicon } from 'vs/base/common/codicons';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 
 const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
 
@@ -217,7 +216,7 @@ registerAction2(class extends Action2 {
 				order: -10,
 				when: ResourceContextKey.Scheme.isEqualTo(LocalHistoryFileSystemProvider.SCHEMA)
 			},
-			icon: Codicon.check
+			icon: LOCAL_HISTORY_ICON_RESTORE
 		});
 	}
 	async run(accessor: ServicesAccessor, uri: URI): Promise<void> {

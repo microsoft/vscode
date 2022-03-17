@@ -12,7 +12,6 @@ import { InternalTimelineOptions, ITimelineService, Timeline, TimelineChangeEven
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { URI } from 'vs/base/common/uri';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { Codicon } from 'vs/base/common/codicons';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IFileService } from 'vs/platform/files/common/files';
 import { LocalHistoryFileLabelFormatter, LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
@@ -22,7 +21,7 @@ import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMPARE_WITH_FILE_LABEL, toDiffEditorArguments } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_ENTRY, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 import { Schemas } from 'vs/base/common/network';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
@@ -144,7 +143,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			tooltip: new MarkdownString(`$(history) ${LOCAL_HISTORY_DATE_FORMATTER.format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp,
-			themeIcon: Codicon.circleOutline,
+			themeIcon: LOCAL_HISTORY_ICON_ENTRY,
 			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
 			command: {
 				id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
