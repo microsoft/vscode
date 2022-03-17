@@ -161,6 +161,44 @@ class ExtHostEditorTab {
 
 }
 
+class ExtHostTabGroups {
+
+	private _apiObject: vscode.TabGroups | undefined;
+
+	private _tabGroups: ExtHostEditorTabGroup[] = [];
+
+	constructor(
+		private readonly _onDidChangeTagGroup: vscode.Event<void>,
+		private readonly _onDidChangeActiveTabGroup: vscode.Event<vscode.TabGroup | undefined>,
+		private readonly _getActiveTabGroupdId: () => number | undefined
+	) { }
+
+	get apiObject() {
+		if (!this._apiObject) {
+			const that = this;
+			this._apiObject = Object.freeze({
+				onDidChangeTabGroup: that._onDidChangeTagGroup, // never changes -> simple value
+				onDidChangeActiveTabGroup: that._onDidChangeActiveTabGroup,
+				get groups() { // dynamic -> getters
+					return Object.freeze(that._tabGroups.map(group => group.apiObject));
+				},
+				get activeTabGroup() {
+					const activeTabGroupId = that._getActiveTabGroupdId();
+					if (activeTabGroupId === undefined) {
+						return undefined;
+					}
+					return that._tabGroups.find(candidate => candidate.groupId === activeTabGroupId)?.apiObject;
+				}
+			});
+		}
+		return this._apiObject;
+	}
+
+	acceptTabGroups(groups: ExtHostEditorTabGroup[]) {
+		this._tabGroups = groups;
+	}
+}
+
 export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	readonly _serviceBrand: undefined;
 	private readonly _proxy: MainThreadEditorTabsShape;
@@ -171,21 +209,17 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	private _activeGroupId: number | undefined;
 
-	private _tabGroups: vscode.TabGroups = {
-		groups: [],
-		activeTabGroup: undefined,
-		onDidChangeTabGroup: this._onDidChangeTabGroup.event,
-		onDidChangeActiveTabGroup: this._onDidChangeActiveTabGroup.event
-	};
+	private readonly _tabGroups: ExtHostTabGroups;
 
 	private _extHostTabGroups: ExtHostEditorTabGroup[] = [];
 
 	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadEditorTabs);
+		this._tabGroups = new ExtHostTabGroups(this._onDidChangeTabGroup.event, this._onDidChangeActiveTabGroup.event, () => this.activeGroupIdGetter());
 	}
 
 	get tabGroups(): vscode.TabGroups {
-		return this._tabGroups;
+		return this._tabGroups.apiObject;
 	}
 
 	activeGroupIdGetter(): number | undefined {
@@ -193,23 +227,18 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 	}
 
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void {
-		// Clears the tab groups array
-		this._tabGroups.groups.length = 0;
+
 		this._extHostTabGroups = tabGroups.map(tabGroup => {
 			const group = new ExtHostEditorTabGroup(tabGroup, this._proxy, () => this.activeGroupIdGetter());
 			return group;
 		});
-		for (const group of this._extHostTabGroups) {
-			this._tabGroups.groups.push(group.apiObject);
-		}
+
 		// Set the active tab group id
 		const activeTabGroupId = tabGroups.find(group => group.isActive === true)?.groupId;
-		const activeTabGroup = activeTabGroupId ? this._extHostTabGroups.find(group => group.groupId === activeTabGroupId) : undefined;
-		if (activeTabGroupId !== this._activeGroupId) {
+		this._tabGroups.acceptTabGroups(this._extHostTabGroups);
+		if (this._activeGroupId !== activeTabGroupId) {
 			this._activeGroupId = activeTabGroupId;
-			// TODO @lramos15 how do we set this without messing up readonly
-			this._tabGroups.activeTabGroup = activeTabGroup?.apiObject;
-			this._onDidChangeActiveTabGroup.fire(activeTabGroup?.apiObject);
+			this._onDidChangeActiveTabGroup.fire(this._tabGroups.apiObject.activeTabGroup);
 		}
 		this._onDidChangeTabGroup.fire();
 	}
@@ -225,7 +254,6 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 			this._activeGroupId = groupDto.groupId;
 			if (oldActiveGroupId !== this._activeGroupId) {
 				this._onDidChangeActiveTabGroup.fire(group.apiObject);
-				this._tabGroups.activeTabGroup = group.apiObject;
 			}
 		}
 		this._onDidChangeTabGroup.fire();

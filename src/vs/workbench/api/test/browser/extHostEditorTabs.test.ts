@@ -317,4 +317,30 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(activeTab2?.isActive, true);
 		assert.strictEqual(activeTab1?.isActive, false);
 	});
+
+	test('vscode.window.tagGroups is immutable', function () {
+
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+			})
+		);
+
+		assert.throws(() => {
+			// @ts-expect-error write to readonly prop
+			extHostEditorTabs.tabGroups.activeTabGroup = undefined;
+		});
+		assert.throws(() => {
+			// @ts-expect-error write to readonly prop
+			extHostEditorTabs.tabGroups.groups.length = 0;
+		});
+		assert.throws(() => {
+			// @ts-expect-error write to readonly prop
+			extHostEditorTabs.tabGroups.onDidChangeActiveTabGroup = undefined;
+		});
+		assert.throws(() => {
+			// @ts-expect-error write to readonly prop
+			extHostEditorTabs.tabGroups.onDidChangeTabGroup = undefined;
+		});
+	});
 });

@@ -102,23 +102,23 @@ declare module 'vscode' {
 		/**
 		 * All the groups within the group container
 		 */
-		readonly groups: TabGroup[];
+		readonly groups: readonly TabGroup[];
 
 		/**
 		 * The currently active group
 		 */
-		activeTabGroup: TabGroup | undefined;
+		readonly activeTabGroup: TabGroup | undefined;
 
 		/**
 		 * An {@link Event} which fires when a group changes.
 		 */
-		onDidChangeTabGroup: Event<void>;
+		readonly onDidChangeTabGroup: Event<void>;
 
 		/**
 		 * An {@link Event} which fires when the active group changes.
 		 * Whether it be which group is active or its properties.
 		 */
-		onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
+		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 	}
 
 	export interface TabGroup {
