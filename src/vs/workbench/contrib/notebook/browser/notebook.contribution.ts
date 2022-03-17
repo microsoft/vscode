@@ -706,7 +706,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[NotebookSetting.displayOrder]: {
 			description: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
-			type: ['array'],
+			type: 'array',
 			items: {
 				type: 'string'
 			},
