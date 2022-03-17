@@ -57,8 +57,8 @@ const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(co
 const COMMENT_SCHEME = 'comment';
 
 
-export const resolvedCommentBorder = registerColor('resolvedComment.border', { dark: Color.fromHex('#c5c5c5'), light: Color.fromHex('#555'), hc: contrastBorder }, nls.localize('resolvedCommentBorder', 'Color of borders and arrow for resolved comments.'));
-export const unresolvedCommentBorder = registerColor('unresolvedComment.border', { dark: Color.fromHex('#f4cd5d'), light: Color.fromHex('#ff0'), hc: contrastBorder }, nls.localize('unresolvedCommentBorder', 'Color of borders and arrow for unresolved comments.'));
+export const resolvedCommentBorder = registerColor('resolvedComment.border', { dark: Color.fromHex('#c5c5c5'), light: Color.fromHex('#555'), hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('resolvedCommentBorder', 'Color of borders and arrow for resolved comments.'));
+export const unresolvedCommentBorder = registerColor('unresolvedComment.border', { dark: Color.fromHex('#f4cd5d'), light: Color.fromHex('#ff0'), hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('unresolvedCommentBorder', 'Color of borders and arrow for unresolved comments.'));
 
 const commentThreadStateColors = new Map([
 	[languages.CommentThreadState.Unresolved, unresolvedCommentBorder],
