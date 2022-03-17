@@ -70,7 +70,7 @@ export class TelemetryService implements ITelemetryService {
 
 	private _updateTelemetryLevel(): void {
 		this._telemetryLevel = getTelemetryLevel(this._configurationService);
-		const collectableTelemetry = this._productService.collectableTelemetry;
+		const collectableTelemetry = this._productService.enabledTelemetryLevels;
 		// Also ensure that error telemetry is respecting the product configuration for collectable telemetry
 		if (collectableTelemetry) {
 			this._sendErrorTelemetry = this.sendErrorTelemetry ? collectableTelemetry.error : false;

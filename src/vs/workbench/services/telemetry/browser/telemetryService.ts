@@ -124,7 +124,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 			const telemetryProvider: ITelemetryAppender = remoteAgentService.getConnection() !== null ? { log: remoteAgentService.logTelemetry.bind(remoteAgentService), flush: remoteAgentService.flushTelemetry.bind(remoteAgentService) } : new WebAppInsightsAppender('monacoworkbench', productService.aiConfig?.asimovKey);
 			const config: ITelemetryServiceConfig = {
 				appenders: [new WebTelemetryAppender(telemetryProvider), new TelemetryLogAppender(loggerService, environmentService)],
-				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, productService.removeMachineId, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
+				commonProperties: resolveWorkbenchCommonProperties(storageService, productService.commit, productService.version, environmentService.remoteAuthority, productService.embedderIdentifier, productService.removeTelemetryMachineId, environmentService.options && environmentService.options.resolveCommonTelemetryProperties),
 				sendErrorTelemetry: this.sendErrorTelemetry,
 			};
 

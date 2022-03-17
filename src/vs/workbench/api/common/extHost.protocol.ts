@@ -1731,8 +1731,7 @@ export interface ExtHostQuickOpenShape {
 }
 
 export interface ExtHostTelemetryShape {
-	$notifyOfProductConfig(usage: boolean, errors: boolean): void;
-	$initializeTelemetryLevel(level: TelemetryLevel): void;
+	$initializeTelemetryLevel(level: TelemetryLevel, productConfig?: { usage: boolean; error: boolean }): void;
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void;
 }
 

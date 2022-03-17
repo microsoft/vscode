@@ -91,8 +91,8 @@ export interface IProductConfiguration {
 		readonly productName: string;
 	};
 
-	readonly removeMachineId?: boolean;
-	readonly collectableTelemetry?: { error: boolean; usage: boolean };
+	readonly removeTelemetryMachineId?: boolean;
+	readonly enabledTelemetryLevels?: { error: boolean; usage: boolean };
 	readonly enableTelemetry?: boolean;
 	readonly openToWelcomeMainPage?: boolean;
 	readonly aiConfig?: {

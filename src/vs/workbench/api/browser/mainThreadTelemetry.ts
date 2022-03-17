@@ -38,12 +38,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 			}));
 		}
 
-		this._proxy.$initializeTelemetryLevel(this.telemetryLevel);
-		// If telemetry is also configured through product.json, then we need to make sure ext host has the correct value
-		const collectableTelemetry = this._productService.collectableTelemetry;
-		if (collectableTelemetry) {
-			this._proxy.$notifyOfProductConfig(collectableTelemetry.usage, collectableTelemetry.error);
-		}
+		this._proxy.$initializeTelemetryLevel(this.telemetryLevel, this._productService.enabledTelemetryLevels);
 	}
 
 	private get telemetryLevel(): TelemetryLevel {

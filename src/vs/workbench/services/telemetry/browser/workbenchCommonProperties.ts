@@ -33,13 +33,15 @@ export async function resolveWorkbenchCommonProperties(
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
 
-	let machineId: string | undefined = `Redacted-${productIdentifier ?? 'web'}`;
+	let machineId: string | undefined;
 	if (!removeMachineId) {
 		machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
 		if (!machineId) {
 			machineId = uuid.generateUuid();
 			storageService.store(machineIdKey, machineId, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		}
+	} else {
+		machineId = `Redacted-${productIdentifier ?? 'web'}`;
 	}
 
 

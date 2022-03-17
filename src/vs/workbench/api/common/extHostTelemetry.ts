@@ -16,7 +16,7 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	private readonly _onDidChangeTelemetryConfiguration = new Emitter<TelemetryConfiguration>();
 	readonly onDidChangeTelemetryConfiguration: Event<TelemetryConfiguration> = this._onDidChangeTelemetryConfiguration.event;
 
-	private _productConfig: { usage: boolean; errors: boolean } = { usage: true, errors: true };
+	private _productConfig: { usage: boolean; error: boolean } = { usage: true, error: true };
 	private _level: TelemetryLevel = TelemetryLevel.NONE;
 	private _oldTelemetryEnablement: boolean | undefined;
 
@@ -27,21 +27,14 @@ export class ExtHostTelemetry implements ExtHostTelemetryShape {
 	getTelemetryDetails(): TelemetryConfiguration {
 		return {
 			isCrashEnabled: this._level >= TelemetryLevel.CRASH,
-			isErrorsEnabled: this._productConfig.errors ? this._level >= TelemetryLevel.ERROR : false,
+			isErrorsEnabled: this._productConfig.error ? this._level >= TelemetryLevel.ERROR : false,
 			isUsageEnabled: this._productConfig.usage ? this._level >= TelemetryLevel.USAGE : false
 		};
 	}
 
-	$initializeTelemetryLevel(level: TelemetryLevel): void {
+	$initializeTelemetryLevel(level: TelemetryLevel, productConfig?: { usage: boolean; error: boolean }): void {
 		this._level = level;
-	}
-
-	/*
-	* Only used if `collectableTelemetry` is set in product config
-	 */
-	$notifyOfProductConfig(usage: boolean, errors: boolean) {
-		this._productConfig.usage = usage;
-		this._productConfig.errors = errors;
+		this._productConfig = productConfig || { usage: true, error: true };
 	}
 
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void {
