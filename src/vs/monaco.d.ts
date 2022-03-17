@@ -6263,6 +6263,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface InlineCompletion {
+		readonly filterText?: string;
 		/**
 		 * The text to insert.
 		 * If the text contains a line break, the range must end at the end of a line.

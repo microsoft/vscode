@@ -82,9 +82,59 @@ export class GhostTextPart {
 	}
 }
 
+export class GhostTextReplacement {
+	constructor(
+		readonly lineNumber: number,
+		readonly columnStart: number,
+		readonly length: number,
+		readonly newLines: readonly string[],
+		public readonly additionalReservedLineCount: number = 0,
+	) { }
+	public readonly parts: ReadonlyArray<GhostTextPart> = [
+		new GhostTextPart(
+			this.columnStart + this.length,
+			this.newLines,
+			false
+		),
+	];
+
+	renderForScreenReader(_lineText: string): string {
+		return this.newLines.join('\n');
+	}
+
+	render(documentText: string, debug: boolean = false): string {
+		const startLineNumber = this.lineNumber;
+		const endLineNumber = this.lineNumber;
+
+		if (debug) {
+			return applyEdits(documentText,
+				[
+					{
+						range: { startLineNumber, endLineNumber, startColumn: this.columnStart, endColumn: this.columnStart },
+						text: `(`
+					},
+					{
+						range: { startLineNumber, endLineNumber, startColumn: this.columnStart + this.length, endColumn: this.columnStart + this.length },
+						text: `)[${this.newLines.join('\n')}]`
+					}
+				]
+			);
+		} else {
+			return applyEdits(documentText,
+				[
+					{
+						range: { startLineNumber, endLineNumber, startColumn: this.columnStart, endColumn: this.columnStart + this.length },
+						text: this.newLines.join('\n')
+					}
+				]
+			);
+		}
+	}
+}
+
 export interface GhostTextWidgetModel {
 	readonly onDidChange: Event<void>;
-	readonly ghostText: GhostText | undefined;
+	readonly ghostText: GhostText | GhostTextReplacement | undefined;
 
 	setExpanded(expanded: boolean): void;
 	readonly expanded: boolean;
@@ -93,7 +143,7 @@ export interface GhostTextWidgetModel {
 }
 
 export abstract class BaseGhostTextWidgetModel extends Disposable implements GhostTextWidgetModel {
-	public abstract readonly ghostText: GhostText | undefined;
+	public abstract readonly ghostText: GhostText | GhostTextReplacement | undefined;
 
 	private _expanded: boolean | undefined = undefined;
 

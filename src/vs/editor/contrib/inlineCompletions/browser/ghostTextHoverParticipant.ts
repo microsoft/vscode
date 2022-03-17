@@ -19,7 +19,7 @@ import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { commitInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/browser/ghostText.contribution';
+import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -117,8 +117,8 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		});
 		context.statusBar.addAction({
 			label: nls.localize('acceptInlineSuggestion', "Accept"),
-			commandId: commitInlineSuggestionAction.id,
-			run: () => this._commandService.executeCommand(commitInlineSuggestionAction.id)
+			commandId: inlineSuggestCommitId,
+			run: () => this._commandService.executeCommand(inlineSuggestCommitId)
 		});
 
 		const actions = [previousAction, nextAction];

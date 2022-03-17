@@ -8,16 +8,17 @@ import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion } from 'vs/editor/common/languages';
+import { Command } from 'vs/editor/common/languages';
 import { GhostText, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 
 /**
  * A normalized inline completion is an inline completion with a defined range.
 */
-export interface NormalizedInlineCompletion extends InlineCompletion {
+export interface NormalizedInlineCompletion {
+	readonly filterText: string;
+	readonly command?: Command;
 	readonly range: Range;
 	readonly insertText: string;
-
 	readonly snippetInfo:
 	| {
 		snippet: string;
@@ -50,7 +51,8 @@ export function minimizeInlineCompletion(model: ITextModel, inlineCompletion: No
 	return {
 		range: Range.fromPositions(start, end),
 		insertText: inlineCompletion.insertText.substr(commonPrefixLen, inlineCompletion.insertText.length - commonPrefixLen - commonSuffixLen),
-		snippetInfo: inlineCompletion.snippetInfo
+		snippetInfo: inlineCompletion.snippetInfo,
+		filterText: inlineCompletion.filterText,
 	};
 }
 
@@ -114,6 +116,7 @@ export function inlineCompletionToGhostText(
 			insertText: suggestionWithoutIndentationChange,
 			command: inlineCompletion.command,
 			snippetInfo: undefined,
+			filterText: inlineCompletion.filterText,
 		};
 	}
 

@@ -228,6 +228,7 @@ function suggestionToSuggestItemInfo(suggestController: SuggestController, posit
 				// Dummy element, so that space is reserved, but no text is shown
 				range: Range.fromPositions(position, position),
 				insertText: '',
+				filterText: '',
 				snippetInfo: undefined,
 			},
 		};
@@ -256,6 +257,7 @@ function suggestionToSuggestItemInfo(suggestController: SuggestController, posit
 		completionItemKind: item.completion.kind,
 		normalizedInlineCompletion: {
 			insertText: insertText,
+			filterText: insertText,
 			range: Range.fromPositions(
 				position.delta(0, -info.overwriteBefore),
 				position.delta(0, Math.max(info.overwriteAfter, 0))

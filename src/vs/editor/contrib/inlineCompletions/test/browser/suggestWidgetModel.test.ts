@@ -104,7 +104,12 @@ suite('Suggest Widget Model', () => {
 
 	test('minimizeInlineCompletion', async () => {
 		const model = createTextModel('fun');
-		const result = minimizeInlineCompletion(model, { range: new Range(1, 1, 1, 4), insertText: 'function', snippetInfo: undefined })!;
+		const result = minimizeInlineCompletion(model, {
+			range: new Range(1, 1, 1, 4),
+			filterText: 'function',
+			insertText: 'function',
+			snippetInfo: undefined,
+		})!;
 
 		assert.deepStrictEqual({
 			range: result.range.toString(),

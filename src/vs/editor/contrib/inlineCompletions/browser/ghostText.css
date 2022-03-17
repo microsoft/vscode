@@ -31,3 +31,7 @@
 .monaco-editor .suggest-preview-text {
 	font-style: italic;
 }
+
+.monaco-editor .inline-completion-text-to-replace {
+	text-decoration: line-through;
+}

@@ -8,7 +8,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { commonPrefixLength, commonSuffixLength } from 'vs/base/common/strings';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -17,7 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionTriggerKind } from 'vs/editor/common/languages';
-import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { BaseGhostTextWidgetModel, GhostText, GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/consts';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
@@ -30,6 +29,7 @@ import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { assertNever } from 'vs/base/common/types';
+import { matchesSubString } from 'vs/base/common/filters';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -117,7 +117,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		return this.completionSession.value;
 	}
 
-	public get ghostText(): GhostText | undefined {
+	public get ghostText(): GhostText | GhostTextReplacement | undefined {
 		return this.session?.ghostText;
 	}
 
@@ -245,12 +245,14 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}));
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
+			// Ghost text depends on the cursor position
 			if (this.cache.value) {
 				this.onDidChangeEmitter.fire();
 			}
 		}));
 
 		this._register(this.editor.onDidChangeModelContent((e) => {
+			this.updateFilteredInlineCompletions();
 			this.scheduleAutomaticUpdate();
 		}));
 
@@ -259,6 +261,22 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}));
 
 		this.scheduleAutomaticUpdate();
+	}
+
+	private filteredCompletions: readonly CachedInlineCompletion[] = [];
+
+	private updateFilteredInlineCompletions() {
+		if (!this.cache.value) {
+			this.filteredCompletions = [];
+			return;
+		}
+
+		const model = this.editor.getModel();
+		this.filteredCompletions = this.cache.value.completions.filter(c => {
+			const originalValue = model.getValueInRange(c.synchronizedRange);
+			const matches = matchesSubString(originalValue, c.inlineCompletion.filterText);
+			return matches;
+		});
 	}
 
 	//#region Selection
@@ -275,7 +293,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			return 0;
 		}
 
-		const idx = this.cache.value.completions.findIndex(v => v.semanticId === this.currentlySelectedCompletionId);
+		const idx = this.filteredCompletions.findIndex(v => v.semanticId === this.currentlySelectedCompletionId);
 		if (idx === -1) {
 			// Reset the selection so that the selection does not jump back when it appears again
 			this.currentlySelectedCompletionId = undefined;
@@ -288,13 +306,13 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		if (!this.cache.value) {
 			return undefined;
 		}
-		return this.cache.value.completions[this.fixAndGetIndexOfCurrentSelection()];
+		return this.filteredCompletions[this.fixAndGetIndexOfCurrentSelection()];
 	}
 
 	public async showNextInlineCompletion(): Promise<void> {
 		await this.ensureUpdateWithExplicitContext();
 
-		const completions = this.cache.value?.completions || [];
+		const completions = this.filteredCompletions || [];
 		if (completions.length > 0) {
 			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + 1) % completions.length;
 			this.currentlySelectedCompletionId = completions[newIdx].semanticId;
@@ -307,7 +325,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public async showPreviousInlineCompletion(): Promise<void> {
 		await this.ensureUpdateWithExplicitContext();
 
-		const completions = this.cache.value?.completions || [];
+		const completions = this.filteredCompletions || [];
 		if (completions.length > 0) {
 			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + completions.length - 1) % completions.length;
 			this.currentlySelectedCompletionId = completions[newIdx].semanticId;
@@ -338,10 +356,28 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 	//#endregion
 
-	public get ghostText(): GhostText | undefined {
+	public get ghostText(): GhostText | GhostTextReplacement | undefined {
 		const currentCompletion = this.currentCompletion;
+		if (!currentCompletion) {
+			return undefined;
+		}
+
 		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
-		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition()) : undefined;
+
+		const ghostText = inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode, this.editor.getPosition());
+		if (ghostText) {
+			if (ghostText.isEmpty()) {
+				return undefined;
+			}
+			return ghostText;
+		}
+		return new GhostTextReplacement(
+			currentCompletion.range.startLineNumber,
+			currentCompletion.range.startColumn,
+			currentCompletion.range.endColumn - currentCompletion.range.startColumn,
+			currentCompletion.insertText.split('\n'),
+			0
+		);
 	}
 
 	get currentCompletion(): TrackedInlineCompletion | undefined {
@@ -399,6 +435,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				result,
 				triggerKind
 			);
+			this.updateFilteredInlineCompletions();
 			this.onDidChangeEmitter.fire();
 		});
 		const operation = new UpdateOperation(promise, triggerKind);
@@ -415,7 +452,7 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 	public commitCurrentCompletion(): void {
 		const ghostText = this.ghostText;
-		if (!ghostText || ghostText.isEmpty()) {
+		if (!ghostText) {
 			// No ghost text was shown for this completion.
 			// Thus, we don't want to commit anything.
 			return;
@@ -528,6 +565,7 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 class CachedInlineCompletion {
 	public readonly semanticId: string = JSON.stringify({
 		text: this.inlineCompletion.insertText,
+		abbreviation: this.inlineCompletion.filterText,
 		startLine: this.inlineCompletion.range.startLineNumber,
 		startColumn: this.inlineCompletion.range.startColumn,
 		command: this.inlineCompletion.command
@@ -553,8 +591,8 @@ class CachedInlineCompletion {
 			sourceProvider: this.inlineCompletion.sourceProvider,
 			sourceInlineCompletions: this.inlineCompletion.sourceInlineCompletions,
 			sourceInlineCompletion: this.inlineCompletion.sourceInlineCompletion,
-			completeBracketPairs: this.inlineCompletion.completeBracketPairs,
 			snippetInfo: this.inlineCompletion.snippetInfo,
+			filterText: this.inlineCompletion.filterText,
 		};
 	}
 }
@@ -602,16 +640,6 @@ export async function provideInlineCompletions(
 				continue;
 			}
 
-			const textOrSnippet =
-				languageConfigurationService && item.completeBracketPairs && typeof item.insertText === 'string'
-					? closeBrackets(
-						item.insertText,
-						range.getStartPosition(),
-						model,
-						languageConfigurationService
-					)
-					: item.insertText;
-
 			let insertText: string;
 			let snippetInfo: {
 				snippet: string;
@@ -620,18 +648,28 @@ export async function provideInlineCompletions(
 			}
 				| undefined;
 
-			if (typeof textOrSnippet === 'string') {
-				insertText = textOrSnippet;
+			if (typeof item.insertText === 'string') {
+				insertText = item.insertText;
+
+				if (languageConfigurationService && item.completeBracketPairs) {
+					insertText = closeBrackets(
+						insertText,
+						range.getStartPosition(),
+						model,
+						languageConfigurationService
+					);
+				}
+
 				snippetInfo = undefined;
-			} else if ('snippet' in textOrSnippet) {
-				const snippet = new SnippetParser().parse(textOrSnippet.snippet);
+			} else if ('snippet' in item.insertText) {
+				const snippet = new SnippetParser().parse(item.insertText.snippet);
 				insertText = snippet.toString();
 				snippetInfo = {
-					snippet: textOrSnippet.snippet,
+					snippet: item.insertText.snippet,
 					range: range
 				};
 			} else {
-				assertNever(textOrSnippet);
+				assertNever(item.insertText);
 			}
 
 			const trackedItem: TrackedInlineCompletion = ({
@@ -641,12 +679,12 @@ export async function provideInlineCompletions(
 				command: item.command,
 				sourceProvider: result.provider,
 				sourceInlineCompletions: completions,
-				sourceInlineCompletion: item
+				sourceInlineCompletion: item,
+				filterText: item.filterText || insertText,
 			});
 
 			itemsByHash.set(JSON.stringify({ insertText, range: item.range }), trackedItem);
 		}
-
 	}
 
 	return {
@@ -657,6 +695,13 @@ export async function provideInlineCompletions(
 			}
 		},
 	};
+}
+
+/**
+ * Contains no duplicated items and can be disposed.
+*/
+export interface TrackedInlineCompletions extends InlineCompletions<TrackedInlineCompletion> {
+	dispose(): void;
 }
 
 /**
@@ -676,13 +721,6 @@ export interface TrackedInlineCompletion extends NormalizedInlineCompletion {
 	 * Used for event data to ensure referential equality.
 	*/
 	sourceInlineCompletions: InlineCompletions;
-}
-
-/**
- * Contains no duplicated items and can be disposed.
-*/
-export interface TrackedInlineCompletions extends InlineCompletions<TrackedInlineCompletion> {
-	dispose(): void;
 }
 
 function getDefaultRange(position: Position, model: ITextModel): Range {
