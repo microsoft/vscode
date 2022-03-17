@@ -25,7 +25,7 @@ class TestEnvironmentService extends AbstractNativeEnvironmentService {
 	constructor(private readonly _appSettingsHome: URI) {
 		super(Object.create(null), Object.create(null), { _serviceBrand: undefined, ...product });
 	}
-	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.userData }); }
+	override get userRoamingDataHome() { return this._appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 }
 
 suite('FileUserDataProvider', () => {
@@ -51,9 +51,9 @@ suite('FileUserDataProvider', () => {
 
 		environmentService = new TestEnvironmentService(userDataHomeOnDisk);
 
-		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.userData, logService);
+		fileUserDataProvider = new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, logService);
 		disposables.add(fileUserDataProvider);
-		disposables.add(testObject.registerProvider(Schemas.userData, fileUserDataProvider));
+		disposables.add(testObject.registerProvider(Schemas.vscodeUserData, fileUserDataProvider));
 	});
 
 	teardown(() => disposables.clear());
@@ -304,13 +304,13 @@ suite('FileUserDataProvider - Watching', () => {
 	let testObject: FileUserDataProvider;
 	const disposables = new DisposableStore();
 	const rootFileResource = joinPath(ROOT, 'User');
-	const rootUserDataResource = rootFileResource.with({ scheme: Schemas.userData });
+	const rootUserDataResource = rootFileResource.with({ scheme: Schemas.vscodeUserData });
 
 	const fileEventEmitter: Emitter<readonly IFileChange[]> = new Emitter<readonly IFileChange[]>();
 	disposables.add(fileEventEmitter);
 
 	setup(() => {
-		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.userData, new NullLogService()));
+		testObject = disposables.add(new FileUserDataProvider(rootFileResource.scheme, new TestFileSystemProvider(fileEventEmitter.event), Schemas.vscodeUserData, new NullLogService()));
 	});
 
 	teardown(() => disposables.clear());

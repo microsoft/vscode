@@ -70,22 +70,6 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _editState: CellEditState = CellEditState.Preview;
 
-	// get editState(): CellEditState {
-	// 	return this._editState;
-	// }
-
-	// set editState(newState: CellEditState) {
-	// 	if (newState === this._editState) {
-	// 		return;
-	// 	}
-
-	// 	this._editState = newState;
-	// 	this._onDidChangeState.fire({ editStateChanged: true });
-	// 	if (this._editState === CellEditState.Preview) {
-	// 		this.focusMode = CellFocusMode.Container;
-	// 	}
-	// }
-
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
 	get lineNumbers(): 'on' | 'off' | 'inherit' {
 		return this._lineNumbers;
@@ -149,6 +133,7 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	set dragging(v: boolean) {
 		this._dragging = v;
+		this._onDidChangeState.fire({ dragStateChanged: true });
 	}
 
 	protected _textModelRef: IReference<IResolvedTextEditorModel> | undefined;

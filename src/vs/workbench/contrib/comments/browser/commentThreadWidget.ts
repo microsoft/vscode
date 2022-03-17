@@ -48,6 +48,7 @@ import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
@@ -56,6 +57,9 @@ export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
 const COMMENT_SCHEME = 'comment';
 
+function getCommentThreadWidgetStateColor(thread: languages.CommentThread, theme: IColorTheme): Color | undefined {
+	return getCommentThreadStateColor(thread, theme) ?? theme.getColor(peekViewBorder);
+}
 
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	const range = e.target.range;
@@ -639,6 +643,16 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			await this.update(this._commentThread);
 		}));
 
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(() => {
+			const borderColor =
+				getCommentThreadWidgetStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
+			this.style({
+				frameColor: borderColor,
+				arrowColor: borderColor,
+			});
+			this.container?.style.setProperty(commentThreadStateColorVar, `${borderColor}`);
+		}));
+
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeLabel(_ => {
 			this.createThreadLabel();
 		}));
@@ -890,17 +904,16 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(peekViewBorder);
+		const borderColor = getCommentThreadWidgetStateColor(this._commentThread, theme) || Color.transparent;
 		this.style({
-			arrowColor: borderColor || Color.transparent,
-			frameColor: borderColor || Color.transparent
+			arrowColor: borderColor,
+			frameColor: borderColor,
 		});
 
 		const content: string[] = [];
 
-		if (borderColor) {
-			content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid ${borderColor} }`);
-		}
+		this.container?.style.setProperty(commentThreadStateColorVar, `${borderColor}`);
+		content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid var(${commentThreadStateColorVar}) }`);
 
 		const linkColor = theme.getColor(textLinkForeground);
 		if (linkColor) {

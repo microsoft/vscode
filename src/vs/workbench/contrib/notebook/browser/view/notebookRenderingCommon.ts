@@ -98,7 +98,6 @@ export interface BaseCellRenderTemplate {
 	instantiationService: IInstantiationService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
-	decorationContainer: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	currentRenderedCell?: ICellViewModel;

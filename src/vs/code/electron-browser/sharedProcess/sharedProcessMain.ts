@@ -214,10 +214,10 @@ class SharedProcessMain extends Disposable {
 			// Since user data can change very frequently across multiple
 			// processes, we want a single process handling these operations.
 			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
-			Schemas.userData,
+			Schemas.vscodeUserData,
 			logService
 		));
-		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
+		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));

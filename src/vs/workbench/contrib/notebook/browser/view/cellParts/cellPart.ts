@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export abstract class CellPart extends Disposable {
+	protected currentCell: ICellViewModel | undefined;
+	protected cellDisposables = new DisposableStore();
+
 	constructor() {
 		super();
 	}
@@ -17,29 +19,37 @@ export abstract class CellPart extends Disposable {
 	/**
 	 * Update the DOM for the cell `element`
 	 */
-	abstract renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void;
+	renderCell(element: ICellViewModel): void {
+		this.currentCell = element;
+		this.didRenderCell(element);
+	}
+
+	protected didRenderCell(element: ICellViewModel): void { }
 
 	/**
-	 * Dispose any disposables generated from `renderCell`
+	 * Dispose any disposables generated from `didRenderCell`
 	 */
-	unrenderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void { }
+	unrenderCell(element: ICellViewModel): void {
+		this.currentCell = undefined;
+		this.cellDisposables.clear();
+	}
 
 	/**
 	 * Perform DOM read operations to prepare for the list/cell layout update.
 	 */
-	abstract prepareLayout(): void;
+	prepareLayout(): void { }
 
 	/**
 	 * Update internal DOM (top positions) per cell layout info change
 	 * Note that a cell part doesn't need to call `DOM.scheduleNextFrame`,
 	 * the list view will ensure that layout call is invoked in the right frame
 	 */
-	abstract updateInternalLayoutNow(element: ICellViewModel): void;
+	updateInternalLayoutNow(element: ICellViewModel): void { }
 
 	/**
 	 * Update per cell state change
 	 */
-	abstract updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void;
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void { }
 
 	/**
 	 * Update per execution state change.

@@ -1899,7 +1899,7 @@ class EditorHelper {
 		const hasValidResourceEditorInputScheme =
 			resource?.scheme === Schemas.file ||
 			resource?.scheme === Schemas.vscodeRemote ||
-			resource?.scheme === Schemas.userData ||
+			resource?.scheme === Schemas.vscodeUserData ||
 			resource?.scheme === this.pathService.defaultUriScheme;
 
 		// Scheme is valid: prefer the untyped input
