@@ -131,7 +131,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, XtermTerminal._suggestedRendererType),
 			wordSeparator: config.wordSeparators,
-			overviewRulerWidth: 10
+			overviewRulerWidth: 15
 		}));
 		this._core = (this.raw as any)._core as IXtermCore;
 
@@ -157,7 +157,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
-		this._commandTrackerAddon = this._instantiationService.createInstance(CommandTrackerAddon, capabilities);
+		this._commandTrackerAddon = new CommandTrackerAddon(capabilities);
 		this.raw.loadAddon(this._commandTrackerAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
