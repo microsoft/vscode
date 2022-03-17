@@ -3596,7 +3596,7 @@ export class TypeHierarchyItem {
 	}
 }
 
-// ---
+//#region Tab Inputs
 
 export class TextTabInput {
 	constructor(readonly uri: URI) { }
@@ -3605,3 +3605,16 @@ export class TextTabInput {
 export class TextDiffTabInput {
 	constructor(readonly original: URI, readonly modified: URI) { }
 }
+
+export class CustomEditorTabInput {
+	constructor(readonly uri: URI, readonly viewType: string) { }
+}
+
+export class NotebookEditorTabInput {
+	constructor(readonly uri: URI, readonly notebookType: string) { }
+}
+
+export class NotebookEditorDiffTabInput {
+	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
+}
+//#endregion

@@ -9,7 +9,7 @@ import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TextDiffTabInput, TextTabInput, ViewColumn } from 'vs/workbench/api/common/extHostTypes';
+import { CustomEditorTabInput, NotebookEditorDiffTabInput, NotebookEditorTabInput, TextDiffTabInput, TextTabInput, ViewColumn } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -19,12 +19,12 @@ export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 
 export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostEditorTabs');
 
-type AnyTab = TextTabInput | TextDiffTabInput;
+type AnyTabInput = TextTabInput | TextDiffTabInput;
 
 class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
 	private _dto!: IEditorTabDto;
-	private _input: AnyTab | undefined;
+	private _input: AnyTabInput | undefined;
 	private readonly _proxy: MainThreadEditorTabsShape;
 	private readonly _activeTabIdGetter: () => string;
 
@@ -94,9 +94,15 @@ class ExtHostEditorTab {
 				return new TextTabInput(URI.revive(this._dto.input.uri));
 			case TabInputKind.TextDiffInput:
 				return new TextDiffTabInput(URI.revive(this._dto.input.original), URI.revive(this._dto.input.modified));
-			// TODO@lramos15 support all the cases
+			case TabInputKind.CustomEditorInput:
+				return new CustomEditorTabInput(URI.revive(this._dto.input.uri), this._dto.input.viewType);
+			case TabInputKind.NotebookInput:
+				return new NotebookEditorTabInput(URI.revive(this._dto.input.uri), this._dto.input.notebookType);
+			case TabInputKind.NotebookDiffInput:
+				return new NotebookEditorDiffTabInput(URI.revive(this._dto.input.original), URI.revive(this._dto.input.modified), this._dto.input.notebookType);
+			default:
+				return undefined;
 		}
-		return undefined;
 	}
 }
 

@@ -1327,6 +1327,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			QuickPickItemKind: extHostTypes.QuickPickItemKind,
 			TextTabInput: extHostTypes.TextTabInput,
 			TextDiffTabInput: extHostTypes.TextDiffTabInput,
+			CustomEditorTabInput: extHostTypes.CustomEditorTabInput,
+			NotebookEditorTabInput: extHostTypes.NotebookEditorTabInput,
+			NotebookEditorDiffTabInput: extHostTypes.NotebookEditorDiffTabInput
 		};
 	};
 }

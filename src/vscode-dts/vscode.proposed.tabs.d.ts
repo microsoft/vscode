@@ -27,6 +27,25 @@ declare module 'vscode' {
 		constructor(original: Uri, modified: Uri);
 	}
 
+	export class CustomEditorTabInput {
+		readonly uri: Uri;
+		readonly viewType: string;
+		constructor(uri: Uri, viewType: string);
+	}
+
+	export class NotebookEditorTabInput {
+		readonly uri: Uri;
+		readonly notebookType: string;
+		constructor(uri: Uri, notebookType: string);
+	}
+
+	export class NotebookEditorDiffTabInput {
+		readonly original: Uri;
+		readonly modified: Uri;
+		readonly notebookType: string;
+		constructor(original: Uri, modified: Uri, notebookType: string);
+	}
+
 	/**
 	 * Represents a tab within the window
 	 */
