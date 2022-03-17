@@ -59,8 +59,8 @@ command_complete() {
 update_prompt() {
 	PRIOR_PROMPT="$PS1"
 	IN_COMMAND_EXECUTION=""
-	PS1="$(prompt_start)$PREFIX$PS1$(prompt_end)"
-	PS2="$(continuation_start)$PS2$(continuation_end)"
+	PS1="\[$(prompt_start)\]$PREFIX$PS1\[$(prompt_end)\]"
+	PS2="\[$(continuation_start)\]$PS2\[$(continuation_end)\]"
 }
 
 precmd() {
