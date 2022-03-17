@@ -18,5 +18,7 @@ RUN mkdir -p ${CACHE_FOLDER} && chown ${USERNAME} ${CACHE_FOLDER} /repo-source-t
 FROM mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:dev as dev-container
 ARG USERNAME=node
 ARG CACHE_FOLDER="/home/${USERNAME}/.devcontainer-cache"
-RUN mkdir -p "${CACHE_FOLDER}" && chown "${USERNAME}:${USERNAME}" "${CACHE_FOLDER}"
+RUN mkdir -p "${CACHE_FOLDER}" \
+	&& chown "${USERNAME}:${USERNAME}" "${CACHE_FOLDER}" \
+	&& su ${USERNAME} -c "git config --global codespaces-theme.hide-status 1"
 COPY --from=cache ${CACHE_FOLDER}/cache.tar ${CACHE_FOLDER}/
