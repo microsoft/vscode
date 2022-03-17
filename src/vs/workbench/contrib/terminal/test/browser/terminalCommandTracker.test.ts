@@ -12,6 +12,7 @@ import { timeout } from 'vs/base/common/async';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;
@@ -53,7 +54,7 @@ suite('Workbench - TerminalCommandTracker', function () {
 		}
 		await writeP(xterm, data);
 		store = new TerminalCapabilityStore();
-		commandTracker = new CommandTrackerAddon(store);
+		commandTracker = new CommandTrackerAddon(store, new TestThemeService());
 		store.add(TerminalCapability.PartialCommandDetection, new PartialCommandDetectionCapability(xterm));
 		xterm.loadAddon(commandTracker);
 	});
