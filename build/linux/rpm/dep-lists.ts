@@ -22,7 +22,7 @@ export const additionalDeps = [
 export const bundledDeps = [
 	'libEGL.so',
 	'libGLESv2.so',
-	'libvulkan.so',
+	'libvulkan.so.1',
 	'swiftshader_libEGL.so',
 	'swiftshader_libGLESv2.so',
 	'libvk_swiftshader.so',
