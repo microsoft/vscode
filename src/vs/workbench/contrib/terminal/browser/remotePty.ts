@@ -9,7 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap, ProcessPropertyType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
-import { IPtyHostProcessReplayEvent, ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+import { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { RemoteTerminalChannelClient } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
@@ -22,7 +22,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit = this._onProcessExit.event;
-	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommand[]>());
+	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommandDetectionCapability>());
 	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	private _startBarrier: Barrier;
@@ -180,7 +180,7 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 			this._inReplay = false;
 		}
 
-		if (e.commands.length > 0) {
+		if (e.commands) {
 			this._onRestoreCommands.fire(e.commands);
 		}
 

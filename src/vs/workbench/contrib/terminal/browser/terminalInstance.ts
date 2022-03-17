@@ -708,7 +708,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._areLinksReady = true;
 			this._onLinksReady.fire(this);
 		});
-		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.restoreCommands(e));
+		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e));
 
 		this._loadTypeAheadAddon(xterm);
 

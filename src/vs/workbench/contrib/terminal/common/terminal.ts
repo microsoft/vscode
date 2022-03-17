@@ -12,7 +12,7 @@ import { IProcessDataEvent, IProcessReadyEvent, IShellLaunchConfig, ITerminalChi
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IProcessDetails, ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+import { IProcessDetails, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITerminalCapabilityStore, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
 
@@ -382,7 +382,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
 	readonly onProcessExit: Event<number | undefined>;
-	readonly onRestoreCommands: Event<ISerializedCommand[]>;
+	readonly onRestoreCommands: Event<ISerializedCommandDetectionCapability>;
 
 	dispose(immediate?: boolean): void;
 	detachFromProcess(): Promise<void>;
