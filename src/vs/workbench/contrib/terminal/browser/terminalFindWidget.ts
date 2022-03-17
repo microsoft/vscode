@@ -37,11 +37,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (!instance) {
 			return;
 		}
-		this._findDecorations = await instance.xterm?.find(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
-		this._findDecorations?.forEach(d => {
-			d.onRender((e) => {
-			});
-		});
+		await instance.xterm?.find(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		// if (previous) {
 		// 	instance.xterm?.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		// } else {

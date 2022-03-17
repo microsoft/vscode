@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, IDecoration, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
+import type { IBuffer, ITheme, RendererType, Terminal as RawXtermTerminal } from 'xterm';
 import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
 import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
 import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
@@ -251,7 +251,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 	}
 
-	async find(term: string, searchOptions: ISearchOptions): Promise<IDecoration[]> {
+	async find(term: string, searchOptions: ISearchOptions): Promise<boolean> {
 		return (await this._getSearchAddon()).find(term, searchOptions);
 	}
 
