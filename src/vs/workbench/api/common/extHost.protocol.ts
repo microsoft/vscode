@@ -121,6 +121,7 @@ export type CommentThreadChanges<T = IRange> = Partial<{
 	comments: CommentChanges[];
 	collapseState: languages.CommentThreadCollapsibleState;
 	canReply: boolean;
+	state: languages.CommentThreadState;
 }>;
 
 export interface MainThreadCommentsShape extends IDisposable {
@@ -609,10 +610,55 @@ export interface ExtHostEditorInsetsShape {
 
 //#region --- tabs model
 
+export const enum TabInputKind {
+	UnknownInput,
+	TextInput,
+	TextDiffInput,
+	NotebookInput,
+	NotebookDiffInput,
+	CustomEditorInput
+}
+
+export interface UnknownInputDto {
+	kind: TabInputKind.UnknownInput;
+}
+
+export interface TextInputDto {
+	kind: TabInputKind.TextInput;
+	uri: UriComponents;
+}
+
+export interface TextDiffInputDto {
+	kind: TabInputKind.TextDiffInput;
+	original: UriComponents;
+	modified: UriComponents;
+}
+
+export interface NotebookInputDto {
+	kind: TabInputKind.NotebookInput;
+	notebookType: string;
+	uri: UriComponents;
+}
+
+export interface NotebookDiffInputDto {
+	kind: TabInputKind.NotebookDiffInput;
+	notebookType: string;
+	original: UriComponents;
+	modified: UriComponents;
+}
+
+export interface CustomInputDto {
+	kind: TabInputKind.CustomEditorInput;
+	viewType: string;
+	uri: UriComponents;
+}
+
+export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto;
+
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
 	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn): void;
-	$closeTab(tabId: string, preserveFocus: boolean): Promise<void>;
+	$closeTab(tabIds: string[], preserveFocus?: boolean): Promise<void>;
 }
 
 export interface IEditorTabGroupDto {
@@ -634,6 +680,7 @@ export interface IEditorTabDto {
 	id: string;
 	viewColumn: EditorGroupColumn;
 	label: string;
+	input: AnyInputDto;
 	resource?: UriComponents;
 	editorId?: string;
 	isActive: boolean;
@@ -644,8 +691,11 @@ export interface IEditorTabDto {
 }
 
 export interface IExtHostEditorTabsShape {
+	// Accepts a whole new model
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void;
+	// Only when group property changes (not the tabs inside)
 	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto): void;
+	// Only when tab property changes
 	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto): void;
 }
 

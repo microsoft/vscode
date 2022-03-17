@@ -1647,7 +1647,13 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
-
+/**
+ * @internal
+ */
+export enum CommentThreadState {
+	Unresolved = 0,
+	Resolved = 1
+}
 
 /**
  * @internal
@@ -1683,12 +1689,14 @@ export interface CommentThread<T = IRange> {
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	state?: CommentThreadState;
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<T>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeState: Event<CommentThreadState | undefined>;
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 }

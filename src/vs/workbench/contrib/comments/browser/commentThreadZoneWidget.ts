@@ -12,7 +12,6 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import * as languages from 'vs/editor/common/languages';
-import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -24,6 +23,12 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
+
+export function getCommentThreadWidgetStateColor(thread: languages.CommentThread, theme: IColorTheme): Color | undefined {
+	return getCommentThreadStateColor(thread, theme) ?? theme.getColor(peekViewBorder);
+}
 
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	const range = e.target.range;
@@ -332,6 +337,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 				return;
 			}
 		}));
+
+
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(() => {
+			const borderColor =
+				getCommentThreadWidgetStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
+			this.style({
+				frameColor: borderColor,
+				arrowColor: borderColor,
+			});
+			this.container?.style.setProperty(commentThreadStateColorVar, `${borderColor}`);
+		}));
 	}
 
 	async submitComment(): Promise<void> {
@@ -391,10 +407,10 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		const borderColor = theme.getColor(peekViewBorder);
+		const borderColor = getCommentThreadWidgetStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
 		this.style({
-			arrowColor: borderColor || Color.transparent,
-			frameColor: borderColor || Color.transparent
+			arrowColor: borderColor,
+			frameColor: borderColor
 		});
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 

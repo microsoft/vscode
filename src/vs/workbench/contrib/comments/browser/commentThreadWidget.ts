@@ -21,12 +21,15 @@ import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/comment
 import { CommentNode } from 'vs/workbench/contrib/comments/common/commentModel';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { contrastBorder, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { peekViewBorder } from 'vs/editor/contrib/peekView/browser/peekView';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IRange } from 'vs/editor/common/core/range';
+import { commentThreadStateColorVar } from 'vs/workbench/contrib/comments/browser/commentColors';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+
+export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
+
 
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
@@ -171,6 +174,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			}
 		}));
 
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeComments(async _ => {
+			await this.updateCommentThread(this._commentThread);
+		}));
+
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeLabel(_ => {
 			this._header.createThreadLabel();
 		}));
@@ -236,11 +243,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	applyTheme(theme: IColorTheme, fontInfo: FontInfo) {
 		const content: string[] = [];
 
-		const borderColor = theme.getColor(peekViewBorder);
-
-		if (borderColor) {
-			content.push(`.review-widget > .body { border-top: 1px solid ${borderColor} }`);
-		}
+		content.push(`.monaco-editor .review-widget > .body { border-top: 1px solid var(${commentThreadStateColorVar}) }`);
 
 		const linkColor = theme.getColor(textLinkForeground);
 		if (linkColor) {

@@ -3595,3 +3595,13 @@ export class TypeHierarchyItem {
 		this.selectionRange = selectionRange;
 	}
 }
+
+// ---
+
+export class TextTabInput {
+	constructor(readonly uri: URI) { }
+}
+
+export class TextDiffTabInput {
+	constructor(readonly original: URI, readonly modified: URI) { }
+}
