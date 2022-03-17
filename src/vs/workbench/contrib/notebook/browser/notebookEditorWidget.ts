@@ -83,7 +83,6 @@ import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
-import { peekViewResultsBackground } from 'vs/editor/contrib/peekView/browser/peekView';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 const $ = DOM.$;
@@ -3342,13 +3341,5 @@ registerThemingParticipant((theme, collector) => {
 	const iconForegroundColor = theme.getColor(iconForeground);
 	if (iconForegroundColor) {
 		collector.addRule(`.monaco-workbench .notebookOverlay .codicon-debug-continue { color: ${iconForegroundColor} !important; }`);
-	}
-
-	const peekViewBackground = theme.getColor(peekViewResultsBackground);
-	if (peekViewBackground) {
-		collector.addRule(
-			`.cell-comment-container {` +
-			`	background-color: ${peekViewBackground};` +
-			`}`);
 	}
 });

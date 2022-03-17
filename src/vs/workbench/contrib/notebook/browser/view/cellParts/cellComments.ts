@@ -13,10 +13,11 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { coalesce } from 'vs/base/common/arrays';
+import { peekViewBorder, peekViewResultsBackground } from 'vs/editor/contrib/peekView/browser/peekView';
 
 export class CellComments extends CellPart {
 	private _initialized: boolean = false;
@@ -154,3 +155,21 @@ export class CellComments extends CellPart {
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const borderColor = theme.getColor(peekViewBorder);
+
+	if (borderColor) {
+		collector.addRule(`.cell-comment-container.review-widget { border-left: 1px solid ${borderColor}; border-right: 1px solid ${borderColor}; }`);
+		collector.addRule(`.cell-comment-container.review-widget > .head { border-top: 1px solid ${borderColor}; }`);
+		collector.addRule(`.cell-comment-container.review-widget > .body { border-bottom: 1px solid ${borderColor}; }`);
+	}
+
+	const peekViewBackground = theme.getColor(peekViewResultsBackground);
+	if (peekViewBackground) {
+		collector.addRule(
+			`.cell-comment-container.review-widget {` +
+			`	background-color: ${peekViewBackground};` +
+			`}`);
+	}
+});
