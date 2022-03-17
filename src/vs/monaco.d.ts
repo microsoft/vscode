@@ -6263,7 +6263,6 @@ declare namespace monaco.languages {
 	}
 
 	export interface InlineCompletion {
-		readonly filterText?: string;
 		/**
 		 * The text to insert.
 		 * If the text contains a line break, the range must end at the end of a line.
@@ -6275,6 +6274,11 @@ declare namespace monaco.languages {
 		readonly insertText: string | {
 			snippet: string;
 		};
+		/**
+		 * A text that is used to decide if this inline completion should be shown.
+		 * An inline completion is shown if the text to replace is a subword of the filter text.
+		 */
+		readonly filterText?: string;
 		/**
 		 * The range to replace.
 		 * Must begin and end on the same line.

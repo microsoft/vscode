@@ -252,6 +252,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}));
 
 		this._register(this.editor.onDidChangeModelContent((e) => {
+			// Call this in case `onDidChangeModelContent` calls us first.
+			this.cache.value?.updateRanges();
 			this.updateFilteredInlineCompletions();
 			this.scheduleAutomaticUpdate();
 		}));
@@ -273,8 +275,17 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 		const model = this.editor.getModel();
 		this.filteredCompletions = this.cache.value.completions.filter(c => {
-			const originalValue = model.getValueInRange(c.synchronizedRange);
-			const matches = matchesSubString(originalValue, c.inlineCompletion.filterText);
+			let originalValue = model.getValueInRange(c.synchronizedRange);
+			let filterText = c.inlineCompletion.filterText;
+
+			const indent = model.getLineIndentColumn(c.synchronizedRange.startLineNumber);
+			if (c.synchronizedRange.startColumn <= indent) {
+				// Remove indentation
+				originalValue = originalValue.trimStart();
+				filterText = filterText.trimStart();
+			}
+
+			const matches = matchesSubString(originalValue, filterText);
 			return matches;
 		});
 	}
@@ -517,9 +528,9 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 	public readonly completions: readonly CachedInlineCompletion[];
 
 	constructor(
-		editor: IActiveCodeEditor,
 		completionsSource: TrackedInlineCompletions,
-		onChange: () => void,
+		private readonly editor: IActiveCodeEditor,
+		private readonly onChange: () => void,
 		public readonly triggerKind: InlineCompletionTriggerKind,
 	) {
 		super();
@@ -540,25 +551,29 @@ export class SynchronizedInlineCompletionsCache extends Disposable {
 		this.completions = completionsSource.items.map((c, idx) => new CachedInlineCompletion(c, decorationIds[idx]));
 
 		this._register(editor.onDidChangeModelContent(() => {
-			let hasChanged = false;
-			const model = editor.getModel();
-			for (const c of this.completions) {
-				const newRange = model.getDecorationRange(c.decorationId);
-				if (!newRange) {
-					onUnexpectedError(new Error('Decoration has no range'));
-					continue;
-				}
-				if (!c.synchronizedRange.equalsRange(newRange)) {
-					hasChanged = true;
-					c.synchronizedRange = newRange;
-				}
-			}
-			if (hasChanged) {
-				onChange();
-			}
+			this.updateRanges();
 		}));
 
 		this._register(completionsSource);
+	}
+
+	public updateRanges() {
+		let hasChanged = false;
+		const model = this.editor.getModel();
+		for (const c of this.completions) {
+			const newRange = model.getDecorationRange(c.decorationId);
+			if (!newRange) {
+				onUnexpectedError(new Error('Decoration has no range'));
+				continue;
+			}
+			if (!c.synchronizedRange.equalsRange(newRange)) {
+				hasChanged = true;
+				c.synchronizedRange = newRange;
+			}
+		}
+		if (hasChanged) {
+			this.onChange();
+		}
 	}
 }
 
