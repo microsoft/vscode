@@ -42,18 +42,7 @@ export interface IWorkingCopyHistoryEntry {
 	/**
 	 * The time when this history entry was created.
 	 */
-	readonly timestamp: {
-
-		/**
-		 * The raw time value as timestamp.
-		 */
-		readonly value: number;
-
-		/**
-		 * Preferred label for how the time should be displayed.
-		 */
-		readonly label: string;
-	};
+	readonly timestamp: number;
 
 	/**
 	 * Associated source with the history entry.
@@ -122,12 +111,17 @@ export interface IWorkingCopyHistoryService {
 	removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean>;
 
 	/**
-	 * Removes all entries from all of local history.
-	 */
-	removeAll(token: CancellationToken): Promise<void>;
-
-	/**
 	 * Gets all history entries for the provided resource.
 	 */
 	getEntries(resource: URI, token: CancellationToken): Promise<readonly IWorkingCopyHistoryEntry[]>;
+
+	/**
+	 * Returns all resources for which history entries exist.
+	 */
+	getAll(token: CancellationToken): Promise<readonly URI[]>;
+
+	/**
+	 * Removes all entries from all of local history.
+	 */
+	removeAll(token: CancellationToken): Promise<void>;
 }

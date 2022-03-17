@@ -106,7 +106,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		const { document, reason } = stubEvent;
 		const { version } = document;
 
-		const event = Object.freeze(<vscode.TextDocumentWillSaveEvent>{
+		const event = Object.freeze<vscode.TextDocumentWillSaveEvent>({
 			document,
 			reason,
 			waitUntil(p: Promise<any | vscode.TextEdit[]>) {

@@ -7,7 +7,10 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
+import type { Terminal, IMarker, ITerminalAddon, IDecoration } from 'xterm';
+import { timeout } from 'vs/base/common/async';
+import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
 
 enum Boundary {
 	Top,
@@ -24,6 +27,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
 	protected _terminal: Terminal | undefined;
+	private _navigationDecoration: IDecoration | undefined;
 
 	private _commandDetection?: ICommandDetectionCapability | IPartialCommandDetectionCapability;
 
@@ -65,7 +69,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		this._selectionStart = null;
 	}
 
-	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	scrollToPreviousCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -74,9 +78,11 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		}
 
 		let markerIndex;
-		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
+		const currentLineY = typeof this._currentMarker === 'object'
+			? this._getTargetScrollLine(this._terminal, this._currentMarker, scrollPosition)
+			: Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
 		const viewportY = this._terminal.buffer.active.viewportY;
-		if (!retainSelection && currentLineY !== viewportY) {
+		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
 			const markersBelowViewport = this._getCommandMarkers().filter(e => e.line >= viewportY).length;
@@ -104,7 +110,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	scrollToNextCommand(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -113,9 +119,11 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		}
 
 		let markerIndex;
-		const currentLineY = Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
+		const currentLineY = typeof this._currentMarker === 'object'
+			? this._getTargetScrollLine(this._terminal, this._currentMarker, scrollPosition)
+			: Math.min(this._getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
 		const viewportY = this._terminal.buffer.active.viewportY;
-		if (!retainSelection && currentLineY !== viewportY) {
+		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
 			// The user has scrolled, find the line based on the current scroll position. This only
 			// works when not retaining selection
 			const markersAboveViewport = this._getCommandMarkers().filter(e => e.line <= viewportY).length;
@@ -147,11 +155,50 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		if (!this._terminal) {
 			return;
 		}
-		let line = marker.line;
-		if (position === ScrollPosition.Middle) {
-			line = Math.max(line - Math.floor(this._terminal.rows / 2), 0);
+		if (!this._isMarkerInViewport(this._terminal, marker)) {
+			const line = this._getTargetScrollLine(this._terminal, marker, position);
+			this._terminal.scrollToLine(line);
 		}
-		this._terminal.scrollToLine(line);
+		this._navigationDecoration?.dispose();
+		const decoration = this._terminal.registerDecoration({
+			marker,
+			width: this._terminal.cols
+		});
+		this._navigationDecoration = decoration;
+		if (decoration) {
+			let isRendered = false;
+			decoration.onRender(element => {
+				if (!isRendered) {
+					// TODO: Remove when https://github.com/xtermjs/xterm.js/issues/3686 is fixed
+					if (!element.classList.contains('xterm-decoration-overview-ruler')) {
+						element.classList.add('terminal-scroll-highlight');
+					}
+				}
+			});
+			decoration.onDispose(() => {
+				if (decoration === this._navigationDecoration) {
+					this._navigationDecoration = undefined;
+				}
+			});
+			// Number picked to align with symbol highlight in the editor
+			timeout(350).then(() => {
+				decoration.dispose();
+			});
+		}
+	}
+
+	private _getTargetScrollLine(terminal: Terminal, marker: IMarker, position: ScrollPosition) {
+		// Middle is treated at 1/4 of the viewport's size because context below is almost always
+		// more important than context above in the terminal.
+		if (position === ScrollPosition.Middle) {
+			return Math.max(marker.line - Math.floor(terminal.rows / 4), 0);
+		}
+		return marker.line;
+	}
+
+	private _isMarkerInViewport(terminal: Terminal, marker: IMarker) {
+		const viewportY = terminal.buffer.active.viewportY;
+		return marker.line >= viewportY && marker.line < viewportY + terminal.rows;
 	}
 
 	selectToPreviousCommand(): void {
@@ -232,7 +279,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		return marker.line;
 	}
 
-	scrollToPreviousLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	scrollToPreviousLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
@@ -255,7 +302,7 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		this._scrollToMarker(this._currentMarker, scrollPosition);
 	}
 
-	scrollToNextLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Top, retainSelection: boolean = false): void {
+	scrollToNextLine(xterm: Terminal, scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false): void {
 		if (!retainSelection) {
 			this._selectionStart = null;
 		}
@@ -332,3 +379,11 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		return this._getCommandMarkers().length;
 	}
 }
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	const focusBorderColor = theme.getColor(focusBorder);
+
+	if (focusBorderColor) {
+		collector.addRule(`.terminal-scroll-highlight { border-color: ${focusBorderColor.toString()}; } `);
+	}
+});

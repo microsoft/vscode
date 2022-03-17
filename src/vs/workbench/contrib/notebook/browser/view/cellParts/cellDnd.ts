@@ -8,6 +8,8 @@ import { Delayer } from 'vs/base/common/async';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, ICellMoveEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -28,10 +30,33 @@ interface CellDragEvent {
 	dragPosRatio: number;
 }
 
+export class CellDragAndDropPart extends CellPart {
+	constructor(
+		private readonly container: HTMLElement
+	) {
+		super();
+	}
+
+	override didRenderCell(element: ICellViewModel): void {
+		this.update(element);
+	}
+
+	override updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		if (e.dragStateChanged) {
+			this.update(element);
+		}
+	}
+
+	private update(element: ICellViewModel) {
+		this.container.classList.toggle(DRAGGING_CLASS, element.dragging);
+	}
+}
+
 export class CellDragAndDropController extends Disposable {
 	// TODO@roblourens - should probably use dataTransfer here, but any dataTransfer set makes the editor think I am dropping a file, need
 	// to figure out how to prevent that
 	private currentDraggedCell: ICellViewModel | undefined;
+	private draggedCells: ICellViewModel[] = [];
 
 	private listInsertionIndicator: HTMLElement;
 
@@ -95,14 +120,6 @@ export class CellDragAndDropController extends Disposable {
 				this.isScrolling = false;
 			});
 		});
-	}
-
-	renderElement(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		if (element.dragging) {
-			templateData.container.classList.add(DRAGGING_CLASS);
-		} else {
-			templateData.container.classList.remove(DRAGGING_CLASS);
-		}
 	}
 
 	private setInsertIndicatorVisibility(visible: boolean) {
@@ -269,8 +286,9 @@ export class CellDragAndDropController extends Disposable {
 
 	private dragCleanup(): void {
 		if (this.currentDraggedCell) {
-			this.currentDraggedCell.dragging = false;
+			this.draggedCells.forEach(cell => cell.dragging = false);
 			this.currentDraggedCell = undefined;
+			this.draggedCells = [];
 		}
 
 		this.setInsertIndicatorVisibility(false);
@@ -305,14 +323,13 @@ export class CellDragAndDropController extends Disposable {
 			}
 
 			this.currentDraggedCell = templateData.currentRenderedCell!;
-			this.currentDraggedCell.dragging = true;
+			this.draggedCells = this.notebookEditor.getSelections().map(range => this.notebookEditor.getCellsInRange(range)).flat();
+			this.draggedCells.forEach(cell => cell.dragging = true);
 
 			const dragImage = dragImageProvider();
 			cellRoot.parentElement!.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, 0, 0);
 			setTimeout(() => cellRoot.parentElement!.removeChild(dragImage!), 0); // Comment this out to debug drag image layout
-
-			container.classList.add(DRAGGING_CLASS);
 		};
 		for (const dragHandle of dragHandles) {
 			templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, onDragStart));
