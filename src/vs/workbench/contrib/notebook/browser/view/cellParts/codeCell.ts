@@ -23,7 +23,6 @@ import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDeleg
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellEditorOptions';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -270,28 +269,6 @@ export class CodeCell extends Disposable {
 				this.notebookEditor.revealLineInViewAsync(this.viewCell, lastSelection.positionLineNumber);
 			}
 		}));
-
-		// Focus Mode
-		const updateFocusModeForEditorEvent = () => {
-			this.viewCell.focusMode =
-				(this.templateData.editor.hasWidgetFocus() || (document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement)))
-					? CellFocusMode.Editor
-					: CellFocusMode.Container;
-		};
-
-		this._register(this.templateData.editor.onDidFocusEditorWidget(() => {
-			updateFocusModeForEditorEvent();
-		}));
-		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
-			// this is for a special case:
-			// users click the status bar empty space, which we will then focus the editor
-			// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
-			if (
-				this.notebookEditor.hasEditorFocus() &&
-				!(document.activeElement && this.templateData.statusBar.statusBarContainer.contains(document.activeElement))) {
-				updateFocusModeForEditorEvent();
-			}
-		}));
 	}
 
 	private registerDecorations() {
@@ -330,17 +307,6 @@ export class CodeCell extends Disposable {
 	}
 
 	private registerMouseListener() {
-		// Mouse click handlers
-		this._register(this.templateData.statusBar.onDidClick(e => {
-			if (e.type !== ClickTargetType.ContributedCommandItem) {
-				const target = this.templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(this.viewCell.internalMetadata, this.viewCell.uri));
-				if (target?.position) {
-					this.templateData.editor.setPosition(target.position);
-					this.templateData.editor.focus();
-				}
-			}
-		}));
-
 		this._register(this.templateData.editor.onMouseDown(e => {
 			// prevent default on right mouse click, otherwise it will trigger unexpected focus changes
 			// the catch is, it means we don't allow customization of right button mouse down handlers other than the built in ones.

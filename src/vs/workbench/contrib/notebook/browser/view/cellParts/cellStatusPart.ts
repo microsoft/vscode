@@ -13,6 +13,7 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,9 +21,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
@@ -47,6 +49,7 @@ export class CellEditorStatusBar extends CellPart {
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		private readonly _cellContainer: HTMLElement,
 		editorPart: HTMLElement,
+		private readonly _editor: ICodeEditor | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -94,6 +97,41 @@ export class CellEditorStatusBar extends CellPart {
 			notebookEditor: this._notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		});
+
+		if (this._editor) {
+			// Focus Mode
+			const updateFocusModeForEditorEvent = () => {
+				element.focusMode =
+					this._editor && (this._editor.hasWidgetFocus() || (document.activeElement && this.statusBarContainer.contains(document.activeElement)))
+						? CellFocusMode.Editor
+						: CellFocusMode.Container;
+			};
+
+			this.cellDisposables.add(this._editor.onDidFocusEditorWidget(() => {
+				updateFocusModeForEditorEvent();
+			}));
+			this.cellDisposables.add(this._editor.onDidBlurEditorWidget(() => {
+				// this is for a special case:
+				// users click the status bar empty space, which we will then focus the editor
+				// so we don't want to update the focus state too eagerly, it will be updated with onDidFocusEditorWidget
+				if (
+					this._notebookEditor.hasEditorFocus() &&
+					!(document.activeElement && this.statusBarContainer.contains(document.activeElement))) {
+					updateFocusModeForEditorEvent();
+				}
+			}));
+
+			// Mouse click handlers
+			this.cellDisposables.add(this.onDidClick(e => {
+				if (this.currentCell instanceof CodeCellViewModel && e.type !== ClickTargetType.ContributedCommandItem && this._editor) {
+					const target = this._editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - this._notebookEditor.notebookOptions.computeEditorStatusbarHeight(this.currentCell.internalMetadata, this.currentCell.uri));
+					if (target?.position) {
+						this._editor.setPosition(target.position);
+						this._editor.focus();
+					}
+				}
+			}));
+		}
 	}
 
 	override updateInternalLayoutNow(element: ICellViewModel): void {

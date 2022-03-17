@@ -166,7 +166,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			this.notebookEditor));
 		const betweenCellToolbar = templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellContainer));
 		const focusIndicatorBottom = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom')));
-		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart));
+		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, undefined));
 		const foldedCellHint = templateDisposables.add(scopedInstaService.createInstance(FoldedCellHint, this.notebookEditor, DOM.append(container, $('.notebook-folded-hint'))));
 
 		const focusIndicator = templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom));
@@ -197,7 +197,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			foldingIndicator,
 			templateDisposables,
 			elementDisposables: new DisposableStore(),
-			statusBar,
 			cellParts,
 			toJSON: () => { return {}; }
 		};
@@ -298,7 +297,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const progressBar = templateDisposables.add(this.instantiationService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer));
 
-		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart));
+		const statusBar = templateDisposables.add(this.instantiationService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, editor));
 
 		const outputContainer = new FastDomNode(DOM.append(container, $('.output')));
 		const cellOutputCollapsedContainer = DOM.append(outputContainer.domNode, $('.output-collapse-container'));
@@ -349,7 +348,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			instantiationService: scopedInstaService,
 			container,
 			cellContainer,
-			statusBar,
 			focusSinkElement,
 			outputContainer,
 			outputShowMoreContainer,
