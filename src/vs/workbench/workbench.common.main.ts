@@ -265,6 +265,7 @@ import 'vs/workbench/contrib/snippets/browser/insertSnippet';
 import 'vs/workbench/contrib/snippets/browser/surroundWithSnippet';
 import 'vs/workbench/contrib/snippets/browser/configureSnippets';
 import 'vs/workbench/contrib/snippets/browser/tabCompletion';
+import 'vs/workbench/contrib/snippets/browser/tabInlineCompletions';
 
 // Formatter Help
 import 'vs/workbench/contrib/format/browser/format.contribution';
