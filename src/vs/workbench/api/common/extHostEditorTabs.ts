@@ -19,76 +19,6 @@ export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 
 export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostEditorTabs');
 
-class ExtHostEditorTabGroup {
-
-	private _apiObject: vscode.TabGroup | undefined;
-	private _dto: IEditorTabGroupDto;
-	private _tabs: ExtHostEditorTab[] = [];
-	private _activeTabId: string = '';
-	private _activeGroupIdGetter: () => number | undefined;
-
-	constructor(dto: IEditorTabGroupDto, proxy: MainThreadEditorTabsShape, activeGroupIdGetter: () => number | undefined) {
-		this._dto = dto;
-		this._activeGroupIdGetter = activeGroupIdGetter;
-		// Construct all tabs from the given dto
-		for (const tabDto of dto.tabs) {
-			if (tabDto.isActive) {
-				this._activeTabId = tabDto.id;
-			}
-			this._tabs.push(new ExtHostEditorTab(tabDto, proxy, () => this.activeTabId()));
-		}
-	}
-
-	get apiObject(): vscode.TabGroup {
-		// Don't want to lose reference to parent `this` in the getters
-		const that = this;
-		if (!this._apiObject) {
-			this._apiObject = Object.freeze({
-				get isActive() {
-					// We use a getter function here to always ensure at most 1 active group and prevent iteration for being required
-					return that._dto.groupId === that._activeGroupIdGetter();
-				},
-				get viewColumn() {
-					return typeConverters.ViewColumn.to(that._dto.viewColumn);
-				},
-				get activeTab() {
-					return that._tabs.find(tab => tab.tabId === that._activeTabId)?.apiObject;
-				},
-				get tabs() {
-					return that._tabs.map(tab => tab.apiObject);
-				}
-			});
-		}
-		return this._apiObject;
-	}
-
-	get groupId(): number {
-		return this._dto.groupId;
-	}
-
-	acceptGroupDtoUpdate(dto: IEditorTabGroupDto) {
-		this._dto = dto;
-	}
-
-	acceptTabDtoUpdate(dto: IEditorTabDto) {
-		const tab = this._tabs.find(extHostTab => extHostTab.tabId === dto.id);
-		if (tab) {
-			if (dto.isActive) {
-				this._activeTabId = dto.id;
-			}
-			tab.acceptDtoUpdate(dto);
-		}
-	}
-
-	// Not a getter since it must be a function to be used as a callback for the tabs
-	activeTabId(): string {
-		return this._activeTabId;
-	}
-
-	findExtHostTabFromApi(apiTab: vscode.Tab): ExtHostEditorTab | undefined {
-		return this._tabs.find(extHostTab => extHostTab.apiObject === apiTab);
-	}
-}
 
 class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
@@ -138,10 +68,6 @@ class ExtHostEditorTab {
 				move: async (index: number, viewColumn: ViewColumn) => {
 					this._proxy.$moveTab(that._dto.id, index, typeConverters.ViewColumn.from(viewColumn));
 					return;
-				},
-				close: async (preserveFocus) => {
-					this._proxy.$closeTab(that._dto.id, preserveFocus);
-					return;
 				}
 			});
 		}
@@ -158,6 +84,77 @@ class ExtHostEditorTab {
 
 }
 
+class ExtHostEditorTabGroup {
+
+	private _apiObject: vscode.TabGroup | undefined;
+	private _dto: IEditorTabGroupDto;
+	private _tabs: ExtHostEditorTab[] = [];
+	private _activeTabId: string = '';
+	private _activeGroupIdGetter: () => number | undefined;
+
+	constructor(dto: IEditorTabGroupDto, proxy: MainThreadEditorTabsShape, activeGroupIdGetter: () => number | undefined) {
+		this._dto = dto;
+		this._activeGroupIdGetter = activeGroupIdGetter;
+		// Construct all tabs from the given dto
+		for (const tabDto of dto.tabs) {
+			if (tabDto.isActive) {
+				this._activeTabId = tabDto.id;
+			}
+			this._tabs.push(new ExtHostEditorTab(tabDto, proxy, () => this.activeTabId()));
+		}
+	}
+
+	get apiObject(): vscode.TabGroup {
+		// Don't want to lose reference to parent `this` in the getters
+		const that = this;
+		if (!this._apiObject) {
+			this._apiObject = Object.freeze({
+				get isActive() {
+					// We use a getter function here to always ensure at most 1 active group and prevent iteration for being required
+					return that._dto.groupId === that._activeGroupIdGetter();
+				},
+				get viewColumn() {
+					return typeConverters.ViewColumn.to(that._dto.viewColumn);
+				},
+				get activeTab() {
+					return that._tabs.find(tab => tab.tabId === that._activeTabId)?.apiObject;
+				},
+				get tabs() {
+					return that._tabs.map(tab => tab.apiObject);
+				}
+			});
+		}
+		return this._apiObject;
+	}
+
+	get groupId(): number {
+		return this._dto.groupId;
+	}
+
+	get tabs(): ExtHostEditorTab[] {
+		return this._tabs;
+	}
+
+	acceptGroupDtoUpdate(dto: IEditorTabGroupDto) {
+		this._dto = dto;
+	}
+
+	acceptTabDtoUpdate(dto: IEditorTabDto) {
+		const tab = this._tabs.find(extHostTab => extHostTab.tabId === dto.id);
+		if (tab) {
+			if (dto.isActive) {
+				this._activeTabId = dto.id;
+			}
+			tab.acceptDtoUpdate(dto);
+		}
+	}
+
+	// Not a getter since it must be a function to be used as a callback for the tabs
+	activeTabId(): string {
+		return this._activeTabId;
+	}
+}
+
 class ExtHostTabGroups {
 
 	private _apiObject: vscode.TabGroups | undefined;
@@ -167,7 +164,8 @@ class ExtHostTabGroups {
 	constructor(
 		private readonly _onDidChangeTagGroup: vscode.Event<void>,
 		private readonly _onDidChangeActiveTabGroup: vscode.Event<vscode.TabGroup | undefined>,
-		private readonly _getActiveTabGroupdId: () => number | undefined
+		private readonly _getActiveTabGroupdId: () => number | undefined,
+		private readonly _proxy: MainThreadEditorTabsShape
 	) { }
 
 	get apiObject() {
@@ -185,6 +183,19 @@ class ExtHostTabGroups {
 						return undefined;
 					}
 					return that._tabGroups.find(candidate => candidate.groupId === activeTabGroupId)?.apiObject;
+				},
+				close: async (tab: vscode.Tab | vscode.Tab[], preserveFocus?: boolean) => {
+					const tabs = Array.isArray(tab) ? tab : [tab];
+					const extHostTabIds: string[] = [];
+					for (const tab of tabs) {
+						const extHostTab = this.findExtHostTabFromApi(tab);
+						if (!extHostTab) {
+							throw new Error('Tab close: Invalid tab not found!');
+						}
+						extHostTabIds.push(extHostTab.tabId);
+					}
+					this._proxy.$closeTab(extHostTabIds, preserveFocus);
+					return;
 				}
 			});
 		}
@@ -193,6 +204,17 @@ class ExtHostTabGroups {
 
 	acceptTabGroups(groups: ExtHostEditorTabGroup[]) {
 		this._tabGroups = groups;
+	}
+
+	private findExtHostTabFromApi(apiTab: vscode.Tab): ExtHostEditorTab | undefined {
+		for (const group of this._tabGroups) {
+			for (const tab of group.tabs) {
+				if (tab.apiObject === apiTab) {
+					return tab;
+				}
+			}
+		}
+		return;
 	}
 }
 
@@ -212,7 +234,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadEditorTabs);
-		this._tabGroups = new ExtHostTabGroups(this._onDidChangeTabGroup.event, this._onDidChangeActiveTabGroup.event, () => this.activeGroupIdGetter());
+		this._tabGroups = new ExtHostTabGroups(this._onDidChangeTabGroup.event, this._onDidChangeActiveTabGroup.event, () => this.activeGroupIdGetter(), this._proxy);
 	}
 
 	get tabGroups(): vscode.TabGroups {

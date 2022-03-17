@@ -81,14 +81,6 @@ declare module 'vscode' {
 		 */
 		// TODO@API move into TabGroups
 		move(index: number, viewColumn: ViewColumn): Thenable<void>;
-
-		/**
-		 * Closes the tab. This makes the tab object invalid and the tab
-		 * should no longer be used for further actions.
-		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
-		 */
-		// TODO@API move into TabGroups, support one or many tabs or tab groups
-		close(preserveFocus: boolean): Thenable<void>;
 	}
 
 	export namespace window {
@@ -96,6 +88,28 @@ declare module 'vscode' {
 		 * Represents the grid widget within the main editor area
 		 */
 		export const tabGroups: TabGroups;
+	}
+
+	export interface TabGroup {
+		/**
+		 * Whether or not the group is currently active
+		 */
+		readonly isActive: boolean;
+
+		/**
+		 * The view column of the groups
+		 */
+		readonly viewColumn: ViewColumn;
+
+		/**
+		 * The active tab within the group
+		 */
+		readonly activeTab: Tab | undefined;
+
+		/**
+		 * The list of tabs contained within the group
+		 */
+		readonly tabs: Tab[];
 	}
 
 	export interface TabGroups {
@@ -119,27 +133,14 @@ declare module 'vscode' {
 		 * Whether it be which group is active or its properties.
 		 */
 		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
-	}
-
-	export interface TabGroup {
-		/**
-		 * Whether or not the group is currently active
-		 */
-		readonly isActive: boolean;
 
 		/**
-		 * The view column of the groups
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 * @param tab The tab to close, must be reference equal to a tab given by the API
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
 		 */
-		readonly viewColumn: ViewColumn;
-
-		/**
-		 * The active tab within the group
-		 */
-		readonly activeTab: Tab | undefined;
-
-		/**
-		 * The list of tabs contained within the group
-		 */
-		readonly tabs: Tab[];
+		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
+		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
 	}
 }

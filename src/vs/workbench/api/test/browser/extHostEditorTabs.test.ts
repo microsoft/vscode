@@ -343,4 +343,45 @@ suite('ExtHostEditorTabs', function () {
 			extHostEditorTabs.tabGroups.onDidChangeTabGroup = undefined;
 		});
 	});
+
+	test('Ensure close is called with all tab ids', function () {
+		let closedTabIds: string[][] = [];
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+				override async $closeTab(tabIds: string[], preserveFocus?: boolean) {
+					closedTabIds.push(tabIds);
+				}
+			})
+		);
+		const tab: IEditorTabDto = {
+			id: 'uniquestring',
+			isActive: true,
+			isDirty: true,
+			isPinned: true,
+			label: 'label1',
+			resource: URI.parse('file://abc/def.txt'),
+			editorId: 'default',
+			viewColumn: 0,
+			additionalResourcesAndViewTypes: [],
+			kind: TabKind.Singular
+		};
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tab]
+		}]);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		const activeTab = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
+		assert.ok(activeTab);
+		extHostEditorTabs.tabGroups.close(activeTab, false);
+		assert.strictEqual(closedTabIds.length, 1);
+		assert.deepStrictEqual(closedTabIds[0], ['uniquestring']);
+		// Close with array
+		extHostEditorTabs.tabGroups.close([activeTab], false);
+		assert.strictEqual(closedTabIds.length, 2);
+		assert.deepStrictEqual(closedTabIds[1], ['uniquestring']);
+	});
 });

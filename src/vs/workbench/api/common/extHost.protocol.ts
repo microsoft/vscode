@@ -612,7 +612,7 @@ export interface ExtHostEditorInsetsShape {
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
 	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn): void;
-	$closeTab(tabId: string, preserveFocus: boolean): Promise<void>;
+	$closeTab(tabIds: string[], preserveFocus?: boolean): Promise<void>;
 }
 
 export interface IEditorTabGroupDto {

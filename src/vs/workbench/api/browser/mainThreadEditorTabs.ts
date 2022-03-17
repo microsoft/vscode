@@ -377,19 +377,28 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		return;
 	}
 
-	async $closeTab(tabId: string, preserveFocus: boolean): Promise<void> {
-		const tabInfo = this._tabInfoLookup.get(tabId);
-		const tab = tabInfo?.tab;
-		const group = tabInfo?.group;
-		const editorTab = tabInfo?.editorInput;
-		if (!group || !tab || !tabInfo || !editorTab) {
-			return;
+	async $closeTab(tabIds: string[], preserveFocus?: boolean): Promise<void> {
+		const groups: Map<IEditorGroup, EditorInput[]> = new Map();
+		for (const tabId of tabIds) {
+			const tabInfo = this._tabInfoLookup.get(tabId);
+			const tab = tabInfo?.tab;
+			const group = tabInfo?.group;
+			const editorTab = tabInfo?.editorInput;
+			// If not found skip
+			if (!group || !tab || !tabInfo || !editorTab) {
+				continue;
+			}
+			const groupEditors = groups.get(group);
+			if (!groupEditors) {
+				groups.set(group, [editorTab]);
+			} else {
+				groupEditors.push(editorTab);
+			}
 		}
-		const editor = group.editors.find(editor => editor.matches(editorTab));
-		if (!editor) {
-			return;
+		// Loop over keys of the groups map and call closeEditors
+		for (const [group, editors] of groups) {
+			group.closeEditors(editors, { preserveFocus });
 		}
-		await group.closeEditor(editor, { preserveFocus });
 	}
 	//#endregion
 }
