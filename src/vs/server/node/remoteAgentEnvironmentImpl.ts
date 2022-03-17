@@ -12,7 +12,7 @@ import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensio
 import * as nls from 'vs/nls';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { ExtensionScanner, ExtensionScannerInput, IExtensionResolver, IExtensionReference } from 'vs/workbench/services/extensions/node/extensionPoints';
+import { ILog, Translations, ExtensionScanner, ExtensionScannerInput, IExtensionResolver, IExtensionReference, IExtensionScannerHost } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { transformOutgoingURIs } from 'vs/base/common/uriIpc';
@@ -24,11 +24,10 @@ import { getMachineInfo, collectWorkspaceStats } from 'vs/platform/diagnostics/n
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { basename, isAbsolute, join, normalize } from 'vs/base/common/path';
 import { ProcessItem } from 'vs/base/common/processes';
-import { ILog, Translations } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { IBuiltInExtension } from 'vs/base/common/product';
-import { IExtensionManagementCLIService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementCLIService, IExtensionManagementService, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { cwd } from 'vs/base/common/process';
-import { Promises } from 'vs/base/node/pfs';
+import * as pfs from 'vs/base/node/pfs';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
 
@@ -51,6 +50,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 	private static _namePool = 1;
 	private readonly _logger: ILog;
+	private readonly _extensionScannerHost: IExtensionScannerHost;
 
 	private readonly whenExtensionsReady: Promise<void>;
 
@@ -58,8 +58,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		private readonly _connectionToken: ServerConnectionToken,
 		private readonly environmentService: IServerEnvironmentService,
 		extensionManagementCLIService: IExtensionManagementCLIService,
+		private readonly _extensionManagementService: IExtensionManagementService,
 		private readonly logService: ILogService,
-		private readonly productService: IProductService
+		private readonly productService: IProductService,
 	) {
 		this._logger = new class implements ILog {
 			public error(source: string, message: string): void {
@@ -71,6 +72,12 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			public info(source: string, message: string): void {
 				logService.info(source, message);
 			}
+		};
+		this._extensionScannerHost = {
+			log: this._logger,
+			readFile: (filename) => pfs.Promises.readFile(filename, 'utf8'),
+			existsFile: (filename) => pfs.SymlinkSupport.existsFile(filename),
+			readDirsInDir: (dirPath) => pfs.Promises.readDirsInDir(dirPath),
 		};
 
 		if (environmentService.args['install-builtin-extension']) {
@@ -319,6 +326,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			extensionHostLogsPath: URI.file(join(this.environmentService.logsPath, `exthost${RemoteAgentEnvironmentChannel._namePool++}`)),
 			globalStorageHome: this.environmentService.globalStorageHome,
 			workspaceStorageHome: this.environmentService.workspaceStorageHome,
+			localHistoryHome: this.environmentService.localHistoryHome,
 			userHome: this.environmentService.userHome,
 			os: platform.OS,
 			arch: process.arch,
@@ -331,7 +339,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		const config = await getNLSConfiguration(language, this.environmentService.userDataPath);
 		if (InternalNLSConfiguration.is(config)) {
 			try {
-				const content = await Promises.readFile(config._translationsConfigFile, 'utf8');
+				const content = await pfs.Promises.readFile(config._translationsConfigFile, 'utf8');
 				return JSON.parse(content);
 			} catch (err) {
 				return Object.create(null);
@@ -382,10 +390,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		return r;
 	}
 
-	private _scanDevelopedExtensions(language: string, translations: Translations, extensionDevelopmentPaths?: string[]): Promise<IExtensionDescription[]> {
-
+	private async _scanDevelopedExtensions(language: string, translations: Translations, extensionDevelopmentPaths?: string[]): Promise<IExtensionDescription[]> {
 		if (extensionDevelopmentPaths) {
-
+			const targetPlatform = await this._extensionManagementService.getTargetPlatform();
 			const extDescsP = extensionDevelopmentPaths.map(extDevPath => {
 				return ExtensionScanner.scanOneOrMultipleExtensions(
 					new ExtensionScannerInput(
@@ -397,30 +404,32 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 						extDevPath,
 						false, // isBuiltin
 						true, // isUnderDevelopment
+						targetPlatform,
 						translations // translations
-					), this._logger
+					),
+					this._extensionScannerHost
 				);
 			});
 
-			return Promise.all(extDescsP).then((extDescArrays: IExtensionDescription[][]) => {
-				let extDesc: IExtensionDescription[] = [];
-				for (let eds of extDescArrays) {
-					extDesc = extDesc.concat(eds);
-				}
-				return extDesc;
-			});
+			const extDescArrays = await Promise.all(extDescsP);
+			let extDesc: IExtensionDescription[] = [];
+			for (let eds of extDescArrays) {
+				extDesc = extDesc.concat(eds);
+			}
+			return extDesc;
 		}
-		return Promise.resolve([]);
+		return [];
 	}
 
-	private _scanBuiltinExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
+	private async _scanBuiltinExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
 		const version = this.productService.version;
 		const commit = this.productService.commit;
 		const date = this.productService.date;
 		const devMode = !!process.env['VSCODE_DEV'];
+		const targetPlatform = await this._extensionManagementService.getTargetPlatform();
 
-		const input = new ExtensionScannerInput(version, date, commit, language, devMode, getSystemExtensionsRoot(), true, false, translations);
-		const builtinExtensions = ExtensionScanner.scanExtensions(input, this._logger);
+		const input = new ExtensionScannerInput(version, date, commit, language, devMode, getSystemExtensionsRoot(), true, false, targetPlatform, translations);
+		const builtinExtensions = ExtensionScanner.scanExtensions(input, this._extensionScannerHost);
 		let finalBuiltinExtensions: Promise<IExtensionDescription[]> = builtinExtensions;
 
 		if (devMode) {
@@ -436,10 +445,10 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 			const builtInExtensions = Promise.resolve(this.productService.builtInExtensions || []);
 
-			const input = new ExtensionScannerInput(version, date, commit, language, devMode, getExtraDevSystemExtensionsRoot(), true, false, {});
+			const input = new ExtensionScannerInput(version, date, commit, language, devMode, getExtraDevSystemExtensionsRoot(), true, false, targetPlatform, {});
 			const extraBuiltinExtensions = builtInExtensions
 				.then((builtInExtensions) => new ExtraBuiltInExtensionResolver(builtInExtensions))
-				.then(resolver => ExtensionScanner.scanExtensions(input, this._logger, resolver));
+				.then(resolver => ExtensionScanner.scanExtensions(input, this._extensionScannerHost, resolver));
 
 			finalBuiltinExtensions = ExtensionScanner.mergeBuiltinExtensions(builtinExtensions, extraBuiltinExtensions);
 		}
@@ -447,7 +456,8 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		return finalBuiltinExtensions;
 	}
 
-	private _scanInstalledExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
+	private async _scanInstalledExtensions(language: string, translations: Translations): Promise<IExtensionDescription[]> {
+		const targetPlatform = await this._extensionManagementService.getTargetPlatform();
 		const devMode = !!process.env['VSCODE_DEV'];
 		const input = new ExtensionScannerInput(
 			this.productService.version,
@@ -458,13 +468,15 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			this.environmentService.extensionsPath!,
 			false, // isBuiltin
 			false, // isUnderDevelopment
+			targetPlatform,
 			translations
 		);
 
-		return ExtensionScanner.scanExtensions(input, this._logger);
+		return ExtensionScanner.scanExtensions(input, this._extensionScannerHost);
 	}
 
-	private _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string, translations: Translations): Promise<IExtensionDescription | null> {
+	private async _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string, translations: Translations): Promise<IExtensionDescription | null> {
+		const targetPlatform = await this._extensionManagementService.getTargetPlatform();
 		const devMode = !!process.env['VSCODE_DEV'];
 		const input = new ExtensionScannerInput(
 			this.productService.version,
@@ -475,8 +487,9 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 			extensionPath,
 			isBuiltin,
 			false, // isUnderDevelopment
+			targetPlatform,
 			translations
 		);
-		return ExtensionScanner.scanSingleExtension(input, this._logger);
+		return ExtensionScanner.scanSingleExtension(input, this._extensionScannerHost);
 	}
 }

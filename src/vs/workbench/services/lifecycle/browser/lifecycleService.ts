@@ -135,13 +135,13 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 		// Before Shutdown
 		this._onBeforeShutdown.fire({
+			reason: ShutdownReason.QUIT,
 			veto(value, id) {
 				handleVeto(value, id);
 			},
 			finalVeto(valueFn, id) {
 				handleVeto(valueFn(), id); // in browser, trigger instantly because we do not support async anyway
-			},
-			reason: ShutdownReason.QUIT
+			}
 		});
 
 		// Veto: handle if provided
@@ -166,10 +166,11 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// First indicate will-shutdown
 		const logService = this.logService;
 		this._onWillShutdown.fire({
+			reason: ShutdownReason.QUIT,
 			join(promise, id) {
 				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${id})`);
 			},
-			reason: ShutdownReason.QUIT
+			force: () => { /* No-Op in web */ },
 		});
 
 		// Finally end with did-shutdown

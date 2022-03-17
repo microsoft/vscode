@@ -182,3 +182,10 @@
 	z-index: 6;
 	position: absolute;
 }
+
+.xterm-decoration-overview-ruler {
+	z-index: 7;
+	position: absolute;
+	top: 0;
+	right: 0;
+}

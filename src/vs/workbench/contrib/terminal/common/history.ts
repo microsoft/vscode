@@ -53,6 +53,14 @@ export function getCommandHistory(accessor: ServicesAccessor): ITerminalPersiste
 	return commandHistory;
 }
 
+let directoryHistory: ITerminalPersistedHistory<{ remoteAuthority?: string }> | undefined = undefined;
+export function getDirectoryHistory(accessor: ServicesAccessor): ITerminalPersistedHistory<{ remoteAuthority?: string }> {
+	if (!directoryHistory) {
+		directoryHistory = accessor.get(IInstantiationService).createInstance(TerminalPersistedHistory, 'dirs') as TerminalPersistedHistory<{ remoteAuthority?: string }>;
+	}
+	return directoryHistory;
+}
+
 export class TerminalPersistedHistory<T> extends Disposable implements ITerminalPersistedHistory<T> {
 	private readonly _entries: LRUCache<string, T>;
 	private _timestamp: number = 0;

@@ -7,6 +7,12 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
+	export enum TabKind {
+		Singular = 0,
+		Diff = 1,
+		SidebySide = 2
+	}
+
 	/**
 	 * Represents a tab within the window
 	 */
@@ -19,6 +25,7 @@ declare module 'vscode' {
 		/**
 		 * The column which the tab belongs to
 		 */
+		// TODO@API point to TabGroup instead?
 		readonly viewColumn: ViewColumn;
 
 		/**
@@ -28,20 +35,20 @@ declare module 'vscode' {
 		readonly resource: Uri | undefined;
 
 		/**
-		 * The identifier of the view contained in the tab
+		 * The type of view contained in the tab
 		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
-		readonly viewId: string | undefined;
+		readonly viewType: string | undefined;
 
 		/**
 		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
+		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
 		 * always be at index 0.
 		 */
-		readonly additionalResourcesAndViewIds: readonly {
+		readonly additionalResourcesAndViewTypes: readonly {
 			readonly resource: Uri | undefined;
-			readonly viewId: string | undefined;
+			readonly viewType: string | undefined;
 		}[];
 
 		/**
@@ -56,19 +63,24 @@ declare module 'vscode' {
 		readonly isDirty: boolean;
 
 		/**
+		 * Whether or not the tab is pinned
+		 */
+		readonly isPinned: boolean;
+
+		/**
+		 * Indicates the type of tab it is.
+		 */
+		readonly kind: TabKind;
+
+		/**
 		 * Moves a tab to the given index within the column.
 		 * If the index is out of range, the tab will be moved to the end of the column.
 		 * If the column is out of range, a new one will be created after the last existing column.
 		 * @param index The index to move the tab to
 		 * @param viewColumn The column to move the tab into
 		 */
+		// TODO@API move into TabGroups
 		move(index: number, viewColumn: ViewColumn): Thenable<void>;
-
-		/**
-		 * Closes the tab. This makes the tab object invalid and the tab
-		 * should no longer be used for further actions.
-		 */
-		close(): Thenable<void>;
 	}
 
 	export namespace window {
@@ -78,20 +90,7 @@ declare module 'vscode' {
 		export const tabGroups: TabGroups;
 	}
 
-	interface TabGroups {
-		/**
-		 * All the groups within the group container
-		 */
-		readonly all: TabGroup[];
-
-		/**
-		 * An {@link Event} which fires when a group changes.
-		 */
-		onDidChangeTabGroup: Event<void>;
-
-	}
-
-	interface TabGroup {
+	export interface TabGroup {
 		/**
 		 * Whether or not the group is currently active
 		 */
@@ -111,5 +110,37 @@ declare module 'vscode' {
 		 * The list of tabs contained within the group
 		 */
 		readonly tabs: Tab[];
+	}
+
+	export interface TabGroups {
+		/**
+		 * All the groups within the group container
+		 */
+		readonly groups: readonly TabGroup[];
+
+		/**
+		 * The currently active group
+		 */
+		readonly activeTabGroup: TabGroup | undefined;
+
+		/**
+		 * An {@link Event} which fires when a group changes.
+		 */
+		readonly onDidChangeTabGroup: Event<void>;
+
+		/**
+		 * An {@link Event} which fires when the active group changes.
+		 * Whether it be which group is active or its properties.
+		 */
+		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
+
+		/**
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 * @param tab The tab to close, must be reference equal to a tab given by the API
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
+		 */
+		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
+		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
 	}
 }

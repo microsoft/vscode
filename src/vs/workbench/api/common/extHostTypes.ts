@@ -1467,10 +1467,10 @@ export class InlayHint implements vscode.InlayHint {
 	label: string | InlayHintLabelPart[];
 	tooltip?: string | vscode.MarkdownString;
 	position: Position;
+	textEdits?: TextEdit[];
 	kind?: vscode.InlayHintKind;
 	paddingLeft?: boolean;
 	paddingRight?: boolean;
-	command?: vscode.Command;
 
 	constructor(position: Position, label: string | InlayHintLabelPart[], kind?: vscode.InlayHintKind) {
 		this.position = position;
@@ -1608,6 +1608,28 @@ export class InlineSuggestions implements vscode.InlineCompletionList {
 	items: vscode.InlineCompletionItem[];
 
 	constructor(items: vscode.InlineCompletionItem[]) {
+		this.items = items;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
+	insertText: string;
+	range?: Range;
+	command?: vscode.Command;
+
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+		this.insertText = insertText;
+		this.range = range;
+		this.command = command;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
+	items: vscode.InlineCompletionItemNew[];
+
+	constructor(items: vscode.InlineCompletionItemNew[]) {
 		this.items = items;
 	}
 }
@@ -2349,7 +2371,7 @@ export enum TreeItemCollapsibleState {
 }
 
 @es5ClassCompat
-export class TreeDataTransferItem {
+export class DataTransferItem {
 	async asString(): Promise<string> {
 		return typeof this.value === 'string' ? this.value : JSON.stringify(this.value);
 	}
@@ -2358,7 +2380,7 @@ export class TreeDataTransferItem {
 }
 
 @es5ClassCompat
-export class TreeDataTransfer<T extends TreeDataTransferItem = TreeDataTransferItem> {
+export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
 	private readonly _items: Map<string, T> = new Map();
 	get(mimeType: string): T | undefined {
 		return this._items.get(mimeType);
@@ -2585,6 +2607,11 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 export enum InlineCompletionTriggerKind {
 	Automatic = 0,
 	Explicit = 1,
+}
+
+export enum InlineCompletionTriggerKindNew {
+	Invoke = 0,
+	Automatic = 1,
 }
 
 @es5ClassCompat
@@ -3041,7 +3068,8 @@ export class ColorTheme implements vscode.ColorTheme {
 export enum ColorThemeKind {
 	Light = 1,
 	Dark = 2,
-	HighContrast = 3
+	HighContrast = 3,
+	HighContrastLight = 4
 }
 
 //#endregion Theming
@@ -3204,7 +3232,7 @@ export class NotebookCellOutputItem {
 		return new NotebookCellOutputItem(bytes, mime);
 	}
 
-	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
+	static json(value: any, mime: string = 'text/x-json'): NotebookCellOutputItem {
 		const rawStr = JSON.stringify(value, undefined, '\t');
 		return NotebookCellOutputItem.text(rawStr, mime);
 	}

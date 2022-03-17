@@ -49,7 +49,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
 import { ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { getPiiPathsFromEnvironment, ITelemetryAppender, NullAppender, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import ErrorTelemetry from 'vs/platform/telemetry/node/errorTelemetry';
 import { IPtyService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -69,15 +69,6 @@ import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
 
 const eventPrefix = 'monacoworkbench';
-
-const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
-
-function getUriTransformer(remoteAuthority: string): IURITransformer {
-	if (!_uriTransformerCache[remoteAuthority]) {
-		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
-	}
-	return _uriTransformerCache[remoteAuthority];
-}
 
 export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, disposables: DisposableStore) {
 	const services = new ServiceCollection();
@@ -133,7 +124,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const config: ITelemetryServiceConfig = {
 			appenders: [appInsightsAppender],
 			commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, productService.msftInternalDomains, environmentService.installSourcePath, 'remoteAgent'),
-			piiPaths: [environmentService.appRoot]
+			piiPaths: getPiiPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
 		let injectedTelemetryLevel: TelemetryLevel | undefined = undefined;
@@ -180,7 +171,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsMainService, [true]));
 
 	instantiationService.invokeFunction(accessor => {
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, logService, productService);
+		const extensionManagementService = accessor.get(IExtensionManagementService);
+		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, extensionManagementService, logService, productService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), appInsightsAppender);
@@ -193,7 +185,6 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		socketServer.registerChannel('request', new RequestChannel(accessor.get(IRequestService)));
 
-		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const channel = new ExtensionManagementChannel(extensionManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority));
 		socketServer.registerChannel('extensions', channel);
 
@@ -214,6 +205,15 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	});
 
 	return { socketServer, instantiationService };
+}
+
+const _uriTransformerCache: { [remoteAuthority: string]: IURITransformer } = Object.create(null);
+
+function getUriTransformer(remoteAuthority: string): IURITransformer {
+	if (!_uriTransformerCache[remoteAuthority]) {
+		_uriTransformerCache[remoteAuthority] = createURITransformer(remoteAuthority);
+	}
+	return _uriTransformerCache[remoteAuthority];
 }
 
 export class SocketServer<TContext = string> extends IPCServer<TContext> {

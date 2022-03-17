@@ -93,7 +93,7 @@ suite('Decoration Render Options', () => {
 		const expected = [
 			'.vs-dark.monaco-editor .ced-example-4::after, .hc-black.monaco-editor .ced-example-4::after {color:#444444 !important;}',
 			'.vs-dark.monaco-editor .ced-example-1, .hc-black.monaco-editor .ced-example-1 {color:#000000 !important;}',
-			'.vs.monaco-editor .ced-example-1 {color:#FF00FF !important;}',
+			'.vs.monaco-editor .ced-example-1, .hc-light.monaco-editor .ced-example-1 {color:#FF00FF !important;}',
 			'.monaco-editor .ced-example-1 {color:#ff0000 !important;}'
 		].join('\n');
 		assert.strictEqual(readStyleSheet(styleSheet), expected);

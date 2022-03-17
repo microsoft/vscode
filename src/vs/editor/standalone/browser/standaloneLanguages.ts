@@ -22,6 +22,7 @@ import { IMonarchLanguage } from 'vs/editor/standalone/common/monarch/monarchTyp
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageSelector } from 'vs/editor/common/languageSelector';
 
 /**
  * Register information about a new language.
@@ -412,33 +413,33 @@ export function setMonarchTokensProvider(languageId: string, languageDef: IMonar
 /**
  * Register a reference provider (used by e.g. reference search).
  */
-export function registerReferenceProvider(languageId: string, provider: languages.ReferenceProvider): IDisposable {
+export function registerReferenceProvider(languageSelector: LanguageSelector, provider: languages.ReferenceProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.referenceProvider.register(languageId, provider);
+	return languageFeaturesService.referenceProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a rename provider (used by e.g. rename symbol).
  */
-export function registerRenameProvider(languageId: string, provider: languages.RenameProvider): IDisposable {
+export function registerRenameProvider(languageSelector: LanguageSelector, provider: languages.RenameProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.renameProvider.register(languageId, provider);
+	return languageFeaturesService.renameProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a signature help provider (used by e.g. parameter hints).
  */
-export function registerSignatureHelpProvider(languageId: string, provider: languages.SignatureHelpProvider): IDisposable {
+export function registerSignatureHelpProvider(languageSelector: LanguageSelector, provider: languages.SignatureHelpProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.signatureHelpProvider.register(languageId, provider);
+	return languageFeaturesService.signatureHelpProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a hover provider (used by e.g. editor hover).
  */
-export function registerHoverProvider(languageId: string, provider: languages.HoverProvider): IDisposable {
+export function registerHoverProvider(languageSelector: LanguageSelector, provider: languages.HoverProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.hoverProvider.register(languageId, {
+	return languageFeaturesService.hoverProvider.register(languageSelector, {
 		provideHover: (model: model.ITextModel, position: Position, token: CancellationToken): Promise<languages.Hover | undefined> => {
 			const word = model.getWordAtPosition(position);
 
@@ -461,65 +462,65 @@ export function registerHoverProvider(languageId: string, provider: languages.Ho
 /**
  * Register a document symbol provider (used by e.g. outline).
  */
-export function registerDocumentSymbolProvider(languageId: string, provider: languages.DocumentSymbolProvider): IDisposable {
+export function registerDocumentSymbolProvider(languageSelector: LanguageSelector, provider: languages.DocumentSymbolProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.documentSymbolProvider.register(languageId, provider);
+	return languageFeaturesService.documentSymbolProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a document highlight provider (used by e.g. highlight occurrences).
  */
-export function registerDocumentHighlightProvider(languageId: string, provider: languages.DocumentHighlightProvider): IDisposable {
+export function registerDocumentHighlightProvider(languageSelector: LanguageSelector, provider: languages.DocumentHighlightProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.documentHighlightProvider.register(languageId, provider);
+	return languageFeaturesService.documentHighlightProvider.register(languageSelector, provider);
 }
 
 /**
  * Register an linked editing range provider.
  */
-export function registerLinkedEditingRangeProvider(languageId: string, provider: languages.LinkedEditingRangeProvider): IDisposable {
+export function registerLinkedEditingRangeProvider(languageSelector: LanguageSelector, provider: languages.LinkedEditingRangeProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.linkedEditingRangeProvider.register(languageId, provider);
+	return languageFeaturesService.linkedEditingRangeProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a definition provider (used by e.g. go to definition).
  */
-export function registerDefinitionProvider(languageId: string, provider: languages.DefinitionProvider): IDisposable {
+export function registerDefinitionProvider(languageSelector: LanguageSelector, provider: languages.DefinitionProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.definitionProvider.register(languageId, provider);
+	return languageFeaturesService.definitionProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a implementation provider (used by e.g. go to implementation).
  */
-export function registerImplementationProvider(languageId: string, provider: languages.ImplementationProvider): IDisposable {
+export function registerImplementationProvider(languageSelector: LanguageSelector, provider: languages.ImplementationProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.implementationProvider.register(languageId, provider);
+	return languageFeaturesService.implementationProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a type definition provider (used by e.g. go to type definition).
  */
-export function registerTypeDefinitionProvider(languageId: string, provider: languages.TypeDefinitionProvider): IDisposable {
+export function registerTypeDefinitionProvider(languageSelector: LanguageSelector, provider: languages.TypeDefinitionProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.typeDefinitionProvider.register(languageId, provider);
+	return languageFeaturesService.typeDefinitionProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a code lens provider (used by e.g. inline code lenses).
  */
-export function registerCodeLensProvider(languageId: string, provider: languages.CodeLensProvider): IDisposable {
+export function registerCodeLensProvider(languageSelector: LanguageSelector, provider: languages.CodeLensProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.codeLensProvider.register(languageId, provider);
+	return languageFeaturesService.codeLensProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a code action provider (used by e.g. quick fix).
  */
-export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable {
+export function registerCodeActionProvider(languageSelector: LanguageSelector, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.codeActionProvider.register(languageId, {
+	return languageFeaturesService.codeActionProvider.register(languageSelector, {
 		providedCodeActionKinds: metadata?.providedCodeActionKinds,
 		provideCodeActions: (model: model.ITextModel, range: Range, context: languages.CodeActionContext, token: CancellationToken): languages.ProviderResult<languages.CodeActionList> => {
 			const markerService = StandaloneServices.get(IMarkerService);
@@ -535,73 +536,73 @@ export function registerCodeActionProvider(languageId: string, provider: CodeAct
 /**
  * Register a formatter that can handle only entire models.
  */
-export function registerDocumentFormattingEditProvider(languageId: string, provider: languages.DocumentFormattingEditProvider): IDisposable {
+export function registerDocumentFormattingEditProvider(languageSelector: LanguageSelector, provider: languages.DocumentFormattingEditProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.documentFormattingEditProvider.register(languageId, provider);
+	return languageFeaturesService.documentFormattingEditProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a formatter that can handle a range inside a model.
  */
-export function registerDocumentRangeFormattingEditProvider(languageId: string, provider: languages.DocumentRangeFormattingEditProvider): IDisposable {
+export function registerDocumentRangeFormattingEditProvider(languageSelector: LanguageSelector, provider: languages.DocumentRangeFormattingEditProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.documentRangeFormattingEditProvider.register(languageId, provider);
+	return languageFeaturesService.documentRangeFormattingEditProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a formatter than can do formatting as the user types.
  */
-export function registerOnTypeFormattingEditProvider(languageId: string, provider: languages.OnTypeFormattingEditProvider): IDisposable {
+export function registerOnTypeFormattingEditProvider(languageSelector: LanguageSelector, provider: languages.OnTypeFormattingEditProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.onTypeFormattingEditProvider.register(languageId, provider);
+	return languageFeaturesService.onTypeFormattingEditProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a link provider that can find links in text.
  */
-export function registerLinkProvider(languageId: string, provider: languages.LinkProvider): IDisposable {
+export function registerLinkProvider(languageSelector: LanguageSelector, provider: languages.LinkProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.linkProvider.register(languageId, provider);
+	return languageFeaturesService.linkProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a completion item provider (use by e.g. suggestions).
  */
-export function registerCompletionItemProvider(languageId: string, provider: languages.CompletionItemProvider): IDisposable {
+export function registerCompletionItemProvider(languageSelector: LanguageSelector, provider: languages.CompletionItemProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.completionProvider.register(languageId, provider);
+	return languageFeaturesService.completionProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a document color provider (used by Color Picker, Color Decorator).
  */
-export function registerColorProvider(languageId: string, provider: languages.DocumentColorProvider): IDisposable {
+export function registerColorProvider(languageSelector: LanguageSelector, provider: languages.DocumentColorProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.colorProvider.register(languageId, provider);
+	return languageFeaturesService.colorProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a folding range provider
  */
-export function registerFoldingRangeProvider(languageId: string, provider: languages.FoldingRangeProvider): IDisposable {
+export function registerFoldingRangeProvider(languageSelector: LanguageSelector, provider: languages.FoldingRangeProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.foldingRangeProvider.register(languageId, provider);
+	return languageFeaturesService.foldingRangeProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a declaration provider
  */
-export function registerDeclarationProvider(languageId: string, provider: languages.DeclarationProvider): IDisposable {
+export function registerDeclarationProvider(languageSelector: LanguageSelector, provider: languages.DeclarationProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.declarationProvider.register(languageId, provider);
+	return languageFeaturesService.declarationProvider.register(languageSelector, provider);
 }
 
 /**
  * Register a selection range provider
  */
-export function registerSelectionRangeProvider(languageId: string, provider: languages.SelectionRangeProvider): IDisposable {
+export function registerSelectionRangeProvider(languageSelector: LanguageSelector, provider: languages.SelectionRangeProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.selectionRangeProvider.register(languageId, provider);
+	return languageFeaturesService.selectionRangeProvider.register(languageSelector, provider);
 }
 
 /**
@@ -611,9 +612,9 @@ export function registerSelectionRangeProvider(languageId: string, provider: lan
  *
  * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
-export function registerDocumentSemanticTokensProvider(languageId: string, provider: languages.DocumentSemanticTokensProvider): IDisposable {
+export function registerDocumentSemanticTokensProvider(languageSelector: LanguageSelector, provider: languages.DocumentSemanticTokensProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.documentSemanticTokensProvider.register(languageId, provider);
+	return languageFeaturesService.documentSemanticTokensProvider.register(languageSelector, provider);
 }
 
 /**
@@ -623,25 +624,25 @@ export function registerDocumentSemanticTokensProvider(languageId: string, provi
  *
  * For the best user experience, register both a semantic tokens provider and a top-down tokenizer.
  */
-export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: languages.DocumentRangeSemanticTokensProvider): IDisposable {
+export function registerDocumentRangeSemanticTokensProvider(languageSelector: LanguageSelector, provider: languages.DocumentRangeSemanticTokensProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.documentRangeSemanticTokensProvider.register(languageId, provider);
+	return languageFeaturesService.documentRangeSemanticTokensProvider.register(languageSelector, provider);
 }
 
 /**
  * Register an inline completions provider.
  */
-export function registerInlineCompletionsProvider(languageId: string, provider: languages.InlineCompletionsProvider): IDisposable {
+export function registerInlineCompletionsProvider(languageSelector: LanguageSelector, provider: languages.InlineCompletionsProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.inlineCompletionsProvider.register(languageId, provider);
+	return languageFeaturesService.inlineCompletionsProvider.register(languageSelector, provider);
 }
 
 /**
  * Register an inlay hints provider.
  */
-export function registerInlayHintsProvider(languageId: string, provider: languages.InlayHintsProvider): IDisposable {
+export function registerInlayHintsProvider(languageSelector: LanguageSelector, provider: languages.InlayHintsProvider): IDisposable {
 	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.inlayHintsProvider.register(languageId, provider);
+	return languageFeaturesService.inlayHintsProvider.register(languageSelector, provider);
 }
 
 /**

@@ -1112,7 +1112,7 @@ class EditorSelectionState {
 
 		const result = this.selection.compare(other.selection);
 
-		if (result !== EditorPaneSelectionCompareResult.IDENTICAL && other.reason === EditorPaneSelectionChangeReason.NAVIGATION) {
+		if (result === EditorPaneSelectionCompareResult.SIMILAR && (other.reason === EditorPaneSelectionChangeReason.NAVIGATION || other.reason === EditorPaneSelectionChangeReason.JUMP)) {
 			// let navigation sources win even if the selection is `SIMILAR`
 			// (e.g. "Go to definition" should add a history entry)
 			return true;
@@ -1899,7 +1899,7 @@ class EditorHelper {
 		const hasValidResourceEditorInputScheme =
 			resource?.scheme === Schemas.file ||
 			resource?.scheme === Schemas.vscodeRemote ||
-			resource?.scheme === Schemas.userData ||
+			resource?.scheme === Schemas.vscodeUserData ||
 			resource?.scheme === this.pathService.defaultUriScheme;
 
 		// Scheme is valid: prefer the untyped input

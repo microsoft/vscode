@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
@@ -226,6 +225,7 @@ export class View extends ViewEventHandler {
 		return {
 			viewDomNode: this.domNode.domNode,
 			linesContentDomNode: this._linesContent.domNode,
+			viewLinesDomNode: this._viewLines.getDomNode().domNode,
 
 			focusTextArea: () => {
 				this.focus();
@@ -413,8 +413,8 @@ export class View extends ViewEventHandler {
 
 	// --- BEGIN CodeEditor helpers
 
-	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
-		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
+	public delegateVerticalScrollbarPointerDown(browserEvent: PointerEvent): void {
+		this._scrollbar.delegateVerticalScrollbarPointerDown(browserEvent);
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number }): void {
@@ -502,7 +502,7 @@ export class View extends ViewEventHandler {
 			}
 		}
 		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference);
+		this._contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference, widgetData.position?.positionAffinity ?? null);
 		this._scheduleRender();
 	}
 

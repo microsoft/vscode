@@ -134,7 +134,8 @@ export interface TokenStyleDefaults {
 	scopesToProbe?: ProbeScope[];
 	light?: TokenStyleValue;
 	dark?: TokenStyleValue;
-	hc?: TokenStyleValue;
+	hcDark?: TokenStyleValue;
+	hcLight?: TokenStyleValue;
 }
 
 export interface SemanticTokenDefaultRule {

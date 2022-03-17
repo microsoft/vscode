@@ -103,7 +103,8 @@
 	padding-right: 10px;
 }
 
-.monaco-workbench.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
+.monaco-workbench.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents,
+.monaco-workbench.hc-light .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
 	line-height: 20px;
 }
 

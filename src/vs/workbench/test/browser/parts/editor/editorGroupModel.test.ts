@@ -818,6 +818,8 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.isActive(input1), true);
 		assert.strictEqual(group.isPinned(input1), true);
 		assert.strictEqual(group.isPinned(0), true);
+		assert.strictEqual(group.isFirst(input1), true);
+		assert.strictEqual(group.isLast(input1), true);
 
 		assert.strictEqual(events.opened[0].editor, input1);
 		assert.strictEqual(events.opened[0].editorIndex, 0);
@@ -831,6 +833,8 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.count, 0);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 0);
 		assert.strictEqual(group.activeEditor, null);
+		assert.strictEqual(group.isFirst(input1), false);
+		assert.strictEqual(group.isLast(input1), false);
 		assert.strictEqual(events.closed[0].editor, input1);
 		assert.strictEqual(events.closed[0].editorIndex, 0);
 		assert.strictEqual(events.closed[0].context === EditorCloseContext.UNPIN, true);
@@ -946,6 +950,12 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.isPinned(input2), true);
 		assert.strictEqual(group.isActive(input3), true);
 		assert.strictEqual(group.isPinned(input3), true);
+		assert.strictEqual(group.isFirst(input1), true);
+		assert.strictEqual(group.isFirst(input2), false);
+		assert.strictEqual(group.isFirst(input3), false);
+		assert.strictEqual(group.isLast(input1), false);
+		assert.strictEqual(group.isLast(input2), false);
+		assert.strictEqual(group.isLast(input3), true);
 
 		assert.strictEqual(events.opened[0].editor, input1);
 		assert.strictEqual(events.opened[1].editor, input2);

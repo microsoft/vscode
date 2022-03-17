@@ -100,12 +100,15 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					}
 					return `darwin-${arch}`;
 				case 'server':
-					return 'server-darwin';
-				case 'web':
-					if (arch !== 'x64') {
-						throw new Error(`What should the platform be?: ${product} ${os} ${arch} ${type}`);
+					if (arch === 'x64') {
+						return 'server-darwin';
 					}
-					return 'server-darwin-web';
+					return `server-darwin-${arch}`;
+				case 'web':
+					if (arch === 'x64') {
+						return 'server-darwin-web';
+					}
+					return `server-darwin-${arch}-web`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}

@@ -13,7 +13,7 @@ on:
 jobs:
   windows:
     name: Windows
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 60
     env:
       CHILD_CONCURRENCY: "1"
@@ -123,8 +123,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules19-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules19-
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -195,8 +195,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules19-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules19-
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -269,8 +269,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules19-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules19-
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -307,43 +307,8 @@ jobs:
       - name: Run eslint
         run: yarn eslint
 
-      - name: Run Monaco Editor Checks
-        run: yarn monaco-compile-check
-
       - name: Run vscode-dts Compile Checks
         run: yarn vscode-dts-compile-check
 
       - name: Run Trusted Types Checks
         run: yarn tsec-compile-check
-
-      - name: Editor Distro & ESM Bundle
-        run: yarn gulp editor-esm-bundle
-
-      - name: Editor ESM sources check
-        working-directory: ./test/monaco
-        run: yarn run esm-check
-
-      - name: Typings validation prep
-        run: |
-          mkdir typings-test
-
-      - name: Typings validation
-        working-directory: ./typings-test
-        run: |
-          yarn init -yp
-          ../node_modules/.bin/tsc --init
-          echo "import '../out-monaco-editor-core';" > a.ts
-          ../node_modules/.bin/tsc --noEmit
-
-      - name: Package Editor with Webpack
-        working-directory: ./test/monaco
-        run: yarn run bundle-webpack
-
-      - name: Compile Editor Tests
-        working-directory: ./test/monaco
-        run: yarn run compile
-
-      - name: Run Editor Tests
-        timeout-minutes: 5
-        working-directory: ./test/monaco
-        run: yarn test

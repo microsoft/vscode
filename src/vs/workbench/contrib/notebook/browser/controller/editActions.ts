@@ -147,10 +147,6 @@ registerAction2(class DeleteCellAction extends NotebookCellAction {
 			{
 				id: DELETE_CELL_COMMAND_ID,
 				title: localize('notebookActions.deleteCell', "Delete Cell"),
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					when: NOTEBOOK_EDITOR_EDITABLE
-				},
 				keybinding: {
 					primary: KeyCode.Delete,
 					mac: {

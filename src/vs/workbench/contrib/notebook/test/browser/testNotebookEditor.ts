@@ -50,9 +50,11 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestClipboardService, TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ResourceMap } from 'vs/base/common/map';
+import { TestClipboardService } from 'vs/platform/clipboard/test/common/testClipboardService';
+import { IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -71,7 +73,7 @@ export class TestCell extends NotebookCellTextModel {
 export class NotebookEditorTestModel extends EditorModel implements INotebookEditorModel {
 	private _dirty = false;
 
-	protected readonly _onDidSave = this._register(new Emitter<void>());
+	protected readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
 	readonly onDidSave = this._onDidSave.event;
 
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
@@ -138,7 +140,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		if (this._notebook) {
 			this._dirty = false;
 			this._onDidChangeDirty.fire();
-			this._onDidSave.fire();
+			this._onDidSave.fire({});
 			// todo, flush all states
 			return true;
 		}
@@ -265,6 +267,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 			const findMatches = viewModel.find(query, options).filter(match => match.matches.length > 0);
 			return findMatches;
 		}
+		override deltaCellDecorations() { return []; }
 	};
 
 	return { editor: notebookEditor, viewModel };

@@ -8,17 +8,17 @@ import { Schemas } from 'vs/base/common/network';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IFileService, IFileStat, IFileStatWithMetadata, IResolveFileOptions, IResolveMetadataFileOptions } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { CommandDetectionCapability } from 'vs/workbench/contrib/terminal/browser/capabilities/commandDetectionCapability';
+import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminal/browser/links/links';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalSearchLinkOpener } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkOpeners';
-import { TerminalCapability, ITerminalCommand, IXtermMarker } from 'vs/workbench/contrib/terminal/common/capabilities/capabilities';
-import { TerminalCapabilityStore } from 'vs/workbench/contrib/terminal/common/capabilities/terminalCapabilityStore';
+import { TerminalCapability, ITerminalCommand, IXtermMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -37,13 +37,11 @@ class TestCommandDetectionCapability extends CommandDetectionCapability {
 
 class TestFileService extends FileService {
 	private _files: URI[] | '*' = '*';
-	override async resolve(resource: URI, options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
-	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
-	override async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
+	override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
 		if (this._files === '*' || this._files.some(e => e.toString() === resource.toString())) {
-			return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStat;
+			return { isFile: true, isDirectory: false, isSymbolicLink: false } as IFileStatWithPartialMetadata;
 		} else {
-			return { isFile: false, isDirectory: false, isSymbolicLink: false } as IFileStat;
+			return { isFile: false, isDirectory: false, isSymbolicLink: false } as IFileStatWithPartialMetadata;
 		}
 	}
 	setFiles(files: URI[] | '*'): void {

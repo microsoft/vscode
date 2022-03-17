@@ -26,8 +26,27 @@ function isExclusive(selector: LanguageSelector): boolean {
 	}
 }
 
-export interface NotebooTypeResolver {
-	(uri: URI): string | undefined;
+export interface NotebookInfo {
+	readonly uri: URI;
+	readonly type: string;
+}
+
+export interface NotebookInfoResolver {
+	(uri: URI): NotebookInfo | undefined;
+}
+
+class MatchCandidate {
+	constructor(
+		readonly uri: URI,
+		readonly languageId: string,
+		readonly notebookType: string | undefined
+	) { }
+
+	equals(other: MatchCandidate): boolean {
+		return this.notebookType === other.notebookType
+			&& this.languageId === other.languageId
+			&& this.uri.toString() === other.uri.toString();
+	}
 }
 
 export class LanguageFeatureRegistry<T> {
@@ -38,7 +57,7 @@ export class LanguageFeatureRegistry<T> {
 	private readonly _onDidChange = new Emitter<number>();
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(private readonly _notebookTypeResolver?: NotebooTypeResolver) { }
+	constructor(private readonly _notebookInfoResolver?: NotebookInfoResolver) { }
 
 	register(selector: LanguageSelector, provider: T): IDisposable {
 
@@ -114,10 +133,6 @@ export class LanguageFeatureRegistry<T> {
 
 	private _orderedForEach(model: ITextModel, callback: (provider: Entry<T>) => any): void {
 
-		if (!model) {
-			return;
-		}
-
 		this._updateScores(model);
 
 		for (const entry of this._entries) {
@@ -127,24 +142,19 @@ export class LanguageFeatureRegistry<T> {
 		}
 	}
 
-	private _lastCandidate: { uri: string; language: string; notebookType?: string } | undefined;
+	private _lastCandidate: MatchCandidate | undefined;
 
 	private _updateScores(model: ITextModel): void {
 
-		const notebookType = this._notebookTypeResolver?.(model.uri);
+		const notebookInfo = this._notebookInfoResolver?.(model.uri);
 
-		const candidate = {
-			uri: model.uri.toString(),
-			language: model.getLanguageId(),
-			notebookType
-		};
+		// use the uri (scheme, pattern) of the notebook info iff we have one
+		// otherwise it's the model's/document's uri
+		const candidate = notebookInfo
+			? new MatchCandidate(notebookInfo.uri, model.getLanguageId(), notebookInfo.type)
+			: new MatchCandidate(model.uri, model.getLanguageId(), undefined);
 
-		if (this._lastCandidate
-			&& this._lastCandidate.language === candidate.language
-			&& this._lastCandidate.uri === candidate.uri
-			&& this._lastCandidate.notebookType === candidate.notebookType
-		) {
-
+		if (this._lastCandidate?.equals(candidate)) {
 			// nothing has changed
 			return;
 		}
@@ -152,7 +162,7 @@ export class LanguageFeatureRegistry<T> {
 		this._lastCandidate = candidate;
 
 		for (let entry of this._entries) {
-			entry._score = score(entry.selector, model.uri, model.getLanguageId(), shouldSynchronizeModel(model), notebookType);
+			entry._score = score(entry.selector, candidate.uri, candidate.languageId, shouldSynchronizeModel(model), candidate.notebookType);
 
 			if (isExclusive(entry.selector) && entry._score > 0) {
 				// support for one exclusive selector that overwrites

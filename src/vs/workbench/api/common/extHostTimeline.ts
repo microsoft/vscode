@@ -14,7 +14,7 @@ import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extH
 import { ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
 import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { MarshalledId } from 'vs/base/common/marshalling';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isString } from 'vs/base/common/types';
 
 export interface IExtHostTimeline extends ExtHostTimelineShape {
@@ -145,12 +145,21 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					}
 				}
 
-				let detail;
-				if (MarkdownStringType.isMarkdownString(props.detail)) {
-					detail = MarkdownString.from(props.detail);
+				let tooltip;
+				if (MarkdownStringType.isMarkdownString(props.tooltip)) {
+					tooltip = MarkdownString.from(props.tooltip);
 				}
-				else if (isString(props.detail)) {
-					detail = props.detail;
+				else if (isString(props.tooltip)) {
+					tooltip = props.tooltip;
+				}
+				// TODO @jkearl, remove once migration complete.
+				else if (MarkdownStringType.isMarkdownString((props as any).detail)) {
+					console.warn('Using deprecated TimelineItem.detail, migrate to TimelineItem.tooltip');
+					tooltip = MarkdownString.from((props as any).detail);
+				}
+				else if (isString((props as any).detail)) {
+					console.warn('Using deprecated TimelineItem.detail, migrate to TimelineItem.tooltip');
+					tooltip = (props as any).detail;
 				}
 
 				return {
@@ -162,7 +171,7 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					icon: icon,
 					iconDark: iconDark,
 					themeIcon: themeIcon,
-					detail,
+					tooltip,
 					accessibilityInformation: item.accessibilityInformation
 				};
 			};

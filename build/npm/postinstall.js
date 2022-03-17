@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 const cp = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -65,6 +64,7 @@ for (let dir of dirs) {
 		if (process.env['CFLAGS']) { delete env['CFLAGS']; }
 		if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+
 		opts = { env };
 	} else if (/^extensions\//.test(dir)) {
 		opts = { ignoreEngines: true };

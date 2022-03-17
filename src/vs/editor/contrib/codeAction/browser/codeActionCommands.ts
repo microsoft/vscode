@@ -154,9 +154,9 @@ export async function applyCodeAction(
 		codeActionIsPreferred: boolean;
 	};
 	type ApplyCodeEventClassification = {
-		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+		codeActionTitle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'The display label of the applied code action' };
+		codeActionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'The kind (refactor, quickfix) of the applied code action' };
+		codeActionIsPreferred: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; owner: 'mjbvz'; comment: 'Was the code action marked as being a preferred action?' };
 	};
 
 	telemetryService.publicLog2<ApplyCodeActionEvent, ApplyCodeEventClassification>('codeAction.applyCodeAction', {
@@ -168,7 +168,7 @@ export async function applyCodeAction(
 	await item.resolve(CancellationToken.None);
 
 	if (item.action.edit) {
-		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), { editor, label: item.action.title });
+		await bulkEditService.apply(ResourceEdit.convert(item.action.edit), { editor, label: item.action.title, code: 'undoredo.codeAction' });
 	}
 
 	if (item.action.command) {
