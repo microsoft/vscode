@@ -22,3 +22,8 @@ echo "+1000 +$(id -g)" > "${CACHE_FOLDER}/cache-group-map"
 tar --owner-map="${CACHE_FOLDER}/cache-owner-map" --group-map="${CACHE_FOLDER}/cache-group-map" -xpsf "${CACHE_FOLDER}/cache.tar"
 rm -rf "${CACHE_FOLDER}"
 echo "[$(date)] Done!"
+
+# Change ownership of chrome-sandbox
+sudo chown root .build/electron/chrome-sandbox
+sudo chmod 4755 .build/electron/chrome-sandbox
+

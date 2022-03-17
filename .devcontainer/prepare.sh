@@ -7,6 +7,3 @@
 
 yarn install
 yarn electron
-
-sudo chown root .build/electron/chrome-sandbox
-sudo chmod 4755  .build/electron/chrome-sandbox
