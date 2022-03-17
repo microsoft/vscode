@@ -108,7 +108,7 @@ suite('Workbench - TerminalCommandTracker', function () {
 			commandTracker.scrollToNextCommand();
 			assert.strictEqual(xterm.buffer.active.viewportY, 20);
 		});
-		test('should select to the next and previous commands', async () => {
+		test.skip('should select to the next and previous commands', async () => {
 			await writeP(xterm,
 				'\r0' +
 				'\n\r1' +

@@ -877,16 +877,27 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	findEditors(resource: URI, options?: IFindEditorOptions): EditorInput[] {
 		const canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
 		return this.getEditors(EditorsOrder.SEQUENTIAL).filter(editor => {
-			let matches = editor.resource && isEqual(editor.resource, canonicalResource);
-
-			// Support side by side editor primary side if specified
-			if (!matches && options?.supportSideBySide === SideBySideEditor.PRIMARY) {
-				const primaryResource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-
-				matches = primaryResource && isEqual(primaryResource, canonicalResource);
+			if (editor.resource && isEqual(editor.resource, canonicalResource)) {
+				return true;
 			}
 
-			return matches;
+			// Support side by side editor primary side if specified
+			if (options?.supportSideBySide === SideBySideEditor.PRIMARY || options?.supportSideBySide === SideBySideEditor.ANY) {
+				const primaryResource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+				if (primaryResource && isEqual(primaryResource, canonicalResource)) {
+					return true;
+				}
+			}
+
+			// Support side by side editor secondary side if specified
+			if (options?.supportSideBySide === SideBySideEditor.SECONDARY || options?.supportSideBySide === SideBySideEditor.ANY) {
+				const secondaryResource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY });
+				if (secondaryResource && isEqual(secondaryResource, canonicalResource)) {
+					return true;
+				}
+			}
+
+			return false;
 		});
 	}
 

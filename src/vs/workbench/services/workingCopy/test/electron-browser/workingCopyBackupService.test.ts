@@ -61,7 +61,7 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 
 		this.diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, this.diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, this.diskFileSystemProvider, Schemas.userData, logService));
+		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, this.diskFileSystemProvider, Schemas.vscodeUserData, logService));
 
 		this.fileService = fileService;
 		this.backupResourceJoiners = [];
@@ -275,13 +275,13 @@ flakySuite('WorkingCopyBackupService', () => {
 			// No Type ID
 			let backupId = toUntypedWorkingCopyId(backupResource);
 			let filePathHash = hashIdentifier(backupId);
-			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 
 			// With Type ID
 			backupId = toTypedWorkingCopyId(backupResource);
 			filePathHash = hashIdentifier(backupId);
-			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 		});
 
@@ -294,13 +294,13 @@ flakySuite('WorkingCopyBackupService', () => {
 			// No Type ID
 			let backupId = toUntypedWorkingCopyId(backupResource);
 			let filePathHash = hashIdentifier(backupId);
-			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			let expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 
 			// With Type ID
 			backupId = toTypedWorkingCopyId(backupResource);
 			filePathHash = hashIdentifier(backupId);
-			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			expectedPath = URI.file(join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 		});
 
@@ -313,13 +313,13 @@ flakySuite('WorkingCopyBackupService', () => {
 			// No Type ID
 			let backupId = toUntypedWorkingCopyId(backupResource);
 			let filePathHash = hashIdentifier(backupId);
-			let expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.userData }).toString();
+			let expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 
 			// With Type ID
 			backupId = toTypedWorkingCopyId(backupResource);
 			filePathHash = hashIdentifier(backupId);
-			expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.userData }).toString();
+			expectedPath = URI.file(join(backupHome, workspaceHash, 'custom', filePathHash)).with({ scheme: Schemas.vscodeUserData }).toString();
 			assert.strictEqual(service.toBackupResource(backupId).toString(), expectedPath);
 		});
 	});

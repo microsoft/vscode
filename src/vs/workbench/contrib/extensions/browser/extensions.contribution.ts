@@ -170,6 +170,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.confirmedUriHandlerExtensionIds': {
 				type: 'array',
+				items: {
+					type: 'string'
+				},
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
 				default: [],
 				scope: ConfigurationScope.APPLICATION
@@ -194,6 +197,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						default: false
 					}
 				},
+				additionalProperties: false,
 				default: {
 					'pub.name': false
 				}
