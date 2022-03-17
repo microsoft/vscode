@@ -29,8 +29,6 @@ import { IEditorSerializer, IEditorFactoryRegistry, EditorExtensions } from 'vs/
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceFoldersWillChangeEvent, toWorkspaceIdentifier, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { isWeb } from 'vs/base/common/platform';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { dirname, resolve } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
@@ -630,7 +628,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CONFIGURE_TRUST_COMMAND_ID,
 			title: { original: 'Configure Workspace Trust', value: localize('configureWorkspaceTrust', "Configure Workspace Trust") },
-			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
+			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: localize('workspacesCategory', "Workspaces"),
 			f1: true
 		});
@@ -648,14 +646,14 @@ registerAction2(class extends Action2 {
 		super({
 			id: MANAGE_TRUST_COMMAND_ID,
 			title: { original: 'Manage Workspace Trust', value: localize('manageWorkspaceTrust', "Manage Workspace Trust") },
-			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
+			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: localize('workspacesCategory', "Workspaces"),
 			f1: true,
 			menu: {
 				id: MenuId.GlobalActivity,
 				group: '6_workspace_trust',
 				order: 40,
-				when: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true))
+				when: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true))
 			},
 		});
 	}
@@ -686,7 +684,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',
 				default: true,
-				included: !isWeb,
 				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
@@ -694,7 +691,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_STARTUP_PROMPT]: {
 				type: 'string',
 				default: 'once',
-				included: !isWeb,
 				description: localize('workspace.trust.startupPrompt.description', "Controls when the startup prompt to trust a workspace is shown."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
@@ -708,7 +704,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_BANNER]: {
 				type: 'string',
 				default: 'untilDismissed',
-				included: !isWeb,
 				description: localize('workspace.trust.banner.description', "Controls when the restricted mode banner is shown."),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
@@ -722,7 +717,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_UNTRUSTED_FILES]: {
 				type: 'string',
 				default: 'prompt',
-				included: !isWeb,
 				markdownDescription: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace. This setting also applies to opening files in an empty window which is trusted via `#{0}#`.", WORKSPACE_TRUST_EMPTY_WINDOW),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
@@ -736,7 +730,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			[WORKSPACE_TRUST_EMPTY_WINDOW]: {
 				type: 'boolean',
 				default: true,
-				included: !isWeb,
 				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code. When used with `#{0}#`, you can enable the full functionality of VS Code without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
 				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION

@@ -13,7 +13,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
 const overviewRulerDefault = new Color(new RGBA(197, 197, 197, 1));
 
-export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hc: overviewRulerDefault }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges.'));
+export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hcDark: overviewRulerDefault, hcLight: overviewRulerDefault }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges.'));
 
 export class CommentGlyphWidget {
 	private _lineNumber!: number;

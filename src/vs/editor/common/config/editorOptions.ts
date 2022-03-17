@@ -3550,6 +3550,11 @@ export interface IBracketPairColorizationOptions {
 	 * Enable or disable bracket pair colorization.
 	*/
 	enabled?: boolean;
+
+	/**
+	 * Use independent color pool per bracket type.
+	*/
+	useIndependentColorPoolPerBracketType?: boolean;
 }
 
 /**
@@ -3563,7 +3568,8 @@ export type InternalBracketPairColorizationOptions = Readonly<Required<IBracketP
 class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairColorization, IBracketPairColorizationOptions, InternalBracketPairColorizationOptions> {
 	constructor() {
 		const defaults: InternalBracketPairColorizationOptions = {
-			enabled: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.enabled
+			enabled: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.enabled,
+			useIndependentColorPoolPerBracketType: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.useIndependentColorPoolPerBracketType,
 		};
 
 		super(
@@ -3573,7 +3579,12 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 					type: 'boolean',
 					default: defaults.enabled,
 					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use 'workbench.colorCustomizations' to override the bracket highlight colors.")
-				}
+				},
+				'editor.bracketPairColorization.useIndependentColorPoolPerBracketType': {
+					type: 'boolean',
+					default: defaults.useIndependentColorPoolPerBracketType,
+					description: nls.localize('bracketPairColorization.useIndependentColorPoolPerBracketType', "Controls whether each bracket type has its own independent color pool.")
+				},
 			}
 		);
 	}
@@ -3584,7 +3595,8 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 		}
 		const input = _input as IBracketPairColorizationOptions;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled)
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			useIndependentColorPoolPerBracketType: boolean(input.useIndependentColorPoolPerBracketType, this.defaultValue.useIndependentColorPoolPerBracketType),
 		};
 	}
 }

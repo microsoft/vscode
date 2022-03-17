@@ -10,8 +10,7 @@ declare module 'vscode' {
 	export enum TabKind {
 		Singular = 0,
 		Diff = 1,
-		SidebySide = 2,
-		Other = 3
+		SidebySide = 2
 	}
 
 	/**
@@ -26,6 +25,7 @@ declare module 'vscode' {
 		/**
 		 * The column which the tab belongs to
 		 */
+		// TODO@API point to TabGroup instead?
 		readonly viewColumn: ViewColumn;
 
 		/**
@@ -35,20 +35,20 @@ declare module 'vscode' {
 		readonly resource: Uri | undefined;
 
 		/**
-		 * The identifier of the view contained in the tab
+		 * The type of view contained in the tab
 		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
 		 * The built-in text editor has an id of 'default' for all configurations.
 		 */
-		readonly viewId: string | undefined;
+		readonly viewType: string | undefined;
 
 		/**
 		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewId viewId} will
+		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
 		 * always be at index 0.
 		 */
-		readonly additionalResourcesAndViewIds: readonly {
+		readonly additionalResourcesAndViewTypes: readonly {
 			readonly resource: Uri | undefined;
-			readonly viewId: string | undefined;
+			readonly viewType: string | undefined;
 		}[];
 
 		/**
@@ -79,13 +79,16 @@ declare module 'vscode' {
 		 * @param index The index to move the tab to
 		 * @param viewColumn The column to move the tab into
 		 */
+		// TODO@API move into TabGroups
 		move(index: number, viewColumn: ViewColumn): Thenable<void>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
 		 * should no longer be used for further actions.
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
 		 */
-		close(): Thenable<void>;
+		// TODO@API move into TabGroups, support one or many tabs or tab groups
+		close(preserveFocus: boolean): Thenable<void>;
 	}
 
 	export namespace window {
@@ -95,11 +98,11 @@ declare module 'vscode' {
 		export const tabGroups: TabGroups;
 	}
 
-	interface TabGroups {
+	export interface TabGroups {
 		/**
 		 * All the groups within the group container
 		 */
-		readonly all: TabGroup[];
+		readonly groups: readonly TabGroup[];
 
 		/**
 		 * The currently active group
@@ -109,11 +112,16 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires when a group changes.
 		 */
-		onDidChangeTabGroup: Event<void>;
+		readonly onDidChangeTabGroup: Event<void>;
 
+		/**
+		 * An {@link Event} which fires when the active group changes.
+		 * Whether it be which group is active or its properties.
+		 */
+		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 	}
 
-	interface TabGroup {
+	export interface TabGroup {
 		/**
 		 * Whether or not the group is currently active
 		 */

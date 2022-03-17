@@ -121,9 +121,12 @@ module.exports.indentationFilter = [
 	'!**/Dockerfile.*',
 	'!**/*.Dockerfile',
 	'!**/*.dockerfile',
+
+	// except for built files
 	'!extensions/markdown-language-features/media/*.js',
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-math/notebook-out/*.js',
+	'!extensions/notebook-renderers/renderer-out/*.js',
 	'!extensions/simple-browser/media/*.js',
 ];
 

@@ -10,7 +10,7 @@ import { WORKBENCH_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/
 import { isWeb, isIOS, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { createMetaElement } from 'vs/base/browser/dom';
 import { isSafari, isStandalone } from 'vs/base/browser/browser';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 registerThemingParticipant((theme, collector) => {
 
@@ -92,7 +92,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	// High Contrast theme overwrites for outline
-	if (theme.type === ColorScheme.HIGH_CONTRAST) {
+	if (isHighContrast(theme.type)) {
 		collector.addRule(`
 		.hc-black [tabindex="0"]:focus,
 		.hc-black [tabindex="-1"]:focus,
@@ -101,12 +101,21 @@ registerThemingParticipant((theme, collector) => {
 		.hc-black input[type="button"]:focus,
 		.hc-black input[type="text"]:focus,
 		.hc-black textarea:focus,
-		.hc-black input[type="checkbox"]:focus {
+		.hc-black input[type="checkbox"]:focus,
+		.hc-light [tabindex="0"]:focus,
+		.hc-light [tabindex="-1"]:focus,
+		.hc-light .synthetic-focus,
+		.hc-light select:focus,
+		.hc-light input[type="button"]:focus,
+		.hc-light input[type="text"]:focus,
+		.hc-light textarea:focus,
+		.hc-light input[type="checkbox"]:focus {
 			outline-style: solid;
 			outline-width: 1px;
 		}
 
-		.hc-black .synthetic-focus input {
+		.hc-black .synthetic-focus input {,
+		.hc-light .synthetic-focus input
 			background: transparent; /* Search input focus fix when in high contrast */
 		}
 		`);

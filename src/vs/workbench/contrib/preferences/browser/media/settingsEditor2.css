@@ -137,6 +137,10 @@
 	box-sizing: border-box;
 }
 
+.settings-editor > .settings-body > .monaco-split-view2 {
+	margin-top: 14px;
+}
+
 .settings-editor.no-results > .settings-body .settings-toc-container,
 .settings-editor.no-results > .settings-body .settings-tree-container {
 	display: none;
@@ -338,6 +342,10 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-default-overridden .codicon {
 	vertical-align: text-top;
 	padding-left: 1px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-label .codicon {
+	vertical-align: text-top;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides a.modified-scope {

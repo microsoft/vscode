@@ -47,8 +47,8 @@ export class ExtHostApiDeprecationService implements IExtHostApiDeprecationServi
 			apiId: string;
 		};
 		type DeprecationTelemetryMeta = {
-			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
-			apiId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth' };
+			extensionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; owner: 'mjbvz'; comment: 'The id of the extension that is using the deprecated API' };
+			apiId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; owner: 'mjbvz'; comment: 'The id of the deprecated API' };
 		};
 		this._telemetryShape.$publicLog2<DeprecationTelemetry, DeprecationTelemetryMeta>('extHostDeprecatedApiUsage', {
 			extensionId: extension.identifier.value,

@@ -1612,6 +1612,28 @@ export class InlineSuggestions implements vscode.InlineCompletionList {
 	}
 }
 
+@es5ClassCompat
+export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
+	insertText: string;
+	range?: Range;
+	command?: vscode.Command;
+
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+		this.insertText = insertText;
+		this.range = range;
+		this.command = command;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
+	items: vscode.InlineCompletionItemNew[];
+
+	constructor(items: vscode.InlineCompletionItemNew[]) {
+		this.items = items;
+	}
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -2587,6 +2609,11 @@ export enum InlineCompletionTriggerKind {
 	Explicit = 1,
 }
 
+export enum InlineCompletionTriggerKindNew {
+	Invoke = 0,
+	Automatic = 1,
+}
+
 @es5ClassCompat
 export class InlineValueText implements vscode.InlineValueText {
 	readonly range: Range;
@@ -3041,7 +3068,8 @@ export class ColorTheme implements vscode.ColorTheme {
 export enum ColorThemeKind {
 	Light = 1,
 	Dark = 2,
-	HighContrast = 3
+	HighContrast = 3,
+	HighContrastLight = 4
 }
 
 //#endregion Theming
@@ -3204,7 +3232,7 @@ export class NotebookCellOutputItem {
 		return new NotebookCellOutputItem(bytes, mime);
 	}
 
-	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
+	static json(value: any, mime: string = 'text/x-json'): NotebookCellOutputItem {
 		const rawStr = JSON.stringify(value, undefined, '\t');
 		return NotebookCellOutputItem.text(rawStr, mime);
 	}

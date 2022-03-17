@@ -1015,7 +1015,7 @@ declare namespace monaco.editor {
 	 */
 	export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable;
 
-	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
+	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black' | 'hc-light';
 
 	export interface IStandaloneThemeData {
 		base: BuiltinTheme;
@@ -1185,7 +1185,7 @@ declare namespace monaco.editor {
 		maxTokenizationLineLength?: number;
 		/**
 		 * Theme to be used for rendering.
-		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light'.
 		 * You can create custom themes via `monaco.editor.defineTheme`.
 		 * To switch a theme, use `monaco.editor.setTheme`.
 		 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -1218,7 +1218,7 @@ declare namespace monaco.editor {
 		language?: string;
 		/**
 		 * Initial theme to be used for rendering.
-		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 		 * You can create custom themes via `monaco.editor.defineTheme`.
 		 * To switch a theme, use `monaco.editor.setTheme`.
 		 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -1249,7 +1249,7 @@ declare namespace monaco.editor {
 	export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
 		/**
 		 * Initial theme to be used for rendering.
-		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+		 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 		 * You can create custom themes via `monaco.editor.defineTheme`.
 		 * To switch a theme, use `monaco.editor.setTheme`.
 		 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -1686,6 +1686,7 @@ declare namespace monaco.editor {
 
 	export interface BracketPairColorizationOptions {
 		enabled: boolean;
+		useIndependentColorPoolPerBracketType: boolean;
 	}
 
 	export interface ITextModelUpdateOptions {
@@ -3974,6 +3975,10 @@ declare namespace monaco.editor {
 		 * Enable or disable bracket pair colorization.
 		*/
 		enabled?: boolean;
+		/**
+		 * Use independent color pool per bracket type.
+		*/
+		useIndependentColorPoolPerBracketType?: boolean;
 	}
 
 	export interface IGuidesOptions {
@@ -5399,7 +5404,6 @@ declare namespace monaco.editor {
 }
 
 declare namespace monaco.languages {
-
 
 	export interface IRelativePattern {
 		/**

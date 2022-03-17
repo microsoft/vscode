@@ -12,6 +12,7 @@ import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 const DEFAULT_BG_LIGHT = '#FFFFFF';
 const DEFAULT_BG_DARK = '#1E1E1E';
 const DEFAULT_BG_HC_BLACK = '#000000';
+const DEFAULT_BG_HC_LIGHT = '#FFFFFF';
 
 const THEME_STORAGE_KEY = 'theme';
 const THEME_BG_STORAGE_KEY = 'themeBackground';
@@ -48,8 +49,12 @@ export class ThemeMainService implements IThemeMainService {
 			} else {
 				baseTheme = this.stateMainService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];
 			}
-
-			background = (baseTheme === 'hc-black') ? DEFAULT_BG_HC_BLACK : (baseTheme === 'vs' ? DEFAULT_BG_LIGHT : DEFAULT_BG_DARK);
+			switch (baseTheme) {
+				case 'vs': background = DEFAULT_BG_LIGHT; break;
+				case 'hc-black': background = DEFAULT_BG_HC_BLACK; break;
+				case 'hc-light': background = DEFAULT_BG_HC_LIGHT; break;
+				default: background = DEFAULT_BG_DARK;
+			}
 		}
 
 		if (isMacintosh && background.toUpperCase() === DEFAULT_BG_DARK) {

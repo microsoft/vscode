@@ -611,8 +611,8 @@ export interface ExtHostEditorInsetsShape {
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
-	$moveTab(tab: IEditorTabDto, index: number, viewColumn: EditorGroupColumn): void;
-	$closeTab(tab: IEditorTabDto): Promise<void>;
+	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn): void;
+	$closeTab(tabId: string, preserveFocus: boolean): Promise<void>;
 }
 
 export interface IEditorTabGroupDto {
@@ -620,7 +620,6 @@ export interface IEditorTabGroupDto {
 	viewColumn: EditorGroupColumn;
 	// Decided not to go with simple index here due to opening and closing causing index shifts
 	// This allows us to patch the model without having to do full rebuilds
-	activeTab: IEditorTabDto | undefined;
 	tabs: IEditorTabDto[];
 	groupId: number;
 }
@@ -628,11 +627,11 @@ export interface IEditorTabGroupDto {
 export enum TabKind {
 	Singular = 0,
 	Diff = 1,
-	SidebySide = 2,
-	Other = 3
+	SidebySide = 2
 }
 
 export interface IEditorTabDto {
+	id: string;
 	viewColumn: EditorGroupColumn;
 	label: string;
 	resource?: UriComponents;
@@ -641,11 +640,13 @@ export interface IEditorTabDto {
 	isPinned: boolean;
 	isDirty: boolean;
 	kind: TabKind;
-	additionalResourcesAndViewIds: { resource?: UriComponents; viewId?: string }[];
+	additionalResourcesAndViewTypes: { resource?: UriComponents; viewId?: string }[];
 }
 
 export interface IExtHostEditorTabsShape {
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void;
+	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto): void;
+	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto): void;
 }
 
 //#endregion
@@ -1342,7 +1343,10 @@ export interface ExtHostSearchShape {
 
 export interface ExtHostExtensionServiceShape {
 	$resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult>;
-	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents>;
+	/**
+	 * Returns `null` if no resolver for `remoteAuthority` is found.
+	 */
+	$getCanonicalURI(remoteAuthority: string, uri: UriComponents): Promise<UriComponents | null>;
 	$startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void>;
 	$extensionTestsExecute(): Promise<number>;
 	$extensionTestsExit(code: number): Promise<void>;
@@ -2008,7 +2012,7 @@ export type NotebookCellsChangedEventDto = {
 };
 
 export interface ExtHostNotebookDocumentsShape {
-	$acceptModelChanged(uriComponents: UriComponents, event: SerializableObjectWithBuffers<NotebookCellsChangedEventDto>, isDirty: boolean): void;
+	$acceptModelChanged(uriComponents: UriComponents, event: SerializableObjectWithBuffers<NotebookCellsChangedEventDto>, isDirty: boolean, newMetadata?: notebookCommon.NotebookDocumentMetadata): void;
 	$acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void;
 	$acceptModelSaved(uriComponents: UriComponents): void;
 	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;

@@ -27,7 +27,7 @@ import { ITestingOutputTerminalService, TestingOutputTerminalService } from 'vs/
 import { ITestingProgressUiService, TestingProgressTrigger, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
-import { Testing } from 'vs/workbench/contrib/testing/common/constants';
+import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { ITestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestExplorerFilterState, TestExplorerFilterState } from 'vs/workbench/contrib/testing/common/testExplorerFilterState';
 import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
@@ -42,7 +42,7 @@ import { ITestResultStorage, TestResultStorage } from 'vs/workbench/contrib/test
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { allTestActions, discoverAndRunTests, SearchForTestExtension } from './testExplorerActions';
+import { allTestActions, discoverAndRunTests } from './testExplorerActions';
 import './testingConfigurationUi';
 
 registerSingleton(ITestService, TestService, true);
@@ -80,7 +80,7 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 });
 
 viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
-	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Test Extensions...") + `](command:${SearchForTestExtension.ID})`,
+	content: '[' + localize('searchForAdditionalTestExtensions', "Install Additional Test Extensions...") + `](command:${TestCommandId.SearchForTestExtension})`,
 	order: 10
 });
 

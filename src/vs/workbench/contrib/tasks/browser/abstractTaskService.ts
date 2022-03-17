@@ -1585,8 +1585,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 		let resolverData: Map<string, ResolverData> | undefined;
 
-		async function quickResolve(that: AbstractTaskService, identifier: string | TaskIdentifier) {
+		async function quickResolve(that: AbstractTaskService, uri: URI | string, identifier: string | TaskIdentifier) {
 			const foundTasks = await that._findWorkspaceTasks((task: Task | ConfiguringTask): boolean => {
+				const taskUri = ((ConfiguringTask.is(task) || CustomTask.is(task)) ? task._source.config.workspaceFolder?.uri : undefined);
+				const originalUri = (typeof uri === 'string' ? uri : uri.toString());
+				if (taskUri?.toString() !== originalUri) {
+					return false;
+				}
 				if (Types.isString(identifier)) {
 					return ((task._label === identifier) || (task.configurationProperties.identifier === identifier));
 				} else {
@@ -1649,7 +1654,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					return undefined;
 				}
 				if ((resolverData === undefined) && (grouped === undefined)) {
-					return (await quickResolve(this, identifier)) ?? fullResolve(this, uri, identifier);
+					return (await quickResolve(this, uri, identifier)) ?? fullResolve(this, uri, identifier);
 				} else {
 					return fullResolve(this, uri, identifier);
 				}
@@ -1695,7 +1700,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const taskFolder = task.getWorkspaceFolder();
 			const taskIdentifier = task.configurationProperties.identifier;
 			// Since we save before running tasks, the task may have changed as part of the save.
-			taskToRun = ((taskFolder && taskIdentifier) ? await this.getTask(taskFolder, taskIdentifier) : task) ?? task;
+			// However, if the TaskRunSource is not User, then we shouldn't try to fetch the task again
+			// since this can cause a new'd task to get overwritten with a provided task.
+			taskToRun = ((taskFolder && taskIdentifier && (runSource === TaskRunSource.User))
+				? await this.getTask(taskFolder, taskIdentifier) : task) ?? task;
 		}
 		await ProblemMatcherRegistry.onReady();
 		let executeResult = this.getTaskSystem().run(taskToRun, resolver);

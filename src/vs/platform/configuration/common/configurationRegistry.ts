@@ -292,10 +292,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (OVERRIDE_PROPERTY_REGEX.test(key)) {
 					const defaultValue = { ...(this.configurationDefaultsOverrides.get(key)?.value || {}), ...overrides[key] };
 					this.configurationDefaultsOverrides.set(key, { source, value: defaultValue });
+					const plainKey = key.replace(/[\[\]]/g, '');
 					const property: IRegisteredConfigurationPropertySchema = {
 						type: 'object',
 						default: defaultValue,
-						description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0} language.", key),
+						description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for the {0} language.", plainKey),
 						$ref: resourceLanguageSettingsSchemaId,
 						defaultDefaultValue: defaultValue,
 						source: types.isString(source) ? undefined : source,
