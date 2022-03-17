@@ -18,6 +18,8 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { coalesce } from 'vs/base/common/arrays';
 import { peekViewBorder, peekViewResultsBackground } from 'vs/editor/contrib/peekView/browser/peekView';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export class CellComments extends CellPart {
 	private _initialized: boolean = false;
@@ -32,6 +34,7 @@ export class CellComments extends CellPart {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -68,7 +71,9 @@ export class CellComments extends CellPart {
 			this.instantiationService,
 			commentThread,
 			null,
-			{},
+			{
+				codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily
+			},
 			undefined,
 			{
 				actionRunner: () => {
