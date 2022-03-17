@@ -604,7 +604,8 @@ export class UndoRedoService implements IUndoRedoService {
 
 	public removeElements(resource: URI | string): void {
 		const strResource = typeof resource === 'string' ? resource : this.getUriComparisonKey(resource);
-		if (this._editStacks.has(strResource)) {
+		const sharesUndoRedoStack = typeof resource === 'string' ? false : this.getUriComparisonKey(resource) !== resource.toString();
+		if (this._editStacks.has(strResource) && !sharesUndoRedoStack) {
 			const editStack = this._editStacks.get(strResource)!;
 			editStack.dispose();
 			this._editStacks.delete(strResource);
