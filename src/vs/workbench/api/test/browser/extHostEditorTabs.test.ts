@@ -7,23 +7,21 @@ import type * as vscode from 'vscode';
 import assert = require('assert');
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
-import { IEditorTabDto, MainThreadEditorTabsShape, TabInputKind, TabKind } from 'vs/workbench/api/common/extHost.protocol';
+import { IEditorTabDto, MainThreadEditorTabsShape, TabInputKind, TextInputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
+import { TextTabInput } from 'vs/workbench/api/common/extHostTypes';
 
 suite('ExtHostEditorTabs', function () {
 
 	const defaultTabDto: IEditorTabDto = {
 		id: 'uniquestring',
-		input: { kind: TabInputKind.UnknownInput },
-		resource: URI.parse('file://abc/def.txt'),
+		input: { kind: TabInputKind.TextInput, uri: URI.parse('file://abc/def.txt') },
 		isActive: true,
 		isDirty: true,
 		isPinned: true,
 		label: 'label1',
 		viewColumn: 0,
-		additionalResourcesAndViewTypes: [],
-		kind: TabKind.Singular
 	};
 
 	function createTabDto(dto?: Partial<IEditorTabDto>): IEditorTabDto {
@@ -57,8 +55,6 @@ suite('ExtHostEditorTabs', function () {
 			isPinned: true,
 			label: 'label1',
 			viewColumn: 0,
-			additionalResourcesAndViewTypes: [],
-			kind: TabKind.Singular
 		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{
@@ -144,11 +140,8 @@ suite('ExtHostEditorTabs', function () {
 			isDirty: true,
 			isPinned: true,
 			label: 'label1',
-			resource: URI.parse('file://abc/def.txt'),
 			editorId: 'default',
 			viewColumn: 0,
-			additionalResourcesAndViewTypes: [],
-			kind: TabKind.Singular
 		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{
@@ -247,7 +240,10 @@ suite('ExtHostEditorTabs', function () {
 		let all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab1 = all[0];
-		assert.strictEqual(apiTab1.resource?.toString(), URI.revive(tabDto.resource)?.toString());
+		assert.ok(apiTab1.input instanceof TextTabInput);
+		assert.strictEqual(tabDto.input.kind, TabInputKind.TextInput);
+		const dtoResource = (tabDto.input as TextInputDto).uri;
+		assert.strictEqual(apiTab1.input.uri.toString(), URI.revive(dtoResource).toString());
 		assert.strictEqual(apiTab1.isDirty, true);
 
 
@@ -260,7 +256,8 @@ suite('ExtHostEditorTabs', function () {
 		all = extHostEditorTabs.tabGroups.groups.map(group => group.tabs).flat();
 		assert.strictEqual(all.length, 1);
 		const apiTab2 = all[0];
-		assert.strictEqual(apiTab2.resource?.toString(), URI.revive(tabDto.resource)?.toString());
+		assert.ok(apiTab1.input instanceof TextTabInput);
+		assert.strictEqual(apiTab1.input.uri.toString(), URI.revive(dtoResource).toString());
 		assert.strictEqual(apiTab2.isDirty, false);
 
 		assert.strictEqual(apiTab1 === apiTab2, true);
@@ -279,11 +276,9 @@ suite('ExtHostEditorTabs', function () {
 			isDirty: true,
 			isPinned: true,
 			label: 'label1',
-			resource: URI.parse('file://abc/AAA.txt'),
+			input: { kind: TabInputKind.TextInput, uri: URI.parse('file://abc/AAA.txt') },
 			editorId: 'default',
 			viewColumn: 0,
-			additionalResourcesAndViewTypes: [],
-			kind: TabKind.Singular
 		});
 
 		const tabDtoBBB = createTabDto({
@@ -292,11 +287,9 @@ suite('ExtHostEditorTabs', function () {
 			isDirty: true,
 			isPinned: true,
 			label: 'label1',
-			resource: URI.parse('file://abc/BBB.txt'),
+			input: { kind: TabInputKind.TextInput, uri: URI.parse('file://abc/BBB.txt') },
 			editorId: 'default',
 			viewColumn: 0,
-			additionalResourcesAndViewTypes: [],
-			kind: TabKind.Singular
 		});
 
 		// single dirty tab
@@ -312,13 +305,19 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(all.length, 2);
 
 		const activeTab1 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
-		assert.strictEqual(activeTab1?.resource?.toString(), URI.revive(tabDtoAAA.resource)?.toString());
+		assert.ok(activeTab1?.input instanceof TextTabInput);
+		assert.strictEqual(tabDtoAAA.input.kind, TabInputKind.TextInput);
+		const dtoAAAResource = (tabDtoAAA.input as TextInputDto).uri;
+		assert.strictEqual(activeTab1?.input?.uri.toString(), URI.revive(dtoAAAResource)?.toString());
 		assert.strictEqual(activeTab1?.isActive, true);
 
 		extHostEditorTabs.$acceptTabUpdate(12, { ...tabDtoBBB, isActive: true }); /// BBB is now active
 
 		const activeTab2 = extHostEditorTabs.tabGroups.activeTabGroup?.activeTab;
-		assert.strictEqual(activeTab2?.resource?.toString(), URI.revive(tabDtoBBB.resource)?.toString());
+		assert.ok(activeTab2?.input instanceof TextTabInput);
+		assert.strictEqual(tabDtoBBB.input.kind, TabInputKind.TextInput);
+		const dtoBBBResource = (tabDtoBBB.input as TextInputDto).uri;
+		assert.strictEqual(activeTab2?.input?.uri.toString(), URI.revive(dtoBBBResource)?.toString());
 		assert.strictEqual(activeTab2?.isActive, true);
 		assert.strictEqual(activeTab1?.isActive, false);
 	});
@@ -365,11 +364,8 @@ suite('ExtHostEditorTabs', function () {
 			isDirty: true,
 			isPinned: true,
 			label: 'label1',
-			resource: URI.parse('file://abc/def.txt'),
 			editorId: 'default',
 			viewColumn: 0,
-			additionalResourcesAndViewTypes: [],
-			kind: TabKind.Singular
 		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{

@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind, MainThreadEditorTabsShape, AnyInputDto, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, AnyInputDto, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { EditorResourceAccessor, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -62,24 +61,16 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 */
 	private _buildTabObject(group: IEditorGroup, editor: EditorInput, editorIndex: number): IEditorTabDto {
 		const editorId = editor.editorId;
-		const tabKind = editor instanceof DiffEditorInput ? TabKind.Diff : editor instanceof SideBySideEditorInput ? TabKind.SidebySide : TabKind.Singular;
 		const tab: IEditorTabDto = {
 			id: this._generateTabId(editor, group.id),
 			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 			label: editor.getName(),
 			editorId,
 			input: this._editorInputToDto(editor),
-			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
-			kind: tabKind,
-			additionalResourcesAndViewTypes: [],
 			isPinned: group.isSticky(editorIndex),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
-		tab.additionalResourcesAndViewTypes.push({ resource: tab.resource, viewId: tab.editorId });
-		if (editor instanceof SideBySideEditorInput) {
-			tab.additionalResourcesAndViewTypes.push({ resource: EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY }), viewId: editor.primary.editorId ?? editor.editorId });
-		}
 		return tab;
 	}
 

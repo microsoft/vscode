@@ -670,24 +670,15 @@ export interface IEditorTabGroupDto {
 	groupId: number;
 }
 
-export enum TabKind {
-	Singular = 0,
-	Diff = 1,
-	SidebySide = 2
-}
-
 export interface IEditorTabDto {
 	id: string;
 	viewColumn: EditorGroupColumn;
 	label: string;
 	input: AnyInputDto;
-	resource?: UriComponents;
 	editorId?: string;
 	isActive: boolean;
 	isPinned: boolean;
 	isDirty: boolean;
-	kind: TabKind;
-	additionalResourcesAndViewTypes: { resource?: UriComponents; viewId?: string }[];
 }
 
 export interface IExtHostEditorTabsShape {

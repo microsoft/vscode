@@ -7,13 +7,6 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
-	// TODO@API remove
-	export enum TabKind {
-		Singular = 0,
-		Diff = 1,
-		SidebySide = 2
-	}
-
 	// TODO@API names
 	export class TextTabInput {
 		readonly uri: Uri;
@@ -61,35 +54,8 @@ declare module 'vscode' {
 		// TODO@API point to TabGroup instead?
 		readonly viewColumn: ViewColumn;
 
-
 		// TODO@API NAME: optional
-		readonly input: TextTabInput | TextDiffTabInput | unknown;
-
-		/**
-		 * The resource represented by the tab if available.
-		 * Note: Not all tabs have a resource associated with them.
-		 */
-		// TODO@API remove
-		readonly resource: Uri | undefined;
-
-		/**
-		 * The type of view contained in the tab
-		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
-		 * The built-in text editor has an id of 'default' for all configurations.
-		 */
-		// TODO@API remove
-		readonly viewType: string | undefined;
-
-		/**
-		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
-		 * always be at index 0.
-		 */
-		// TODO@API remove
-		readonly additionalResourcesAndViewTypes: readonly {
-			readonly resource: Uri | undefined;
-			readonly viewType: string | undefined;
-		}[];
+		readonly input: TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookEditorDiffTabInput | unknown;
 
 		/**
 		 * Whether or not the tab is currently active
@@ -106,12 +72,6 @@ declare module 'vscode' {
 		 * Whether or not the tab is pinned
 		 */
 		readonly isPinned: boolean;
-
-		/**
-		 * Indicates the type of tab it is.
-		 */
-		// TODO@API remove
-		readonly kind: TabKind;
 
 		/**
 		 * Moves a tab to the given index within the column.
