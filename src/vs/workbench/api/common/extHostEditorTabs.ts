@@ -187,7 +187,7 @@ class ExtHostTabGroups {
 	get apiObject() {
 		if (!this._apiObject) {
 			const that = this;
-			this._apiObject = Object.freeze<vscode.Tab>({
+			this._apiObject = Object.freeze<vscode.TabGroups>({
 				onDidChangeTabGroup: that._onDidChangeTagGroup, // never changes -> simple value
 				onDidChangeActiveTabGroup: that._onDidChangeActiveTabGroup,
 				get groups() { // dynamic -> getters
