@@ -139,7 +139,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
-	languageOverrideValues: Map<string, any> = new Map<string, any>();
+	languageOverrideValues: Map<string, IConfigurationValue<unknown>> = new Map<string, IConfigurationValue<unknown>>();
 	description!: string;
 	valueType!: SettingValueType;
 
@@ -179,7 +179,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	update(inspectResult: IInspectResult, isWorkspaceTrusted: boolean): void {
-		const { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector: languageSelectors } = inspectResult;
+		const { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector } = inspectResult;
 
 		switch (targetSelector) {
 			case 'workspaceFolderValue':
@@ -206,25 +206,27 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			for (const overrideIdentifier of inspected.overrideIdentifiers) {
 				const inspectedOverride = inspectedLanguageOverrides.get(overrideIdentifier);
 				if (inspectedOverride) {
-					this.languageOverrideValues.set(overrideIdentifier, inspectedOverride[targetSelector]);
+					this.languageOverrideValues.set(overrideIdentifier, inspectedOverride);
 				}
 			}
 		}
 
-		// TODO: fix this section.
-		if (isConfigured && languageSelectors) {
-			for (const languageSelector of languageSelectors) {
-				// We already targeted the scope to use above.
-				if (this.languageOverrideValues.has(languageSelector)) {
-					displayValue = this.languageOverrideValues.get(languageSelector);
-					break;
-				}
+		if (languageSelector) {
+			// We have a language filter in this case.
+			if (this.languageOverrideValues.has(languageSelector)) {
+				const overrideValues = this.languageOverrideValues.get(languageSelector)!;
+				// In the worst case, go back to using the previous display value.
+				// Also, sometimes the override is in the form of a default value override, so consider that second.
+				displayValue = overrideValues[targetSelector] ?? overrideValues.defaultValue ?? displayValue;
+				this.value = displayValue;
+				this.scopeValue = isConfigured && overrideValues[targetSelector];
+				this.defaultValue = overrideValues.defaultValue ?? inspected.defaultValue;
 			}
+		} else {
+			this.value = displayValue;
+			this.scopeValue = isConfigured && inspected[targetSelector];
+			this.defaultValue = inspected.defaultValue;
 		}
-
-		this.value = displayValue;
-		this.scopeValue = isConfigured && inspected[targetSelector];
-		this.defaultValue = inspected.defaultValue;
 
 		this.isConfigured = isConfigured;
 		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted) {
