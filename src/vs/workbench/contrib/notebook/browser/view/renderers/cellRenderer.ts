@@ -41,7 +41,7 @@ import { CollapsedCellInput } from 'vs/workbench/contrib/notebook/browser/view/c
 import { CollapsedCellOutput } from 'vs/workbench/contrib/notebook/browser/view/cellParts/collapsedCellOutput';
 import { FoldedCellHint } from 'vs/workbench/contrib/notebook/browser/view/cellParts/foldedCellHint';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/cellParts/markdownCell';
-import { BaseCellRenderTemplate, CodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { CodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
@@ -103,9 +103,6 @@ abstract class AbstractCellRenderer {
 	dispose() {
 		this.editorOptions.dispose();
 		this.dndController = undefined;
-	}
-
-	protected commonRenderElement(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
 	}
 }
 
@@ -207,8 +204,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		if (!this.notebookEditor.hasModel()) {
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
-
-		this.commonRenderElement(element, templateData);
 
 		templateData.currentRenderedCell = element;
 		templateData.currentEditor = undefined;
@@ -370,8 +365,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		if (!this.notebookEditor.hasModel()) {
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
-
-		this.commonRenderElement(element, templateData);
 
 		templateData.currentRenderedCell = element;
 
