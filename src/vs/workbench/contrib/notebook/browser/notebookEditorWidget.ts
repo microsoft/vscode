@@ -84,7 +84,6 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { peekViewResultsBackground } from 'vs/editor/contrib/peekView/browser/peekView';
-import { ID as CommentControllerID } from 'vs/workbench/contrib/comments/browser/commentsEditorContribution';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 const $ = DOM.$;
@@ -230,7 +229,8 @@ export class ListViewInfoAccessor extends Disposable {
 }
 
 export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOptions {
-	const skipContributions = [CommentControllerID];
+	// We inlined the id to avoid loading comment contrib in tests
+	const skipContributions = ['editor.contrib.review'];
 	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 
 	return {

@@ -5,10 +5,8 @@
 
 import * as dom from 'vs/base/browser/dom';
 import * as languages from 'vs/editor/common/languages';
-import { Emitter, Event } from 'vs/base/common/event';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IRange } from 'vs/editor/common/core/range';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -19,125 +17,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { coalesce } from 'vs/base/common/arrays';
-
-export class TestCommentThread implements languages.CommentThread<ICellRange> {
-	private _input?: languages.CommentInput;
-	get input(): languages.CommentInput | undefined {
-		return this._input;
-	}
-
-	set input(value: languages.CommentInput | undefined) {
-		this._input = value;
-		this._onDidChangeInput.fire(value);
-	}
-
-	private readonly _onDidChangeInput = new Emitter<languages.CommentInput | undefined>();
-	get onDidChangeInput(): Event<languages.CommentInput | undefined> { return this._onDidChangeInput.event; }
-
-	private _label: string | undefined;
-
-	get label(): string | undefined {
-		return this._label;
-	}
-
-	set label(label: string | undefined) {
-		this._label = label;
-		this._onDidChangeLabel.fire(this._label);
-	}
-
-	private _contextValue: string | undefined;
-
-	get contextValue(): string | undefined {
-		return this._contextValue;
-	}
-
-	set contextValue(context: string | undefined) {
-		this._contextValue = context;
-	}
-
-	private readonly _onDidChangeLabel = new Emitter<string | undefined>();
-	readonly onDidChangeLabel: Event<string | undefined> = this._onDidChangeLabel.event;
-
-	private _comments: languages.Comment[] | undefined;
-
-	public get comments(): languages.Comment[] | undefined {
-		return this._comments;
-	}
-
-	public set comments(newComments: languages.Comment[] | undefined) {
-		this._comments = newComments;
-		this._onDidChangeComments.fire(this._comments);
-	}
-
-	private readonly _onDidChangeComments = new Emitter<languages.Comment[] | undefined>();
-	get onDidChangeComments(): Event<languages.Comment[] | undefined> { return this._onDidChangeComments.event; }
-
-	set range(range: ICellRange) {
-		this._range = range;
-		this._onDidChangeRange.fire(this._range);
-	}
-
-	get range(): ICellRange {
-		return this._range;
-	}
-
-	private readonly _onDidChangeCanReply = new Emitter<boolean>();
-	get onDidChangeCanReply(): Event<boolean> { return this._onDidChangeCanReply.event; }
-	set canReply(state: boolean) {
-		this._canReply = state;
-		this._onDidChangeCanReply.fire(this._canReply);
-	}
-
-	get canReply() {
-		return this._canReply;
-	}
-
-	private readonly _onDidChangeRange = new Emitter<ICellRange>();
-	public onDidChangeRange = this._onDidChangeRange.event;
-
-	private _collapsibleState: languages.CommentThreadCollapsibleState | undefined;
-	get collapsibleState() {
-		return this._collapsibleState;
-	}
-
-	set collapsibleState(newState: languages.CommentThreadCollapsibleState | undefined) {
-		this._collapsibleState = newState;
-		this._onDidChangeCollasibleState.fire(this._collapsibleState);
-	}
-
-	private readonly _onDidChangeCollasibleState = new Emitter<languages.CommentThreadCollapsibleState | undefined>();
-	public onDidChangeCollasibleState = this._onDidChangeCollasibleState.event;
-
-	private _isDisposed: boolean;
-
-	get isDisposed(): boolean {
-		return this._isDisposed;
-	}
-
-	constructor(
-		public commentThreadHandle: number,
-		public controllerHandle: number,
-		public extensionId: string,
-		public threadId: string,
-		public resource: string,
-		private _range: ICellRange,
-		private _canReply: boolean
-	) {
-		this._isDisposed = false;
-	}
-	isDocumentCommentThread(): this is languages.CommentThread<IRange> {
-		return false;
-	}
-
-	dispose() {
-		this._isDisposed = true;
-		this._onDidChangeCollasibleState.dispose();
-		this._onDidChangeComments.dispose();
-		this._onDidChangeInput.dispose();
-		this._onDidChangeLabel.dispose();
-		this._onDidChangeRange.dispose();
-	}
-}
 
 export class CellComments extends CellPart {
 	private _initialized: boolean = false;
