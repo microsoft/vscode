@@ -140,7 +140,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 	private shouldTrackHistory(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent<IStoredFileWorkingCopyModel> {
 		if (
 			e.workingCopy.resource.scheme !== this.pathService.defaultUriScheme && 	// track history for all workspace resources
-			e.workingCopy.resource.scheme !== Schemas.userData						// track history for all settings
+			e.workingCopy.resource.scheme !== Schemas.vscodeUserData						// track history for all settings
 		) {
 			return false; // do not support unknown resources
 		}

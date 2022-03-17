@@ -23,6 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { COMPARE_WITH_FILE_LABEL, toDiffEditorArguments } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { Schemas } from 'vs/base/common/network';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
@@ -108,12 +109,12 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		// Try to convert the provided `uri` into a form that is likely
 		// for the provider to find entries for:
 		// - `vscode-local-history`: convert back to the associated resource
-		// - default-scheme: keep as is
+		// - default-scheme / settings: keep as is
 		// - anything that is backed by a file system provider: convert
 		let resource: URI | undefined = undefined;
 		if (uri.scheme === LocalHistoryFileSystemProvider.SCHEMA) {
 			resource = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri).associatedResource;
-		} else if (uri.scheme === this.pathService.defaultUriScheme) {
+		} else if (uri.scheme === this.pathService.defaultUriScheme || uri.scheme === Schemas.vscodeUserData) {
 			resource = uri;
 		} else if (this.fileService.hasProvider(uri)) {
 			resource = URI.from({ scheme: this.pathService.defaultUriScheme, authority: this.environmentService.remoteAuthority, path: uri.path });

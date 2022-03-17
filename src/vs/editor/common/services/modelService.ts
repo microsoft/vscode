@@ -567,7 +567,7 @@ export class ModelService extends Disposable implements IModelService {
 		return (
 			resource.scheme === Schemas.file
 			|| resource.scheme === Schemas.vscodeRemote
-			|| resource.scheme === Schemas.userData
+			|| resource.scheme === Schemas.vscodeUserData
 			|| resource.scheme === Schemas.vscodeNotebookCell
 			|| resource.scheme === 'fake-fs' // for tests
 		);

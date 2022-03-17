@@ -1138,7 +1138,7 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
 		fileService.registerProvider(Schemas.file, new InMemoryFileSystemProvider());
-		fileService.registerProvider(Schemas.userData, new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.vscodeUserData, new InMemoryFileSystemProvider());
 
 		super(new TestContextService(TestWorkspace), environmentService, fileService, logService);
 
