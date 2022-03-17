@@ -106,7 +106,6 @@ abstract class AbstractCellRenderer {
 	}
 
 	protected commonRenderElement(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		templateData.elementDisposables.add(new CellDecorations(templateData.rootContainer, templateData.decorationContainer, element));
 	}
 }
 
@@ -170,12 +169,15 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const foldedCellHint = templateDisposables.add(scopedInstaService.createInstance(FoldedCellHint, this.notebookEditor, DOM.append(container, $('.notebook-folded-hint'))));
 
 		const focusIndicator = templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom));
+		const cellDecorationsPart = templateDisposables.add(new CellDecorations(rootContainer, decorationContainer));
+
 		const cellParts = [
 			betweenCellToolbar,
 			titleToolbar,
 			statusBar,
 			focusIndicator,
 			foldedCellHint,
+			cellDecorationsPart,
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellFocusPart(container, undefined, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart(container)),
@@ -187,7 +189,6 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			cellInputCollapsedContainer,
 			instantiationService: scopedInstaService,
 			container,
-			decorationContainer,
 			cellContainer: innerContent,
 			editorPart,
 			editorContainer,
@@ -319,6 +320,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			this.notebookEditor));
 
 		const focusIndicatorPart = templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom));
+		const cellDecorationsPart = templateDisposables.add(new CellDecorations(rootContainer, decorationContainer));
 		const cellParts = [
 			focusIndicatorPart,
 			templateDisposables.add(scopedInstaService.createInstance(BetweenCellToolbar, this.notebookEditor, titleToolbarContainer, bottomCellToolbarContainer)),
@@ -326,6 +328,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			progressBar,
 			titleToolbar,
 			runToolbar,
+			cellDecorationsPart,
 			templateDisposables.add(new CellExecutionPart(this.notebookEditor, executionOrderLabel)),
 			templateDisposables.add(this.instantiationService.createInstance(CollapsedCellOutput, this.notebookEditor, cellOutputCollapsedContainer)),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
@@ -341,7 +344,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			cellOutputCollapsedContainer,
 			instantiationService: scopedInstaService,
 			container,
-			decorationContainer,
 			cellContainer,
 			statusBar,
 			focusSinkElement,

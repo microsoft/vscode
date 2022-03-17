@@ -4,39 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
-export class CellDecorations extends Disposable {
+export class CellDecorations extends CellPart {
 	constructor(
-		rootContainer: HTMLElement,
-		decorationContainer: HTMLElement,
-		element: ICellViewModel
+		readonly rootContainer: HTMLElement,
+		readonly decorationContainer: HTMLElement,
 	) {
 		super();
+	}
 
+	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
 		const removedClassNames: string[] = [];
-		rootContainer.classList.forEach(className => {
+		this.rootContainer.classList.forEach(className => {
 			if (/^nb\-.*$/.test(className)) {
 				removedClassNames.push(className);
 			}
 		});
 
 		removedClassNames.forEach(className => {
-			rootContainer.classList.remove(className);
+			this.rootContainer.classList.remove(className);
 		});
 
-		decorationContainer.innerText = '';
+		this.decorationContainer.innerText = '';
 
 		const generateCellTopDecorations = () => {
-			decorationContainer.innerText = '';
+			this.decorationContainer.innerText = '';
 
 			element.getCellDecorations().filter(options => options.topClassName !== undefined).forEach(options => {
-				decorationContainer.append(DOM.$(`.${options.topClassName!}`));
+				this.decorationContainer.append(DOM.$(`.${options.topClassName!}`));
 			});
 		};
 
-		this._register(element.onCellDecorationsChanged((e) => {
+		templateData.elementDisposables.add(element.onCellDecorationsChanged((e) => {
 			const modified = e.added.find(e => e.topClassName) || e.removed.find(e => e.topClassName);
 
 			if (modified) {
@@ -45,5 +48,14 @@ export class CellDecorations extends Disposable {
 		}));
 
 		generateCellTopDecorations();
+	}
+
+	prepareLayout(): void {
+	}
+
+	updateInternalLayoutNow(element: ICellViewModel): void {
+	}
+
+	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 	}
 }
