@@ -543,6 +543,7 @@ export class ExtensionScannerInput {
 			&& a.isBuiltin === b.isBuiltin
 			&& a.isUnderDevelopment === b.isUnderDevelopment
 			&& a.mtime === b.mtime
+			&& a.targetPlatform === b.targetPlatform
 			&& Translations.equals(a.translations, b.translations)
 		);
 	}
