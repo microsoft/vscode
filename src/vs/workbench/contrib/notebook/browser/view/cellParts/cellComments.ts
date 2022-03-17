@@ -10,9 +10,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRange } from 'vs/editor/common/core/range';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
@@ -165,7 +163,7 @@ export class CellComments extends CellPart {
 		this._applyTheme();
 	}
 
-	private async initialize(element: ICellViewModel, templateData: BaseCellRenderTemplate) {
+	private async initialize(element: ICellViewModel) {
 		if (this._initialized) {
 			return;
 		}
@@ -211,8 +209,8 @@ export class CellComments extends CellPart {
 		}));
 	}
 
-	private _bindListeners(templateData: BaseCellRenderTemplate) {
-		templateData.elementDisposables.add(this.commentService.onDidUpdateCommentThreads(async () => {
+	private _bindListeners() {
+		this.cellDisposables.add(this.commentService.onDidUpdateCommentThreads(async () => {
 			if (this.currentElement) {
 				const commentThread = await this._getCommentThreadForCell(this.currentElement);
 				if (!this._commentThreadWidget && commentThread) {
@@ -255,28 +253,25 @@ export class CellComments extends CellPart {
 		this._commentThreadWidget?.applyTheme(theme, fontInfo);
 	}
 
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+	protected override didRenderCell(element: ICellViewModel): void {
 		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
-			this.initialize(element, templateData);
-			this._bindListeners(templateData);
+			this.initialize(element);
+			this._bindListeners();
 		}
+
 	}
 
-	prepareLayout(): void {
+	override prepareLayout(): void {
 		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
 			this.currentElement.commentHeight = dom.getClientArea(this._commentThreadWidget.container).height;
 		}
 	}
 
-	updateInternalLayoutNow(element: ICellViewModel): void {
+	override updateInternalLayoutNow(element: ICellViewModel): void {
 		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget) {
 			const layoutInfo = (element as CodeCellViewModel).layoutInfo;
-			this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
+			this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight} px`;
 		}
 	}
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
-
-	}
-
 }
