@@ -42,6 +42,7 @@ import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import 'vs/editor/contrib/snippet/browser/snippetController2';
 import 'vs/editor/contrib/suggest/browser/suggestController';
+import 'vs/editor/contrib/suggest/browser/suggestInlineCompletions';
 import 'vs/editor/contrib/tokenization/browser/tokenization';
 import 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import 'vs/editor/contrib/unicodeHighlighter/browser/unicodeHighlighter';

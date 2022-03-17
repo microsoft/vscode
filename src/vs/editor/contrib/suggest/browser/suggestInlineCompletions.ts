@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CompletionItemInsertTextRule } from 'vs/editor/common/standalone/standaloneEnums';
 import { CompletionItemModel, provideSuggestionItems } from 'vs/editor/contrib/suggest/browser/suggest';
+
 
 class InlineCompletionResults implements InlineCompletions {
 
@@ -44,7 +49,7 @@ class InlineCompletionResults implements InlineCompletions {
 	}
 }
 
-export class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
+class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
 
 	constructor(@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService) { }
 
@@ -70,3 +75,27 @@ export class SuggestInlineCompletions implements InlineCompletionsProvider<Inlin
 	}
 
 }
+
+
+
+class EditorContribution implements IEditorContribution {
+
+	private static _counter = 0;
+	private static _disposable: IDisposable | undefined;
+
+	constructor(_editor: ICodeEditor, @ILanguageFeaturesService languageFeatureService: ILanguageFeaturesService) {
+		// HACKY way to contribute something only once
+		if (++EditorContribution._counter === 1) {
+			EditorContribution._disposable = languageFeatureService.inlineCompletionsProvider.register('*', new SuggestInlineCompletions(languageFeatureService));
+		}
+	}
+
+	dispose(): void {
+		if (--EditorContribution._counter === 0) {
+			EditorContribution._disposable?.dispose();
+			EditorContribution._disposable = undefined;
+		}
+	}
+}
+
+registerEditorContribution('suggest.inlineCompletionsProvider', EditorContribution);
