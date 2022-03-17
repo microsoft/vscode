@@ -211,17 +211,14 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		}
 
-		if (languageSelector) {
-			// We have a language filter in this case.
-			if (this.languageOverrideValues.has(languageSelector)) {
-				const overrideValues = this.languageOverrideValues.get(languageSelector)!;
-				// In the worst case, go back to using the previous display value.
-				// Also, sometimes the override is in the form of a default value override, so consider that second.
-				displayValue = overrideValues[targetSelector] ?? overrideValues.defaultValue ?? displayValue;
-				this.value = displayValue;
-				this.scopeValue = isConfigured && overrideValues[targetSelector];
-				this.defaultValue = overrideValues.defaultValue ?? inspected.defaultValue;
-			}
+		if (languageSelector && this.languageOverrideValues.has(languageSelector)) {
+			const overrideValues = this.languageOverrideValues.get(languageSelector)!;
+			// In the worst case, go back to using the previous display value.
+			// Also, sometimes the override is in the form of a default value override, so consider that second.
+			displayValue = (isConfigured ? overrideValues[targetSelector] : overrideValues.defaultValue) ?? displayValue;
+			this.value = displayValue;
+			this.scopeValue = isConfigured && overrideValues[targetSelector];
+			this.defaultValue = overrideValues.defaultValue ?? inspected.defaultValue;
 		} else {
 			this.value = displayValue;
 			this.scopeValue = isConfigured && inspected[targetSelector];
