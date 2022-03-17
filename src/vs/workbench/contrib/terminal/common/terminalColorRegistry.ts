@@ -47,6 +47,12 @@ export const TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR = registerColor(
 	hcDark: '#F14C4C',
 	hcLight: '#B5200D'
 }, nls.localize('terminalCommandDecoration.errorBackground', 'The terminal command decoration background color for error commands.'));
+export const TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR = registerColor('terminalOverviewRuler.cursorForeground', {
+	dark: '#A0A0A0CC',
+	light: '#A0A0A0CC',
+	hcDark: '#A0A0A0CC',
+	hcLight: '#A0A0A0CC'
+}, nls.localize('terminalOverviewRuler.cursorForeground', 'The overview ruler cursor color.'));
 export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,
