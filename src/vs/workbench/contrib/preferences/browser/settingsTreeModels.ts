@@ -375,10 +375,19 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	matchesAllLanguages(languageFilter?: string): boolean {
-		if (!languageFilter
-			|| this.setting.scope === ConfigurationScope.LANGUAGE_OVERRIDABLE) {
+		if (!languageFilter) {
+			// We're not filtering by language.
 			return true;
 		}
+
+		// We have a language filter in the search widget at this point.
+		// We decide to show all language overridable settings to make the
+		// lang filter act more like a scope filter,
+		// rather than adding on an implicit @modified as well.
+		if (this.setting.scope === ConfigurationScope.LANGUAGE_OVERRIDABLE) {
+			return true;
+		}
+
 		return false;
 	}
 }
@@ -521,6 +530,10 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 		target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :
 			target === ConfigurationTarget.WORKSPACE ? 'workspaceValue' :
 				'workspaceFolderValue';
+	const targetOverrideSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocal' :
+		target === ConfigurationTarget.USER_REMOTE ? 'userRemote' :
+			target === ConfigurationTarget.WORKSPACE ? 'workspace' :
+				'workspaceFolder';
 	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
 	if (!isConfigured) {
 		if (target === ConfigurationTarget.USER_LOCAL) {
@@ -547,8 +560,11 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 		// For all language filters, see if there's an override for that filter.
 		if (languageFilter) {
 			isConfigured = false;
-			if (inspectedLanguageOverrides.has(languageFilter) && typeof inspectedLanguageOverrides.get(languageFilter)![targetSelector] !== 'undefined') {
-				isConfigured = true;
+			if (inspectedLanguageOverrides.has(languageFilter)) {
+				const overrideValue = inspectedLanguageOverrides.get(languageFilter)![targetOverrideSelector]?.override;
+				if (typeof overrideValue !== 'undefined') {
+					isConfigured = true;
+				}
 			}
 		}
 	}
