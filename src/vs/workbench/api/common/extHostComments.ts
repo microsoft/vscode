@@ -16,6 +16,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, CommentThreadChanges, CommentChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
@@ -329,10 +330,12 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 		private _state?: vscode.CommentThreadState;
 
 		get state(): vscode.CommentThreadState {
+			checkProposedApiEnabled(this.extensionDescription, 'commentsResolvedState');
 			return this._state!;
 		}
 
 		set state(newState: vscode.CommentThreadState) {
+			checkProposedApiEnabled(this.extensionDescription, 'commentsResolvedState');
 			this._state = newState;
 			this.modifications.state = newState;
 			this._onDidUpdateCommentThread.fire();

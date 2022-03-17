@@ -29,7 +29,7 @@ import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/co
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { contrastBorder, editorForeground, registerColor, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, resolveColorValue, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, resolveColorValue, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
 import { CommentGlyphWidget } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
@@ -48,6 +48,7 @@ import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { commentThreadStateColorVar, getCommentThreadStateColor } from 'vs/workbench/contrib/comments/browser/commentColors';
 
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
@@ -56,20 +57,8 @@ export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action ' + ThemeIcon.asClassName(collapseIcon);
 const COMMENT_SCHEME = 'comment';
 
-
-export const resolvedCommentBorder = registerColor('resolvedComment.border', { dark: Color.fromHex('#c5c5c5'), light: Color.fromHex('#555'), hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('resolvedCommentBorder', 'Color of borders and arrow for resolved comments.'));
-export const unresolvedCommentBorder = registerColor('unresolvedComment.border', { dark: Color.fromHex('#f4cd5d'), light: Color.fromHex('#ff0'), hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('unresolvedCommentBorder', 'Color of borders and arrow for unresolved comments.'));
-
-const commentThreadStateColors = new Map([
-	[languages.CommentThreadState.Unresolved, unresolvedCommentBorder],
-	[languages.CommentThreadState.Resolved, resolvedCommentBorder],
-]);
-
-const commentThreadStateColorVar = '--comment-thread-state-color';
-
-function getCommentThreadStateColor(thread: languages.CommentThread, theme: IColorTheme): Color | undefined {
-	const colorId = thread.state !== undefined ? commentThreadStateColors.get(thread.state) : undefined;
-	return colorId !== undefined ? theme.getColor(colorId) : undefined;
+function getCommentThreadWidgetStateColor(thread: languages.CommentThread, theme: IColorTheme): Color | undefined {
+	return getCommentThreadStateColor(thread, theme) ?? theme.getColor(peekViewBorder);
 }
 
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
@@ -656,7 +645,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._commentThreadDisposables.push(this._commentThread.onDidChangeState(() => {
 			const borderColor =
-				getCommentThreadStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
+				getCommentThreadWidgetStateColor(this._commentThread, this.themeService.getColorTheme()) || Color.transparent;
 			this.style({
 				frameColor: borderColor,
 				arrowColor: borderColor,
@@ -915,7 +904,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	private _applyTheme(theme: IColorTheme) {
-		const borderColor = getCommentThreadStateColor(this._commentThread, theme) || Color.transparent;
+		const borderColor = getCommentThreadWidgetStateColor(this._commentThread, theme) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
 			frameColor: borderColor,
