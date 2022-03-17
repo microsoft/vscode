@@ -8,7 +8,6 @@ import { Delayer } from 'vs/base/common/async';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -31,21 +30,18 @@ interface CellDragEvent {
 }
 
 export class CellDragAndDropPart extends CellPart {
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+	constructor(
+		private readonly container: HTMLElement
+	) {
+		super();
+	}
+
+	override didRenderCell(element: ICellViewModel): void {
 		if (element.dragging) {
-			templateData.container.classList.add(DRAGGING_CLASS);
+			this.container.classList.add(DRAGGING_CLASS);
 		} else {
-			templateData.container.classList.remove(DRAGGING_CLASS);
+			this.container.classList.remove(DRAGGING_CLASS);
 		}
-	}
-
-	prepareLayout(): void {
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 	}
 }
 

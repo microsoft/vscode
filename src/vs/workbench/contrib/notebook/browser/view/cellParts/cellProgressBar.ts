@@ -27,23 +27,15 @@ export class CellProgressBar extends CellPart {
 		this._collapsedProgressBar.hide();
 	}
 
-	renderCell(element: ICellViewModel): void {
+	override didRenderCell(element: ICellViewModel): void {
 		this._updateForExecutionState(element);
-	}
-
-	prepareLayout(): void {
-		// nothing to read
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
-		// nothing to update
 	}
 
 	override updateForExecutionState(element: ICellViewModel, e: ICellExecutionStateChangedEvent): void {
 		this._updateForExecutionState(element, e);
 	}
 
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+	override updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 		if (e.metadataChanged || e.internalMetadataChanged) {
 			this._updateForExecutionState(element);
 		}

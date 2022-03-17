@@ -21,10 +21,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
@@ -89,7 +87,7 @@ export class CellEditorStatusBar extends CellPart {
 	}
 
 
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+	override didRenderCell(element: ICellViewModel): void {
 		this.updateContext(<INotebookCellActionContext>{
 			ui: true,
 			cell: element,
@@ -98,11 +96,7 @@ export class CellEditorStatusBar extends CellPart {
 		});
 	}
 
-	prepareLayout(): void {
-		// nothing to read
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
+	override updateInternalLayoutNow(element: ICellViewModel): void {
 		// todo@rebornix layer breaker
 		this._cellContainer.classList.toggle('cell-statusbar-hidden', this._notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata, element.uri) === 0);
 
@@ -118,11 +112,6 @@ export class CellEditorStatusBar extends CellPart {
 		const maxItemWidth = this.getMaxItemWidth();
 		this.leftItems.forEach(item => item.maxWidth = maxItemWidth);
 		this.rightItems.forEach(item => item.maxWidth = maxItemWidth);
-	}
-
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
-		// nothing to update
 	}
 
 	private getMaxItemWidth() {

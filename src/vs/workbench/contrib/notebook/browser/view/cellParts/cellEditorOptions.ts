@@ -88,19 +88,7 @@ export class CellEditorOptions extends CellPart {
 		this._value = this._computeEditorOptions();
 	}
 
-
-	renderCell(element: ICellViewModel): void {
-		// no op
-	}
-
-	prepareLayout(): void {
-		// nothing to read
-	}
-	updateInternalLayoutNow(element: ICellViewModel): void {
-		// nothing to update
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent) {
+	override updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent) {
 		if (e.cellLineNumberChanged) {
 			this.setLineNumbers(element.lineNumbers);
 		}

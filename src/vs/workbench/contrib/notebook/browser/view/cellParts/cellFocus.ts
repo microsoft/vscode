@@ -4,15 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 
 export class CellFocusPart extends CellPart {
-	private currentCell: ICellViewModel | undefined;
-
 	constructor(
 		containerElement: HTMLElement,
 		focusSinkElement: HTMLElement | undefined,
@@ -33,22 +29,5 @@ export class CellFocusPart extends CellPart {
 				}
 			}));
 		}
-	}
-
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.currentCell = element;
-	}
-
-	override unrenderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.currentCell = undefined;
-	}
-
-	prepareLayout(): void {
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 	}
 }
