@@ -24,7 +24,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
+import { CellContextKeyPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
 import { CellDragAndDropController, CellDragAndDropPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { CodeCellDragImageRenderer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDragRenderer';
@@ -107,7 +107,6 @@ abstract class AbstractCellRenderer {
 
 	protected commonRenderElement(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
 		templateData.elementDisposables.add(new CellDecorations(templateData.rootContainer, templateData.decorationContainer, element));
-		templateData.elementDisposables.add(templateData.instantiationService.createInstance(CellContextKeyManager, this.notebookEditor, element));
 	}
 }
 
@@ -179,7 +178,8 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			foldedCellHint,
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellFocusPart(container, undefined, this.notebookEditor)),
-			templateDisposables.add(new CellDragAndDropPart()),
+			templateDisposables.add(new CellDragAndDropPart(container)),
+			templateDisposables.add(this.instantiationService.createInstance(CellContextKeyPart, this.notebookEditor)),
 		];
 
 		const templateData: MarkdownCellRenderTemplate = {
@@ -330,7 +330,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateDisposables.add(this.instantiationService.createInstance(CollapsedCellOutput, this.notebookEditor, cellOutputCollapsedContainer)),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellFocusPart(container, focusSinkElement, this.notebookEditor)),
-			templateDisposables.add(new CellDragAndDropPart()),
+			templateDisposables.add(new CellDragAndDropPart(container)),
+			templateDisposables.add(this.instantiationService.createInstance(CellContextKeyPart, this.notebookEditor)),
 		];
 
 		const templateData: CodeCellRenderTemplate = {
