@@ -7,7 +7,7 @@ import { ipcMain, session } from 'electron';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { extname, normalize } from 'vs/base/common/path';
+import { basename, extname, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -88,12 +88,27 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 
 	//#region vscode-file://
 
+	private static crossOriginRoots = new Set([
+		'workbench.html',
+		'webWorkerExtensionHostIframe.html',
+		'workerMain.js',
+	]);
+
 	private handleResourceRequest(request: Electron.ProtocolRequest, callback: ProtocolCallback): void {
 		const path = this.requestToNormalizedFilePath(request);
 
 		// first check by validRoots
 		if (this.validRoots.findSubstr(path)) {
-			return callback({ path });
+
+			let headers: Record<string, string> | undefined;
+			if (ProtocolMainService.crossOriginRoots.has(basename(path))) {
+				headers = {
+					'Cross-Origin-Opener-Policy': 'same-origin',
+					'Cross-Origin-Embedder-Policy': 'require-corp'
+				};
+			}
+
+			return callback({ path, headers });
 		}
 
 		// then check by validExtensions
