@@ -5,9 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 
 export class CellDecorations extends CellPart {
 	constructor(
@@ -17,7 +15,7 @@ export class CellDecorations extends CellPart {
 		super();
 	}
 
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
+	protected override didRenderCell(element: ICellViewModel): void {
 		const removedClassNames: string[] = [];
 		this.rootContainer.classList.forEach(className => {
 			if (/^nb\-.*$/.test(className)) {
@@ -39,7 +37,7 @@ export class CellDecorations extends CellPart {
 			});
 		};
 
-		templateData.elementDisposables.add(element.onCellDecorationsChanged((e) => {
+		this.cellDisposables.add(element.onCellDecorationsChanged((e) => {
 			const modified = e.added.find(e => e.topClassName) || e.removed.find(e => e.topClassName);
 
 			if (modified) {
@@ -48,14 +46,5 @@ export class CellDecorations extends CellPart {
 		}));
 
 		generateCellTopDecorations();
-	}
-
-	prepareLayout(): void {
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 	}
 }
