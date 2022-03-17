@@ -391,9 +391,9 @@ export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGrou
 	};
 }
 
-export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, languageFilters: Set<string> | undefined, configurationService: IWorkbenchConfigurationService): ISetting[] {
+export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, languageFilter: string | undefined, configurationService: IWorkbenchConfigurationService): ISetting[] {
 	const allSettings = getFlatSettings(groups);
-	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, languageFilters, configurationService).isConfigured);
+	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, languageFilter, configurationService).isConfigured);
 }
 
 function compareNullableIntegers(a?: number, b?: number) {

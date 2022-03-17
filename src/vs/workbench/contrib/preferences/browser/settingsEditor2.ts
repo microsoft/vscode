@@ -174,7 +174,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
-	private pendingSettingUpdate: { key: string; value: any; languageFilters: string[] | null } | null = null;
+	private pendingSettingUpdate: { key: string; value: any; languageFilter: string | undefined } | null = null;
 
 	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel | null = null;
@@ -875,17 +875,16 @@ export class SettingsEditor2 extends EditorPane {
 
 	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[], manualReset: boolean): void {
 		const parsedQuery = parseQuery(this.searchWidget.getValue());
-		const languageFilters = (parsedQuery && parsedQuery.languageFilters.length) ?
-			parsedQuery.languageFilters : null;
+		const languageFilter = parsedQuery.languageFilter;
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
-			this.updateChangedSetting(key, value, manualReset, languageFilters);
+			this.updateChangedSetting(key, value, manualReset, languageFilter);
 		}
 
-		this.pendingSettingUpdate = { key, value, languageFilters };
+		this.pendingSettingUpdate = { key, value, languageFilter };
 		if (SettingsEditor2.shouldSettingUpdateFast(type)) {
-			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset, languageFilters));
+			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset, languageFilter));
 		} else {
-			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset, languageFilters));
+			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset, languageFilter));
 		}
 	}
 
@@ -955,17 +954,17 @@ export class SettingsEditor2 extends EditorPane {
 		return ancestors.reverse();
 	}
 
-	private updateChangedSetting(key: string, value: any, manualReset: boolean, languageFilters: string[] | null): Promise<void> {
+	private updateChangedSetting(key: string, value: any, manualReset: boolean, languageFilter: string | undefined): Promise<void> {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
 		const resource = URI.isUri(settingsTarget) ? settingsTarget : undefined;
 		const configurationTarget = <ConfigurationTarget>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget);
-		const overrides: IConfigurationUpdateOverrides = { resource, overrideIdentifiers: languageFilters };
+		const overrides: IConfigurationUpdateOverrides = { resource, overrideIdentifiers: languageFilter ? [languageFilter] : undefined };
 
 		const configurationTargetIsWorkspace = configurationTarget === ConfigurationTarget.WORKSPACE || configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER;
 
-		const userPassedInManualReset = configurationTargetIsWorkspace || !!languageFilters?.length;
+		const userPassedInManualReset = configurationTargetIsWorkspace || !!languageFilter;
 		const isManualReset = userPassedInManualReset ? manualReset : value === undefined;
 
 		// If the user is changing the value back to the default, and we're not targeting a workspace scope, do a 'reset' instead
@@ -1106,7 +1105,7 @@ export class SettingsEditor2 extends EditorPane {
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, dividedGroups.extension || []));
 
 		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
-			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.viewState.languageFilters, this.configurationService);
+			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.viewState.languageFilter, this.configurationService);
 			if (configuredUntrustedWorkspaceSettings.length) {
 				resolvedSettingsRoot.children!.unshift({
 					id: 'workspaceTrust',
@@ -1274,7 +1273,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
 		this.viewState.idFilters = new Set<string>();
-		this.viewState.languageFilters = new Set<string>();
+		this.viewState.languageFilter = undefined;
 		if (query) {
 			const parsedQuery = parseQuery(query);
 			query = parsedQuery.query;
@@ -1282,14 +1281,14 @@ export class SettingsEditor2 extends EditorPane {
 			parsedQuery.extensionFilters.forEach(extensionId => this.viewState.extensionFilters!.add(extensionId));
 			parsedQuery.featureFilters!.forEach(feature => this.viewState.featureFilters!.add(feature));
 			parsedQuery.idFilters!.forEach(id => this.viewState.idFilters!.add(id));
-			parsedQuery.languageFilters!.forEach(id => this.viewState.languageFilters!.add(id));
+			this.viewState.languageFilter = parsedQuery.languageFilter;
 		}
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
 		} else {
-			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size || this.viewState.languageFilters.size) {
+			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size || this.viewState.languageFilter) {
 				this.searchResultModel = this.createFilterModel();
 			} else {
 				this.searchResultModel = null;

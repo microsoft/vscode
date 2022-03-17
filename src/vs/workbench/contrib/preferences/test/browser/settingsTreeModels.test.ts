@@ -150,7 +150,7 @@ suite('SettingsTree', () => {
 				query: '',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -161,7 +161,7 @@ suite('SettingsTree', () => {
 				query: '',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -172,7 +172,7 @@ suite('SettingsTree', () => {
 				query: '',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -183,7 +183,7 @@ suite('SettingsTree', () => {
 				query: 'foo',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -194,7 +194,7 @@ suite('SettingsTree', () => {
 				query: '',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -205,7 +205,7 @@ suite('SettingsTree', () => {
 				query: 'my query',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -216,7 +216,7 @@ suite('SettingsTree', () => {
 				query: 'test  query',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -227,7 +227,7 @@ suite('SettingsTree', () => {
 				query: 'test',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -238,7 +238,7 @@ suite('SettingsTree', () => {
 				query: 'query has @ for some reason',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -249,7 +249,7 @@ suite('SettingsTree', () => {
 				query: '',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -260,7 +260,7 @@ suite('SettingsTree', () => {
 				query: '',
 				featureFilters: [],
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 		testParseQuery(
 			'@feature:scm',
@@ -270,7 +270,7 @@ suite('SettingsTree', () => {
 				featureFilters: ['scm'],
 				query: '',
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -281,7 +281,7 @@ suite('SettingsTree', () => {
 				featureFilters: ['scm', 'terminal'],
 				query: '',
 				idFilters: [],
-				languageFilters: []
+				languageFilter: undefined
 			});
 		testParseQuery(
 			'@id:files.autoSave',
@@ -291,7 +291,7 @@ suite('SettingsTree', () => {
 				featureFilters: [],
 				query: '',
 				idFilters: ['files.autoSave'],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -302,7 +302,7 @@ suite('SettingsTree', () => {
 				featureFilters: [],
 				query: '',
 				idFilters: ['files.autoSave', 'terminal.integrated.commandsToSkipShell'],
-				languageFilters: []
+				languageFilter: undefined
 			});
 
 		testParseQuery(
@@ -313,7 +313,7 @@ suite('SettingsTree', () => {
 				featureFilters: [],
 				query: '',
 				idFilters: [],
-				languageFilters: ['cpp']
+				languageFilter: 'cpp'
 			});
 
 		testParseQuery(
@@ -324,7 +324,7 @@ suite('SettingsTree', () => {
 				featureFilters: [],
 				query: '',
 				idFilters: [],
-				languageFilters: ['cpp']
+				languageFilter: 'cpp'
 			});
 	});
 });
