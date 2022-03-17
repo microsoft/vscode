@@ -37,7 +37,7 @@ class ExtHostEditorTabGroup {
 			if (tabDto.isActive) {
 				this._activeTabId = tabDto.id;
 			}
-			this._tabs.push(new ExtHostEditorTab(tabDto, proxy, this.activeTabId));
+			this._tabs.push(new ExtHostEditorTab(tabDto, proxy, () => this.activeTabId()));
 		}
 	}
 
@@ -196,7 +196,7 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 		// Clears the tab groups array
 		this._tabGroups.groups.length = 0;
 		this._extHostTabGroups = tabGroups.map(tabGroup => {
-			const group = new ExtHostEditorTabGroup(tabGroup, this._proxy, this.activeGroupIdGetter);
+			const group = new ExtHostEditorTabGroup(tabGroup, this._proxy, () => this.activeGroupIdGetter());
 			return group;
 		});
 		for (const group of this._extHostTabGroups) {
