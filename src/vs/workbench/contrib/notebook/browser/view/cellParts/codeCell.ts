@@ -24,7 +24,7 @@ import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/ce
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
 import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
-import { CodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
+import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
@@ -38,7 +38,7 @@ export class CodeCell extends Disposable {
 	private _isDisposed: boolean = false;
 	private readonly cellParts: CellPart[];
 
-	private _collapsedExecutionIcon: CodeCellExecutionIcon;
+	private _collapsedExecutionIcon: CollapsedCodeCellExecutionIcon;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -131,7 +131,7 @@ export class CodeCell extends Disposable {
 		this._register(toDisposable(() => {
 			executionItemElement.parentElement?.removeChild(executionItemElement);
 		}));
-		this._collapsedExecutionIcon = this.instantiationService.createInstance(CodeCellExecutionIcon, this.notebookEditor, this.viewCell, executionItemElement);
+		this._collapsedExecutionIcon = this.instantiationService.createInstance(CollapsedCodeCellExecutionIcon, this.notebookEditor, this.viewCell, executionItemElement);
 		this.updateForCollapseState();
 
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));
