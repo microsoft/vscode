@@ -905,6 +905,11 @@ export interface IXtermTerminal {
 	 * Clears decorations - for example, when shell integration is disabled.
 	 */
 	clearDecorations(): void;
+
+	/**
+	 * Clears the search result decorations
+	 */
+	clearSearch(): void;
 }
 
 export interface IRequestAddInstanceToGroupEvent {

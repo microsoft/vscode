@@ -9,13 +9,11 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { IDecoration } from 'xterm';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
-	private _findDecorations: IDecoration[] | undefined;
 
 	constructor(
 		findState: FindReplaceState,
@@ -61,8 +59,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (instance) {
 			instance.focus();
 		}
-		this._findDecorations?.forEach(f => f.dispose());
-		this._findDecorations = [];
+		instance?.xterm?.clearSearch();
 	}
 
 	protected _onInputChanged() {

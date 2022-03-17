@@ -273,6 +273,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		return this._searchAddon;
 	}
 
+	clearSearch(): void {
+		this._searchAddon?.clear();
+	}
+
 	getFont(): ITerminalFont {
 		return this._configHelper.getFont(this._core);
 	}
