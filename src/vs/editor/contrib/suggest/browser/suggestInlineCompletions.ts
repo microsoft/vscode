@@ -40,6 +40,7 @@ class InlineCompletionResults implements InlineCompletions {
 				lastRange = range;
 			}
 
+			// TODO@jrieken do some kind of filtering...
 			this.items.push({
 				// prefix,
 				range,
@@ -83,6 +84,7 @@ class EditorContribution implements IEditorContribution {
 	private static _counter = 0;
 	private static _disposable: IDisposable | undefined;
 
+	// TODO@jrieken honour setting!
 	constructor(_editor: ICodeEditor, @ILanguageFeaturesService languageFeatureService: ILanguageFeaturesService) {
 		// HACKY way to contribute something only once
 		if (++EditorContribution._counter === 1) {
