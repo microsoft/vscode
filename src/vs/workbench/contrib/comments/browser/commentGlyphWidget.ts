@@ -16,6 +16,7 @@ const overviewRulerDefault = new Color(new RGBA(197, 197, 197, 1));
 export const overviewRulerCommentingRangeForeground = registerColor('editorGutter.commentRangeForeground', { dark: overviewRulerDefault, light: overviewRulerDefault, hcDark: overviewRulerDefault, hcLight: overviewRulerDefault }, nls.localize('editorGutterCommentRangeForeground', 'Editor gutter decoration color for commenting ranges.'));
 
 export class CommentGlyphWidget {
+	public static description = 'comment-glyph-widget';
 	private _lineNumber!: number;
 	private _editor: ICodeEditor;
 	private commentsDecorations: string[] = [];
@@ -29,7 +30,7 @@ export class CommentGlyphWidget {
 
 	private createDecorationOptions(): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
-			description: 'comment-glyph-widget',
+			description: CommentGlyphWidget.description,
 			isWholeLine: true,
 			overviewRuler: {
 				color: themeColorFromId(overviewRulerCommentingRangeForeground),

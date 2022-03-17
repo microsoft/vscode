@@ -29,7 +29,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/
 import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
-import { overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
+import { CommentGlyphWidget, overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
 import { COMMENTEDITOR_DECORATION_KEY, isMouseUpEventMatchMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
@@ -41,6 +41,9 @@ import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/comments
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
 import { Emitter } from 'vs/base/common/event';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Position } from 'vs/editor/common/core/position';
 
 export const ID = 'editor.contrib.review';
 
@@ -103,8 +106,9 @@ class CommentingRangeDecoration implements IModelDeltaDecoration {
 		return this.id ? this._editor.getModel()!.getDecorationRange(this.id) : undefined;
 	}
 }
-class CommentingRangeDecorator {
 
+class CommentingRangeDecorator {
+	public static description = 'commenting-range-decorator';
 	private decorationOptions!: ModelDecorationOptions;
 	private hoverDecorationOptions!: ModelDecorationOptions;
 	private commentingRangeDecorations: CommentingRangeDecoration[] = [];
@@ -117,7 +121,7 @@ class CommentingRangeDecorator {
 
 	constructor() {
 		const decorationOptions: IModelDecorationOptions = {
-			description: 'commenting-range-decorator',
+			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
 			linesDecorationsClassName: 'comment-range-glyph comment-diff-added'
 		};
@@ -125,7 +129,7 @@ class CommentingRangeDecorator {
 		this.decorationOptions = ModelDecorationOptions.createDynamic(decorationOptions);
 
 		const hoverDecorationOptions: IModelDecorationOptions = {
-			description: 'commenting-range-decorator',
+			description: CommentingRangeDecorator.description,
 			isWholeLine: true,
 			linesDecorationsClassName: `comment-range-glyph comment-diff-added line-hover`
 		};
@@ -207,6 +211,11 @@ class CommentingRangeDecorator {
 	}
 }
 
+const ActiveCursorHasCommentingRange = new RawContextKey<boolean>('activeCursorHasCommentingRange', false, {
+	description: nls.localize('hasCommentingRange', "Whether the position at the active cursor has a commenting range"),
+	type: 'boolean'
+});
+
 export class CommentController implements IEditorContribution {
 	private readonly globalToDispose = new DisposableStore();
 	private readonly localToDispose = new DisposableStore();
@@ -222,7 +231,8 @@ export class CommentController implements IEditorContribution {
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingCommentCache: { [key: string]: { [key: string]: string } };
-	private _editorMouseDisposable: IDisposable | undefined;
+	private _editorDisposables: IDisposable[] | undefined;
+	private _activeCursorHasCommentingRange: IContextKey<boolean>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -232,12 +242,14 @@ export class CommentController implements IEditorContribution {
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._pendingCommentCache = {};
 		this._computePromise = null;
+		this._activeCursorHasCommentingRange = ActiveCursorHasCommentingRange.bindTo(contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -248,9 +260,9 @@ export class CommentController implements IEditorContribution {
 		this._commentingRangeDecorator = new CommentingRangeDecorator();
 		this.globalToDispose.add(this._commentingRangeDecorator.onDidChangeDecorationsCount(count => {
 			if (count === 0) {
-				this.clearMouseMoveListener();
-			} else if (!this._editorMouseDisposable) {
-				this.registerMouseMoveListener();
+				this.clearEditorListeners();
+			} else if (!this._editorDisposables) {
+				this.registerEditorListeners();
 			}
 		}));
 
@@ -273,17 +285,37 @@ export class CommentController implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private registerMouseMoveListener() {
-		this._editorMouseDisposable = this.editor.onMouseMove(e => this.onEditorMouseMove(e));
+	private registerEditorListeners() {
+		this._editorDisposables = [];
+		this._editorDisposables.push(this.editor.onMouseMove(e => this.onEditorMouseMove(e)));
+		this._editorDisposables.push(this.editor.onDidChangeCursorPosition(e => this.onEditorChangeCursorPosition(e.position)));
+		this._editorDisposables.push(this.editor.onDidFocusEditorWidget(() => this.onEditorChangeCursorPosition(this.editor.getPosition())));
 	}
 
-	private clearMouseMoveListener() {
-		this._editorMouseDisposable?.dispose();
-		this._editorMouseDisposable = undefined;
+	private clearEditorListeners() {
+		this._editorDisposables?.forEach(disposable => disposable.dispose());
+		this._editorDisposables = undefined;
 	}
 
 	private onEditorMouseMove(e: IEditorMouseEvent): void {
 		this._commentingRangeDecorator.updateHover(e.target.position?.lineNumber);
+	}
+
+	private onEditorChangeCursorPosition(e: Position | null) {
+		const decorations = e ? this.editor.getDecorationsInRange(Range.fromPositions(e, { column: -1, lineNumber: e.lineNumber })) : undefined;
+		let hasCommentingRange = false;
+		if (decorations) {
+			for (const decoration of decorations) {
+				if (decoration.options.description === CommentGlyphWidget.description) {
+					// We don't allow multiple comments on the same line.
+					hasCommentingRange = false;
+					break;
+				} else if (decoration.options.description === CommentingRangeDecorator.description) {
+					hasCommentingRange = true;
+				}
+			}
+		}
+		this._activeCursorHasCommentingRange.set(hasCommentingRange);
 	}
 
 	private beginCompute(): Promise<void> {
@@ -402,7 +434,7 @@ export class CommentController implements IEditorContribution {
 	public dispose(): void {
 		this.globalToDispose.dispose();
 		this.localToDispose.dispose();
-		this._editorMouseDisposable?.dispose();
+		this._editorDisposables?.forEach(disposable => disposable.dispose());
 
 		this._commentWidgets.forEach(widget => widget.dispose());
 
@@ -416,9 +448,9 @@ export class CommentController implements IEditorContribution {
 
 		this.localToDispose.add(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this.localToDispose.add(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		if (this._editorMouseDisposable) {
-			this.clearMouseMoveListener();
-			this.registerMouseMoveListener();
+		if (this._editorDisposables) {
+			this.clearEditorListeners();
+			this.registerEditorListeners();
 		}
 
 		this._computeCommentingRangeScheduler = new Delayer<ICommentInfo[]>(200);
@@ -754,8 +786,9 @@ export class NextCommentThreadAction extends EditorAction {
 registerEditorContribution(ID, CommentController);
 registerEditorAction(NextCommentThreadAction);
 
+const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
 CommandsRegistry.registerCommand({
-	id: 'workbench.action.addComment',
+	id: ADD_COMMENT_COMMAND,
 	handler: (accessor) => {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
@@ -770,6 +803,15 @@ CommandsRegistry.registerCommand({
 		const position = activeEditor.getPosition();
 		return controller.addOrToggleCommentAtLine(position.lineNumber, undefined);
 	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: ADD_COMMENT_COMMAND,
+		title: nls.localize('comments.addCommand', "Add Comment on Current Line"),
+		category: 'Comments'
+	},
+	when: ActiveCursorHasCommentingRange
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
