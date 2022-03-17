@@ -82,7 +82,7 @@ export class CellFocusIndicator extends CellPart {
 			const cell = element as CodeCellViewModel;
 			const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
-			const indicatorHeight = cell.layoutInfo.codeIndicatorHeight + cell.layoutInfo.outputIndicatorHeight;
+			const indicatorHeight = cell.layoutInfo.codeIndicatorHeight + cell.layoutInfo.outputIndicatorHeight + cell.layoutInfo.commentHeight;
 			this.left.setHeight(indicatorHeight);
 			this.right.setHeight(indicatorHeight);
 			this.codeFocusIndicator.setHeight(cell.layoutInfo.codeIndicatorHeight);

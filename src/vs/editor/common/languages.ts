@@ -1682,13 +1682,14 @@ export interface CommentInput {
 /**
  * @internal
  */
-export interface CommentThread {
+export interface CommentThread<T = IRange> {
+	isDocumentCommentThread(): this is CommentThread<IRange>;
 	commentThreadHandle: number;
 	controllerHandle: number;
 	extensionId?: string;
 	threadId: string;
 	resource: string | null;
-	range: IRange;
+	range: T;
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
@@ -1698,7 +1699,7 @@ export interface CommentThread {
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<IRange>;
+	onDidChangeRange: Event<T>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
 	onDidChangeState: Event<CommentThreadState | undefined>;
@@ -1767,21 +1768,21 @@ export interface Comment {
 /**
  * @internal
  */
-export interface CommentThreadChangedEvent {
+export interface CommentThreadChangedEvent<T> {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread[];
+	readonly added: CommentThread<T>[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: CommentThread[];
+	readonly removed: CommentThread<T>[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: CommentThread[];
+	readonly changed: CommentThread<T>[];
 }
 
 export interface CodeLens {

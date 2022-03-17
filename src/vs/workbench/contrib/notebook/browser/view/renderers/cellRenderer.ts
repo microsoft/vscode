@@ -24,6 +24,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellComments } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellComments';
 import { CellContextKeyPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
 import { CellDragAndDropController, CellDragAndDropPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
@@ -147,6 +148,9 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		editorPart.style.display = 'none';
 
+		const cellCommentPartContainer = DOM.append(container, $('.cell-comment-container'));
+		const cellCommentPart = templateDisposables.add(this.instantiationService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer));
+
 		const innerContent = DOM.append(container, $('.cell.markdown'));
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
@@ -175,6 +179,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			focusIndicator,
 			foldedCellHint,
 			cellDecorationsPart,
+			cellCommentPart,
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),
 			templateDisposables.add(new CellFocusPart(container, undefined, this.notebookEditor)),
 			templateDisposables.add(new CellDragAndDropPart(container)),
@@ -271,6 +276,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 
+		const cellCommentPartContainer = DOM.append(container, $('.cell-comment-container'));
+		const cellCommentPart = templateDisposables.add(this.instantiationService.createInstance(CellComments, this.notebookEditor, cellCommentPartContainer));
+
 		// create a special context key service that set the inCompositeEditor-contextkey
 		const editorContextKeyService = templateDisposables.add(this.contextKeyServiceProvider(editorPart));
 		const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
@@ -324,6 +332,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			titleToolbar,
 			runToolbar,
 			cellDecorationsPart,
+			cellCommentPart,
 			templateDisposables.add(new CellExecutionPart(this.notebookEditor, executionOrderLabel)),
 			templateDisposables.add(this.instantiationService.createInstance(CollapsedCellOutput, this.notebookEditor, cellOutputCollapsedContainer)),
 			templateDisposables.add(new CollapsedCellInput(this.notebookEditor, cellInputCollapsedContainer)),

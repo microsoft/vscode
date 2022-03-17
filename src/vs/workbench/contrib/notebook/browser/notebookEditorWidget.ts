@@ -83,6 +83,7 @@ import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 const $ = DOM.$;
 
@@ -226,7 +227,11 @@ export class ListViewInfoAccessor extends Disposable {
 	}
 }
 
-export function getDefaultNotebookCreationOptions() {
+export function getDefaultNotebookCreationOptions(): INotebookEditorCreationOptions {
+	// We inlined the id to avoid loading comment contrib in tests
+	const skipContributions = ['editor.contrib.review'];
+	const contributions = EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+
 	return {
 		menuIds: {
 			notebookToolbar: MenuId.NotebookToolbar,
@@ -235,7 +240,8 @@ export function getDefaultNotebookCreationOptions() {
 			cellTopInsertToolbar: MenuId.NotebookCellListTop,
 			cellExecuteToolbar: MenuId.NotebookCellExecute,
 			cellExecutePrimary: MenuId.NotebookCellExecutePrimary,
-		}
+		},
+		cellEditorContributions: contributions
 	};
 }
 
@@ -831,6 +837,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .markdown-cell-row > .webview-backed-markdown-cell.markdown-cell-edit-mode .cell.code { padding-bottom: ${markdownCellBottomMargin}px; padding-top: ${markdownCellTopMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .output { margin: 0px ${cellRightMargin}px 0px ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .output { width: calc(100% - ${codeCellLeftMargin + cellRunGutter + cellRightMargin}px); }`);
+
+		// comment
+		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-comment-container { left: ${codeCellLeftMargin + cellRunGutter}px; }`);
+		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-comment-container { width: calc(100% - ${codeCellLeftMargin + cellRunGutter + cellRightMargin}px); }`);
 
 		// output collapse button
 		styleSheets.push(`.monaco-workbench .notebookOverlay .output .output-collapse-container .expandButton { left: -${cellRunGutter}px; }`);

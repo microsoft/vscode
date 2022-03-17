@@ -114,8 +114,8 @@ export interface CommentChanges {
 	readonly timestamp?: string;
 }
 
-export type CommentThreadChanges = Partial<{
-	range: IRange;
+export type CommentThreadChanges<T = IRange> = Partial<{
+	range: T;
 	label: string;
 	contextValue: string | null;
 	comments: CommentChanges[];
@@ -128,11 +128,11 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentController(handle: number, id: string, label: string): void;
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, extensionId: ExtensionIdentifier): languages.CommentThread | undefined;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange, extensionId: ExtensionIdentifier): languages.CommentThread<IRange | ICellRange> | undefined;
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateCommentingRanges(handle: number): void;
-	$onDidCommentThreadsChange(handle: number, event: languages.CommentThreadChangedEvent): void;
+	$onDidCommentThreadsChange(handle: number, event: languages.CommentThreadChangedEvent<IRange | ICellRange>): void;
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {

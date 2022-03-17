@@ -31,7 +31,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND } from 'vs/workbench/common/theme';
 import { CommentGlyphWidget, overviewRulerCommentingRangeForeground } from 'vs/workbench/contrib/comments/browser/commentGlyphWidget';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { COMMENTEDITOR_DECORATION_KEY, isMouseUpEventMatchMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';
+import { isMouseUpEventMatchMouseDown, parseMouseDownInfoFromEvent, ReviewZoneWidget } from 'vs/workbench/contrib/comments/browser/commentThreadZoneWidget';
 import { ctxCommentEditorFocused, SimpleCommentEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -40,6 +40,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { COMMENTS_VIEW_ID } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
 import { Emitter } from 'vs/base/common/event';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -323,7 +324,7 @@ export class CommentController implements IEditorContribution {
 			const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 
 			if (editorURI) {
-				return this.commentService.getComments(editorURI);
+				return this.commentService.getDocumentComments(editorURI);
 			}
 
 			return Promise.resolve([]);
@@ -346,7 +347,7 @@ export class CommentController implements IEditorContribution {
 				const editorURI = this.editor && this.editor.hasModel() && this.editor.getModel().uri;
 
 				if (editorURI) {
-					return this.commentService.getComments(editorURI);
+					return this.commentService.getDocumentComments(editorURI);
 				}
 
 				return Promise.resolve([]);
@@ -495,28 +496,32 @@ export class CommentController implements IEditorContribution {
 			});
 
 			changed.forEach(thread => {
-				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
-				if (matchedZones.length) {
-					let matchedZone = matchedZones[0];
-					matchedZone.update(thread);
+				if (thread.isDocumentCommentThread()) {
+					let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
+					if (matchedZones.length) {
+						let matchedZone = matchedZones[0];
+						matchedZone.update(thread);
+					}
 				}
 			});
 			added.forEach(thread => {
-				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
-				if (matchedZones.length) {
-					return;
+				if (thread.isDocumentCommentThread()) {
+					let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
+					if (matchedZones.length) {
+						return;
+					}
+
+					let matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && (zoneWidget.commentThread as any).commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
+
+					if (matchedNewCommentThreadZones.length) {
+						matchedNewCommentThreadZones[0].update(thread);
+						return;
+					}
+
+					const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId!];
+					this.displayCommentThread(e.owner, thread, pendingCommentText);
+					this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 				}
-
-				let matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && (zoneWidget.commentThread as any).commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
-
-				if (matchedNewCommentThreadZones.length) {
-					matchedNewCommentThreadZones[0].update(thread);
-					return;
-				}
-
-				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId!];
-				this.displayCommentThread(e.owner, thread, pendingCommentText);
-				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 			});
 
 		}));
@@ -872,7 +877,7 @@ registerThemingParticipant((theme, collector) => {
 	const monacoEditorBackground = theme.getColor(peekViewTitleBackground);
 	if (monacoEditorBackground) {
 		collector.addRule(
-			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
+			`.review-widget .body .comment-form .review-thread-reply-button {` +
 			`	background-color: ${monacoEditorBackground}` +
 			`}`
 		);
@@ -881,10 +886,10 @@ registerThemingParticipant((theme, collector) => {
 	const monacoEditorForeground = theme.getColor(editorForeground);
 	if (monacoEditorForeground) {
 		collector.addRule(
-			`.monaco-editor .review-widget .body .monaco-editor {` +
+			`.review-widget .body .monaco-editor {` +
 			`	color: ${monacoEditorForeground}` +
 			`}` +
-			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
+			`.review-widget .body .comment-form .review-thread-reply-button {` +
 			`	color: ${monacoEditorForeground};` +
 			`	font-size: inherit` +
 			`}`
@@ -899,7 +904,7 @@ registerThemingParticipant((theme, collector) => {
 			`	0% { background: ${selectionBackground}; }` +
 			`	100% { background: transparent; }` +
 			`}` +
-			`.monaco-editor .review-widget .body .review-comment.focus {` +
+			`.review-widget .body .review-comment.focus {` +
 			`	animation: monaco-review-widget-focus 3s ease 0s;` +
 			`}`
 		);
@@ -925,11 +930,11 @@ registerThemingParticipant((theme, collector) => {
 
 	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 	if (statusBarItemHoverBackground) {
-		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active:hover { background-color: ${statusBarItemHoverBackground};}`);
+		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.active:hover { background-color: ${statusBarItemHoverBackground};}`);
 	}
 
 	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 	if (statusBarItemActiveBackground) {
-		collector.addRule(`.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
+		collector.addRule(`.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label:active { background-color: ${statusBarItemActiveBackground}; border: 1px solid transparent;}`);
 	}
 });
