@@ -244,8 +244,10 @@ class SubstitutionString {
 
 			const type = token[1];
 			switch (type) {
-				case SubstitutionType.basename, SubstitutionType.dirname,
-					SubstitutionType.extname, SubstitutionType.capture:
+				case SubstitutionType.basename:
+				case SubstitutionType.dirname:
+				case SubstitutionType.extname:
+				case SubstitutionType.capture:
 					this.tokens.push({ capture: type });
 					break;
 				default: throw Error('unknown substitution type: ' + type);
