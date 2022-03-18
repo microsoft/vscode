@@ -3614,7 +3614,7 @@ export class NotebookEditorTabInput {
 	constructor(readonly uri: URI, readonly notebookType: string) { }
 }
 
-export class NotebookEditorDiffTabInput {
+export class NotebookDiffEditorTabInput {
 	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
 }
 //#endregion

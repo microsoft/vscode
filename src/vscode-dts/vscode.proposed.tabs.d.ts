@@ -32,7 +32,7 @@ declare module 'vscode' {
 		constructor(uri: Uri, notebookType: string);
 	}
 
-	export class NotebookEditorDiffTabInput {
+	export class NotebookDiffEditorTabInput {
 		readonly original: Uri;
 		readonly modified: Uri;
 		readonly notebookType: string;
@@ -55,7 +55,7 @@ declare module 'vscode' {
 		readonly viewColumn: ViewColumn;
 
 		// TODO@API NAME: optional
-		readonly input: TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookEditorDiffTabInput | unknown;
+		readonly input: TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookDiffEditorTabInput | unknown;
 
 		/**
 		 * Whether or not the tab is currently active

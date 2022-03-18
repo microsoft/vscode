@@ -11,7 +11,7 @@ import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
 	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, TextDiffTabInput, NotebookEditorDiffTabInput, TextTabInput, NotebookEditorTabInput, CustomEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer, TextDiffTabInput, NotebookDiffEditorTabInput, TextTabInput, NotebookEditorTabInput, CustomEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
@@ -956,7 +956,7 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 				const activeTab = editorTabs.tabGroups.groups.find(group => group.isActive)?.activeTab;
 				if (activeTab !== undefined) {
 					// Resolve a resource from the tab
-					if (activeTab.input instanceof TextDiffTabInput || activeTab.input instanceof NotebookEditorDiffTabInput) {
+					if (activeTab.input instanceof TextDiffTabInput || activeTab.input instanceof NotebookDiffEditorTabInput) {
 						return activeTab.input.modified;
 					} else if (activeTab.input instanceof TextTabInput || activeTab.input instanceof NotebookEditorTabInput || activeTab.input instanceof CustomEditorTabInput) {
 						return activeTab.input.uri;
