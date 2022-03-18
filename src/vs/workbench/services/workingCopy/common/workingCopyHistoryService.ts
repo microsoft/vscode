@@ -58,6 +58,8 @@ export class WorkingCopyHistoryModel {
 
 	private readonly workingCopy = { resource: this.workingCopyResource, name: this.labelService.getUriBasenameLabel(this.workingCopyResource) };
 
+	private shouldStore: boolean = false;
+
 	constructor(
 		private readonly workingCopyResource: URI,
 		private readonly historyHome: URI,
@@ -91,6 +93,9 @@ export class WorkingCopyHistoryModel {
 		};
 		this.entries.push(entry);
 
+		// Mark as in need to be stored to disk
+		this.shouldStore = true;
+
 		// Events
 		this.entryAddedEmitter.fire({ entry });
 
@@ -99,7 +104,7 @@ export class WorkingCopyHistoryModel {
 
 	async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {
 
-		// Make sure to await resolving when all entries are asked for
+		// Make sure to await resolving when removing entries
 		await this.resolveEntriesOnce();
 
 		const index = this.entries.indexOf(entry);
@@ -113,6 +118,9 @@ export class WorkingCopyHistoryModel {
 		// Remove from model
 		this.entries.splice(index, 1);
 
+		// Mark as in need to be stored to disk
+		this.shouldStore = true;
+
 		// Events
 		this.entryRemovedEmitter.fire({ entry });
 
@@ -121,7 +129,7 @@ export class WorkingCopyHistoryModel {
 
 	async updateEntry(entry: IWorkingCopyHistoryEntry, properties: { source: SaveSource }, token: CancellationToken): Promise<void> {
 
-		// Make sure to await resolving when all entries are asked for
+		// Make sure to await resolving when updating entries
 		await this.resolveEntriesOnce();
 
 		const index = this.entries.indexOf(entry);
@@ -131,6 +139,9 @@ export class WorkingCopyHistoryModel {
 
 		// Update entry
 		entry.source = properties.source;
+
+		// Mark as in need to be stored to disk
+		this.shouldStore = true;
 
 		// Events
 		this.entryChangedEmitter.fire({ entry });
@@ -227,6 +238,12 @@ export class WorkingCopyHistoryModel {
 	}
 
 	async store(): Promise<void> {
+		if (!this.shouldStore) {
+			return; // fast return to avoid disk access when nothing changed
+		}
+
+		// Make sure to await resolving when persisting
+		await this.resolveEntriesOnce();
 
 		// Cleanup based on max-entries setting
 		await this.cleanUpEntries();
@@ -244,15 +261,12 @@ export class WorkingCopyHistoryModel {
 		else {
 			await this.writeEntriesFile();
 		}
+
+		// Mark as being up to date on disk
+		this.shouldStore = false;
 	}
 
 	private async cleanUpEntries(): Promise<void> {
-
-		// We can only cleanup entries when we have resolved
-		// all existing entries from disk, so we need to first
-		// do that if not already done.
-		await this.resolveEntriesOnce();
-
 		const configuredMaxEntries = this.configurationService.getValue<number>(WorkingCopyHistoryModel.MAX_ENTRIES_SETTINGS_KEY, { resource: this.workingCopyResource });
 		if (this.entries.length <= configuredMaxEntries) {
 			return; // nothing to cleanup
