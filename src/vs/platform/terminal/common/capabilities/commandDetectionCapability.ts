@@ -345,7 +345,6 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	serializeCommands(): ISerializedCommand[] {
-		// TODO: Support commandStartLineContent
 		const serialized: ISerializedCommand[] = this.commands.map(e => {
 			return {
 				startLine: e.marker?.line,
