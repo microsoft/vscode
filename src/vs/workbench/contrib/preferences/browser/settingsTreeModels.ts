@@ -549,17 +549,20 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 
 	const overrideIdentifiers = inspected.overrideIdentifiers;
 	const inspectedLanguageOverrides = new Map<string, IConfigurationValue<unknown>>();
+
+	// We must reset isConfigured to be false if languageFilter is set, and manually
+	// determine whether it can be set to true later.
+	if (languageFilter) {
+		isConfigured = false;
+	}
 	if (overrideIdentifiers) {
 		// The setting we're looking at has language overrides.
 		for (const overrideIdentifier of overrideIdentifiers) {
 			inspectedLanguageOverrides.set(overrideIdentifier, configurationService.inspect(key, { overrideIdentifier }));
 		}
 
-		// If we're viewing a setting under a language filter, pretend it's
-		// not configured again.
 		// For all language filters, see if there's an override for that filter.
 		if (languageFilter) {
-			isConfigured = false;
 			if (inspectedLanguageOverrides.has(languageFilter)) {
 				const overrideValue = inspectedLanguageOverrides.get(languageFilter)![targetOverrideSelector]?.override;
 				if (typeof overrideValue !== 'undefined') {
