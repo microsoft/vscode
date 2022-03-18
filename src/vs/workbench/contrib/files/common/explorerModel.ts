@@ -371,7 +371,7 @@ export class ExplorerItem {
 			.filter(entry =>
 				typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
 			.map(([parentPattern, childrenPatterns]) =>
-				[parentPattern.trim(), childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim()))] as [string, string[]]);
+				[parentPattern.trim(), childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))] as [string, string[]]);
 
 		return new ExplorerFileNestingTrie(patterns);
 	}

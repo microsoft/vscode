@@ -477,22 +477,22 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.experimental.fileNesting.patterns': {
 			'type': 'object',
-			'markdownDescription': nls.localize('fileNestingPatterns', "Experimental. Controls nesting of files in the explorer. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect. Each key describes a parent file pattern and each value should be a comma separated list of children file patterns that will be nested under the parent.\n\nA single `*` in a parent pattern may be used to capture any substring, which can then be matched against using `$\u200b(capture)` in a child pattern. Child patterns may also contain one `*` to match any substring.\n\nChild patterns may additionally contain one `$\u200b(basename)` token to be substituted with the parent's basename, and one `$\u200b(extname)` token to be substituted with the parent's extension name.\n\nFor example, given the configuration `*.ts => $(capture).js, $(capture).*.ts`, and a directory containing `a.ts, a.js, a.d.ts`, and `b.js`, nesting would apply as follows: \n- `*.ts` matches `a.ts`, capturing `a`. This causes any sibilings matching `a.js` or `a.*.ts` to be nested under `a.ts`\n    - `a.js` matches `a.js` exactly, so is nested under `a.ts`\n    - `a.d.ts` matches `a.*.ts`, so is also nested under `a.ts`\n\nThe final directory will be rendered with `a.ts` containg `a.js` and `a.d.ts` as nested children, and `b.js` as normal file."),
+			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns can contain several special tokens:\n- `$\u200b(capture)`: Matches the resolved value of the `*` from the parent pattern\n- `$\u200b(basename)`: Matches the parent file's basename, the `file` in `file.ts`\n- `$\u200b(extname)`: Matches the parent file's extension, the `ts` in `file.ts`\n- `$\u200b(dirname)`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`: Matches any string, may only be used once per child pattern"),
 			patternProperties: {
 				'^[^*]*\\*?[^*]*$': {
-					markdownDescription: nls.localize('fileNesting.description', "Key patterns may contain a single `*` capture group which matches any string. Each value pattern may contain one `$\u200b(capture)` token to be substituted with the parent capture group, one `$\u200b(basename)` to be substituted with the parent's basename, one `$\u200b(extname)` to be substituted with the parent's extension name, and one `*` token to match any string"),
+					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain a single `*` character which will match any string."),
 					type: 'string',
 					pattern: '^([^,*]*\\*?[^,*]*)(, ?[^,*]*\\*?[^,*]*)*$',
 				}
 			},
 			additionalProperties: false,
 			'default': {
-				'*.ts': '$(capture).js, $(capture).*.ts',
+				'*.ts': '$(capture).js',
 				'*.js': '$(capture).js.map, $(capture).min.js, $(capture).d.ts',
 				'*.jsx': '$(capture).js',
 				'*.tsx': '$(capture).ts',
 				'tsconfig.json': 'tsconfig.*.json',
-				'package.json': 'package-lock.json, .npmrc, yarn.lock, .yarnrc, pnpm-lock.yaml',
+				'package.json': 'package-lock.json, yarn.lock',
 			}
 		}
 	}
