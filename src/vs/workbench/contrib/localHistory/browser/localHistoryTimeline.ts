@@ -14,8 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IFileService } from 'vs/platform/files/common/files';
-import { LocalHistoryFileLabelFormatter, LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -46,7 +45,6 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		@IWorkingCopyHistoryService private readonly workingCopyHistoryService: IWorkingCopyHistoryService,
 		@IPathService private readonly pathService: IPathService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -63,9 +61,6 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 		// File Service Provider
 		this._register(this.fileService.registerProvider(LocalHistoryFileSystemProvider.SCHEMA, new LocalHistoryFileSystemProvider(this.fileService)));
-
-		// Formatter
-		this._register(this.labelService.registerFormatter(new LocalHistoryFileLabelFormatter()));
 	}
 
 	private updateTimelineRegistration(): void {

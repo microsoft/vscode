@@ -7,8 +7,6 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, hasReadWriteCapability, IFileService, IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
-import { sep } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 
@@ -167,18 +165,4 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return Disposable.None; }
 
 	//#endregion
-}
-
-export class LocalHistoryFileLabelFormatter implements ResourceLabelFormatter {
-
-	readonly scheme: string = LocalHistoryFileSystemProvider.SCHEMA;
-
-	readonly formatting: ResourceLabelFormatting = {
-		label: '${query.label}',
-		separator: sep,
-		tildify: false,
-		normalizeDriveLetter: false,
-		authorityPrefix: sep + sep,
-		workspaceSuffix: ''
-	};
 }

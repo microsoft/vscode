@@ -380,7 +380,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-
 //#endregion
 
 //#region Rename
