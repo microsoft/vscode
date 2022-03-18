@@ -489,7 +489,7 @@ suite('vscode API - window', () => {
 		// Function to acquire the active tab within the active group
 		const getActiveTabInActiveGroup = () => {
 			const activeGroup = window.tabGroups.groups.filter(group => group.isActive)[0];
-			return activeGroup.activeTab;
+			return activeGroup?.activeTab;
 		};
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
@@ -514,8 +514,7 @@ suite('vscode API - window', () => {
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 
-		// TODO @lramos15 fix this failing piece
-		//assert.ok(!getActiveTabInActiveGroup());
+		assert.ok(!getActiveTabInActiveGroup());
 	});
 
 	/*
