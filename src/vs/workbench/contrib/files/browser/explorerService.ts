@@ -326,27 +326,30 @@ export class ExplorerService implements IExplorerService {
 			const newElement = e.target;
 			const oldParentResource = dirname(oldResource);
 			const newParentResource = dirname(newElement.resource);
+			const modelElements = this.model.findAll(oldResource);
+			const sameParentMove = modelElements.every(e => !e.nestedParent) && this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource);
 
 			// Handle Rename
-			if (this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource)) {
-				const modelElements = this.model.findAll(oldResource);
-				modelElements.forEach(async modelElement => {
+			if (sameParentMove) {
+				await Promise.all(modelElements.map(async modelElement => {
 					// Rename File (Model)
 					modelElement.rename(newElement);
 					await this.view?.refresh(false, modelElement.parent);
-				});
+				}));
 			}
 
 			// Handle Move
 			else {
 				const newParents = this.model.findAll(newParentResource);
-				const modelElements = this.model.findAll(oldResource);
-
 				if (newParents.length && modelElements.length) {
 					// Move in Model
 					await Promise.all(modelElements.map(async (modelElement, index) => {
 						const oldParent = modelElement.parent;
+						const oldNestedParent = modelElement.nestedParent;
 						modelElement.move(newParents[index]);
+						if (oldNestedParent) {
+							await this.view?.refresh(false, oldNestedParent);
+						}
 						await this.view?.refresh(false, oldParent);
 						await this.view?.refresh(false, newParents[index]);
 					}));
