@@ -85,6 +85,10 @@ export interface ICwdDetectionCapability {
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
+	/** The command currently being executed, otherwise undefined. */
+	readonly executingCommand: string | undefined;
+	/** The current cwd at the cursor's position. */
+	readonly cwd: string | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	setCwd(value: string): void;

@@ -55,6 +55,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _dimensions: ITerminalDimensions;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
+	get executingCommand(): string | undefined { return this._currentCommand.command; }
+	get cwd(): string | undefined { return this._cwd; }
 
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
@@ -287,7 +289,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		// executed markers
 		this._onCursorMoveListener?.dispose();
 		this._onCursorMoveListener = undefined;
-		this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
+		this._evaluateCommandMarkersWindows();
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
 	}
@@ -344,9 +346,11 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	private _preHandleCommandFinishedWindows(): void {
-		// On Windows, use the gathered cursor move markers to correct the command start and
-		// executed markers. This is done on command finished just in case command executed never
-		// happens (for example PSReadLine tab completion)
+		if (this._currentCommand.commandExecutedMarker) {
+			return;
+		}
+		// This is done on command finished just in case command executed never happens (for example
+		// PSReadLine tab completion)
 		if (this._commandMarkers.length === 0) {
 			// If the command start timeout doesn't happen before command finished, just use the
 			// current marker.
@@ -356,9 +360,17 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			if (this._currentCommand.commandStartMarker) {
 				this._commandMarkers.push(this._currentCommand.commandStartMarker);
 			}
-		} else {
-			this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
 		}
+		this._evaluateCommandMarkersWindows();
+	}
+
+	private _evaluateCommandMarkersWindows(): void {
+		// On Windows, use the gathered cursor move markers to correct the command start and
+		// executed markers.
+		if (this._commandMarkers.length === 0) {
+			return;
+		}
+		this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
 		this._currentCommand.commandStartMarker = this._commandMarkers[0];
 		if (this._currentCommand.commandStartMarker) {
 			const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
