@@ -385,4 +385,47 @@ suite('ExtHostEditorTabs', function () {
 		assert.strictEqual(closedTabIds.length, 2);
 		assert.deepStrictEqual(closedTabIds[1], ['uniquestring']);
 	});
+
+	test('Update tab only sends tab change event', async function () {
+		let closedTabIds: string[][] = [];
+		const extHostEditorTabs = new ExtHostEditorTabs(
+			SingleProxyRPCProtocol(new class extends mock<MainThreadEditorTabsShape>() {
+				// override/implement $moveTab or $closeTab
+				override async $closeTab(tabIds: string[], preserveFocus?: boolean) {
+					closedTabIds.push(tabIds);
+				}
+			})
+		);
+		const tabDto: IEditorTabDto = createTabDto({
+			id: 'uniquestring',
+			isActive: true,
+			isDirty: true,
+			isPinned: true,
+			label: 'label1',
+			editorId: 'default',
+			viewColumn: 0,
+		});
+
+		extHostEditorTabs.$acceptEditorTabModel([{
+			isActive: true,
+			viewColumn: 0,
+			groupId: 12,
+			tabs: [tabDto]
+		}]);
+
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.length, 1);
+		assert.strictEqual(extHostEditorTabs.tabGroups.groups.map(g => g.tabs).flat().length, 1);
+
+		const tab = extHostEditorTabs.tabGroups.groups[0].tabs[0];
+
+		const p = new Promise<vscode.Tab>(resolve => extHostEditorTabs.tabGroups.onDidChangeTab(resolve));
+
+		extHostEditorTabs.$acceptTabUpdate(12, { ...tabDto, label: 'NEW LABEL' });
+
+		const changedTab = await p;
+
+		assert.ok(tab === changedTab);
+		assert.strictEqual(changedTab.label, 'NEW LABEL');
+
+	});
 });

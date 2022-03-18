@@ -121,6 +121,12 @@ declare module 'vscode' {
 		readonly onDidChangeTabGroup: Event<void>;
 
 		/**
+		 * An {@link Event} which fires when a tab changes.
+		 */
+		// TODO@API use richer event type?
+		readonly onDidChangeTab: Event<Tab>;
+
+		/**
 		 * An {@link Event} which fires when the active group changes.
 		 * Whether it be which group is active.
 		 */
