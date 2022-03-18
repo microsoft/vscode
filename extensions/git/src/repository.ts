@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabKind } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TextDiffTabInput, NotebookEditorDiffTabInput } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -1276,15 +1276,15 @@ export class Repository implements Disposable {
 		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
 		diffEditorTabsToClose.push(...tabs
 			.filter(t =>
-				t.resource && t.resource.scheme === 'git' && t.kind === TabKind.Diff &&
-				indexResources.some(r => pathEquals(r, t.resource!.fsPath))));
+				(t.input instanceof TextDiffTabInput || t.input instanceof NotebookEditorDiffTabInput) && t.input.modified.scheme === 'git' &&
+				indexResources.some(r => pathEquals(r, (t.input as TextDiffTabInput).modified!.fsPath))));
 
 		// Working Tree
 		diffEditorTabsToClose.push(...tabs
 			.filter(t =>
-				t.resource && t.resource.scheme === 'file' && t.kind === TabKind.Diff &&
-				workingTreeResources.some(r => pathEquals(r, t.resource!.fsPath)) &&
-				t.additionalResourcesAndViewTypes.find(r => r.resource!.scheme === 'git')));
+				(t.input instanceof TextDiffTabInput || t.input instanceof NotebookEditorDiffTabInput) && t.input.modified.scheme === 'file' &&
+				workingTreeResources.some(r => pathEquals(r, (t.input as TextDiffTabInput).modified!.fsPath)) &&
+				[t.input.original, t.input.modified].find(r => r!.scheme === 'git')));
 
 		// Close editors
 		window.tabGroups.close(diffEditorTabsToClose, true);

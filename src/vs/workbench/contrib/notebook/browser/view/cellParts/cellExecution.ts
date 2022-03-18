@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellExecutionPart extends CellPart {

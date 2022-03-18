@@ -394,80 +394,81 @@ suite('vscode API - window', () => {
 		await group1Tabs[0].move(1, ViewColumn.One);
 	});
 
-	test('Tabs - vscode.open & vscode.diff', async function () {
-		// Simple function to get the active tab
-		const getActiveTab = () => {
-			return window.tabGroups.groups.find(g => g.isActive)?.activeTab;
-		};
+	// TODO @lramos15 re-enable these once shape is more stable
+	// test('Tabs - vscode.open & vscode.diff', async function () {
+	// 	// Simple function to get the active tab
+	// 	const getActiveTab = () => {
+	// 		return window.tabGroups.groups.find(g => g.isActive)?.activeTab;
+	// 	};
 
-		const [docA, docB, docC] = await Promise.all([
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openTextDocument(await createRandomFile())
-		]);
+	// 	const [docA, docB, docC] = await Promise.all([
+	// 		workspace.openTextDocument(await createRandomFile()),
+	// 		workspace.openTextDocument(await createRandomFile()),
+	// 		workspace.openTextDocument(await createRandomFile())
+	// 	]);
 
-		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
-		await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
-		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
+	// 	await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+	// 	await window.showTextDocument(docB, { viewColumn: ViewColumn.One, preview: false });
+	// 	await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
 
-		const commandFile = await createRandomFile();
-		await commands.executeCommand('vscode.open', commandFile, ViewColumn.Three);
-		// Ensure active tab is correct after calling vscode.opn
-		assert.strictEqual(getActiveTab()?.viewColumn, ViewColumn.Three);
+	// 	const commandFile = await createRandomFile();
+	// 	await commands.executeCommand('vscode.open', commandFile, ViewColumn.Three);
+	// 	// Ensure active tab is correct after calling vscode.opn
+	// 	assert.strictEqual(getActiveTab()?.viewColumn, ViewColumn.Three);
 
-		const leftDiff = await createRandomFile();
-		const rightDiff = await createRandomFile();
-		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Four, preview: false });
-		assert.strictEqual(getActiveTab()?.viewColumn, ViewColumn.Four);
+	// 	const leftDiff = await createRandomFile();
+	// 	const rightDiff = await createRandomFile();
+	// 	await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Four, preview: false });
+	// 	assert.strictEqual(getActiveTab()?.viewColumn, ViewColumn.Four);
 
-		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
-		assert.strictEqual(tabs.length, 5);
-		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
-		assert.strictEqual(tabs[1].resource?.toString(), docB.uri.toString());
-		assert.strictEqual(tabs[2].resource?.toString(), docC.uri.toString());
-		assert.strictEqual(tabs[3].resource?.toString(), commandFile.toString());
+	// 	const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
+	// 	assert.strictEqual(tabs.length, 5);
+	// 	assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
+	// 	assert.strictEqual(tabs[1].resource?.toString(), docB.uri.toString());
+	// 	assert.strictEqual(tabs[2].resource?.toString(), docC.uri.toString());
+	// 	assert.strictEqual(tabs[3].resource?.toString(), commandFile.toString());
 
-	});
+	// });
 
-	test('Tabs - Ensure tabs getter is correct', async function () {
-		// Reduce test timeout as this test should be quick, so even with 3 retries it will be under 60s.
-		this.timeout(10000);
-		// This test can be flaky because of opening a notebook
-		// Sometimes the webview doesn't resolve especially on windows so we will retry 3 times
-		this.retries(3);
-		const [docA, docB, docC, notebookDoc] = await Promise.all([
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openTextDocument(await createRandomFile()),
-			workspace.openNotebookDocument('jupyter-notebook', undefined)
-		]);
+	// test('Tabs - Ensure tabs getter is correct', async function () {
+	// 	// Reduce test timeout as this test should be quick, so even with 3 retries it will be under 60s.
+	// 	this.timeout(10000);
+	// 	// This test can be flaky because of opening a notebook
+	// 	// Sometimes the webview doesn't resolve especially on windows so we will retry 3 times
+	// 	this.retries(3);
+	// 	const [docA, docB, docC, notebookDoc] = await Promise.all([
+	// 		workspace.openTextDocument(await createRandomFile()),
+	// 		workspace.openTextDocument(await createRandomFile()),
+	// 		workspace.openTextDocument(await createRandomFile()),
+	// 		workspace.openNotebookDocument('jupyter-notebook', undefined)
+	// 	]);
 
-		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
-		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
-		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
-		await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
+	// 	await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
+	// 	await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
+	// 	await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
+	// 	await window.showNotebookDocument(notebookDoc, { viewColumn: ViewColumn.One, preview: false });
 
-		const leftDiff = await createRandomFile();
-		const rightDiff = await createRandomFile();
-		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
+	// 	const leftDiff = await createRandomFile();
+	// 	const rightDiff = await createRandomFile();
+	// 	await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
 
-		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
-		assert.strictEqual(tabs.length, 5);
+	// 	const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
+	// 	assert.strictEqual(tabs.length, 5);
 
-		// All resources should match the text documents as they're the only tabs currently open
-		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
-		assert.strictEqual(tabs[1].resource?.toString(), notebookDoc.uri.toString());
-		assert.strictEqual(tabs[2].resource?.toString(), docB.uri.toString());
-		assert.strictEqual(tabs[3].resource?.toString(), docC.uri.toString());
-		// Diff editor and side by side editor report the right side as the resource
-		assert.strictEqual(tabs[4].resource?.toString(), rightDiff.toString());
+	// 	// All resources should match the text documents as they're the only tabs currently open
+	// 	assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
+	// 	assert.strictEqual(tabs[1].resource?.toString(), notebookDoc.uri.toString());
+	// 	assert.strictEqual(tabs[2].resource?.toString(), docB.uri.toString());
+	// 	assert.strictEqual(tabs[3].resource?.toString(), docC.uri.toString());
+	// 	// Diff editor and side by side editor report the right side as the resource
+	// 	assert.strictEqual(tabs[4].resource?.toString(), rightDiff.toString());
 
-		assert.strictEqual(tabs[0].viewColumn, ViewColumn.One);
-		assert.strictEqual(tabs[1].viewColumn, ViewColumn.One);
-		assert.strictEqual(tabs[2].viewColumn, ViewColumn.Two);
-		assert.strictEqual(tabs[3].viewColumn, ViewColumn.Three);
-		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
-	});
+	// 	assert.strictEqual(tabs[0].viewColumn, ViewColumn.One);
+	// 	assert.strictEqual(tabs[1].viewColumn, ViewColumn.One);
+	// 	assert.strictEqual(tabs[2].viewColumn, ViewColumn.Two);
+	// 	assert.strictEqual(tabs[3].viewColumn, ViewColumn.Three);
+	// 	assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
+	// });
 
 	/*
 	test('Tabs - ensure active tab is correct', async () => {

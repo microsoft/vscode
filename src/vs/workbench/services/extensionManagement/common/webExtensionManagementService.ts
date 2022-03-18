@@ -14,7 +14,7 @@ import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExte
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { isBoolean } from 'vs/base/common/types';
+import { isBoolean, isUndefined } from 'vs/base/common/types';
 
 export class WebExtensionManagementService extends AbstractExtensionManagementService implements IExtensionManagementService {
 
@@ -126,8 +126,9 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
+
 	private _operation = InstallOperation.Install;
-	get operation() { return this._operation; }
+	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
 	constructor(
 		manifest: IExtensionManifest,
@@ -154,6 +155,8 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.publisherId = this.extension.publisherId;
 			metadata.installedTimestamp = Date.now();
 			metadata.isPreReleaseVersion = this.extension.properties.isPreReleaseVersion;
+			metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
+			metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
 			metadata.preRelease = this.extension.properties.isPreReleaseVersion ||
 				(isBoolean(this.options.installPreReleaseVersion)
 					? this.options.installPreReleaseVersion /* Respect the passed flag */

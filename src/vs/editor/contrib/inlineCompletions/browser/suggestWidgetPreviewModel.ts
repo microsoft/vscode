@@ -41,6 +41,11 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		super(editor);
 
 		this._register(this.suggestionInlineCompletionSource.onDidChange(() => {
+			if (!this.editor.hasModel()) {
+				// onDidChange might be called when calling setModel on the editor, before we are disposed.
+				return;
+			}
+
 			this.updateCacheSoon.schedule();
 
 			const suggestWidgetState = this.suggestionInlineCompletionSource.state;
@@ -127,10 +132,11 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 
 	public override get ghostText(): GhostText | undefined {
 		const isSuggestionPreviewEnabled = this.isSuggestionPreviewEnabled();
-		const augmentedCompletion = minimizeInlineCompletion(this.editor.getModel()!, this.cache.value?.completions[0]?.toLiveInlineCompletion());
+		const model = this.editor.getModel();
+		const augmentedCompletion = minimizeInlineCompletion(model, this.cache.value?.completions[0]?.toLiveInlineCompletion());
 
 		const suggestWidgetState = this.suggestionInlineCompletionSource.state;
-		const suggestInlineCompletion = minimizeInlineCompletion(this.editor.getModel()!, suggestWidgetState?.selectedItem?.normalizedInlineCompletion);
+		const suggestInlineCompletion = minimizeInlineCompletion(model, suggestWidgetState?.selectedItem?.normalizedInlineCompletion);
 
 		const isAugmentedCompletionValid = augmentedCompletion
 			&& suggestInlineCompletion

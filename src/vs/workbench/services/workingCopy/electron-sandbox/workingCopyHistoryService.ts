@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -13,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 
 export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
@@ -40,13 +42,25 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
 		// Prolong shutdown for orderly model shutdown
 		e.join((async () => {
+			const limiter = new Limiter(MAX_PARALLEL_HISTORY_IO_OPS);
+
 			const models = Array.from(this.models.values());
 			for (const model of models) {
-				try {
-					await model.store();
-				} catch (error) {
-					this.logService.trace(error);
-				}
+				limiter.queue(async () => {
+					if (e.token.isCancellationRequested) {
+						return;
+					}
+
+					try {
+						await model.store(e.token);
+					} catch (error) {
+						this.logService.trace(error);
+					}
+				});
+			}
+
+			if (limiter.size > 0) {
+				return Event.toPromise(limiter.onFinished);
 			}
 		})(), 'join.workingCopyHistory');
 	}

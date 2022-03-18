@@ -354,7 +354,7 @@ export class TimelinePane extends ViewPane {
 
 		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
+		if ((uri?.toString() === this.uri?.toString() && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
 			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
 
@@ -397,7 +397,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || e.uri.toString(true) === this.uri?.toString(true)) {
+		if (e?.uri === undefined || e.uri.toString() === this.uri?.toString()) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;

@@ -8,7 +8,7 @@ import * as languages from 'vs/editor/common/languages';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CommentThreadWidget } from 'vs/workbench/contrib/comments/browser/commentThreadWidget';

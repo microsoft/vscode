@@ -423,13 +423,14 @@ export class CommentController implements IEditorContribution {
 			return false;
 		});
 
+		let nextWidget: ReviewZoneWidget;
 		if (idx === this._commentWidgets.length) {
-			this._commentWidgets[0].reveal();
-			this.editor.setSelection(this._commentWidgets[0].commentThread.range);
+			nextWidget = this._commentWidgets[0];
 		} else {
-			sortedWidgets[idx].reveal();
-			this.editor.setSelection(sortedWidgets[idx].commentThread.range);
+			nextWidget = sortedWidgets[idx];
 		}
+		this.editor.setSelection(nextWidget.commentThread.range);
+		nextWidget.reveal(undefined, true);
 	}
 
 	public dispose(): void {

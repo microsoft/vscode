@@ -319,7 +319,7 @@ export class NativeWindow extends Disposable {
 		// Lifecycle
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
 		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
-		this._register(this.lifecycleService.onWillShutdown((e) => this.onWillShutdown(e)));
+		this._register(this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e)));
 	}
 
 	private onBeforeShutdown({ reason }: BeforeShutdownEvent): void {

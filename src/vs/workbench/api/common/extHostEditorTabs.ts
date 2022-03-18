@@ -49,12 +49,6 @@ class ExtHostEditorTab {
 				get input() {
 					return that._input;
 				},
-				get resource() {
-					return URI.revive(that._dto.resource);
-				},
-				get viewType() {
-					return that._dto.editorId;
-				},
 				get isDirty() {
 					return that._dto.isDirty;
 				},
@@ -63,12 +57,6 @@ class ExtHostEditorTab {
 				},
 				get viewColumn() {
 					return typeConverters.ViewColumn.to(that._dto.viewColumn);
-				},
-				get kind() {
-					return that._dto.kind;
-				},
-				get additionalResourcesAndViewTypes() {
-					return that._dto.additionalResourcesAndViewTypes.map(({ resource, viewId }) => ({ resource: URI.revive(resource), viewType: viewId }));
 				},
 				move: async (index: number, viewColumn: ViewColumn) => {
 					this._proxy.$moveTab(that._dto.id, index, typeConverters.ViewColumn.from(viewColumn));

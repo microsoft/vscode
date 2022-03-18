@@ -878,7 +878,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 						await this.workingCopyFileService.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
 					}
 				} catch (error) {
-					this.logService.error(`[stored file working copy] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(true), this.typeId);
+					this.logService.error(`[stored file working copy] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(), this.typeId);
 				}
 			}
 
@@ -976,7 +976,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: IStoredFileWorkingCopySaveOptions): void {
-		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error)(`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(true), this.typeId);
+		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error)(`[stored file working copy] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(), this.typeId);
 
 		// Return early if the save() call was made asking to
 		// handle the save error itself.
@@ -1192,7 +1192,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	}
 
 	private trace(msg: string): void {
-		this.logService.trace(msg, this.resource.toString(true), this.typeId);
+		this.logService.trace(msg, this.resource.toString(), this.typeId);
 	}
 
 	//#endregion
