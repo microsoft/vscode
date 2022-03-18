@@ -15,13 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellExecutionPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellExecution';
-import { CellFocusIndicator } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellFocusIndicator';
-import { CellProgressBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellProgressBar';
-import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellStatusPart';
-import { BetweenCellToolbar, CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
-import { RunToolbar } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellRunToolbar';
-import { FoldedCellHint } from 'vs/workbench/contrib/notebook/browser/view/cellParts/foldedCellHint';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
@@ -103,31 +97,23 @@ export interface BaseCellRenderTemplate {
 	instantiationService: IInstantiationService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
-	decorationContainer: HTMLElement;
-	betweenCellToolbar: BetweenCellToolbar;
-	titleToolbar: CellTitleToolbarPart;
-	focusIndicator: CellFocusIndicator;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 	currentRenderedCell?: ICellViewModel;
-	statusBar: CellEditorStatusBar;
+	cellParts: CellPart[];
 	toJSON: () => object;
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
-	foldedCellHint: FoldedCellHint;
 	currentEditor?: ICodeEditor;
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	runToolbar: RunToolbar;
 	outputContainer: FastDomNode<HTMLElement>;
 	cellOutputCollapsedContainer: HTMLElement;
 	outputShowMoreContainer: FastDomNode<HTMLElement>;
 	focusSinkElement: HTMLElement;
 	editor: ICodeEditor;
-	progressBar: CellProgressBar;
-	cellExecution: CellExecutionPart;
 }

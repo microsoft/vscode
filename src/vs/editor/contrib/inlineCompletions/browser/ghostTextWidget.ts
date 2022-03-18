@@ -21,7 +21,7 @@ import { ghostTextBackground, ghostTextBorder, ghostTextForeground } from 'vs/ed
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
+import { GhostTextReplacement, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
@@ -73,12 +73,15 @@ export class GhostTextWidget extends Disposable {
 		return (this.additionalLinesWidget.viewZoneId === viewZoneId);
 	}
 
+	private readonly replacementDecoration = this._register(new DisposableDecorations(this.editor));
+
 	private update(): void {
 		const ghostText = this.model.ghostText;
 
 		if (!this.editor.hasModel() || !ghostText || this.disposed) {
 			this.partsWidget.clear();
 			this.additionalLinesWidget.clear();
+			this.replacementDecoration.setDecorations([]);
 			return;
 		}
 
@@ -103,8 +106,26 @@ export class GhostTextWidget extends Disposable {
 			}
 		}
 
+		if (ghostText instanceof GhostTextReplacement) {
+			this.replacementDecoration.setDecorations([
+				{
+					range: new Range(
+						ghostText.lineNumber,
+						ghostText.columnStart,
+						ghostText.lineNumber,
+						ghostText.columnStart + ghostText.length
+					),
+					options: {
+						inlineClassName: 'inline-completion-text-to-replace',
+						description: 'GhostTextReplacement'
+					}
+				},
+			]);
+		} else {
+			this.replacementDecoration.setDecorations([]);
+		}
+
 		const textBufferLine = this.editor.getModel().getLineContent(ghostText.lineNumber);
-		this.editor.getModel().getLineTokens(ghostText.lineNumber);
 
 		let hiddenTextStartColumn: number | undefined = undefined;
 		let lastIdx = 0;
@@ -138,7 +159,7 @@ export class GhostTextWidget extends Disposable {
 			hiddenTextStartColumn !== undefined ? { column: hiddenTextStartColumn, length: textBufferLine.length + 1 - hiddenTextStartColumn } : undefined);
 		this.additionalLinesWidget.updateLines(ghostText.lineNumber, additionalLines, ghostText.additionalReservedLineCount);
 
-		if (ghostText.parts.some(p => p.lines.length < 0)) {
+		if (0 < 0) {
 			// Not supported at the moment, condition is always false.
 			this.viewMoreContentWidget = this.renderViewMoreLines(
 				new Position(ghostText.lineNumber, this.editor.getModel()!.getLineMaxColumn(ghostText.lineNumber)),
@@ -180,6 +201,20 @@ export class GhostTextWidget extends Disposable {
 
 		domNode.append(button);
 		return new ViewMoreLinesContentWidget(this.editor, position, domNode, disposableStore);
+	}
+}
+
+class DisposableDecorations {
+	private decorationIds: string[] = [];
+
+	constructor(private readonly editor: ICodeEditor) {
+	}
+
+	public setDecorations(decorations: IModelDeltaDecoration[]): void {
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, decorations);
+	}
+	public dispose(): void {
+		this.editor.deltaDecorations(this.decorationIds, []);
 	}
 }
 

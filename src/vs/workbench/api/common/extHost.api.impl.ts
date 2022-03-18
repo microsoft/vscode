@@ -13,7 +13,7 @@ import { OverviewRulerLane } from 'vs/editor/common/model';
 import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
 import { score } from 'vs/editor/common/languageSelector';
 import * as files from 'vs/platform/files/common/files';
-import { ExtHostContext, MainContext, CandidatePortSource, ExtHostLogLevelServiceShape, TabKind } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, MainContext, CandidatePortSource, ExtHostLogLevelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { UIKind } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtHostApiCommands } from 'vs/workbench/api/common/extHostApiCommands';
 import { ExtHostClipboard } from 'vs/workbench/api/common/extHostClipboard';
@@ -159,7 +159,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostNotebookRenderers = rpcProtocol.set(ExtHostContext.ExtHostNotebookRenderers, new ExtHostNotebookRenderers(rpcProtocol, extHostNotebook));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostTreeViews = rpcProtocol.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(rpcProtocol.getProxy(MainContext.MainThreadTreeViews), extHostCommands, extHostLogService));
-	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData));
+	const extHostEditorInsets = rpcProtocol.set(ExtHostContext.ExtHostEditorInsets, new ExtHostEditorInsets(rpcProtocol.getProxy(MainContext.MainThreadEditorInsets), extHostEditors, initData.remote));
 	const extHostDiagnostics = rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, new ExtHostDiagnostics(rpcProtocol, extHostLogService, extHostFileSystemInfo));
 	const extHostLanguages = rpcProtocol.set(ExtHostContext.ExtHostLanguages, new ExtHostLanguages(rpcProtocol, extHostDocuments, extHostCommands.converter, uriTransformer));
 	const extHostLanguageFeatures = rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, new ExtHostLanguageFeatures(rpcProtocol, uriTransformer, extHostDocuments, extHostCommands, extHostDiagnostics, extHostLogService, extHostApiDeprecation));
@@ -173,7 +173,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
 	const extHostAuthentication = rpcProtocol.set(ExtHostContext.ExtHostAuthentication, new ExtHostAuthentication(rpcProtocol));
 	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
-	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, { remote: initData.remote }, extHostWorkspace, extHostLogService, extHostApiDeprecation));
+	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.remote, extHostWorkspace, extHostLogService, extHostApiDeprecation));
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
@@ -756,7 +756,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getInlineCompletionItemController<T extends vscode.InlineCompletionItem>(provider: vscode.InlineCompletionItemProvider<T>): vscode.InlineCompletionController<T> {
 				checkProposedApiEnabled(extension, 'inlineCompletions');
 				return InlineCompletionController.get(provider);
-			}
+			},
 		};
 
 		// namespace: workspace
@@ -867,6 +867,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocumentSaveParticipant.getOnWillSaveTextDocumentEvent(extension)(listener, thisArgs, disposables);
+			},
+			onWillDropOnTextEditor: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'textEditorDrop');
+				return extHostEditors.onWillDropOnTextEditor(listener, thisArgs, disposables);
 			},
 			get notebookDocuments(): vscode.NotebookDocument[] {
 				return extHostNotebook.notebookDocuments.map(d => d.apiNotebook);
@@ -1261,7 +1265,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolKind: extHostTypes.SymbolKind,
 			SymbolTag: extHostTypes.SymbolTag,
-			TabKind: TabKind,
 			Task: extHostTypes.Task,
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
@@ -1325,6 +1328,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			WorkspaceTrustState: extHostTypes.WorkspaceTrustState,
 			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
 			QuickPickItemKind: extHostTypes.QuickPickItemKind,
+			TextTabInput: extHostTypes.TextTabInput,
+			TextDiffTabInput: extHostTypes.TextDiffTabInput,
+			CustomEditorTabInput: extHostTypes.CustomEditorTabInput,
+			NotebookEditorTabInput: extHostTypes.NotebookEditorTabInput,
+			NotebookDiffEditorTabInput: extHostTypes.NotebookDiffEditorTabInput
 		};
 	};
 }

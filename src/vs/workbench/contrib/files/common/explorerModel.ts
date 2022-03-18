@@ -87,7 +87,8 @@ export class ExplorerItem {
 	public isError = false;
 	private _isExcluded = false;
 
-	private nestedChildren: ExplorerItem[] | undefined;
+	public nestedParent: ExplorerItem | undefined;
+	public nestedChildren: ExplorerItem[] | undefined;
 
 	constructor(
 		public resource: URI,
@@ -324,6 +325,7 @@ export class ExplorerItem {
 				const fileChildren: [string, ExplorerItem][] = [];
 				const dirChildren: [string, ExplorerItem][] = [];
 				for (const child of this.children.entries()) {
+					child[1].nestedParent = undefined;
 					if (child[1].isDirectory) {
 						dirChildren.push(child);
 					} else {
@@ -331,14 +333,18 @@ export class ExplorerItem {
 					}
 				}
 
-				const nested = this.buildFileNester().nest(fileChildren.map(([name]) => name));
+				const nested = this.buildFileNester().nest(
+					fileChildren.map(([name]) => name),
+					this.getPlatformAwareName(this.name));
 
 				for (const [fileEntryName, fileEntryItem] of fileChildren) {
 					const nestedItems = nested.get(fileEntryName);
 					if (nestedItems !== undefined) {
 						fileEntryItem.nestedChildren = [];
 						for (const name of nestedItems.keys()) {
-							fileEntryItem.nestedChildren.push(assertIsDefined(this.children.get(name)));
+							const child = assertIsDefined(this.children.get(name));
+							fileEntryItem.nestedChildren.push(child);
+							child.nestedParent = fileEntryItem;
 						}
 						items.push(fileEntryItem);
 					} else {
@@ -365,7 +371,7 @@ export class ExplorerItem {
 			.filter(entry =>
 				typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
 			.map(([parentPattern, childrenPatterns]) =>
-				[parentPattern.trim(), childrenPatterns.split(',').map(p => p.trim())] as [string, string[]]);
+				[parentPattern.trim(), childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim()))] as [string, string[]]);
 
 		return new ExplorerFileNestingTrie(patterns);
 	}

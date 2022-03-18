@@ -106,15 +106,14 @@ export class SCMViewService implements ISCMViewService {
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 
-		for (const repository of scmService.repositories) {
-			this.onDidAddRepository(repository);
-		}
-
 		try {
 			this.previousState = JSON.parse(storageService.get('scm:view:visibleRepositories', StorageScope.WORKSPACE, ''));
-			this.eventuallyFinishLoading();
 		} catch {
 			// noop
+		}
+
+		for (const repository of scmService.repositories) {
+			this.onDidAddRepository(repository);
 		}
 
 		storageService.onWillSaveState(this.onWillSaveState, this, this.disposables);
@@ -247,7 +246,7 @@ export class SCMViewService implements ISCMViewService {
 		this.storageService.store('scm:view:visibleRepositories', raw, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	@debounce(2000)
+	@debounce(5000)
 	private eventuallyFinishLoading(): void {
 		this.finishLoading();
 	}

@@ -23,7 +23,7 @@ async function createStorageService(): Promise<[DisposableStore, BrowserStorageS
 	const fileService = disposables.add(new FileService(logService));
 
 	const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
-	disposables.add(fileService.registerProvider(Schemas.userData, userDataProvider));
+	disposables.add(fileService.registerProvider(Schemas.vscodeUserData, userDataProvider));
 
 	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService));
 

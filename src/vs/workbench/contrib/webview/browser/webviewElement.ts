@@ -16,6 +16,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -167,6 +168,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITunnelService private readonly _tunnelService: ITunnelService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -334,6 +336,9 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		}));
 
 		this._register(Event.runAndSubscribe(webviewThemeDataProvider.onThemeDataChanged, () => this.style()));
+
+		this._register(_accessibilityService.onDidChangeReducedMotion(() => this.style()));
+		this._register(_accessibilityService.onDidChangeScreenReaderOptimized(() => this.style()));
 
 		this._confirmBeforeClose = configurationService.getValue<string>('window.confirmBeforeClose');
 
@@ -632,7 +637,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			styles = this.options.transformCssVariables(styles);
 		}
 
-		this._send('styles', { styles, activeTheme, themeName: themeLabel });
+		const reduceMotion = this._accessibilityService.isMotionReduced();
+		const screenReader = this._accessibilityService.isScreenReaderOptimized();
+
+		this._send('styles', { styles, activeTheme, themeName: themeLabel, reduceMotion, screenReader });
 
 		this.styledFindWidget();
 	}

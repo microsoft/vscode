@@ -431,6 +431,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/localHistory",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/authentication",
 			"project": "vscode-workbench"
 		},

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -78,6 +79,12 @@ export interface WillShutdownEvent {
 	 * The reason why the application is shutting down.
 	 */
 	readonly reason: ShutdownReason;
+
+	/**
+	 * A token that will signal cancellation when the
+	 * shutdown was forced by the user.
+	 */
+	readonly token: CancellationToken;
 
 	/**
 	 * Allows to join the shutdown. The promise can be a long running operation but it

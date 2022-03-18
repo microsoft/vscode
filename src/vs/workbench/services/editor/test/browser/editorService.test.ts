@@ -2369,6 +2369,45 @@ suite('EditorService', () => {
 		registrationDisposable.dispose();
 	});
 
+	test('closeEditor', async () => {
+		const [part, service] = await createEditorService();
+
+		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
+		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+
+		// Open editors
+		await service.openEditors([{ editor: input, options: { override: EditorResolution.DISABLED } }, { editor: otherInput, options: { override: EditorResolution.DISABLED } }]);
+		assert.strictEqual(part.activeGroup.count, 2);
+
+		// Close editor
+		await service.closeEditor({ editor: input, groupId: part.activeGroup.id });
+		assert.strictEqual(part.activeGroup.count, 1);
+
+		await service.closeEditor({ editor: input, groupId: part.activeGroup.id });
+		assert.strictEqual(part.activeGroup.count, 1);
+
+		await service.closeEditor({ editor: otherInput, groupId: part.activeGroup.id });
+		assert.strictEqual(part.activeGroup.count, 0);
+
+		await service.closeEditor({ editor: otherInput, groupId: 999 });
+		assert.strictEqual(part.activeGroup.count, 0);
+	});
+
+	test('closeEditors', async () => {
+		const [part, service] = await createEditorService();
+
+		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
+		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+
+		// Open editors
+		await service.openEditors([{ editor: input, options: { override: EditorResolution.DISABLED } }, { editor: otherInput, options: { override: EditorResolution.DISABLED } }]);
+		assert.strictEqual(part.activeGroup.count, 2);
+
+		// Close editors
+		await service.closeEditors([{ editor: input, groupId: part.activeGroup.id }, { editor: otherInput, groupId: part.activeGroup.id }]);
+		assert.strictEqual(part.activeGroup.count, 0);
+	});
+
 	test('findEditors (in group)', async () => {
 		const [part, service] = await createEditorService();
 
@@ -2492,17 +2531,32 @@ suite('EditorService', () => {
 	test('findEditors (support side by side via options)', async () => {
 		const [, service] = await createEditorService();
 
-		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
-		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+		const secondaryInput = new TestFileEditorInput(URI.parse('my://resource-findEditors-secondary'), TEST_EDITOR_INPUT_ID);
+		const primaryInput = new TestFileEditorInput(URI.parse('my://resource-findEditors-primary'), TEST_EDITOR_INPUT_ID);
 
-		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, input, otherInput, service);
+		const sideBySideInput = new SideBySideEditorInput(undefined, undefined, secondaryInput, primaryInput, service);
 
 		await service.openEditor(sideBySideInput, { pinned: true });
 
-		let foundEditors = service.findEditors(URI.parse('my://resource2-openEditors'));
+		let foundEditors = service.findEditors(URI.parse('my://resource-findEditors-primary'));
 		assert.strictEqual(foundEditors.length, 0);
 
-		foundEditors = service.findEditors(URI.parse('my://resource2-openEditors'), { supportSideBySide: SideBySideEditor.PRIMARY });
+		foundEditors = service.findEditors(URI.parse('my://resource-findEditors-primary'), { supportSideBySide: SideBySideEditor.PRIMARY });
+		assert.strictEqual(foundEditors.length, 1);
+
+		foundEditors = service.findEditors(URI.parse('my://resource-findEditors-secondary'), { supportSideBySide: SideBySideEditor.PRIMARY });
+		assert.strictEqual(foundEditors.length, 0);
+
+		foundEditors = service.findEditors(URI.parse('my://resource-findEditors-primary'), { supportSideBySide: SideBySideEditor.SECONDARY });
+		assert.strictEqual(foundEditors.length, 0);
+
+		foundEditors = service.findEditors(URI.parse('my://resource-findEditors-secondary'), { supportSideBySide: SideBySideEditor.SECONDARY });
+		assert.strictEqual(foundEditors.length, 1);
+
+		foundEditors = service.findEditors(URI.parse('my://resource-findEditors-primary'), { supportSideBySide: SideBySideEditor.ANY });
+		assert.strictEqual(foundEditors.length, 1);
+
+		foundEditors = service.findEditors(URI.parse('my://resource-findEditors-secondary'), { supportSideBySide: SideBySideEditor.ANY });
 		assert.strictEqual(foundEditors.length, 1);
 	});
 

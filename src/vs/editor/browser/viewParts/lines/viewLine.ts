@@ -15,7 +15,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { InlineDecorationType } from 'vs/editor/common/viewModel';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { ColorScheme, isHighContrast } from 'vs/platform/theme/common/theme';
 import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 
 const canUseFastRenderedViewLine = (function () {
@@ -179,7 +179,7 @@ export class ViewLine implements IVisibleLine {
 		this._options = newOptions;
 	}
 	public onSelectionChanged(): boolean {
-		if (this._options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
+		if (isHighContrast(this._options.themeType) || this._options.renderWhitespace === 'selection') {
 			this._isMaybeInvalid = true;
 			return true;
 		}
@@ -200,7 +200,7 @@ export class ViewLine implements IVisibleLine {
 
 		// Only send selection information when needed for rendering whitespace
 		let selectionsOnLine: LineRange[] | null = null;
-		if (options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace === 'selection') {
+		if (isHighContrast(options.themeType) || this._options.renderWhitespace === 'selection') {
 			const selections = viewportData.selections;
 			for (const selection of selections) {
 
@@ -213,7 +213,7 @@ export class ViewLine implements IVisibleLine {
 				const endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
 
 				if (startColumn < endColumn) {
-					if (options.themeType === ColorScheme.HIGH_CONTRAST || this._options.renderWhitespace !== 'selection') {
+					if (isHighContrast(options.themeType) || this._options.renderWhitespace !== 'selection') {
 						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
 					} else {
 						if (!selectionsOnLine) {

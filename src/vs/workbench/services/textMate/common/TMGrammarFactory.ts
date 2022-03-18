@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import type { IGrammar, Registry, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -21,6 +20,8 @@ export interface ICreateGrammarResult {
 	initialState: StackElement;
 	containsEmbeddedLanguages: boolean;
 }
+
+export const missingTMGrammarErrorMessage = 'No TM Grammar registered for this language.';
 
 export class TMGrammarFactory extends Disposable {
 
@@ -113,13 +114,13 @@ export class TMGrammarFactory extends Disposable {
 		const scopeName = this._languageToScope.get(languageId);
 		if (typeof scopeName !== 'string') {
 			// No TM grammar defined
-			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
+			throw new Error(missingTMGrammarErrorMessage);
 		}
 
 		const grammarDefinition = this._scopeRegistry.getGrammarDefinition(scopeName);
 		if (!grammarDefinition) {
 			// No TM grammar defined
-			return Promise.reject(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
+			throw new Error(missingTMGrammarErrorMessage);
 		}
 
 		let embeddedLanguages = grammarDefinition.embeddedLanguages;
@@ -134,7 +135,17 @@ export class TMGrammarFactory extends Disposable {
 
 		const containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
 
-		const grammar = await this._grammarRegistry.loadGrammarWithConfiguration(scopeName, encodedLanguageId, { embeddedLanguages, tokenTypes: <any>grammarDefinition.tokenTypes });
+		let grammar: IGrammar | null;
+
+		try {
+			grammar = await this._grammarRegistry.loadGrammarWithConfiguration(scopeName, encodedLanguageId, { embeddedLanguages, tokenTypes: <any>grammarDefinition.tokenTypes });
+		} catch (err) {
+			if (err.message && err.message.startsWith('No grammar provided for')) {
+				// No TM grammar defined
+				throw new Error(missingTMGrammarErrorMessage);
+			}
+			throw err;
+		}
 
 		return {
 			languageId: languageId,

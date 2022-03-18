@@ -62,6 +62,11 @@ export class TopmostLineMonitor extends Disposable {
 		return scrollLoc?.line;
 	}
 
+	public getPreviousStaticTextEditorLineByUri(resource: vscode.Uri): number | undefined {
+		const state = this.previousStaticEditorInfo.get(resource.toString());
+		return state?.line;
+	}
+
 	public updateLine(
 		resource: vscode.Uri,
 		line: number

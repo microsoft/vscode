@@ -82,7 +82,7 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	}
 
 	@memoize
-	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
 	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }

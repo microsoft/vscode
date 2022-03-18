@@ -242,6 +242,7 @@ export interface IShowOutputMessage {
 	readonly outputId: string;
 	readonly cellTop: number;
 	readonly outputOffset: number;
+	readonly content?: ICreationContent;
 }
 
 export interface IFocusOutputMessage {

@@ -105,6 +105,12 @@ declare module 'vscode' {
 		insertText: string | SnippetString;
 
 		/**
+		 * A text that is used to decide if this inline completion should be shown.
+		 * An inline completion is shown if the text to replace is a subword of the filter text.
+		 */
+		filterText?: string;
+
+		/**
 		 * The range to replace.
 		 * Must begin and end on the same line.
 		 *

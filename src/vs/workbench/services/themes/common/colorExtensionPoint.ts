@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 interface IColorExtensionPoint {
 	id: string;
 	description: string;
-	defaults: { light: string; dark: string; highContrast: string };
+	defaults: { light: string; dark: string; highContrast: string; highContrastLight?: string };
 }
 
 const colorRegistry: IColorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
@@ -114,10 +114,18 @@ export class ColorExtensionPoint {
 						collector.error(nls.localize('invalid.defaults', "'configuration.colors.defaults' must be defined and must contain 'light', 'dark' and 'highContrast'"));
 						return;
 					}
+					if (defaults.highContrastLight === undefined) {
+						collector.warn(nls.localize('missing.defaults.highContrastLight', "color contribution {0} does not provide color 'defaults.highContrastLight'. Using color for `light` instead ({1}).", colorContribution.id, defaults.light));
+					} else if (typeof defaults.highContrastLight !== 'string') {
+						collector.error(nls.localize('invalid.defaults.highContrastLight', "'configuration.colors.defaults.highContrastLight' must a string."));
+						return;
+					}
+
 					colorRegistry.registerColor(colorContribution.id, {
 						light: parseColorValue(defaults.light, 'configuration.colors.defaults.light'),
 						dark: parseColorValue(defaults.dark, 'configuration.colors.defaults.dark'),
-						hc: parseColorValue(defaults.highContrast, 'configuration.colors.defaults.highContrast')
+						hcDark: parseColorValue(defaults.highContrast, 'configuration.colors.defaults.highContrast'),
+						hcLight: parseColorValue(defaults.highContrastLight ?? defaults.light, 'configuration.colors.defaults.highContrastLight'),
 					}, colorContribution.description);
 				}
 			}

@@ -3068,7 +3068,8 @@ export class ColorTheme implements vscode.ColorTheme {
 export enum ColorThemeKind {
 	Light = 1,
 	Dark = 2,
-	HighContrast = 3
+	HighContrast = 3,
+	HighContrastLight = 4
 }
 
 //#endregion Theming
@@ -3594,3 +3595,26 @@ export class TypeHierarchyItem {
 		this.selectionRange = selectionRange;
 	}
 }
+
+//#region Tab Inputs
+
+export class TextTabInput {
+	constructor(readonly uri: URI) { }
+}
+
+export class TextDiffTabInput {
+	constructor(readonly original: URI, readonly modified: URI) { }
+}
+
+export class CustomEditorTabInput {
+	constructor(readonly uri: URI, readonly viewType: string) { }
+}
+
+export class NotebookEditorTabInput {
+	constructor(readonly uri: URI, readonly notebookType: string) { }
+}
+
+export class NotebookDiffEditorTabInput {
+	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
+}
+//#endregion

@@ -266,6 +266,7 @@ configurationRegistry.registerConfiguration({
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',
 			'default': 4096,
+			'minimum': 0,
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: isNative
 		},
@@ -332,7 +333,8 @@ configurationRegistry.registerConfiguration({
 		'explorer.openEditors.visible': {
 			'type': 'number',
 			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
-			'default': 9
+			'default': 9,
+			'minimum': 0
 		},
 		'explorer.openEditors.sortOrder': {
 			'type': 'string',
@@ -404,7 +406,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
 				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
+			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
@@ -468,12 +470,17 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expanded. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
 			'default': true,
 		},
+		'explorer.experimental.fileNesting.operateAsGroup': {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('operateAsGroup', "Controls whether file nests are treated as a group for clipboard operations, file deletions, and during drag and drop."),
+			'default': false,
+		},
 		'explorer.experimental.fileNesting.patterns': {
 			'type': 'object',
-			'markdownDescription': nls.localize('fileNestingPatterns', "Experimental. Controls nesting of files in the explorer. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect. Each key describes a parent file pattern and each value should be a comma separated list of children file patterns that will be nested under the parent.\n\nA single `*` in a parent pattern may be used to capture any substring, which can then be matched against using `$\u200b(capture)` in a child pattern. Child patterns may also contain one `*` to match any substring.\n\nFor example, given the configuration `*.ts => $(capture).js, $(capture).*.ts`, and a directory containing `a.ts, a.js, a.d.ts`, and `b.js`, nesting would apply as follows: \n- `*.ts` matches `a.ts`, capturing `a`. This causes any sibilings matching `a.js` or `a.*.ts` to be nested under `a.ts`\n    - `a.js` matches `a.js` exactly, so is nested under `a.ts`\n    - `a.d.ts` matches `a.*.ts`, so is also nested under `a.ts`\n\nThe final directory will be rendered with `a.ts` containg `a.js` and `a.d.ts` as nested children, and `b.js` as normal file."),
+			'markdownDescription': nls.localize('fileNestingPatterns', "Experimental. Controls nesting of files in the explorer. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect. Each key describes a parent file pattern and each value should be a comma separated list of children file patterns that will be nested under the parent.\n\nA single `*` in a parent pattern may be used to capture any substring, which can then be matched against using `$\u200b(capture)` in a child pattern. Child patterns may also contain one `*` to match any substring.\n\nChild patterns may additionally contain one `$\u200b(basename)` token to be substituted with the parent's basename, and one `$\u200b(extname)` token to be substituted with the parent's extension name.\n\nFor example, given the configuration `*.ts => $(capture).js, $(capture).*.ts`, and a directory containing `a.ts, a.js, a.d.ts`, and `b.js`, nesting would apply as follows: \n- `*.ts` matches `a.ts`, capturing `a`. This causes any sibilings matching `a.js` or `a.*.ts` to be nested under `a.ts`\n    - `a.js` matches `a.js` exactly, so is nested under `a.ts`\n    - `a.d.ts` matches `a.*.ts`, so is also nested under `a.ts`\n\nThe final directory will be rendered with `a.ts` containg `a.js` and `a.d.ts` as nested children, and `b.js` as normal file."),
 			patternProperties: {
 				'^[^*]*\\*?[^*]*$': {
-					markdownDescription: nls.localize('fileNesting.description', "Key patterns may contain a single `*` capture group which matches any string. Each value pattern may contain one `$\u200b(capture)` token to be substituted with the parent capture group and one `*` token to match any string"),
+					markdownDescription: nls.localize('fileNesting.description', "Key patterns may contain a single `*` capture group which matches any string. Each value pattern may contain one `$\u200b(capture)` token to be substituted with the parent capture group, one `$\u200b(basename)` to be substituted with the parent's basename, one `$\u200b(extname)` to be substituted with the parent's extension name, and one `*` token to match any string"),
 					type: 'string',
 					pattern: '^([^,*]*\\*?[^,*]*)(, ?[^,*]*\\*?[^,*]*)*$',
 				}

@@ -91,7 +91,7 @@ registerAction2(class extends Action2 {
 				return [];
 			}));
 
-			await bulkEditService.apply(/* edit */flatten(allCellEdits), { label: localize('label', "Format Notebook") });
+			await bulkEditService.apply(/* edit */flatten(allCellEdits), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
 
 		} finally {
 			disposable.dispose();

@@ -96,8 +96,8 @@ import 'vs/workbench/services/hover/browser/hoverService';
 import 'vs/workbench/services/assignment/common/assignmentService';
 import 'vs/workbench/services/outline/browser/outlineService';
 import 'vs/workbench/services/languageDetection/browser/languageDetectionWorkerServiceImpl';
-
 import 'vs/editor/common/services/languageFeaturesService';
+
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -320,6 +320,9 @@ import 'vs/workbench/contrib/codeActions/browser/codeActions.contribution';
 
 // Timeline
 import 'vs/workbench/contrib/timeline/browser/timeline.contribution';
+
+// Local History
+import 'vs/workbench/contrib/localHistory/browser/localHistory.contribution';
 
 // Workspace
 import 'vs/workbench/contrib/workspace/browser/workspace.contribution';
