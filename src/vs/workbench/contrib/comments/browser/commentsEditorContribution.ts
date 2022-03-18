@@ -45,6 +45,7 @@ import { Emitter } from 'vs/base/common/event';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/editor/common/core/position';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export const ID = 'editor.contrib.review';
 
@@ -383,12 +384,21 @@ export class CommentController implements IEditorContribution {
 	}
 
 	public nextCommentThread(): void {
+		this._findNearestCommentThread();
+	}
+
+	private _findNearestCommentThread(reverse?: boolean): void {
 		if (!this._commentWidgets.length || !this.editor.hasModel()) {
 			return;
 		}
 
 		const after = this.editor.getSelection().getEndPosition();
 		const sortedWidgets = this._commentWidgets.sort((a, b) => {
+			if (reverse) {
+				const temp = a;
+				a = b;
+				b = temp;
+			}
 			if (a.commentThread.range.startLineNumber < b.commentThread.range.startLineNumber) {
 				return -1;
 			}
@@ -409,15 +419,19 @@ export class CommentController implements IEditorContribution {
 		});
 
 		let idx = findFirstInSorted(sortedWidgets, widget => {
-			if (widget.commentThread.range.startLineNumber > after.lineNumber) {
+			let lineValueOne = reverse ? after.lineNumber : widget.commentThread.range.startLineNumber;
+			let lineValueTwo = reverse ? widget.commentThread.range.startLineNumber : after.lineNumber;
+			let columnValueOne = reverse ? after.column : widget.commentThread.range.startColumn;
+			let columnValueTwo = reverse ? widget.commentThread.range.startColumn : after.column;
+			if (lineValueOne > lineValueTwo) {
 				return true;
 			}
 
-			if (widget.commentThread.range.startLineNumber < after.lineNumber) {
+			if (lineValueOne < lineValueTwo) {
 				return false;
 			}
 
-			if (widget.commentThread.range.startColumn > after.column) {
+			if (columnValueOne > columnValueTwo) {
 				return true;
 			}
 			return false;
@@ -431,6 +445,10 @@ export class CommentController implements IEditorContribution {
 		}
 		this.editor.setSelection(nextWidget.commentThread.range);
 		nextWidget.reveal(undefined, true);
+	}
+
+	public previousCommentThread(): void {
+		this._findNearestCommentThread(true);
 	}
 
 	public dispose(): void {
@@ -770,13 +788,17 @@ export class CommentController implements IEditorContribution {
 }
 
 export class NextCommentThreadAction extends EditorAction {
-
 	constructor() {
 		super({
 			id: 'editor.action.nextCommentThreadAction',
 			label: nls.localize('nextCommentThreadAction', "Go to Next Comment Thread"),
 			alias: 'Go to Next Comment Thread',
 			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyMod.Alt | KeyCode.F9,
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 
@@ -788,9 +810,33 @@ export class NextCommentThreadAction extends EditorAction {
 	}
 }
 
+export class PreviousCommentThreadAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.previousCommentThreadAction',
+			label: nls.localize('previousCommentThreadAction', "Go to Previous Comment Thread"),
+			alias: 'Go to Previous Comment Thread',
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9,
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = CommentController.get(editor);
+		if (controller) {
+			controller.previousCommentThread();
+		}
+	}
+}
+
 
 registerEditorContribution(ID, CommentController);
 registerEditorAction(NextCommentThreadAction);
+registerEditorAction(PreviousCommentThreadAction);
 
 const ADD_COMMENT_COMMAND = 'workbench.action.addComment';
 CommandsRegistry.registerCommand({
