@@ -275,6 +275,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			this._createTabsModel();
 			return;
 		}
+		// Whether or not the tab has the pin icon (internally it's called sticky)
 		tab.isPinned = group.isSticky(editorIndex);
 		this._proxy.$acceptTabUpdate(groupId, tab);
 	}
