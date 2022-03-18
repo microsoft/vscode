@@ -853,7 +853,7 @@ class RunSingleTestDecoration extends RunTestDecoration implements ITestDecorati
 	}
 }
 
-const lineBreakRe = /\r?\n\s*/;
+const lineBreakRe = /\r?\n\s*/g;
 
 class TestMessageDecoration implements ITestDecoration {
 	public static readonly inlineClassName = 'test-message-inline-content';
