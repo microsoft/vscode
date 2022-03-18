@@ -1246,7 +1246,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private async onSearchInputChanged(): Promise<void> {
 		if (!this.currentSettingsModel || this.searchWidgetWillBeDisposed) {
-			// Initializing search widget value
+			// From initializing or disposing the search widget.
 			return;
 		}
 
