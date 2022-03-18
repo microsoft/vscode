@@ -5,11 +5,10 @@
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const codesign = require("electron-osx-sign");
-const fs = require("fs-extra");
 const path = require("path");
-const plist = require("plist");
 const util = require("../lib/util");
 const product = require("../../product.json");
+const cross_spawn_promise_1 = require("@malept/cross-spawn-promise");
 async function main() {
     const buildDir = process.env['AGENT_BUILDDIRECTORY'];
     const tempDir = process.env['AGENT_TEMPDIRECTORY'];
@@ -61,14 +60,27 @@ async function main() {
         entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
         'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
     };
-    let infoPlistString = await fs.readFile(infoPlistPath, 'utf8');
-    let infoPlistJson = plist.parse(infoPlistString);
-    Object.assign(infoPlistJson, {
-        NSAppleEventsUsageDescription: 'An application in Visual Studio Code wants to use AppleScript.',
-        NSMicrophoneUsageDescription: 'An application in Visual Studio Code wants to use the Microphone.',
-        NSCameraUsageDescription: 'An application in Visual Studio Code wants to use the Camera.'
-    });
-    await fs.writeFile(infoPlistPath, plist.build(infoPlistJson), 'utf8');
+    await (0, cross_spawn_promise_1.spawn)('plutil', [
+        '-insert',
+        'NSAppleEventsUsageDescription',
+        '-string',
+        'An application in Visual Studio Code wants to use AppleScript.',
+        `${infoPlistPath}`
+    ]);
+    await (0, cross_spawn_promise_1.spawn)('plutil', [
+        '-replace',
+        'NSMicrophoneUsageDescription',
+        '-string',
+        'An application in Visual Studio Code wants to use the Microphone.',
+        `${infoPlistPath}`
+    ]);
+    await (0, cross_spawn_promise_1.spawn)('plutil', [
+        '-replace',
+        'NSCameraUsageDescription',
+        '-string',
+        'An application in Visual Studio Code wants to use the Camera.',
+        `${infoPlistPath}`
+    ]);
     await codesign.signAsync(gpuHelperOpts);
     await codesign.signAsync(rendererHelperOpts);
     await codesign.signAsync(appOpts);
