@@ -31,11 +31,14 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	async find(previous: boolean): Promise<void> {
-		// TODO: use previous
 		const instance = this._terminalService.activeInstance;
 		if (!instance) {
 			return;
 		}
+		// if (previous) {
+		// 	instance.xterm?.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		// 	return;
+		// }
 		await instance.xterm?.find(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 	}
 	override reveal(initialInput?: string): void {

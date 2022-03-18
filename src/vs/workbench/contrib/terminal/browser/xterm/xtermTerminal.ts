@@ -34,6 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -97,7 +98,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 		this.target = location;
@@ -252,6 +253,22 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 
 	async find(term: string, searchOptions: ISearchOptions): Promise<boolean> {
+		if (!this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground')) {
+			if (this._themeService.getColorTheme().type === ColorScheme.DARK) {
+				searchOptions.overviewRulerSelectionDecorationColor = '#515C6A';
+			} else {
+				searchOptions.overviewRulerSelectionDecorationColor = '#A8AC94';
+			}
+		} else {
+			searchOptions.overviewRulerSelectionDecorationColor = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground');
+		}
+		if (!this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground')) {
+			searchOptions.overviewRulerResultDecorationColor = '#EA5C0055';
+		} else {
+			searchOptions.overviewRulerResultDecorationColor = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground');
+		}
+
+
 		return (await this._getSearchAddon()).find(term, searchOptions);
 	}
 
