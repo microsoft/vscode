@@ -19,6 +19,7 @@ export interface ICurrentPartialCommand {
 
 	commandStartMarker?: IMarker;
 	commandStartX?: number;
+	commandStartLineContent?: string;
 
 	commandRightPromptStartX?: number;
 	commandRightPromptEndX?: number;
@@ -36,6 +37,11 @@ export interface ICurrentPartialCommand {
 	command?: string;
 }
 
+interface ITerminalDimensions {
+	cols: number;
+	rows: number;
+}
+
 export class CommandDetectionCapability implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
@@ -46,6 +52,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _isWindowsPty: boolean = false;
 	private _onCursorMoveListener?: IDisposable;
 	private _commandMarkers: IMarker[] = [];
+	private _dimensions: ITerminalDimensions;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 
@@ -57,7 +64,86 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	constructor(
 		private readonly _terminal: Terminal,
 		@ILogService private readonly _logService: ILogService
-	) { }
+	) {
+		this._dimensions = {
+			cols: this._terminal.cols,
+			rows: this._terminal.rows
+		};
+		this._terminal.onResize(e => this._handleResize(e));
+	}
+
+	private _handleResize(e: { cols: number; rows: number }) {
+		// Resize behavior is different under conpty; instead of bringing parts of the scrollback
+		// back into the viewport, new lines are inserted at the bottom (ie. the same behavior as if
+		// there was no scrollback).
+		//
+		// On resize this workaround will wait for a conpty reprint to occur by waiting for the
+		// cursor to move, it will then calculate the number of lines that the commands within the
+		// viewport _may have_ shifted. After verifying the content of the current line is
+		// incorrect, the line after shifting is checked and if that matches delete events are fired
+		// on the xterm.js buffer to move the markers.
+		//
+		// While a bit hacky, this approach is quite safe and seems to work great at least for pwsh.
+		if (this._isWindowsPty) {
+			const baseY = this._terminal.buffer.active.baseY;
+			const rowsDifference = e.rows - this._dimensions.rows;
+			// Only do when rows increase, do in the next frame as this needs to happen after
+			// conpty reprints the screen
+			if (rowsDifference > 0) {
+				this._waitForCursorMove().then(() => {
+					// Calculate the number of lines the content may have shifted, this will max out at
+					// scrollback count since the standard behavior will be used then
+					const potentialShiftedLineCount = Math.min(rowsDifference, baseY);
+					// For each command within the viewport, assume commands are in the correct order
+					for (let i = this.commands.length - 1; i >= 0; i--) {
+						const command = this.commands[i];
+						if (!command.marker || command.marker.line < baseY || command.commandStartLineContent === undefined) {
+							break;
+						}
+						const line = this._terminal.buffer.active.getLine(command.marker.line);
+						if (!line || line.translateToString(true) === command.commandStartLineContent) {
+							continue;
+						}
+						const shiftedY = command.marker.line - potentialShiftedLineCount;
+						const shiftedLine = this._terminal.buffer.active.getLine(shiftedY);
+						if (shiftedLine?.translateToString(true) !== command.commandStartLineContent) {
+							continue;
+						}
+						// HACK: xterm.js doesn't expose this by design as it's an internal core
+						// function an embedder could easily do damage with. Additionally, this
+						// can't really be upstreamed since the event relies on shell integration to
+						// verify the shifting is necessary.
+						(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
+							index: this._terminal.buffer.active.baseY,
+							amount: potentialShiftedLineCount
+						});
+					}
+				});
+			}
+		}
+		this._dimensions.cols = e.cols;
+		this._dimensions.rows = e.rows;
+	}
+
+	private _waitForCursorMove(): Promise<void> {
+		const cursorX = this._terminal.buffer.active.cursorX;
+		const cursorY = this._terminal.buffer.active.cursorY;
+		let totalDelay = 0;
+		return new Promise<void>((resolve, reject) => {
+			const interval = setInterval(() => {
+				if (cursorX !== this._terminal.buffer.active.cursorX || cursorY !== this._terminal.buffer.active.cursorY) {
+					resolve();
+					clearInterval(interval);
+					return;
+				}
+				totalDelay += 10;
+				if (totalDelay > 1000) {
+					clearInterval(interval);
+					resolve();
+				}
+			}, 10);
+		});
+	}
 
 	setCwd(value: string) {
 		this._cwd = value;
@@ -136,6 +222,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 					});
 				}
 				this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+				if (this._currentCommand.commandStartMarker) {
+					const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
+					if (line) {
+						this._currentCommand.commandStartLineContent = line.translateToString(true);
+					}
+				}
 				this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 			});
 		} else {
@@ -205,6 +297,12 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
 			}
 			this._currentCommand.commandStartMarker = this._commandMarkers[0];
+			if (this._currentCommand.commandStartMarker) {
+				const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
+				if (line) {
+					this._currentCommand.commandStartLineContent = line.translateToString(true);
+				}
+			}
 			this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
 		}
 
@@ -242,6 +340,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
+				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)
 			};
@@ -268,6 +367,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				command: e.command,
 				cwd: e.cwd,
 				exitCode: e.exitCode,
+				commandStartLineContent: e.commandStartLineContent,
 				timestamp: e.timestamp
 			};
 		});
@@ -280,6 +380,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				command: '',
 				cwd: this._cwd,
 				exitCode: undefined,
+				commandStartLineContent: undefined,
 				timestamp: 0,
 			});
 		}
@@ -312,6 +413,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				executedMarker,
 				timestamp: e.timestamp,
 				cwd: e.cwd,
+				commandStartLineContent: e.commandStartLineContent,
 				exitCode: e.exitCode,
 				hasOutput: !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer)

@@ -130,6 +130,7 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
 	executedMarker?: IXtermMarker;
+	commandStartLineContent?: string;
 	getOutput(): string | undefined;
 	hasOutput: boolean;
 }
