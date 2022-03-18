@@ -155,7 +155,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		// we don't do anything here as we always do the reveal ourselves.
 	}
 
-	public reveal(commentUniqueId?: number) {
+	public reveal(commentUniqueId?: number, focus: boolean = false) {
 		if (!this._isExpanded) {
 			this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 		}
@@ -173,6 +173,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		this.editor.revealRangeInCenter(this._commentThread.range);
+		if (focus) {
+			this._commentThreadWidget.focus();
+		}
 	}
 
 	public getPendingComment(): string | null {

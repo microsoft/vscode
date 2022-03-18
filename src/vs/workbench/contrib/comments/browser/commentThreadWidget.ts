@@ -229,6 +229,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentReply?.focusCommentEditor();
 	}
 
+	focus() {
+		this._body.focus();
+	}
+
 	async submitComment() {
 		const activeComment = this._body.activeComment;
 		if (activeComment && !(activeComment instanceof CommentNode)) {

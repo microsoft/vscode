@@ -31,7 +31,7 @@ import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY
 
 const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
 
-interface ITimelineCommandArgument {
+export interface ITimelineCommandArgument {
 	uri: URI;
 	handle: string;
 }
@@ -391,7 +391,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('localHistory.rename', "Rename"), original: 'Rename' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '4_edit',
+				group: '5_edit',
 				order: 1,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
@@ -430,7 +430,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('localHistory.delete', "Delete"), original: 'Delete' },
 			menu: {
 				id: MenuId.TimelineItemContext,
-				group: '4_edit',
+				group: '5_edit',
 				order: 2,
 				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
 			}
@@ -558,7 +558,7 @@ export function toDiffEditorArguments(arg1: IWorkingCopyHistoryEntry, arg2: IWor
 	];
 }
 
-async function findLocalHistoryEntry(workingCopyHistoryService: IWorkingCopyHistoryService, descriptor: ITimelineCommandArgument): Promise<{ entry: IWorkingCopyHistoryEntry | undefined; previous: IWorkingCopyHistoryEntry | undefined }> {
+export async function findLocalHistoryEntry(workingCopyHistoryService: IWorkingCopyHistoryService, descriptor: ITimelineCommandArgument): Promise<{ entry: IWorkingCopyHistoryEntry | undefined; previous: IWorkingCopyHistoryEntry | undefined }> {
 	const entries = await workingCopyHistoryService.getEntries(descriptor.uri, CancellationToken.None);
 
 	let currentEntry: IWorkingCopyHistoryEntry | undefined = undefined;

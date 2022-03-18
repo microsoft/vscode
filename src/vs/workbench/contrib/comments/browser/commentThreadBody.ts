@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import * as nls from 'vs/nls';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as languages from 'vs/editor/common/languages';
 import { Emitter } from 'vs/base/common/event';
@@ -62,10 +63,15 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		this._markdownRenderer = this._register(new MarkdownRenderer(this._options, this.languageService, this.openerService));
 	}
 
+	focus() {
+		this._commentsElement.focus();
+	}
+
 	display() {
 		this._commentsElement = dom.append(this.container, dom.$('div.comments-container'));
 		this._commentsElement.setAttribute('role', 'presentation');
 		this._commentsElement.tabIndex = 0;
+		this._updateAriaLabel();
 
 		this._register(dom.addDisposableListener(this._commentsElement, dom.EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
@@ -198,7 +204,13 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this._focusedComment = lastIndex;
 		}
 
+		this._updateAriaLabel();
 		this._setFocusedComment(this._focusedComment);
+	}
+
+	private _updateAriaLabel() {
+		this._commentsElement.ariaLabel = nls.localize('commentThreadAria', "Comment thead with {0} comments. {1}.",
+			this._commentThread.comments?.length, this._commentThread.label);
 	}
 
 	private _setFocusedComment(value: number | undefined) {

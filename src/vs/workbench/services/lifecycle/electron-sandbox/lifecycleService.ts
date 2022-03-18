@@ -160,6 +160,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 		this._onWillShutdown.fire({
 			reason,
+			token: cts.token,
 			join(promise, id) {
 				joiners.push(promise);
 
