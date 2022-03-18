@@ -42,11 +42,11 @@ continuation_end() {
 	printf "\033]633;G\007"
 }
 
-rprompt_start() {
+right_prompt_start() {
 	printf "\033]633;H\007"
 }
 
-rprompt_end() {
+right_prompt_end() {
 	printf "\033]633;I\007"
 }
 
@@ -68,7 +68,7 @@ update_prompt() {
 	PS2="%{$(continuation_start)%}$PS2%{$(continuation_end)%}"
 	if [ -n "$RPROMPT" ]; then
 		PRIOR_RPROMPT="$RPROMPT"
-		RPROMPT="%{$(rprompt_start)%}$RPROMPT%{$(rprompt_end)%}"
+		RPROMPT="%{$(right_prompt_start)%}$RPROMPT%{$(right_prompt_end)%}"
 	fi
 }
 
