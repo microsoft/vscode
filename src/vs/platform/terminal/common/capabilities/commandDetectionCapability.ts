@@ -54,7 +54,13 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
 
-	get commands(): readonly ITerminalCommand[] { return this._commands; }
+	get commands(): readonly ITerminalCommand[] {
+		if (this._currentCommand.command) {
+			// TODO: as ITerminalCommand is unsafe
+			return [...this.commands, this._currentCommand as ITerminalCommand];
+		}
+		return this._commands;
+	}
 
 	private readonly _onCommandStarted = new Emitter<ITerminalCommand>();
 	readonly onCommandStarted = this._onCommandStarted.event;
