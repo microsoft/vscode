@@ -12,13 +12,13 @@ import { ExperimentationTelemetry } from './experimentationService';
 import { AuthProviderType } from './github';
 import { Log } from './common/logger';
 import { isSupportedEnvironment } from './common/env';
-import { URLSearchParams } from 'url';
 
 const localize = nls.loadMessageBundle();
+const CLIENT_ID = '01ab8ac9400c4e429b23';
 const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 // TODO: change to stable when that happens
-const GITHUB_TOKEN_URL = 'http://insiders.vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
-const CLIENT_ID = '01ab8ac9400c4e429b23';
+const GITHUB_TOKEN_URL = 'https://insiders.vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
+const REDIRECT_URL = 'https://insiders.vscode.dev/redirect';
 const NETWORK_ERROR = 'network error';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
@@ -165,7 +165,7 @@ export class GitHubServer implements IGitHubServer {
 
 		const searchParams = new URLSearchParams([
 			['client_id', CLIENT_ID],
-			['redirect_uri', 'http://localhost:3000/redirect'],
+			['redirect_uri', REDIRECT_URL],
 			['scope', scopes],
 			['state', encodeURIComponent(callbackUri.toString(true))]
 		]);
