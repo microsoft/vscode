@@ -10,7 +10,6 @@ import { canceled, getErrorMessage } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import {
@@ -213,23 +212,22 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 				// Install extensions in parallel and wait until all extensions are installed / failed
 				await this.joinAllSettled(extensionsToInstall.map(async ({ task }) => {
 					const startTime = new Date().getTime();
-					const operation = isUndefined(options.operation) ? task.operation : options.operation;
 					try {
 						const local = await task.run();
 						await this.joinAllSettled(this.participants.map(participant => participant.postInstall(local, task.source, options, CancellationToken.None)));
 						if (!URI.isUri(task.source)) {
-							reportTelemetry(this.telemetryService, operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, undefined);
+							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, undefined);
 							// In web, report extension install statistics explicitly. In Desktop, statistics are automatically updated while downloading the VSIX.
-							if (isWeb && operation !== InstallOperation.Update) {
+							if (isWeb && task.operation !== InstallOperation.Update) {
 								try {
 									await this.galleryService.reportStatistic(local.manifest.publisher, local.manifest.name, local.manifest.version, StatisticType.Install);
 								} catch (error) { /* ignore */ }
 							}
 						}
-						installResults.push({ local, identifier: task.identifier, operation, source: task.source });
+						installResults.push({ local, identifier: task.identifier, operation: task.operation, source: task.source });
 					} catch (error) {
 						if (!URI.isUri(task.source)) {
-							reportTelemetry(this.telemetryService, operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, error);
+							reportTelemetry(this.telemetryService, task.operation === InstallOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(task.source), new Date().getTime() - startTime, error);
 						}
 						this.logService.error('Error while installing the extension:', task.identifier.id);
 						throw error;

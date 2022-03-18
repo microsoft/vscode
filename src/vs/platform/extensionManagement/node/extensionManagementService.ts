@@ -11,7 +11,7 @@ import * as path from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
-import { isBoolean } from 'vs/base/common/types';
+import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
@@ -190,11 +190,12 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 abstract class AbstractInstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implements IInstallExtensionTask {
 
 	protected _operation = InstallOperation.Install;
-	get operation() { return this._operation; }
+	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
 	constructor(
 		readonly identifier: IExtensionIdentifier,
 		readonly source: URI | IGalleryExtension,
+		protected readonly options: InstallOptions,
 		protected readonly extensionsScanner: ExtensionsScanner,
 		protected readonly logService: ILogService,
 	) {
@@ -248,12 +249,12 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 
 	constructor(
 		private readonly gallery: IGalleryExtension,
-		private readonly options: InstallOptions,
+		options: InstallOptions,
 		private readonly extensionsDownloader: ExtensionsDownloader,
 		extensionsScanner: ExtensionsScanner,
 		logService: ILogService,
 	) {
-		super(gallery.identifier, gallery, extensionsScanner, logService);
+		super(gallery.identifier, gallery, options, extensionsScanner, logService);
 	}
 
 	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
@@ -326,12 +327,12 @@ class InstallVSIXTask extends AbstractInstallExtensionTask {
 	constructor(
 		private readonly manifest: IExtensionManifest,
 		private readonly location: URI,
-		private readonly options: InstallOptions,
+		options: InstallOptions,
 		private readonly galleryService: IExtensionGalleryService,
 		extensionsScanner: ExtensionsScanner,
 		logService: ILogService
 	) {
-		super({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, location, extensionsScanner, logService);
+		super({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, location, options, extensionsScanner, logService);
 	}
 
 	protected async doRun(token: CancellationToken): Promise<ILocalExtension> {
