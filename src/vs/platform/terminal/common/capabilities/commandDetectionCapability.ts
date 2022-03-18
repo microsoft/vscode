@@ -73,6 +73,14 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
+		if (this._isWindowsPty) {
+			this._preHandleResizeWindows(e);
+		}
+		this._dimensions.cols = e.cols;
+		this._dimensions.rows = e.rows;
+	}
+
+	private _preHandleResizeWindows(e: { cols: number; rows: number }) {
 		// Resize behavior is different under conpty; instead of bringing parts of the scrollback
 		// back into the viewport, new lines are inserted at the bottom (ie. the same behavior as if
 		// there was no scrollback).
@@ -84,45 +92,41 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		// on the xterm.js buffer to move the markers.
 		//
 		// While a bit hacky, this approach is quite safe and seems to work great at least for pwsh.
-		if (this._isWindowsPty) {
-			const baseY = this._terminal.buffer.active.baseY;
-			const rowsDifference = e.rows - this._dimensions.rows;
-			// Only do when rows increase, do in the next frame as this needs to happen after
-			// conpty reprints the screen
-			if (rowsDifference > 0) {
-				this._waitForCursorMove().then(() => {
-					// Calculate the number of lines the content may have shifted, this will max out at
-					// scrollback count since the standard behavior will be used then
-					const potentialShiftedLineCount = Math.min(rowsDifference, baseY);
-					// For each command within the viewport, assume commands are in the correct order
-					for (let i = this.commands.length - 1; i >= 0; i--) {
-						const command = this.commands[i];
-						if (!command.marker || command.marker.line < baseY || command.commandStartLineContent === undefined) {
-							break;
-						}
-						const line = this._terminal.buffer.active.getLine(command.marker.line);
-						if (!line || line.translateToString(true) === command.commandStartLineContent) {
-							continue;
-						}
-						const shiftedY = command.marker.line - potentialShiftedLineCount;
-						const shiftedLine = this._terminal.buffer.active.getLine(shiftedY);
-						if (shiftedLine?.translateToString(true) !== command.commandStartLineContent) {
-							continue;
-						}
-						// HACK: xterm.js doesn't expose this by design as it's an internal core
-						// function an embedder could easily do damage with. Additionally, this
-						// can't really be upstreamed since the event relies on shell integration to
-						// verify the shifting is necessary.
-						(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
-							index: this._terminal.buffer.active.baseY,
-							amount: potentialShiftedLineCount
-						});
+		const baseY = this._terminal.buffer.active.baseY;
+		const rowsDifference = e.rows - this._dimensions.rows;
+		// Only do when rows increase, do in the next frame as this needs to happen after
+		// conpty reprints the screen
+		if (rowsDifference > 0) {
+			this._waitForCursorMove().then(() => {
+				// Calculate the number of lines the content may have shifted, this will max out at
+				// scrollback count since the standard behavior will be used then
+				const potentialShiftedLineCount = Math.min(rowsDifference, baseY);
+				// For each command within the viewport, assume commands are in the correct order
+				for (let i = this.commands.length - 1; i >= 0; i--) {
+					const command = this.commands[i];
+					if (!command.marker || command.marker.line < baseY || command.commandStartLineContent === undefined) {
+						break;
 					}
-				});
-			}
+					const line = this._terminal.buffer.active.getLine(command.marker.line);
+					if (!line || line.translateToString(true) === command.commandStartLineContent) {
+						continue;
+					}
+					const shiftedY = command.marker.line - potentialShiftedLineCount;
+					const shiftedLine = this._terminal.buffer.active.getLine(shiftedY);
+					if (shiftedLine?.translateToString(true) !== command.commandStartLineContent) {
+						continue;
+					}
+					// HACK: xterm.js doesn't expose this by design as it's an internal core
+					// function an embedder could easily do damage with. Additionally, this
+					// can't really be upstreamed since the event relies on shell integration to
+					// verify the shifting is necessary.
+					(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
+						index: this._terminal.buffer.active.baseY,
+						amount: potentialShiftedLineCount
+					});
+				}
+			});
 		}
-		this._dimensions.cols = e.cols;
-		this._dimensions.rows = e.rows;
 	}
 
 	private _waitForCursorMove(): Promise<void> {
@@ -202,57 +206,56 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 	}
 
 	handleCommandStart(): void {
-		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
-
-		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
-			this._commandMarkers.length = 0;
-			// HACK: Fire command started on the following frame on Windows to allow the cursor
-			// position to update as conpty often prints the sequence on a different line to the
-			// actual line the command started on.
-			timeout(0).then(() => {
-				if (!this._currentCommand.commandExecutedMarker) {
-					this._onCursorMoveListener = this._terminal.onCursorMove(() => {
-						if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
-							const marker = this._terminal.registerMarker(0);
-							if (marker) {
-								this._commandMarkers.push(marker);
-							}
-						}
-					});
-				}
-				this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-				if (this._currentCommand.commandStartMarker) {
-					const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
-					if (line) {
-						this._currentCommand.commandStartLineContent = line.translateToString(true);
-					}
-				}
-				this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
-			});
-		} else {
-			this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-			this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
+			this._handleCommandStartWindows();
+			return;
 		}
+		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
+	private _handleCommandStartWindows(): void {
+		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+
+		// On Windows track all cursor movements after the command start sequence
+		this._commandMarkers.length = 0;
+		// HACK: Fire command started on the following frame on Windows to allow the cursor
+		// position to update as conpty often prints the sequence on a different line to the
+		// actual line the command started on.
+		timeout(0).then(() => {
+			if (!this._currentCommand.commandExecutedMarker) {
+				this._onCursorMoveListener = this._terminal.onCursorMove(() => {
+					if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
+						const marker = this._terminal.registerMarker(0);
+						if (marker) {
+							this._commandMarkers.push(marker);
+						}
+					}
+				});
+			}
+			this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+			if (this._currentCommand.commandStartMarker) {
+				const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
+				if (line) {
+					this._currentCommand.commandStartLineContent = line.translateToString(true);
+				}
+			}
+			this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
+			this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
+		});
+	}
+
 	handleCommandExecuted(): void {
-		// On Windows, use the gathered cursor move markers to correct the command start and
-		// executed markers
 		if (this._isWindowsPty) {
-			this._onCursorMoveListener?.dispose();
-			this._onCursorMoveListener = undefined;
+			this._handleCommandExecutedWindows();
+			return;
 		}
 
 		this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
-
-		// Don't get the command on Windows, rely on the command line sequence for this
-		if (this._isWindowsPty) {
-			return;
-		}
 
 		// Sanity check optional props
 		if (!this._currentCommand.commandStartMarker || !this._currentCommand.commandExecutedMarker || this._currentCommand.commandStartX === undefined) {
@@ -279,31 +282,19 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 	}
 
-	handleCommandFinished(exitCode: number | undefined): void {
+	private _handleCommandExecutedWindows(): void {
 		// On Windows, use the gathered cursor move markers to correct the command start and
-		// executed markers. This is done on command finished just in case command executed never
-		// happens (for example PSReadLine tab completion)
+		// executed markers
+		this._onCursorMoveListener?.dispose();
+		this._onCursorMoveListener = undefined;
+		this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(0);
+		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
+		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
+	}
+
+	handleCommandFinished(exitCode: number | undefined): void {
 		if (this._isWindowsPty) {
-			if (this._commandMarkers.length === 0) {
-				// If the command start timeout doesn't happen before command finished, just use the
-				// current marker.
-				if (!this._currentCommand.commandStartMarker) {
-					this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-				}
-				if (this._currentCommand.commandStartMarker) {
-					this._commandMarkers.push(this._currentCommand.commandStartMarker);
-				}
-			} else {
-				this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
-			}
-			this._currentCommand.commandStartMarker = this._commandMarkers[0];
-			if (this._currentCommand.commandStartMarker) {
-				const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
-				if (line) {
-					this._currentCommand.commandStartLineContent = line.translateToString(true);
-				}
-			}
-			this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
+			this._preHandleCommandFinishedWindows();
 		}
 
 		this._currentCommand.commandFinishedMarker = this._terminal.registerMarker(0);
@@ -350,6 +341,32 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
 		this._currentCommand = {};
+	}
+
+	private _preHandleCommandFinishedWindows(): void {
+		// On Windows, use the gathered cursor move markers to correct the command start and
+		// executed markers. This is done on command finished just in case command executed never
+		// happens (for example PSReadLine tab completion)
+		if (this._commandMarkers.length === 0) {
+			// If the command start timeout doesn't happen before command finished, just use the
+			// current marker.
+			if (!this._currentCommand.commandStartMarker) {
+				this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+			}
+			if (this._currentCommand.commandStartMarker) {
+				this._commandMarkers.push(this._currentCommand.commandStartMarker);
+			}
+		} else {
+			this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
+		}
+		this._currentCommand.commandStartMarker = this._commandMarkers[0];
+		if (this._currentCommand.commandStartMarker) {
+			const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
+			if (line) {
+				this._currentCommand.commandStartLineContent = line.translateToString(true);
+			}
+		}
+		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
 	}
 
 	setCommandLine(commandLine: string) {
