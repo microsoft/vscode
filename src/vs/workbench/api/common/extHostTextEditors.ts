@@ -10,8 +10,11 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { DataTransferConverter, DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
+import { IPosition } from 'vs/editor/common/core/position';
+import { illegalState } from 'vs/base/common/errors';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
 
@@ -21,6 +24,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	private readonly _onDidChangeTextEditorViewColumn = new Emitter<vscode.TextEditorViewColumnChangeEvent>();
 	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
 	private readonly _onDidChangeVisibleTextEditors = new Emitter<vscode.TextEditor[]>();
+	private readonly _onWillDropOnTextEditor = new Emitter<vscode.TextEditorDropEvent>();
 
 	readonly onDidChangeTextEditorSelection: Event<vscode.TextEditorSelectionChangeEvent> = this._onDidChangeTextEditorSelection.event;
 	readonly onDidChangeTextEditorOptions: Event<vscode.TextEditorOptionsChangeEvent> = this._onDidChangeTextEditorOptions.event;
@@ -28,6 +32,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	readonly onDidChangeTextEditorViewColumn: Event<vscode.TextEditorViewColumnChangeEvent> = this._onDidChangeTextEditorViewColumn.event;
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
+	readonly onWillDropOnTextEditor: Event<vscode.TextEditorDropEvent> = this._onWillDropOnTextEditor.event;
 
 	private readonly _proxy: MainThreadTextEditorsShape;
 
@@ -158,5 +163,42 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 
 	getDiffInformation(id: string): Promise<vscode.LineChange[]> {
 		return Promise.resolve(this._proxy.$getDiffInformation(id));
+	}
+
+	// --- Text editor drag and drop
+
+	async $textEditorHandleDrop(id: string, position: IPosition, dataTransferDto: DataTransferDTO): Promise<void> {
+		const textEditor = this._extHostDocumentsAndEditors.getEditor(id);
+		if (!textEditor) {
+			throw new Error('Unknown text editor');
+		}
+
+		const pos = TypeConverters.Position.to(position);
+		const dataTransfer = DataTransferConverter.toDataTransfer(dataTransferDto);
+
+		const promises: Promise<any>[] = [];
+
+		const event = Object.freeze<vscode.TextEditorDropEvent>({
+			editor: textEditor.value,
+			position: pos,
+			dataTransfer: dataTransfer,
+			waitUntil: (p) => {
+				if (Object.isFrozen(promises)) {
+					throw illegalState('waitUntil can not be called async');
+				}
+				promises.push(Promise.resolve(p));
+			}
+		});
+
+		try {
+			this._onWillDropOnTextEditor.fire(event);
+		} catch (err) {
+			return Promise.reject(err);
+		}
+
+		// freeze promises after event call
+		Object.freeze(promises);
+
+		await Promise.all(promises);
 	}
 }

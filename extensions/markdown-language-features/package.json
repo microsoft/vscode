@@ -15,6 +15,9 @@
   "categories": [
     "Programming Languages"
   ],
+  "enabledApiProposals": [
+    "textEditorDrop"
+  ],
   "activationEvents": [
     "onLanguage:markdown",
     "onCommand:markdown.preview.toggleLock",

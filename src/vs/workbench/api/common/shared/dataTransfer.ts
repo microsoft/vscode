@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITreeDataTransfer, ITreeDataTransferItem } from 'vs/workbench/common/views';
+import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
 
-interface TreeDataTransferItemDTO {
+interface DataTransferItemDTO {
 	asString: string;
 }
 
-export interface TreeDataTransferDTO {
+export interface DataTransferDTO {
 	types: string[];
-	items: TreeDataTransferItemDTO[];
+	items: DataTransferItemDTO[];
 }
 
-export namespace TreeDataTransferConverter {
-	export function toITreeDataTransfer(value: TreeDataTransferDTO): ITreeDataTransfer {
-		const newDataTransfer: ITreeDataTransfer = new Map<string, ITreeDataTransferItem>();
+export namespace DataTransferConverter {
+	export function toDataTransfer(value: DataTransferDTO): IDataTransfer {
+		const newDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
 		value.types.forEach((type, index) => {
 			newDataTransfer.set(type, {
 				asString: async () => value.items[index].asString,
@@ -26,8 +26,8 @@ export namespace TreeDataTransferConverter {
 		return newDataTransfer;
 	}
 
-	export async function toTreeDataTransferDTO(value: ITreeDataTransfer): Promise<TreeDataTransferDTO> {
-		const newDTO: TreeDataTransferDTO = {
+	export async function toDataTransferDTO(value: IDataTransfer): Promise<DataTransferDTO> {
+		const newDTO: DataTransferDTO = {
 			types: [],
 			items: []
 		};

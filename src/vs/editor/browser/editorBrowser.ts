@@ -610,6 +610,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly onMouseDropCanceled: Event<void>;
 	/**
+	 * An event emitted when content is dropped into the editor.
+	 * @internal
+	 * @event
+	 */
+	readonly onDropIntoEditor: Event<{ readonly position: IPosition; readonly dataTransfer: DataTransfer }>;
+	/**
 	 * An event emitted on a "contextmenu".
 	 * @event
 	 */
