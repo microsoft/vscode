@@ -71,6 +71,7 @@ declare module 'vscode' {
 		/**
 		 * Whether or not the tab is pinned
 		 */
+		// TODO@API name: preview, see TextDocumentShowOptions
 		readonly isPinned: boolean;
 	}
 
