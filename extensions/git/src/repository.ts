@@ -1272,19 +1272,19 @@ export class Repository implements Disposable {
 
 		const diffEditorTabsToClose: Tab[] = [];
 
-		// Index
-		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
-		diffEditorTabsToClose.push(...tabs
-			.filter(t =>
-				(t.input instanceof TextDiffTabInput || t.input instanceof NotebookEditorDiffTabInput) && t.input.modified.scheme === 'git' &&
-				indexResources.some(r => pathEquals(r, (t.input as TextDiffTabInput).modified!.fsPath))));
-
-		// Working Tree
-		diffEditorTabsToClose.push(...tabs
-			.filter(t =>
-				(t.input instanceof TextDiffTabInput || t.input instanceof NotebookEditorDiffTabInput) && t.input.modified.scheme === 'file' &&
-				workingTreeResources.some(r => pathEquals(r, (t.input as TextDiffTabInput).modified!.fsPath)) &&
-				[t.input.original, t.input.modified].find(r => r!.scheme === 'git')));
+		for (const tab of window.tabGroups.groups.map(g => g.tabs).flat()) {
+			const { input } = tab;
+			if (input instanceof TextDiffTabInput || input instanceof NotebookEditorDiffTabInput) {
+				if (input.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, input.modified.fsPath))) {
+					// Index
+					diffEditorTabsToClose.push(tab);
+				}
+				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && workingTreeResources.some(r => pathEquals(r, input.modified.fsPath))) {
+					// Working Tree
+					diffEditorTabsToClose.push(tab);
+				}
+			}
+		}
 
 		// Close editors
 		window.tabGroups.close(diffEditorTabsToClose, true);
