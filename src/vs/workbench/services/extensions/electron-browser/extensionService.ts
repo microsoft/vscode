@@ -486,7 +486,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				if (RemoteAuthorityResolverError.isNoResolverFound(err)) {
 					err.isHandled = await this._handleNoResolverFound(remoteAuthority);
 				} else {
-					console.log(err);
 					if (RemoteAuthorityResolverError.isHandled(err)) {
 						console.log(`Error handled: Not showing a notification for the error`);
 					}

@@ -108,18 +108,20 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		// On Windows track all cursor movements after the command start sequence
 		if (this._isWindowsPty) {
 			this._commandMarkers.length = 0;
-			this._onCursorMoveListener = this._terminal.onCursorMove(() => {
-				if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
-					const marker = this._terminal.registerMarker(0);
-					if (marker) {
-						this._commandMarkers.push(marker);
-					}
-				}
-			});
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
 			// position to update as conpty often prints the sequence on a different line to the
 			// actual line the command started on.
 			timeout(0).then(() => {
+				if (!this._currentCommand.commandExecutedMarker) {
+					this._onCursorMoveListener = this._terminal.onCursorMove(() => {
+						if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
+							const marker = this._terminal.registerMarker(0);
+							if (marker) {
+								this._commandMarkers.push(marker);
+							}
+						}
+					});
+				}
 				this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
 				this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 			});
@@ -177,7 +179,18 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		// executed markers. This is done on command finished just in case command executed never
 		// happens (for example PSReadLine tab completion)
 		if (this._isWindowsPty) {
-			this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
+			if (this._commandMarkers.length === 0) {
+				// If the command start timeout doesn't happen before command finished, just use the
+				// current marker.
+				if (!this._currentCommand.commandStartMarker) {
+					this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+				}
+				if (this._currentCommand.commandStartMarker) {
+					this._commandMarkers.push(this._currentCommand.commandStartMarker);
+				}
+			} else {
+				this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
+			}
 			this._currentCommand.commandStartMarker = this._commandMarkers[0];
 			this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
 		}

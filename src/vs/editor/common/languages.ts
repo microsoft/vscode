@@ -790,7 +790,13 @@ export interface InlineCompletion {
 	 * The text can also be a snippet. In that case, a preview with default parameters is shown.
 	 * When accepting the suggestion, the full snippet is inserted.
 	*/
-	readonly text: string | { snippet: string };
+	readonly insertText: string | { snippet: string };
+
+	/**
+	 * A text that is used to decide if this inline completion should be shown.
+	 * An inline completion is shown if the text to replace is a subword of the filter text.
+	 */
+	readonly filterText?: string;
 
 	/**
 	 * The range to replace.
@@ -1647,7 +1653,13 @@ export enum CommentThreadCollapsibleState {
 	Expanded = 1
 }
 
-
+/**
+ * @internal
+ */
+export enum CommentThreadState {
+	Unresolved = 0,
+	Resolved = 1
+}
 
 /**
  * @internal
@@ -1670,24 +1682,27 @@ export interface CommentInput {
 /**
  * @internal
  */
-export interface CommentThread {
+export interface CommentThread<T = IRange> {
+	isDocumentCommentThread(): this is CommentThread<IRange>;
 	commentThreadHandle: number;
 	controllerHandle: number;
 	extensionId?: string;
 	threadId: string;
 	resource: string | null;
-	range: IRange;
+	range: T;
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	state?: CommentThreadState;
 	canReply: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeRange: Event<IRange>;
+	onDidChangeRange: Event<T>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeState: Event<CommentThreadState | undefined>;
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 }
@@ -1753,21 +1768,21 @@ export interface Comment {
 /**
  * @internal
  */
-export interface CommentThreadChangedEvent {
+export interface CommentThreadChangedEvent<T> {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread[];
+	readonly added: CommentThread<T>[];
 
 	/**
 	 * Removed comment threads.
 	 */
-	readonly removed: CommentThread[];
+	readonly removed: CommentThread<T>[];
 
 	/**
 	 * Changed comment threads.
 	 */
-	readonly changed: CommentThread[];
+	readonly changed: CommentThread<T>[];
 }
 
 export interface CodeLens {

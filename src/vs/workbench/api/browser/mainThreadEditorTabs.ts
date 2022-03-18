@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, TabKind, MainThreadEditorTabsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, AnyInputDto, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { EditorResourceAccessor, SideBySideEditor, GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 
 interface TabInfo {
@@ -59,24 +61,63 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 */
 	private _buildTabObject(group: IEditorGroup, editor: EditorInput, editorIndex: number): IEditorTabDto {
 		const editorId = editor.editorId;
-		const tabKind = editor instanceof DiffEditorInput ? TabKind.Diff : editor instanceof SideBySideEditorInput ? TabKind.SidebySide : TabKind.Singular;
 		const tab: IEditorTabDto = {
 			id: this._generateTabId(editor, group.id),
 			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 			label: editor.getName(),
-			resource: editor instanceof SideBySideEditorInput ? EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }) : EditorResourceAccessor.getCanonicalUri(editor),
 			editorId,
-			kind: tabKind,
-			additionalResourcesAndViewTypes: [],
+			input: this._editorInputToDto(editor),
 			isPinned: group.isSticky(editorIndex),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
-		tab.additionalResourcesAndViewTypes.push({ resource: tab.resource, viewId: tab.editorId });
-		if (editor instanceof SideBySideEditorInput) {
-			tab.additionalResourcesAndViewTypes.push({ resource: EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY }), viewId: editor.primary.editorId ?? editor.editorId });
-		}
 		return tab;
+	}
+
+	private _editorInputToDto(editor: EditorInput): AnyInputDto {
+
+		if (editor instanceof AbstractTextResourceEditorInput) {
+			return {
+				kind: TabInputKind.TextInput,
+				uri: editor.resource
+			};
+		}
+
+		if (editor instanceof NotebookEditorInput) {
+			return {
+				kind: TabInputKind.NotebookInput,
+				notebookType: editor.viewType,
+				uri: editor.resource
+			};
+		}
+
+		if (editor instanceof CustomEditorInput) {
+			return {
+				kind: TabInputKind.CustomEditorInput,
+				viewType: editor.viewType,
+				uri: editor.resource,
+			};
+		}
+
+		if (editor instanceof DiffEditorInput) {
+			if (editor.modified instanceof AbstractTextResourceEditorInput && editor.original instanceof AbstractTextResourceEditorInput) {
+				return {
+					kind: TabInputKind.TextDiffInput,
+					modified: editor.modified.resource,
+					original: editor.original.resource
+				};
+			}
+			if (editor.modified instanceof NotebookEditorInput && editor.original instanceof NotebookEditorInput) {
+				return {
+					kind: TabInputKind.NotebookDiffInput,
+					notebookType: editor.original.viewType,
+					modified: editor.modified.resource,
+					original: editor.original.resource
+				};
+			}
+		}
+
+		return { kind: TabInputKind.UnknownInput };
 	}
 
 	/**
@@ -96,8 +137,8 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const activeGroupId = this._editorGroupsService.activeGroup.id;
 		const activeGroup = this._groupLookup.get(activeGroupId);
 		if (activeGroup) {
+			// Ok not to loop as exthost accepts last active group
 			activeGroup.isActive = true;
-			// TODO @lramos15 Should we make this more efficient to not "update" all tabs within the group?
 			this._proxy.$acceptTabGroupUpdate(activeGroup);
 		}
 	}
@@ -377,19 +418,28 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		return;
 	}
 
-	async $closeTab(tabId: string, preserveFocus: boolean): Promise<void> {
-		const tabInfo = this._tabInfoLookup.get(tabId);
-		const tab = tabInfo?.tab;
-		const group = tabInfo?.group;
-		const editorTab = tabInfo?.editorInput;
-		if (!group || !tab || !tabInfo || !editorTab) {
-			return;
+	async $closeTab(tabIds: string[], preserveFocus?: boolean): Promise<void> {
+		const groups: Map<IEditorGroup, EditorInput[]> = new Map();
+		for (const tabId of tabIds) {
+			const tabInfo = this._tabInfoLookup.get(tabId);
+			const tab = tabInfo?.tab;
+			const group = tabInfo?.group;
+			const editorTab = tabInfo?.editorInput;
+			// If not found skip
+			if (!group || !tab || !tabInfo || !editorTab) {
+				continue;
+			}
+			const groupEditors = groups.get(group);
+			if (!groupEditors) {
+				groups.set(group, [editorTab]);
+			} else {
+				groupEditors.push(editorTab);
+			}
 		}
-		const editor = group.editors.find(editor => editor.matches(editorTab));
-		if (!editor) {
-			return;
+		// Loop over keys of the groups map and call closeEditors
+		for (const [group, editors] of groups) {
+			group.closeEditors(editors, { preserveFocus });
 		}
-		await group.closeEditor(editor, { preserveFocus });
 	}
 	//#endregion
 }

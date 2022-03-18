@@ -9,29 +9,29 @@ suite('SufTrie', () => {
 	test('exactMatches', () => {
 		const t = new SufTrie();
 		t.add('.npmrc', 'MyKey');
-		assert.deepStrictEqual(t.get('.npmrc'), ['MyKey']);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('a.npmrc'), []);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['MyKey']);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), []);
 	});
 
 	test('starMatches', () => {
 		const t = new SufTrie();
 		t.add('*.npmrc', 'MyKey');
-		assert.deepStrictEqual(t.get('.npmrc'), ['MyKey']);
-		assert.deepStrictEqual(t.get('npmrc'), []);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('a.npmrc'), ['MyKey']);
-		assert.deepStrictEqual(t.get('a.b.c.d.npmrc'), ['MyKey']);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['MyKey']);
+		assert.deepStrictEqual(t.get('npmrc', '', ''), []);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), ['MyKey']);
+		assert.deepStrictEqual(t.get('a.b.c.d.npmrc', '', ''), ['MyKey']);
 	});
 
 	test('starSubstitutes', () => {
 		const t = new SufTrie();
 		t.add('*.npmrc', '$(capture).json');
-		assert.deepStrictEqual(t.get('.npmrc'), ['.json']);
-		assert.deepStrictEqual(t.get('npmrc'), []);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('a.npmrc'), ['a.json']);
-		assert.deepStrictEqual(t.get('a.b.c.d.npmrc'), ['a.b.c.d.json']);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['.json']);
+		assert.deepStrictEqual(t.get('npmrc', '', ''), []);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), ['a.json']);
+		assert.deepStrictEqual(t.get('a.b.c.d.npmrc', '', ''), ['a.b.c.d.json']);
 	});
 
 	test('multiMatches', () => {
@@ -39,13 +39,13 @@ suite('SufTrie', () => {
 		t.add('*.npmrc', 'Key1');
 		t.add('*.json', 'Key2');
 		t.add('*d.npmrc', 'Key3');
-		assert.deepStrictEqual(t.get('.npmrc'), ['Key1']);
-		assert.deepStrictEqual(t.get('npmrc'), []);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('.json'), ['Key2']);
-		assert.deepStrictEqual(t.get('a.json'), ['Key2']);
-		assert.deepStrictEqual(t.get('a.npmrc'), ['Key1']);
-		assert.deepStrictEqual(t.get('a.b.c.d.npmrc'), ['Key1', 'Key3']);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['Key1']);
+		assert.deepStrictEqual(t.get('npmrc', '', ''), []);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('.json', '', ''), ['Key2']);
+		assert.deepStrictEqual(t.get('a.json', '', ''), ['Key2']);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), ['Key1']);
+		assert.deepStrictEqual(t.get('a.b.c.d.npmrc', '', ''), ['Key1', 'Key3']);
 	});
 
 	test('multiSubstitutes', () => {
@@ -53,14 +53,14 @@ suite('SufTrie', () => {
 		t.add('*.npmrc', 'Key1.$(capture).js');
 		t.add('*.json', 'Key2.$(capture).js');
 		t.add('*d.npmrc', 'Key3.$(capture).js');
-		assert.deepStrictEqual(t.get('.npmrc'), ['Key1..js']);
-		assert.deepStrictEqual(t.get('npmrc'), []);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('.json'), ['Key2..js']);
-		assert.deepStrictEqual(t.get('a.json'), ['Key2.a.js']);
-		assert.deepStrictEqual(t.get('a.npmrc'), ['Key1.a.js']);
-		assert.deepStrictEqual(t.get('a.b.cd.npmrc'), ['Key1.a.b.cd.js', 'Key3.a.b.c.js']);
-		assert.deepStrictEqual(t.get('a.b.c.d.npmrc'), ['Key1.a.b.c.d.js', 'Key3.a.b.c..js']);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['Key1..js']);
+		assert.deepStrictEqual(t.get('npmrc', '', ''), []);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('.json', '', ''), ['Key2..js']);
+		assert.deepStrictEqual(t.get('a.json', '', ''), ['Key2.a.js']);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), ['Key1.a.js']);
+		assert.deepStrictEqual(t.get('a.b.cd.npmrc', '', ''), ['Key1.a.b.cd.js', 'Key3.a.b.c.js']);
+		assert.deepStrictEqual(t.get('a.b.c.d.npmrc', '', ''), ['Key1.a.b.c.d.js', 'Key3.a.b.c..js']);
 	});
 });
 
@@ -68,29 +68,29 @@ suite('PreTrie', () => {
 	test('exactMatches', () => {
 		const t = new PreTrie();
 		t.add('.npmrc', 'MyKey');
-		assert.deepStrictEqual(t.get('.npmrc'), ['MyKey']);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('a.npmrc'), []);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['MyKey']);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), []);
 	});
 
 	test('starMatches', () => {
 		const t = new PreTrie();
 		t.add('*.npmrc', 'MyKey');
-		assert.deepStrictEqual(t.get('.npmrc'), ['MyKey']);
-		assert.deepStrictEqual(t.get('npmrc'), []);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('a.npmrc'), ['MyKey']);
-		assert.deepStrictEqual(t.get('a.b.c.d.npmrc'), ['MyKey']);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['MyKey']);
+		assert.deepStrictEqual(t.get('npmrc', '', ''), []);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), ['MyKey']);
+		assert.deepStrictEqual(t.get('a.b.c.d.npmrc', '', ''), ['MyKey']);
 	});
 
 	test('starSubstitutes', () => {
 		const t = new PreTrie();
 		t.add('*.npmrc', '$(capture).json');
-		assert.deepStrictEqual(t.get('.npmrc'), ['.json']);
-		assert.deepStrictEqual(t.get('npmrc'), []);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('a.npmrc'), ['a.json']);
-		assert.deepStrictEqual(t.get('a.b.c.d.npmrc'), ['a.b.c.d.json']);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['.json']);
+		assert.deepStrictEqual(t.get('npmrc', '', ''), []);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), ['a.json']);
+		assert.deepStrictEqual(t.get('a.b.c.d.npmrc', '', ''), ['a.b.c.d.json']);
 	});
 
 	test('multiMatches', () => {
@@ -98,13 +98,13 @@ suite('PreTrie', () => {
 		t.add('*.npmrc', 'Key1');
 		t.add('*.json', 'Key2');
 		t.add('*d.npmrc', 'Key3');
-		assert.deepStrictEqual(t.get('.npmrc'), ['Key1']);
-		assert.deepStrictEqual(t.get('npmrc'), []);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('.json'), ['Key2']);
-		assert.deepStrictEqual(t.get('a.json'), ['Key2']);
-		assert.deepStrictEqual(t.get('a.npmrc'), ['Key1']);
-		assert.deepStrictEqual(t.get('a.b.c.d.npmrc'), ['Key1', 'Key3']);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['Key1']);
+		assert.deepStrictEqual(t.get('npmrc', '', ''), []);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('.json', '', ''), ['Key2']);
+		assert.deepStrictEqual(t.get('a.json', '', ''), ['Key2']);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), ['Key1']);
+		assert.deepStrictEqual(t.get('a.b.c.d.npmrc', '', ''), ['Key1', 'Key3']);
 	});
 
 	test('multiSubstitutes', () => {
@@ -112,23 +112,23 @@ suite('PreTrie', () => {
 		t.add('*.npmrc', 'Key1.$(capture).js');
 		t.add('*.json', 'Key2.$(capture).js');
 		t.add('*d.npmrc', 'Key3.$(capture).js');
-		assert.deepStrictEqual(t.get('.npmrc'), ['Key1..js']);
-		assert.deepStrictEqual(t.get('npmrc'), []);
-		assert.deepStrictEqual(t.get('.npmrcs'), []);
-		assert.deepStrictEqual(t.get('.json'), ['Key2..js']);
-		assert.deepStrictEqual(t.get('a.json'), ['Key2.a.js']);
-		assert.deepStrictEqual(t.get('a.npmrc'), ['Key1.a.js']);
-		assert.deepStrictEqual(t.get('a.b.cd.npmrc'), ['Key1.a.b.cd.js', 'Key3.a.b.c.js']);
-		assert.deepStrictEqual(t.get('a.b.c.d.npmrc'), ['Key1.a.b.c.d.js', 'Key3.a.b.c..js']);
+		assert.deepStrictEqual(t.get('.npmrc', '', ''), ['Key1..js']);
+		assert.deepStrictEqual(t.get('npmrc', '', ''), []);
+		assert.deepStrictEqual(t.get('.npmrcs', '', ''), []);
+		assert.deepStrictEqual(t.get('.json', '', ''), ['Key2..js']);
+		assert.deepStrictEqual(t.get('a.json', '', ''), ['Key2.a.js']);
+		assert.deepStrictEqual(t.get('a.npmrc', '', ''), ['Key1.a.js']);
+		assert.deepStrictEqual(t.get('a.b.cd.npmrc', '', ''), ['Key1.a.b.cd.js', 'Key3.a.b.c.js']);
+		assert.deepStrictEqual(t.get('a.b.c.d.npmrc', '', ''), ['Key1.a.b.c.d.js', 'Key3.a.b.c..js']);
 	});
 
 
 	test('emptyMatches', () => {
 		const t = new PreTrie();
 		t.add('package*json', 'package');
-		assert.deepStrictEqual(t.get('package.json'), ['package']);
-		assert.deepStrictEqual(t.get('packagejson'), ['package']);
-		assert.deepStrictEqual(t.get('package-lock.json'), ['package']);
+		assert.deepStrictEqual(t.get('package.json', '', ''), ['package']);
+		assert.deepStrictEqual(t.get('packagejson', '', ''), ['package']);
+		assert.deepStrictEqual(t.get('package-lock.json', '', ''), ['package']);
 	});
 });
 
@@ -353,6 +353,62 @@ suite('StarTrie', () => {
 
 		assertMapEquals(nesting2, {
 			'.eslintrc': ['.eslintignore'],
+		});
+	});
+
+	test('basename expansion', () => {
+		const t = new ExplorerFileNestingTrie([
+			['*-vsdoc.js', ['$(basename).doc']],
+		]);
+
+		const nesting1 = t.nest([
+			'boop-vsdoc.js',
+			'boop-vsdoc.doc',
+			'boop.doc',
+		]);
+
+		assertMapEquals(nesting1, {
+			'boop-vsdoc.js': ['boop-vsdoc.doc'],
+			'boop.doc': [],
+		});
+	});
+
+	test('extname expansion', () => {
+		const t = new ExplorerFileNestingTrie([
+			['*-vsdoc.js', ['$(extname).doc']],
+		]);
+
+		const nesting1 = t.nest([
+			'boop-vsdoc.js',
+			'js.doc',
+			'boop.doc',
+		]);
+
+		assertMapEquals(nesting1, {
+			'boop-vsdoc.js': ['js.doc'],
+			'boop.doc': [],
+		});
+	});
+
+	test('added segment matcher', () => {
+		const t = new ExplorerFileNestingTrie([
+			['*', ['$(basename).*.$(extname)']],
+		]);
+
+		const nesting1 = t.nest([
+			'some.file',
+			'some.html.file',
+			'some.html.nested.file',
+			'other.file',
+			'some.thing',
+			'some.thing.else',
+		]);
+
+		assertMapEquals(nesting1, {
+			'some.file': ['some.html.file', 'some.html.nested.file'],
+			'other.file': [],
+			'some.thing': [],
+			'some.thing.else': [],
 		});
 	});
 

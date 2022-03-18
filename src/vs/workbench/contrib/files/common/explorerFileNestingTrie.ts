@@ -35,11 +35,21 @@ export class ExplorerFileNestingTrie {
 		return this.root.toString();
 	}
 
+	private getExtAndBaseNames(fileName: string): { extname: string; basename: string } {
+		const lastDot = fileName.lastIndexOf('.');
+		if (lastDot < 1) {
+			return { basename: fileName, extname: '' };
+		} else {
+			return { basename: fileName.substring(0, lastDot), extname: fileName.substring(lastDot + 1) };
+		}
+	}
+
 	nest(files: string[]): Map<string, Set<string>> {
 		const parentFinder = new PreTrie();
 
 		for (const potentialParent of files) {
-			const children = this.root.get(potentialParent);
+			const { extname, basename } = this.getExtAndBaseNames(potentialParent);
+			const children = this.root.get(potentialParent, basename, extname);
 			for (const child of children) {
 				parentFinder.add(child, potentialParent);
 			}
@@ -48,8 +58,8 @@ export class ExplorerFileNestingTrie {
 		const findAllRootAncestors = (file: string, seen: Set<string> = new Set()): string[] => {
 			if (seen.has(file)) { return []; }
 			seen.add(file);
-
-			const ancestors = parentFinder.get(file);
+			const { extname, basename } = this.getExtAndBaseNames(file);
+			const ancestors = parentFinder.get(file, extname, basename);
 			if (ancestors.length === 0) {
 				return [file];
 			}
@@ -101,15 +111,15 @@ export class PreTrie {
 		}
 	}
 
-	get(key: string): string[] {
+	get(key: string, basename: string, extname: string): string[] {
 		const results: string[] = [];
-		results.push(...this.value.get(key));
+		results.push(...this.value.get(key, basename, extname));
 
 		const head = key[0];
 		const rest = key.slice(1);
 		const existing = this.map.get(head);
 		if (existing) {
-			results.push(...existing.get(rest));
+			results.push(...existing.get(rest, basename, extname));
 		}
 
 		return results;
@@ -157,20 +167,20 @@ export class SufTrie {
 		}
 	}
 
-	get(key: string): string[] {
+	get(key: string, basename: string, extname: string): string[] {
 		const results: string[] = [];
 		if (key === '') {
 			results.push(...this.epsilon);
 		}
 		if (this.star.length) {
-			results.push(...this.star.map(x => x.replace('$(capture)', key)));
+			results.push(...this.star.map(x => x.replace('$(capture)', key).replace('$(basename)', basename).replace('$(extname)', extname)));
 		}
 
 		const tail = key[key.length - 1];
 		const rest = key.slice(0, key.length - 1);
 		const existing = this.map.get(tail);
 		if (existing) {
-			results.push(...existing.get(rest));
+			results.push(...existing.get(rest, basename, extname));
 		}
 
 		return results;

@@ -404,7 +404,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			// when explorer arrows are hidden or there are no folder icons, nests get misaligned as they are forced to have arrows and files typically have icons
 			// Apply some CSS magic to get things looking as reasonable as possible.
 			const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
-			const realignNestedChildren = stat.isNestedChild && themeIsUnhappyWithNesting;
+			const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
 
 			templateData.label.setResource({ resource: stat.resource, name: label }, {
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
@@ -1073,6 +1073,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async handleExplorerDrop(data: ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const elementsData = FileDragAndDrop.getStatsFromDragAndDropData(data);
 		const items = distinctParents(elementsData, s => s.resource);
+
+		if (this.configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting.operateAsGroup) {
+			for (const item of items) {
+				const nestedChildren = item.nestedChildren;
+				if (nestedChildren) {
+					items.push(...nestedChildren);
+				}
+			}
+		}
 		const isCopy = (originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh);
 
 		// Handle confirm setting

@@ -24,7 +24,7 @@ import 'vs/editor/contrib/folding/browser/folding';
 import 'vs/editor/contrib/fontZoom/browser/fontZoom';
 import 'vs/editor/contrib/format/browser/formatActions';
 import 'vs/editor/contrib/documentSymbols/browser/documentSymbols';
-import 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsContribution';
+import 'vs/editor/contrib/inlineCompletions/browser/ghostText.contribution';
 import 'vs/editor/contrib/gotoSymbol/browser/goToCommands';
 import 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
 import 'vs/editor/contrib/gotoError/browser/gotoError';

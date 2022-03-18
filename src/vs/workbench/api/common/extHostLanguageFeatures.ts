@@ -1084,7 +1084,7 @@ class InlineCompletionAdapter {
 					throw new Error('text or insertText must be defined');
 				}
 				return ({
-					text: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
+					insertText: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,
@@ -1175,11 +1175,9 @@ class InlineCompletionAdapterNew {
 				}
 
 				const insertText = item.insertText;
-				if (insertText === undefined) {
-					throw new Error('text or insertText must be defined');
-				}
 				return ({
-					text: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
+					insertText: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
+					filterText: item.filterText,
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					command,
 					idx: idx,

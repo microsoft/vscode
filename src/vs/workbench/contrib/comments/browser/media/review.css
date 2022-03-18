@@ -3,60 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .review-widget {
+.review-widget {
 	width: 100%;
 	position: absolute;
 }
 
-.monaco-editor .review-widget .hidden {
+.review-widget .hidden {
 	display: none !important;
 }
 
-.monaco-editor .review-widget .body {
+.review-widget .body {
 	overflow: hidden;
 }
 
-.monaco-editor .review-widget .body .review-comment {
+.review-widget .body .review-comment {
 	padding: 8px 16px 8px 20px;
 	display: flex;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-actions {
+.review-widget .body .review-comment .comment-actions {
 	margin-left: auto;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-actions .monaco-toolbar {
+.review-widget .body .review-comment .comment-actions .monaco-toolbar {
 	height: 21px;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title {
+.review-widget .body .review-comment .comment-title {
 	display: flex;
 	width: 100%;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title .action-label.codicon {
+.review-widget .body .review-comment .comment-title .action-label.codicon {
 	line-height: 18px;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title .monaco-dropdown .toolbar-toggle-more {
+.review-widget .body .review-comment .comment-title .monaco-dropdown .toolbar-toggle-more {
 	width: 16px;
 	height: 18px;
 	line-height: 18px;
 	vertical-align: middle;
 }
 
-.monaco-editor .review-widget .body .comment-body blockquote {
+.review-widget .body .comment-body blockquote {
 	margin: 0 7px 0 5px;
 	padding: 0 16px 0 10px;
 	border-left-width: 5px;
 	border-left-style: solid;
 }
 
-.monaco-editor .review-widget .body .review-comment .avatar-container {
+.review-widget .body .review-comment .avatar-container {
 	margin-top: 4px !important;
 }
 
-.monaco-editor .review-widget .body .review-comment .avatar-container img.avatar {
+.review-widget .body .review-comment .avatar-container img.avatar {
 	height: 28px;
 	width: 28px;
 	display: inline-block;
@@ -67,7 +67,7 @@
 	border-style: none;
 }
 
-.monaco-editor .review-widget .body .comment-reactions .monaco-text-button {
+.review-widget .body .comment-reactions .monaco-text-button {
 	margin: 0 7px 0 0;
 	width: 30px;
 	background-color: transparent;
@@ -75,7 +75,7 @@
 	border-radius: 3px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents {
+.review-widget .body .review-comment .review-comment-contents {
 	padding-left: 20px;
 	user-select: text;
 	-webkit-user-select: text;
@@ -83,41 +83,41 @@
 	overflow: hidden;
 }
 
-.monaco-editor .review-widget .body pre {
+.review-widget .body pre {
 	overflow: auto;
 	word-wrap: normal;
 	white-space: pre;
 }
 
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .author {
+.review-widget .body .review-comment .review-comment-contents .author {
 	line-height: 22px;
 }
 
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .isPending {
+.review-widget .body .review-comment .review-comment-contents .isPending {
 	line-height: 22px;
 	margin: 0 5px 0 5px;
 	padding: 0 2px 0 2px;
 	font-style: italic;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .timestamp {
+.review-widget .body .review-comment .review-comment-contents .timestamp {
 	line-height: 22px;
 	margin: 0 5px 0 5px;
 	padding: 0 2px 0 2px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-body {
+.review-widget .body .review-comment .review-comment-contents .comment-body {
 	padding-top: 4px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions {
+.review-widget .body .review-comment .review-comment-contents .comment-reactions {
 	margin-top: 8px;
 	min-height: 25px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label {
+.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label {
 	padding: 1px 4px;
 	white-space: pre;
 	text-align: center;
@@ -125,7 +125,7 @@
 	display: flex;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label .reaction-icon {
+.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label .reaction-icon {
 	background-size: 14px;
 	background-position: left center;
 	background-repeat: no-repeat;
@@ -136,12 +136,12 @@
 	margin-right: 4px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label .reaction-label {
+.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item .action-label .reaction-label {
 	line-height: 20px;
 	margin-right: 4px;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
+.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: none;
 	background-size: 16px;
 	width: 26px;
@@ -152,12 +152,12 @@
 	border: none;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions:hover .action-item a.action-label.toolbar-toggle-pickReactions {
+.review-widget .body .review-comment .review-comment-contents .comment-reactions:hover .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: inline-block;
 	background-size: 16px;
 }
 
-.monaco-editor .review-widget .body .review-comment .comment-title .action-label {
+.review-widget .body .review-comment .comment-title .action-label {
 	display: block;
 	height: 16px;
 	line-height: 16px;
@@ -166,63 +166,63 @@
 	background-repeat: no-repeat;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label {
+.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label {
 	border: 1px solid;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.disabled {
+.review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.disabled {
 	opacity: 0.6;
 }
 
-.monaco-editor .review-widget .body .review-comment .review-comment-contents a {
+.review-widget .body .review-comment .review-comment-contents a {
 	cursor: pointer;
 }
 
-.monaco-editor .review-widget .body .comment-body p,
-.monaco-editor .review-widget .body .comment-body ul {
+.review-widget .body .comment-body p,
+.review-widget .body .comment-body ul {
 	margin: 8px 0;
 }
 
-.monaco-editor .review-widget .body .comment-body p:first-child,
-.monaco-editor .review-widget .body .comment-body ul:first-child {
+.review-widget .body .comment-body p:first-child,
+.review-widget .body .comment-body ul:first-child {
 	margin-top: 0;
 }
 
-.monaco-editor .review-widget .body .comment-body p:last-child,
-.monaco-editor .review-widget .body.comment-body ul:last-child {
+.review-widget .body .comment-body p:last-child,
+.review-widget .body.comment-body ul:last-child {
 	margin-bottom: 0;
 }
 
-.monaco-editor .review-widget .body .comment-body ul {
+.review-widget .body .comment-body ul {
 	padding-left: 20px;
 }
 
-.monaco-editor .review-widget .body .comment-body li > p {
+.review-widget .body .comment-body li > p {
 	margin-bottom: 0;
 }
 
-.monaco-editor .review-widget .body .comment-body li > ul {
+.review-widget .body .comment-body li > ul {
 	margin-top: 0;
 }
 
-.monaco-editor .review-widget .body .comment-body code {
+.review-widget .body .comment-body code {
 	border-radius: 3px;
 	padding: 0 0.4em;
 }
 
-.monaco-editor .review-widget .body .comment-body span {
+.review-widget .body .comment-body span {
 	white-space: pre;
 }
 
-.monaco-editor .review-widget .body .comment-body img {
+.review-widget .body .comment-body img {
 	max-width: 100%;
 }
 
-.monaco-editor .review-widget .body .comment-form {
+.review-widget .body .comment-form {
 	margin: 8px 20px;
 }
 
-.monaco-editor .review-widget .validation-error {
+.review-widget .validation-error {
 	display: inline-block;
 	overflow: hidden;
 	text-align: left;
@@ -237,17 +237,17 @@
 	word-wrap: break-word;
 }
 
-.monaco-editor .review-widget .body .comment-form.expand .review-thread-reply-button {
+.review-widget .body .comment-form.expand .review-thread-reply-button {
 	display: none;
 }
 
-.monaco-editor .review-widget .body .comment-form.expand .monaco-editor,
-.monaco-editor .review-widget .body .comment-form.expand .form-actions {
+.review-widget .body .comment-form.expand .monaco-editor,
+.review-widget .body .comment-form.expand .form-actions {
 	display: block;
 	box-sizing: content-box;
 }
 
-.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {
+.review-widget .body .comment-form .review-thread-reply-button {
 	text-align: left;
 	display: block;
 	width: 100%;
@@ -262,13 +262,13 @@
 	outline: 1px solid transparent;
 }
 
-.monaco-editor .review-widget .body .comment-form .review-thread-reply-button:focus {
+.review-widget .body .comment-form .review-thread-reply-button:focus {
 	outline-style: solid;
 	outline-width: 1px;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-editor,
-.monaco-editor .review-widget .body .edit-container .monaco-editor {
+.review-widget .body .comment-form .monaco-editor,
+.review-widget .body .edit-container .monaco-editor {
 	width: 100%;
 	min-height: 90px;
 	max-height: 500px;
@@ -278,79 +278,79 @@
 	padding: 6px 0 6px 12px;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-editor,
-.monaco-editor .review-widget .body .comment-form .form-actions {
+.review-widget .body .comment-form .monaco-editor,
+.review-widget .body .comment-form .form-actions {
 	display: none;
 }
 
-.monaco-editor .review-widget .body .comment-form .form-actions,
-.monaco-editor .review-widget .body .edit-container .form-actions {
+.review-widget .body .comment-form .form-actions,
+.review-widget .body .edit-container .form-actions {
 	overflow: auto;
 	padding: 10px 0;
 }
 
-.monaco-editor .review-widget .body .edit-container .form-actions {
+.review-widget .body .edit-container .form-actions {
 	display: flex;
 	justify-content: flex-end;
 }
 
-.monaco-editor .review-widget .body .edit-textarea {
+.review-widget .body .edit-textarea {
 	height: 90px;
 	margin: 5px 0 10px 0;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-text-button,
-.monaco-editor .review-widget .body .edit-container .monaco-text-button {
+.review-widget .body .comment-form .monaco-text-button,
+.review-widget .body .edit-container .monaco-text-button {
 	width: auto;
 	padding: 4px 10px;
 	margin-left: 5px;
 	margin-bottom: 5px;
 }
 
-.monaco-editor .review-widget .body .comment-form .monaco-text-button {
+.review-widget .body .comment-form .monaco-text-button {
 	float: right;
 }
 
-.monaco-editor .review-widget .head {
+.review-widget .head {
 	box-sizing: border-box;
 	display: flex;
 	height: 100%;
 }
 
-.monaco-editor .review-widget .head .review-title {
+.review-widget .head .review-title {
 	display: inline-block;
 	font-size: 13px;
 	margin-left: 20px;
 	cursor: default;
 }
 
-.monaco-editor .review-widget .head .review-title .dirname:not(:empty) {
+.review-widget .head .review-title .dirname:not(:empty) {
 	font-size: 0.9em;
 	margin-left: 0.5em;
 }
 
-.monaco-editor .review-widget .head .review-actions {
+.review-widget .head .review-actions {
 	flex: 1;
 	text-align: right;
 	padding-right: 2px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar {
+.review-widget .head .review-actions > .monaco-action-bar {
 	display: inline-block;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar,
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar > .actions-container {
+.review-widget .head .review-actions > .monaco-action-bar,
+.review-widget .head .review-actions > .monaco-action-bar > .actions-container {
 	height: 100%;
 }
 
-.monaco-editor .review-widget .action-item {
+.review-widget .action-item {
 	min-width: 18px;
 	min-height: 20px;
 	margin-left: 4px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label {
+.review-widget .head .review-actions > .monaco-action-bar .action-label {
 	width: 16px;
 	margin: 0;
 	line-height: inherit;
@@ -358,11 +358,11 @@
 	background-position: center center;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.codicon {
+.review-widget .head .review-actions > .monaco-action-bar .action-label.codicon {
 	margin: 0;
 }
 
-.monaco-editor .review-widget > .body {
+.review-widget > .body {
 	border-top: 1px solid;
 	position: relative;
 }

@@ -12,8 +12,8 @@ import { InlineCompletionTriggerKind, SelectedSuggestionInfo } from 'vs/editor/c
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { SharedInlineCompletionCache } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextModel';
 import { BaseGhostTextWidgetModel, GhostText } from './ghostText';
-import { minimizeInlineCompletion, provideInlineCompletions, UpdateOperation } from './inlineCompletionsModel';
-import { inlineCompletionToGhostText, NormalizedInlineCompletion } from './inlineCompletionToGhostText';
+import { provideInlineCompletions, TrackedInlineCompletions, UpdateOperation } from './inlineCompletionsModel';
+import { inlineCompletionToGhostText, minimizeInlineCompletion, NormalizedInlineCompletion } from './inlineCompletionToGhostText';
 import { SuggestWidgetInlineCompletionProvider } from './suggestWidgetInlineCompletionProvider';
 
 export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
@@ -86,7 +86,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		}
 
 		const info: SelectedSuggestionInfo = {
-			text: state.selectedItem.normalizedInlineCompletion.text,
+			text: state.selectedItem.normalizedInlineCompletion.insertText,
 			range: state.selectedItem.normalizedInlineCompletion.range,
 			isSnippetText: state.selectedItem.isSnippetText,
 			completionKind: state.selectedItem.completionItemKind,
@@ -95,7 +95,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		const position = this.editor.getPosition();
 
 		const promise = createCancelablePromise(async token => {
-			let result;
+			let result: TrackedInlineCompletions;
 			try {
 				result = await provideInlineCompletions(this.languageFeaturesService.inlineCompletionsProvider, position,
 					this.editor.getModel(),
@@ -107,6 +107,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 				return;
 			}
 			if (token.isCancellationRequested) {
+				result.dispose();
 				return;
 			}
 			this.cache.setValue(
@@ -133,7 +134,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 
 		const isAugmentedCompletionValid = augmentedCompletion
 			&& suggestInlineCompletion
-			&& augmentedCompletion.text.startsWith(suggestInlineCompletion.text)
+			&& augmentedCompletion.insertText.startsWith(suggestInlineCompletion.insertText)
 			&& augmentedCompletion.range.equalsRange(suggestInlineCompletion.range);
 
 		if (!isSuggestionPreviewEnabled && !isAugmentedCompletionValid) {
@@ -143,7 +144,7 @@ export class SuggestWidgetPreviewModel extends BaseGhostTextWidgetModel {
 		// If the augmented completion is not valid and there is no suggest inline completion, we still show the augmented completion.
 		const finalCompletion = isAugmentedCompletionValid ? augmentedCompletion : (suggestInlineCompletion || augmentedCompletion);
 
-		const inlineCompletionPreviewLength = isAugmentedCompletionValid ? finalCompletion!.text.length - suggestInlineCompletion.text.length : 0;
+		const inlineCompletionPreviewLength = isAugmentedCompletionValid ? finalCompletion!.insertText.length - suggestInlineCompletion.insertText.length : 0;
 		const newGhostText = this.toGhostText(finalCompletion, inlineCompletionPreviewLength);
 
 		return newGhostText;

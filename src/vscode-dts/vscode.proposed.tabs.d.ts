@@ -7,10 +7,36 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
-	export enum TabKind {
-		Singular = 0,
-		Diff = 1,
-		SidebySide = 2
+	// TODO@API names
+	export class TextTabInput {
+		readonly uri: Uri;
+		constructor(uri: Uri);
+	}
+
+	// TODO@API names
+	export class TextDiffTabInput {
+		readonly original: Uri;
+		readonly modified: Uri;
+		constructor(original: Uri, modified: Uri);
+	}
+
+	export class CustomEditorTabInput {
+		readonly uri: Uri;
+		readonly viewType: string;
+		constructor(uri: Uri, viewType: string);
+	}
+
+	export class NotebookEditorTabInput {
+		readonly uri: Uri;
+		readonly notebookType: string;
+		constructor(uri: Uri, notebookType: string);
+	}
+
+	export class NotebookEditorDiffTabInput {
+		readonly original: Uri;
+		readonly modified: Uri;
+		readonly notebookType: string;
+		constructor(original: Uri, modified: Uri, notebookType: string);
 	}
 
 	/**
@@ -28,28 +54,8 @@ declare module 'vscode' {
 		// TODO@API point to TabGroup instead?
 		readonly viewColumn: ViewColumn;
 
-		/**
-		 * The resource represented by the tab if available.
-		 * Note: Not all tabs have a resource associated with them.
-		 */
-		readonly resource: Uri | undefined;
-
-		/**
-		 * The type of view contained in the tab
-		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
-		 * The built-in text editor has an id of 'default' for all configurations.
-		 */
-		readonly viewType: string | undefined;
-
-		/**
-		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
-		 * always be at index 0.
-		 */
-		readonly additionalResourcesAndViewTypes: readonly {
-			readonly resource: Uri | undefined;
-			readonly viewType: string | undefined;
-		}[];
+		// TODO@API NAME: optional
+		readonly input: TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookEditorDiffTabInput | unknown;
 
 		/**
 		 * Whether or not the tab is currently active
@@ -68,11 +74,6 @@ declare module 'vscode' {
 		readonly isPinned: boolean;
 
 		/**
-		 * Indicates the type of tab it is.
-		 */
-		readonly kind: TabKind;
-
-		/**
 		 * Moves a tab to the given index within the column.
 		 * If the index is out of range, the tab will be moved to the end of the column.
 		 * If the column is out of range, a new one will be created after the last existing column.
@@ -81,14 +82,6 @@ declare module 'vscode' {
 		 */
 		// TODO@API move into TabGroups
 		move(index: number, viewColumn: ViewColumn): Thenable<void>;
-
-		/**
-		 * Closes the tab. This makes the tab object invalid and the tab
-		 * should no longer be used for further actions.
-		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
-		 */
-		// TODO@API move into TabGroups, support one or many tabs or tab groups
-		close(preserveFocus: boolean): Thenable<void>;
 	}
 
 	export namespace window {
@@ -96,29 +89,6 @@ declare module 'vscode' {
 		 * Represents the grid widget within the main editor area
 		 */
 		export const tabGroups: TabGroups;
-	}
-
-	export interface TabGroups {
-		/**
-		 * All the groups within the group container
-		 */
-		readonly groups: readonly TabGroup[];
-
-		/**
-		 * The currently active group
-		 */
-		readonly activeTabGroup: TabGroup | undefined;
-
-		/**
-		 * An {@link Event} which fires when a group changes.
-		 */
-		readonly onDidChangeTabGroup: Event<void>;
-
-		/**
-		 * An {@link Event} which fires when the active group changes.
-		 * Whether it be which group is active or its properties.
-		 */
-		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 	}
 
 	export interface TabGroup {
@@ -141,5 +111,37 @@ declare module 'vscode' {
 		 * The list of tabs contained within the group
 		 */
 		readonly tabs: Tab[];
+	}
+
+	export interface TabGroups {
+		/**
+		 * All the groups within the group container
+		 */
+		readonly groups: readonly TabGroup[];
+
+		/**
+		 * The currently active group
+		 */
+		readonly activeTabGroup: TabGroup | undefined;
+
+		/**
+		 * An {@link Event} which fires when a group changes.
+		 */
+		readonly onDidChangeTabGroup: Event<void>;
+
+		/**
+		 * An {@link Event} which fires when the active group changes.
+		 * Whether it be which group is active.
+		 */
+		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
+
+		/**
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 * @param tab The tab to close, must be reference equal to a tab given by the API
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
+		 */
+		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
+		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
 	}
 }

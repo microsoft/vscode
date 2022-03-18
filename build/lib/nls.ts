@@ -59,7 +59,7 @@ function template(lines: string[]): string {
 	return `/*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
-define([], [${ wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
+define([], [${wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
 }
 
 /**
@@ -161,6 +161,16 @@ module _nls {
 		getScriptSnapshot = (name: string) => name === this.filename ? this.file : this.lib;
 		getCurrentDirectory = () => '';
 		getDefaultLibFileName = () => 'lib.d.ts';
+
+		readFile(path: string, _encoding?: string): string | undefined {
+			if (path === this.filename) {
+				return this.file.getText(0, this.file.getLength());
+			}
+			return undefined;
+		}
+		fileExists(path: string): boolean {
+			return path === this.filename;
+		}
 	}
 
 	function isCallExpressionWithinTextSpanCollectStep(ts: typeof import('typescript'), textSpan: ts.TextSpan, node: ts.Node): CollectStepResult {
