@@ -37,7 +37,8 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 	}
 
 	canBeReused(model: ITextModel, line: number, word: IWordAtPosition) {
-		return this.line === line && this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
+		return this.model === model // same model
+			&& this.line === line && this.word.startColumn === word.startColumn && this.word.endColumn < word.endColumn // same word
 			&& this.completionModel.incomplete.size === 0; // no incomplete results
 	}
 
