@@ -333,7 +333,9 @@ export class ExplorerItem {
 					}
 				}
 
-				const nested = this.buildFileNester().nest(fileChildren.map(([name]) => name));
+				const nested = this.buildFileNester().nest(
+					fileChildren.map(([name]) => name),
+					this.getPlatformAwareName(this.name));
 
 				for (const [fileEntryName, fileEntryItem] of fileChildren) {
 					const nestedItems = nested.get(fileEntryName);
