@@ -42,6 +42,8 @@ declare module 'vscode' {
 		 * @param thenable A thenable that delays saving.
 		 */
 		waitUntil(thenable: Thenable<any>): void;
+
+		token: CancellationToken;
 	}
 
 	export namespace workspace {
