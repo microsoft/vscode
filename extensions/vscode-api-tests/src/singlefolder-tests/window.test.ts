@@ -478,7 +478,6 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs[4].parentGroup.viewColumn, ViewColumn.Three);
 	});
 
-	/*
 	test('Tabs - ensure active tab is correct', async () => {
 
 		const [docA, docB, docC] = await Promise.all([
@@ -494,16 +493,22 @@ suite('vscode API - window', () => {
 		};
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
-		assert.ok(getActiveTabInActiveGroup());
-		assert.strictEqual(getActiveTabInActiveGroup()?.resource?.toString(), docA.uri.toString());
+		let activeTab = getActiveTabInActiveGroup();
+		assert.ok(activeTab);
+		assert.ok(activeTab.input instanceof TextTabInput);
+		assert.strictEqual(activeTab.input.uri.toString(), docA.uri.toString());
 
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
-		assert.ok(getActiveTabInActiveGroup());
-		assert.strictEqual(getActiveTabInActiveGroup()?.resource?.toString(), docB.uri.toString());
+		activeTab = getActiveTabInActiveGroup();
+		assert.ok(activeTab);
+		assert.ok(activeTab.input instanceof TextTabInput);
+		assert.strictEqual(activeTab.input.uri.toString(), docB.uri.toString());
 
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
-		assert.ok(getActiveTabInActiveGroup());
-		assert.strictEqual(getActiveTabInActiveGroup()?.resource?.toString(), docC.uri.toString());
+		activeTab = getActiveTabInActiveGroup();
+		assert.ok(activeTab);
+		assert.ok(activeTab.input instanceof TextTabInput);
+		assert.strictEqual(activeTab.input.uri.toString(), docC.uri.toString());
 
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');
@@ -511,6 +516,8 @@ suite('vscode API - window', () => {
 
 		assert.ok(!getActiveTabInActiveGroup());
 	});
+
+	/*
 
 	test('Tabs - Move Tab', async () => {
 		const [docA, docB, docC] = await Promise.all([
