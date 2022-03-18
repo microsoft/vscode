@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Limiter } from 'vs/base/common/async';
+import { Event } from 'vs/base/common/event';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -39,15 +41,26 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 	private onWillShutdown(e: WillShutdownEvent): void {
 
 		// Prolong shutdown for orderly model shutdown
-		e.join((async () => {
+		e.join((() => {
+			const limiter = new Limiter(20); // prevent too many IO-ops running in parallel
+
 			const models = Array.from(this.models.values());
 			for (const model of models) {
-				try {
-					await model.store();
-				} catch (error) {
-					this.logService.trace(error);
+				if (e.token.isCancellationRequested) {
+					limiter.dispose();
+					break;
 				}
+
+				limiter.queue(async () => {
+					try {
+						await model.store();
+					} catch (error) {
+						this.logService.trace(error);
+					}
+				});
 			}
+
+			return Event.toPromise(limiter.onFinished);
 		})(), 'join.workingCopyHistory');
 	}
 }
