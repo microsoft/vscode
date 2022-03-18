@@ -41,14 +41,14 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 	private onWillShutdown(e: WillShutdownEvent): void {
 
 		// Prolong shutdown for orderly model shutdown
-		e.join((() => {
+		e.join((async () => {
 			const limiter = new Limiter(20); // prevent too many IO-ops running in parallel
 
 			const models = Array.from(this.models.values());
 			for (const model of models) {
 				if (e.token.isCancellationRequested) {
 					limiter.dispose();
-					break;
+					return;
 				}
 
 				limiter.queue(async () => {
@@ -60,7 +60,9 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 				});
 			}
 
-			return Event.toPromise(limiter.onFinished);
+			if (limiter.size > 0) {
+				return Event.toPromise(limiter.onFinished);
+			}
 		})(), 'join.workingCopyHistory');
 	}
 }
