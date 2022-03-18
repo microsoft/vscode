@@ -156,6 +156,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.installedTimestamp = Date.now();
 			metadata.isPreReleaseVersion = this.extension.properties.isPreReleaseVersion;
 			metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
+			metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
 			metadata.preRelease = this.extension.properties.isPreReleaseVersion ||
 				(isBoolean(this.options.installPreReleaseVersion)
 					? this.options.installPreReleaseVersion /* Respect the passed flag */
