@@ -26,17 +26,24 @@ export async function resolveWorkbenchCommonProperties(
 	version: string | undefined,
 	remoteAuthority?: string,
 	productIdentifier?: string,
+	removeMachineId?: boolean,
 	resolveAdditionalProperties?: () => { [key: string]: any }
 ): Promise<{ [name: string]: string | undefined }> {
 	const result: { [name: string]: string | undefined } = Object.create(null);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL)!;
 
-	let machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
-	if (!machineId) {
-		machineId = uuid.generateUuid();
-		storageService.store(machineIdKey, machineId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+	let machineId: string | undefined;
+	if (!removeMachineId) {
+		machineId = storageService.get(machineIdKey, StorageScope.GLOBAL);
+		if (!machineId) {
+			machineId = uuid.generateUuid();
+			storageService.store(machineIdKey, machineId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+		}
+	} else {
+		machineId = `Redacted-${productIdentifier ?? 'web'}`;
 	}
+
 
 	/**
 	 * Note: In the web, session date information is fetched from browser storage, so these dates are tied to a specific
