@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
 import { ILifecycleService, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -43,10 +42,11 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 		// Prolong shutdown for orderly model shutdown
 		e.join((async () => {
 			const limiter = new Limiter(MAX_PARALLEL_HISTORY_IO_OPS);
+			const promises = [];
 
 			const models = Array.from(this.models.values());
 			for (const model of models) {
-				limiter.queue(async () => {
+				promises.push(limiter.queue(async () => {
 					if (e.token.isCancellationRequested) {
 						return;
 					}
@@ -56,12 +56,10 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 					} catch (error) {
 						this.logService.trace(error);
 					}
-				});
+				}));
 			}
 
-			if (limiter.size > 0) {
-				return Event.toPromise(limiter.onFinished);
-			}
+			await Promise.all(promises);
 		})(), 'join.workingCopyHistory');
 	}
 }

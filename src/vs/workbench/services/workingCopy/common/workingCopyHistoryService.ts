@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -508,9 +508,10 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 			const resolvedHistoryHome = await this.fileService.resolve(historyHome);
 			if (resolvedHistoryHome.children) {
 				const limiter = new Limiter(MAX_PARALLEL_HISTORY_IO_OPS);
+				const promises = [];
 
 				for (const child of resolvedHistoryHome.children) {
-					limiter.queue(async () => {
+					promises.push(limiter.queue(async () => {
 						if (token.isCancellationRequested) {
 							return;
 						}
@@ -525,12 +526,10 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 						} catch (error) {
 							// ignore - model might be missing or corrupt, but we need it
 						}
-					});
+					}));
 				}
 
-				if (limiter.size > 0) {
-					await Event.toPromise(limiter.onFinished);
-				}
+				await Promise.all(promises);
 			}
 		} catch (error) {
 			// ignore - history might be entirely empty
