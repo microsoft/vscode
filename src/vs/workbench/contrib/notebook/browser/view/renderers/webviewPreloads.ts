@@ -1140,9 +1140,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 				break;
 			}
 			case 'showOutput': {
-				const { outputId, cellTop, cellId } = event.data;
+				const { outputId, cellTop, cellId, content } = event.data;
 				outputRunner.enqueue(outputId, () => {
 					viewModel.showOutput(cellId, outputId, cellTop);
+					if (content) {
+						viewModel.updateAndRerender(cellId, outputId, content);
+					}
 				});
 				break;
 			}
@@ -1606,6 +1609,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 			cell?.show(outputId, top);
 		}
 
+		public updateAndRerender(cellId: string, outputId: string, content: webviewMessages.ICreationContent) {
+			const cell = this._outputCells.get(cellId);
+			cell?.updateContentAndRerender(outputId, content);
+		}
+
 		public hideOutput(cellId: string) {
 			const cell = this._outputCells.get(cellId);
 			cell?.hide();
@@ -1911,6 +1919,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 			this.element.style.visibility = 'hidden';
 		}
 
+		public updateContentAndRerender(outputId: string, content: webviewMessages.ICreationContent) {
+			this.outputElements.get(outputId)?.updateContentAndRender(content);
+		}
+
 		public rerender() {
 			for (const outputElement of this.outputElements.values()) {
 				outputElement.rerender();
@@ -1975,6 +1987,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public rerender() {
 			this._outputNode?.rerender();
+		}
+
+		public updateContentAndRender(content: webviewMessages.ICreationContent) {
+			this._outputNode?.updateAndRerender(content);
 		}
 	}
 
@@ -2070,6 +2086,13 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		public rerender() {
 			if (this._content) {
+				this.render(this._content.content, this._content.preloadsAndErrors);
+			}
+		}
+
+		public updateAndRerender(content: webviewMessages.ICreationContent) {
+			if (this._content) {
+				this._content.content = content;
 				this.render(this._content.content, this._content.preloadsAndErrors);
 			}
 		}

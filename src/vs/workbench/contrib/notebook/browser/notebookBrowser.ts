@@ -470,6 +470,11 @@ export interface INotebookEditor {
 	 */
 	createOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
+	/**
+	 * Update the output in webview layer with latest content. It will delegate to `createOutput` is the output is not rendered yet
+	 */
+	updateOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
+
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 
 	/**
