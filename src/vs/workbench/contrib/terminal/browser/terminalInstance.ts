@@ -784,8 +784,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		};
 
 		if (type === 'command') {
-			const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			const cmdDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+			const commands = cmdDetection?.commands;
 			// Current session history
+			const executingCommand = cmdDetection?.executingCommand;
+			if (executingCommand) {
+				commandMap.add(executingCommand);
+			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
 					// trim off any whitespace and/or line endings
@@ -827,6 +832,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					commandMap.add(label);
 				}
 				items = items.reverse();
+			}
+			if (executingCommand) {
+				items.unshift({
+					label: executingCommand,
+					description: cmdDetection.cwd
+				});
+			}
+			if (items.length > 0) {
 				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
 			}
 
