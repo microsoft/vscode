@@ -17,7 +17,6 @@ import { sha256 } from './env/node/sha256';
 import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
 import { LoopbackAuthServer } from './authServer';
 import path = require('path');
-import { URLSearchParams } from 'url';
 
 const localize = nls.loadMessageBundle();
 

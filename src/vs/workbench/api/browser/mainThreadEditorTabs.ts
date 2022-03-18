@@ -213,7 +213,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				if (this._tabGroupModel[i].groupId === group.id) {
 					this._tabGroupModel.splice(i, 1);
 					this._groupLookup.delete(group.id);
-					return;
 				}
 			}
 		}
