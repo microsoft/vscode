@@ -47,9 +47,17 @@ export class ExplorerFileNestingTrie {
 	private getAttributes(filename: string, dirname: string): FilenameAttributes {
 		const lastDot = filename.lastIndexOf('.');
 		if (lastDot < 1) {
-			return { dirname, basename: filename, extname: '' };
+			return {
+				dirname,
+				basename: filename,
+				extname: ''
+			};
 		} else {
-			return { dirname, basename: filename.substring(0, lastDot), extname: filename.substring(lastDot + 1) };
+			return {
+				dirname,
+				basename: filename.substring(0, lastDot),
+				extname: filename.substring(lastDot + 1)
+			};
 		}
 	}
 
@@ -236,10 +244,8 @@ class SubstitutionString {
 
 			const type = token[1];
 			switch (type) {
-				case SubstitutionType.basename:
-				case SubstitutionType.dirname:
-				case SubstitutionType.extname:
-				case SubstitutionType.capture:
+				case SubstitutionType.basename, SubstitutionType.dirname,
+					SubstitutionType.extname, SubstitutionType.capture:
 					this.tokens.push({ capture: type });
 					break;
 				default: throw Error('unknown substitution type: ' + type);
