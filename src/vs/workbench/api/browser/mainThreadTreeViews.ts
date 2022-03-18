@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, ITreeDataTransfer } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController } from 'vs/workbench/common/views';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -13,8 +13,9 @@ import { isUndefinedOrNull, isNumber } from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { TreeDataTransferConverter } from 'vs/workbench/api/common/shared/treeDataTransfer';
+import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDataTransfer } from 'vs/workbench/common/dnd';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -174,12 +175,12 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		readonly hasWillDrop: boolean,
 		private readonly _proxy: ExtHostTreeViewsShape) { }
 
-	async handleDrop(dataTransfer: ITreeDataTransfer, targetTreeItem: ITreeItem, token: CancellationToken,
+	async handleDrop(dataTransfer: IDataTransfer, targetTreeItem: ITreeItem, token: CancellationToken,
 		operationUuid?: string, sourceTreeId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
-		return this._proxy.$handleDrop(this.treeViewId, await TreeDataTransferConverter.toTreeDataTransferDTO(dataTransfer), targetTreeItem.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
+		return this._proxy.$handleDrop(this.treeViewId, await DataTransferConverter.toDataTransferDTO(dataTransfer), targetTreeItem.handle, token, operationUuid, sourceTreeId, sourceTreeItemHandles);
 	}
 
-	async handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<ITreeDataTransfer | undefined> {
+	async handleDrag(sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<IDataTransfer | undefined> {
 		if (!this.hasWillDrop) {
 			return;
 		}
@@ -187,7 +188,7 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 		if (!additionalTransferItems) {
 			return;
 		}
-		return TreeDataTransferConverter.toITreeDataTransfer(additionalTransferItems);
+		return DataTransferConverter.toDataTransfer(additionalTransferItems);
 	}
 }
 
