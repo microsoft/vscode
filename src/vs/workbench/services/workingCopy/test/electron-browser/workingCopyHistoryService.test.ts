@@ -28,6 +28,7 @@ import { dirname } from 'path';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
 import { joinPath } from 'vs/base/common/resources';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -257,6 +258,41 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 3);
+	});
+
+	test('removeEntry - deletes history entries folder when last entry removed', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		let entry = await addEntry({ resource: workingCopy1.resource }, CancellationToken.None);
+
+		// Simulate shutdown
+		let event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		assert.strictEqual(existsSync(dirname(entry.location.fsPath)), true);
+
+		entry = firstOrDefault(await service.getEntries(workingCopy1.resource, CancellationToken.None))!;
+		assert.ok(entry);
+
+		await service.removeEntry(entry, CancellationToken.None);
+
+		// Simulate shutdown
+		event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		assert.strictEqual(existsSync(dirname(entry.location.fsPath)), false);
 	});
 
 	test('removeAll', async () => {
@@ -498,6 +534,33 @@ flakySuite('WorkingCopyHistoryService', () => {
 				assert.fail(`Unexpected history resource: ${resource.toString()}`);
 			}
 		}
+	});
+
+	test('getAll - ignores resource when no entries exist', async () => {
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		const entry = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+
+		let resources = await service.getAll(CancellationToken.None);
+		assert.strictEqual(resources.length, 1);
+
+		await service.removeEntry(entry, CancellationToken.None);
+
+		resources = await service.getAll(CancellationToken.None);
+		assert.strictEqual(resources.length, 0);
+
+		// Simulate shutdown
+		const event = new TestWillShutdownEvent();
+		service._lifecycleService.fireWillShutdown(event);
+		await Promise.allSettled(event.value);
+
+		// Resolve from disk fresh and verify again
+
+		service.dispose();
+		service = new TestWorkingCopyHistoryService(testDir);
+
+		resources = await service.getAll(CancellationToken.None);
+		assert.strictEqual(resources.length, 0);
 	});
 
 	function assertEntryEqual(entryA: IWorkingCopyHistoryEntry, entryB: IWorkingCopyHistoryEntry, assertTimestamp = true): void {

@@ -52,7 +52,7 @@ export class WorkingCopyHistoryModel {
 
 	private whenResolved: Promise<void> | undefined = undefined;
 
-	private readonly historyEntriesFolder = joinPath(this.historyHome, hash(this.workingCopyResource.toString(true)).toString(16));
+	private readonly historyEntriesFolder = joinPath(this.historyHome, hash(this.workingCopyResource.toString()).toString(16));
 	private readonly historyEntriesListingFile = joinPath(this.historyEntriesFolder, WorkingCopyHistoryModel.ENTRIES_FILE);
 	private readonly historyEntriesNameMatch = new RegExp(`[A-Za-z0-9]{4}${extname(this.workingCopyResource)}`);
 
@@ -98,6 +98,10 @@ export class WorkingCopyHistoryModel {
 	}
 
 	async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {
+
+		// Make sure to await resolving when all entries are asked for
+		await this.resolveEntriesOnce();
+
 		const index = this.entries.indexOf(entry);
 		if (index === -1) {
 			return false;
@@ -116,6 +120,10 @@ export class WorkingCopyHistoryModel {
 	}
 
 	async updateEntry(entry: IWorkingCopyHistoryEntry, properties: { source: SaveSource }, token: CancellationToken): Promise<void> {
+
+		// Make sure to await resolving when all entries are asked for
+		await this.resolveEntriesOnce();
+
 		const index = this.entries.indexOf(entry);
 		if (index === -1) {
 			return;
@@ -140,6 +148,16 @@ export class WorkingCopyHistoryModel {
 		}
 
 		return this.entries;
+	}
+
+	async hasEntries(skipResolve: boolean): Promise<boolean> {
+
+		// Make sure to await resolving unless explicitly skipped
+		if (!skipResolve) {
+			await this.resolveEntriesOnce();
+		}
+
+		return this.entries.length > 0;
 	}
 
 	private resolveEntriesOnce(): Promise<void> {
@@ -213,8 +231,19 @@ export class WorkingCopyHistoryModel {
 		// Cleanup based on max-entries setting
 		await this.cleanUpEntries();
 
-		// Persist entries meta data
-		await this.writeEntriesFile();
+		// Without entries, remove the history folder
+		if (this.entries.length === 0) {
+			try {
+				await this.fileService.del(this.historyEntriesFolder, { recursive: true });
+			} catch (error) {
+				this.traceError(error);
+			}
+		}
+
+		// If we still have entries, update the entries meta file
+		else {
+			await this.writeEntriesFile();
+		}
 	}
 
 	private async cleanUpEntries(): Promise<void> {
@@ -258,7 +287,7 @@ export class WorkingCopyHistoryModel {
 	private async writeEntriesFile(): Promise<void> {
 		const serializedModel: ISerializedWorkingCopyHistoryModel = {
 			version: 1,
-			resource: this.workingCopyResource.toString(true),
+			resource: this.workingCopyResource.toString(),
 			entries: this.entries.map(entry => {
 				return {
 					id: entry.id,
@@ -441,8 +470,11 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		const all = new ResourceMap<true>();
 
 		// Fill in all known model resources (they might not have yet persisted to disk)
-		for (const [resource] of this.models) {
-			all.set(resource, true);
+		for (const [resource, model] of this.models) {
+			const hasInMemoryEntries = await model.hasEntries(true /* skip resolving because we resolve below from disk */);
+			if (hasInMemoryEntries) {
+				all.set(resource, true);
+			}
 		}
 
 		// Resolve all other resources by iterating the history home folder
@@ -458,7 +490,9 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 
 					try {
 						const serializedModel: ISerializedWorkingCopyHistoryModel = JSON.parse((await this.fileService.readFile(entriesFile)).value.toString());
-						all.set(URI.parse(serializedModel.resource), true);
+						if (serializedModel.entries.length > 0) {
+							all.set(URI.parse(serializedModel.resource), true);
+						}
 					} catch (error) {
 						// ignore - model might be missing or corrupt, but we need it
 					}
