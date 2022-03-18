@@ -11,6 +11,9 @@ import { LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistor
 import { findLocalHistoryEntry, ITimelineCommandArgument } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { Schemas } from 'vs/base/common/network';
+import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 
 //#region Delete
 
@@ -26,7 +29,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.TimelineItemContext,
 				group: '4_reveal',
 				order: 1,
-				when: LOCAL_HISTORY_MENU_CONTEXT_KEY
+				when: ContextKeyExpr.and(LOCAL_HISTORY_MENU_CONTEXT_KEY, ResourceContextKey.Scheme.isEqualTo(Schemas.file))
 			}
 		});
 	}
