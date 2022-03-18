@@ -18,6 +18,12 @@ else
 	VSCODE_SHELL_LOGIN=""
 fi
 
+if [[ "$PROMPT_COMMAND" =~ ^.*(\s.*\;)|(\;.*\s).*$ ]]; then
+	echo -e "\033[1;32mShell integration cannot be activated due to complex \$PROMPT_COMMAND\033[0m"
+	VSCODE_SHELL_HIDE_WELCOME=""
+	return;
+fi
+
 IN_COMMAND_EXECUTION="1"
 LAST_HISTORY_ID=$(history 1 | awk '{print $1;}')
 
