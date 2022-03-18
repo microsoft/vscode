@@ -7,21 +7,23 @@ import { InMemoryCredentialsProvider } from 'vs/platform/credentials/common/cred
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { BaseCredentialsMainService, KeytarModule } from 'vs/platform/credentials/common/credentialsMainService';
 
-export class CredentialsWebMainService extends BaseCredentialsMainService {
+export class CredentialsDesktopMainService extends BaseCredentialsMainService {
 
 	constructor(
 		@ILogService logService: ILogService,
 		@INativeEnvironmentService private readonly environmentMainService: INativeEnvironmentService,
 		@IProductService private readonly productService: IProductService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) {
 		super(logService);
 	}
 
 	// If the credentials service is running on the server, we add a suffix -server to differentiate from the location that the
 	// client would store the credentials.
-	public override async getSecretStoragePrefix() { return Promise.resolve(`${this.productService.urlProtocol}-server`); }
+	public override async getSecretStoragePrefix() { return Promise.resolve(this.productService.urlProtocol); }
 
 	protected async withKeytar(): Promise<KeytarModule> {
 		if (this._keytarCache) {
@@ -39,9 +41,8 @@ export class CredentialsWebMainService extends BaseCredentialsMainService {
 			// Try using keytar to see if it throws or not.
 			await this._keytarCache.findCredentials('test-keytar-loads');
 		} catch (e) {
-			this.logService.warn(
-				`Using the in-memory credential store as the operating system's credential store could not be accessed. Please see https://aka.ms/vscode-server-keyring on how to set this up. Details: ${e.message ?? e}`);
-			this._keytarCache = new InMemoryCredentialsProvider();
+			this.windowsMainService.sendToFocused('vscode:showCredentialsError', e.message ?? e);
+			throw e;
 		}
 		return this._keytarCache;
 	}

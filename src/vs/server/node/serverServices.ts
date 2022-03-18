@@ -16,7 +16,7 @@ import { ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
-import { CredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
+import { CredentialsWebMainService } from 'vs/platform/credentials/node/credentialsMainService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { DownloadServiceChannelClient } from 'vs/platform/download/common/downloadIpc';
@@ -168,7 +168,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 
-	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsMainService, [true]));
+	services.set(ICredentialsMainService, new SyncDescriptor(CredentialsWebMainService));
 
 	instantiationService.invokeFunction(accessor => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
