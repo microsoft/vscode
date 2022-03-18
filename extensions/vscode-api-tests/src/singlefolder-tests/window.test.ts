@@ -391,7 +391,7 @@ suite('vscode API - window', () => {
 		const group2Tabs = tabGroups.groups[1].tabs;
 		assert.strictEqual(group2Tabs.length, 1);
 
-		await group1Tabs[0].move(1, ViewColumn.One);
+		await tabGroups.move(group1Tabs[0], ViewColumn.One, 1);
 	});
 
 	// TODO @lramos15 re-enable these once shape is more stable

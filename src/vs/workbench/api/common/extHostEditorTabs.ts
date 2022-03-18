@@ -25,11 +25,9 @@ class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
 	private _dto!: IEditorTabDto;
 	private _input: AnyTabInput | undefined;
-	private readonly _proxy: MainThreadEditorTabsShape;
 	private readonly _activeTabIdGetter: () => string;
 
-	constructor(dto: IEditorTabDto, proxy: MainThreadEditorTabsShape, activeTabIdGetter: () => string) {
-		this._proxy = proxy;
+	constructor(dto: IEditorTabDto, activeTabIdGetter: () => string) {
 		this._activeTabIdGetter = activeTabIdGetter;
 		this.acceptDtoUpdate(dto);
 	}
@@ -57,10 +55,6 @@ class ExtHostEditorTab {
 				},
 				get viewColumn() {
 					return typeConverters.ViewColumn.to(that._dto.viewColumn);
-				},
-				move: async (index: number, viewColumn: ViewColumn) => {
-					this._proxy.$moveTab(that._dto.id, index, typeConverters.ViewColumn.from(viewColumn));
-					return;
 				}
 			});
 		}
@@ -110,7 +104,7 @@ class ExtHostEditorTabGroup {
 			if (tabDto.isActive) {
 				this._activeTabId = tabDto.id;
 			}
-			this._tabs.push(new ExtHostEditorTab(tabDto, proxy, () => this.activeTabId()));
+			this._tabs.push(new ExtHostEditorTab(tabDto, () => this.activeTabId()));
 		}
 	}
 
@@ -205,6 +199,14 @@ class ExtHostTabGroups {
 						extHostTabIds.push(extHostTab.tabId);
 					}
 					this._proxy.$closeTab(extHostTabIds, preserveFocus);
+					return;
+				},
+				move: async (tab: vscode.Tab, viewColumn: ViewColumn, index: number, preservceFocus?: boolean) => {
+					const extHostTab = this.findExtHostTabFromApi(tab);
+					if (!extHostTab) {
+						throw new Error('Invalid tab');
+					}
+					this._proxy.$moveTab(extHostTab.tabId, index, typeConverters.ViewColumn.from(viewColumn), preservceFocus);
 					return;
 				}
 			});

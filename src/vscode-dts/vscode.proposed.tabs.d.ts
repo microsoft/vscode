@@ -72,16 +72,6 @@ declare module 'vscode' {
 		 * Whether or not the tab is pinned
 		 */
 		readonly isPinned: boolean;
-
-		/**
-		 * Moves a tab to the given index within the column.
-		 * If the index is out of range, the tab will be moved to the end of the column.
-		 * If the column is out of range, a new one will be created after the last existing column.
-		 * @param index The index to move the tab to
-		 * @param viewColumn The column to move the tab into
-		 */
-		// TODO@API move into TabGroups
-		move(index: number, viewColumn: ViewColumn): Thenable<void>;
 	}
 
 	export namespace window {
@@ -143,5 +133,18 @@ declare module 'vscode' {
 		 */
 		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
 		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
+
+		/**
+		 * Moves a tab to the given index within the column.
+		 * If the index is out of range, the tab will be moved to the end of the column.
+		 * If the column is out of range, a new one will be created after the last existing column.
+		 *
+		 * @package tab The tab to move.
+		 * @param viewColumn The column to move the tab into
+		 * @param index The index to move the tab to
+		 */
+		// TODO@API support TabGroup in addition to ViewColumn
+		// TODO@API support just index for moving inside current group
+		move(tab: Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean): Thenable<void>;
 	}
 }
