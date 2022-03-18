@@ -3579,7 +3579,7 @@ export interface IBracketPairColorizationOptions {
 	/**
 	 * Use independent color pool per bracket type.
 	*/
-	useIndependentColorPoolPerBracketType?: boolean;
+	independentColorPoolPerBracketType?: boolean;
 }
 
 /**
@@ -3594,7 +3594,7 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 	constructor() {
 		const defaults: InternalBracketPairColorizationOptions = {
 			enabled: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.enabled,
-			useIndependentColorPoolPerBracketType: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.useIndependentColorPoolPerBracketType,
+			independentColorPoolPerBracketType: EDITOR_MODEL_DEFAULTS.bracketPairColorizationOptions.independentColorPoolPerBracketType,
 		};
 
 		super(
@@ -3605,10 +3605,10 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 					default: defaults.enabled,
 					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use 'workbench.colorCustomizations' to override the bracket highlight colors.")
 				},
-				'editor.bracketPairColorization.useIndependentColorPoolPerBracketType': {
+				'editor.bracketPairColorization.independentColorPoolPerBracketType': {
 					type: 'boolean',
-					default: defaults.useIndependentColorPoolPerBracketType,
-					description: nls.localize('bracketPairColorization.useIndependentColorPoolPerBracketType', "Controls whether each bracket type has its own independent color pool.")
+					default: defaults.independentColorPoolPerBracketType,
+					description: nls.localize('bracketPairColorization.independentColorPoolPerBracketType', "Controls whether each bracket type has its own independent color pool.")
 				},
 			}
 		);
@@ -3621,7 +3621,7 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 		const input = _input as IBracketPairColorizationOptions;
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
-			useIndependentColorPoolPerBracketType: boolean(input.useIndependentColorPoolPerBracketType, this.defaultValue.useIndependentColorPoolPerBracketType),
+			independentColorPoolPerBracketType: boolean(input.independentColorPoolPerBracketType, this.defaultValue.independentColorPoolPerBracketType),
 		};
 	}
 }

@@ -1686,7 +1686,7 @@ declare namespace monaco.editor {
 
 	export interface BracketPairColorizationOptions {
 		enabled: boolean;
-		useIndependentColorPoolPerBracketType: boolean;
+		independentColorPoolPerBracketType: boolean;
 	}
 
 	export interface ITextModelUpdateOptions {
@@ -3986,7 +3986,7 @@ declare namespace monaco.editor {
 		/**
 		 * Use independent color pool per bracket type.
 		*/
-		useIndependentColorPoolPerBracketType?: boolean;
+		independentColorPoolPerBracketType?: boolean;
 	}
 
 	export interface IGuidesOptions {
