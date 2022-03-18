@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
@@ -36,7 +36,7 @@ class ExtHostEditorTab {
 		// Don't want to lose reference to parent `this` in the getters
 		const that = this;
 		if (!this._apiObject) {
-			this._apiObject = Object.freeze({
+			const obj: vscode.Tab = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active tab per group and prevent iteration for being required
 					return that._dto.id === that._activeTabIdGetter();
@@ -56,7 +56,8 @@ class ExtHostEditorTab {
 				get viewColumn() {
 					return typeConverters.ViewColumn.to(that._dto.viewColumn);
 				}
-			});
+			};
+			this._apiObject = Object.freeze<vscode.Tab>(obj);
 		}
 		return this._apiObject;
 	}
@@ -112,7 +113,7 @@ class ExtHostEditorTabGroup {
 		// Don't want to lose reference to parent `this` in the getters
 		const that = this;
 		if (!this._apiObject) {
-			this._apiObject = Object.freeze({
+			const obj: vscode.TabGroup = {
 				get isActive() {
 					// We use a getter function here to always ensure at most 1 active group and prevent iteration for being required
 					return that._dto.groupId === that._activeGroupIdGetter();
@@ -124,9 +125,10 @@ class ExtHostEditorTabGroup {
 					return that._tabs.find(tab => tab.tabId === that._activeTabId)?.apiObject;
 				},
 				get tabs() {
-					return that._tabs.map(tab => tab.apiObject);
+					return Object.freeze(that._tabs.map(tab => tab.apiObject));
 				}
-			});
+			};
+			this._apiObject = Object.freeze<vscode.TabGroup>(obj);
 		}
 		return this._apiObject;
 	}

@@ -101,7 +101,7 @@ declare module 'vscode' {
 		/**
 		 * The list of tabs contained within the group
 		 */
-		readonly tabs: Tab[];
+		readonly tabs: readonly Tab[];
 	}
 
 	export interface TabGroups {
