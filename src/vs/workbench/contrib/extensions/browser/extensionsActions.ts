@@ -749,13 +749,6 @@ export class UpdateAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.type !== ExtensionType.User) {
-			this.enabled = false;
-			this.class = UpdateAction.DisabledClass;
-			this.label = this.getLabel();
-			return;
-		}
-
 		const canInstall = await this.extensionsWorkbenchService.canInstall(this.extension);
 		const isInstalled = this.extension.state === ExtensionState.Installed;
 

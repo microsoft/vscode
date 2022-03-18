@@ -138,6 +138,9 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 	const text = outputInfo.text();
 	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
+	while (container.firstChild) {
+		container.removeChild(container.firstChild);
+	}
 	container.appendChild(element);
 	container.setAttribute('output-mime-type', outputInfo.mime);
 	if (error) {

@@ -7,16 +7,12 @@ import * as DOM from 'vs/base/browser/dom';
 import { Codicon, CSSIcon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { EXPAND_CELL_OUTPUT_COMMAND_ID, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { EXPAND_CELL_OUTPUT_COMMAND_ID, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 
 const $ = DOM.$;
 
 export class CollapsedCellOutput extends CellPart {
-	private currentCell: ICellViewModel | undefined;
-
 	constructor(
 		private readonly notebookEditor: INotebookEditor,
 		cellOutputCollapseContainer: HTMLElement,
@@ -58,18 +54,5 @@ export class CollapsedCellOutput extends CellPart {
 		}
 
 		this.currentCell.isOutputCollapsed = !this.currentCell.isOutputCollapsed;
-	}
-
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.currentCell = element;
-	}
-
-	prepareLayout(): void {
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 	}
 }

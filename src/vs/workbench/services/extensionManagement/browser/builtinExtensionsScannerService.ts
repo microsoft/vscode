@@ -64,10 +64,7 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 	}
 
 	async scanBuiltinExtensions(): Promise<IExtension[]> {
-		if (isWeb) {
-			return this.builtinExtensions;
-		}
-		throw new Error('not supported');
+		return [...this.builtinExtensions];
 	}
 }
 

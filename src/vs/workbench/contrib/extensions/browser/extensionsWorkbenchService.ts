@@ -45,6 +45,7 @@ import { isBoolean, isUndefined } from 'vs/base/common/types';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IExtensionService, IExtensionsStatus } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
+import { isWeb } from 'vs/base/common/platform';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -203,9 +204,6 @@ export class Extension implements IExtension {
 
 	get outdated(): boolean {
 		if (!this.gallery || !this.local) {
-			return false;
-		}
-		if (this.type !== ExtensionType.User) {
 			return false;
 		}
 		if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
@@ -718,8 +716,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.queryLocal().then(() => {
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallyCheckForUpdates(true);
-			// Always auto update builtin extensions
-			if (!this.isAutoUpdateEnabled()) {
+			// Always auto update builtin extensions in web
+			if (isWeb && !this.isAutoUpdateEnabled()) {
 				this.autoUpdateBuiltinExtensions();
 			}
 		});
@@ -1055,7 +1053,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		const infos: IExtensionInfo[] = [];
 		for (const installed of this.local) {
-			if (installed.type === ExtensionType.User && (!onlyBuiltin || installed.isBuiltin)) {
+			if (!onlyBuiltin || installed.isBuiltin) {
 				infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
 			}
 		}

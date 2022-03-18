@@ -17,7 +17,7 @@ import * as nls from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WORKSPACE_EXTENSION, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, IWorkspaceContextService, ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
+export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>({
 	'CURRENT_YEAR': true,
 	'CURRENT_YEAR_SHORT': true,
 	'CURRENT_MONTH': true,

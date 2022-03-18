@@ -136,6 +136,7 @@ export interface CodeCellLayoutInfo {
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly statusBarHeight: number;
+	readonly commentHeight: number;
 	readonly totalHeight: number;
 	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
@@ -150,6 +151,7 @@ export interface CodeCellLayoutInfo {
 export interface CodeCellLayoutChangeEvent {
 	source?: string;
 	editorHeight?: boolean;
+	commentHeight?: boolean;
 	outputHeight?: boolean;
 	outputShowMoreContainerHeight?: number;
 	totalHeight?: boolean;
@@ -467,6 +469,11 @@ export interface INotebookEditor {
 	 * Render the output in webview layer
 	 */
 	createOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
+
+	/**
+	 * Update the output in webview layer with latest content. It will delegate to `createOutput` is the output is not rendered yet
+	 */
+	updateOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 

@@ -7,10 +7,36 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
-	export enum TabKind {
-		Singular = 0,
-		Diff = 1,
-		SidebySide = 2
+	// TODO@API names
+	export class TextTabInput {
+		readonly uri: Uri;
+		constructor(uri: Uri);
+	}
+
+	// TODO@API names
+	export class TextDiffTabInput {
+		readonly original: Uri;
+		readonly modified: Uri;
+		constructor(original: Uri, modified: Uri);
+	}
+
+	export class CustomEditorTabInput {
+		readonly uri: Uri;
+		readonly viewType: string;
+		constructor(uri: Uri, viewType: string);
+	}
+
+	export class NotebookEditorTabInput {
+		readonly uri: Uri;
+		readonly notebookType: string;
+		constructor(uri: Uri, notebookType: string);
+	}
+
+	export class NotebookDiffEditorTabInput {
+		readonly original: Uri;
+		readonly modified: Uri;
+		readonly notebookType: string;
+		constructor(original: Uri, modified: Uri, notebookType: string);
 	}
 
 	/**
@@ -23,33 +49,12 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The column which the tab belongs to
+		 * The group which the tab belongs to
 		 */
-		// TODO@API point to TabGroup instead?
-		readonly viewColumn: ViewColumn;
+		readonly parentGroup: TabGroup;
 
-		/**
-		 * The resource represented by the tab if available.
-		 * Note: Not all tabs have a resource associated with them.
-		 */
-		readonly resource: Uri | undefined;
-
-		/**
-		 * The type of view contained in the tab
-		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
-		 * The built-in text editor has an id of 'default' for all configurations.
-		 */
-		readonly viewType: string | undefined;
-
-		/**
-		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
-		 * always be at index 0.
-		 */
-		readonly additionalResourcesAndViewTypes: readonly {
-			readonly resource: Uri | undefined;
-			readonly viewType: string | undefined;
-		}[];
+		// TODO@API NAME: optional
+		readonly input: TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookDiffEditorTabInput | unknown;
 
 		/**
 		 * Whether or not the tab is currently active
@@ -63,32 +68,14 @@ declare module 'vscode' {
 		readonly isDirty: boolean;
 
 		/**
-		 * Whether or not the tab is pinned
+		 * Whether or not the tab is pinned (pin icon is present)
 		 */
 		readonly isPinned: boolean;
 
 		/**
-		 * Indicates the type of tab it is.
+		 * Whether or not the tab is in preview mode.
 		 */
-		readonly kind: TabKind;
-
-		/**
-		 * Moves a tab to the given index within the column.
-		 * If the index is out of range, the tab will be moved to the end of the column.
-		 * If the column is out of range, a new one will be created after the last existing column.
-		 * @param index The index to move the tab to
-		 * @param viewColumn The column to move the tab into
-		 */
-		// TODO@API move into TabGroups
-		move(index: number, viewColumn: ViewColumn): Thenable<void>;
-
-		/**
-		 * Closes the tab. This makes the tab object invalid and the tab
-		 * should no longer be used for further actions.
-		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
-		 */
-		// TODO@API move into TabGroups, support one or many tabs or tab groups
-		close(preserveFocus: boolean): Thenable<void>;
+		readonly isPreview: boolean;
 	}
 
 	export namespace window {
@@ -96,29 +83,6 @@ declare module 'vscode' {
 		 * Represents the grid widget within the main editor area
 		 */
 		export const tabGroups: TabGroups;
-	}
-
-	export interface TabGroups {
-		/**
-		 * All the groups within the group container
-		 */
-		readonly groups: TabGroup[];
-
-		/**
-		 * The currently active group
-		 */
-		activeTabGroup: TabGroup | undefined;
-
-		/**
-		 * An {@link Event} which fires when a group changes.
-		 */
-		onDidChangeTabGroup: Event<void>;
-
-		/**
-		 * An {@link Event} which fires when the active group changes.
-		 * Whether it be which group is active or its properties.
-		 */
-		onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 	}
 
 	export interface TabGroup {
@@ -140,6 +104,57 @@ declare module 'vscode' {
 		/**
 		 * The list of tabs contained within the group
 		 */
-		readonly tabs: Tab[];
+		readonly tabs: readonly Tab[];
+	}
+
+	export interface TabGroups {
+		/**
+		 * All the groups within the group container
+		 */
+		readonly groups: readonly TabGroup[];
+
+		/**
+		 * The currently active group
+		 */
+		readonly activeTabGroup: TabGroup | undefined;
+
+		/**
+		 * An {@link Event} which fires when a group changes.
+		 */
+		readonly onDidChangeTabGroup: Event<void>;
+
+		/**
+		 * An {@link Event} which fires when a tab changes.
+		 */
+		// TODO@API use richer event type?
+		readonly onDidChangeTab: Event<Tab>;
+
+		/**
+		 * An {@link Event} which fires when the active group changes.
+		 * Whether it be which group is active.
+		 */
+		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
+
+		/**
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 * @param tab The tab to close, must be reference equal to a tab given by the API
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
+		 */
+		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
+		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
+
+		/**
+		 * Moves a tab to the given index within the column.
+		 * If the index is out of range, the tab will be moved to the end of the column.
+		 * If the column is out of range, a new one will be created after the last existing column.
+		 *
+		 * @package tab The tab to move.
+		 * @param viewColumn The column to move the tab into
+		 * @param index The index to move the tab to
+		 */
+		// TODO@API support TabGroup in addition to ViewColumn
+		// TODO@API support just index for moving inside current group
+		move(tab: Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean): Thenable<void>;
 	}
 }

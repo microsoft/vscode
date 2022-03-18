@@ -307,6 +307,30 @@
             ],
             "default": "off",
             "description": "%css.trace.server.desc%"
+          },
+          "css.format.enable": {
+            "type": "boolean",
+            "scope": "window",
+            "default": true,
+            "description": "%css.format.enable.desc%"
+          },
+          "css.format.selectorSeparatorNewline": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "markdownDescription": "%css.format.selectorSeparatorNewline.desc%"
+          },
+          "css.format.newlineBetweenRules": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "markdownDescription": "%css.format.newlineBetweenRules.desc%"
+          },
+          "css.format.spaceAroundSelectorSeparator": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": false,
+            "markdownDescription": "%css.format.spaceAroundSelectorSeparator.desc%"
           }
         }
       },
@@ -563,6 +587,30 @@
             ],
             "default": "warning",
             "description": "%scss.lint.unknownAtRules.desc%"
+          },
+          "scss.format.enable": {
+            "type": "boolean",
+            "scope": "window",
+            "default": true,
+            "description": "%scss.format.enable.desc%"
+          },
+          "scss.format.selectorSeparatorNewline": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "markdownDescription": "%scss.format.selectorSeparatorNewline.desc%"
+          },
+          "scss.format.newlineBetweenRules": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "markdownDescription": "%scss.format.newlineBetweenRules.desc%"
+          },
+          "scss.format.spaceAroundSelectorSeparator": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": false,
+            "markdownDescription": "%scss.format.spaceAroundSelectorSeparator.desc%"
           }
         }
       },
@@ -820,6 +868,30 @@
             ],
             "default": "warning",
             "description": "%less.lint.unknownAtRules.desc%"
+          },
+          "less.format.enable": {
+            "type": "boolean",
+            "scope": "window",
+            "default": true,
+            "description": "%less.format.enable.desc%"
+          },
+          "less.format.selectorSeparatorNewline": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "markdownDescription": "%less.format.selectorSeparatorNewline.desc%"
+          },
+          "less.format.newlineBetweenRules": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "markdownDescription": "%less.format.newlineBetweenRules.desc%"
+          },
+          "less.format.spaceAroundSelectorSeparator": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": false,
+            "markdownDescription": "%less.format.spaceAroundSelectorSeparator.desc%"
           }
         }
       }

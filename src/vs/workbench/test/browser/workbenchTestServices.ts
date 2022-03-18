@@ -929,8 +929,10 @@ export class TestEditorService implements EditorServiceImpl {
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
 	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<IEditorPane | undefined> {
-		throw new Error('not implemented');
+		return undefined;
 	}
+	async closeEditor(editor: IEditorIdentifier, options?: ICloseEditorOptions): Promise<void> { }
+	async closeEditors(editors: IEditorIdentifier[], options?: ICloseEditorOptions): Promise<void> { }
 	doResolveEditorOpenRequest(editor: EditorInput | IUntypedEditorInput): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
 		if (!this.editorGroupService) {
 			return undefined;
@@ -1138,7 +1140,7 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
 		fileService.registerProvider(Schemas.file, new InMemoryFileSystemProvider());
-		fileService.registerProvider(Schemas.userData, new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.vscodeUserData, new InMemoryFileSystemProvider());
 
 		super(new TestContextService(TestWorkspace), environmentService, fileService, logService);
 
@@ -1216,6 +1218,7 @@ export class TestLifecycleService implements ILifecycleService {
 				this.shutdownJoiners.push(p);
 			},
 			force: () => { /* No-Op in tests */ },
+			token: CancellationToken.None,
 			reason
 		});
 	}
@@ -1249,6 +1252,7 @@ export class TestWillShutdownEvent implements WillShutdownEvent {
 
 	value: Promise<void>[] = [];
 	reason = ShutdownReason.CLOSE;
+	token = CancellationToken.None;
 
 	join(promise: Promise<void>, id: string): void {
 		this.value.push(promise);

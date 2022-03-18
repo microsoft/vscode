@@ -154,4 +154,7 @@ import 'vs/workbench/contrib/webview/electron-sandbox/webview.contribution';
 // Splash
 import 'vs/workbench/contrib/splash/electron-sandbox/splash.contribution';
 
+// Local History
+import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistory.contribution';
+
 //#endregion

@@ -22,7 +22,7 @@ class BrowserWorkingCopyHistoryModel extends WorkingCopyHistoryModel {
 	override async addEntry(source: SaveSource, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
 		const entry = await super.addEntry(source, timestamp, token);
 		if (!token.isCancellationRequested) {
-			await this.store(); // need to store on each add because we do not have long running shutdown support in web
+			await this.store(token); // need to store on each add because we do not have long running shutdown support in web
 		}
 
 		return entry;
@@ -31,14 +31,14 @@ class BrowserWorkingCopyHistoryModel extends WorkingCopyHistoryModel {
 	override async updateEntry(entry: IWorkingCopyHistoryEntry, properties: { source: SaveSource }, token: CancellationToken): Promise<void> {
 		await super.updateEntry(entry, properties, token);
 		if (!token.isCancellationRequested) {
-			await this.store(); // need to store on each remove because we do not have long running shutdown support in web
+			await this.store(token); // need to store on each remove because we do not have long running shutdown support in web
 		}
 	}
 
 	override async removeEntry(entry: IWorkingCopyHistoryEntry, token: CancellationToken): Promise<boolean> {
 		const removed = await super.removeEntry(entry, token);
 		if (removed && !token.isCancellationRequested) {
-			await this.store(); // need to store on each remove because we do not have long running shutdown support in web
+			await this.store(token); // need to store on each remove because we do not have long running shutdown support in web
 		}
 
 		return removed;

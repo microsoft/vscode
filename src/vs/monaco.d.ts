@@ -1686,7 +1686,7 @@ declare namespace monaco.editor {
 
 	export interface BracketPairColorizationOptions {
 		enabled: boolean;
-		useIndependentColorPoolPerBracketType: boolean;
+		independentColorPoolPerBracketType: boolean;
 	}
 
 	export interface ITextModelUpdateOptions {
@@ -3796,13 +3796,21 @@ declare namespace monaco.editor {
 		cycle?: boolean;
 	}
 
+	export type QuickSuggestionsValue = 'on' | 'inline' | 'off';
+
 	/**
 	 * Configuration options for quick suggestions
 	 */
 	export interface IQuickSuggestionsOptions {
-		other?: boolean;
-		comments?: boolean;
-		strings?: boolean;
+		other?: boolean | QuickSuggestionsValue;
+		comments?: boolean | QuickSuggestionsValue;
+		strings?: boolean | QuickSuggestionsValue;
+	}
+
+	export interface InternalQuickSuggestionsOptions {
+		readonly other: QuickSuggestionsValue;
+		readonly comments: QuickSuggestionsValue;
+		readonly strings: QuickSuggestionsValue;
 	}
 
 	export type LineNumbersType = 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
@@ -3978,7 +3986,7 @@ declare namespace monaco.editor {
 		/**
 		 * Use independent color pool per bracket type.
 		*/
-		useIndependentColorPoolPerBracketType?: boolean;
+		independentColorPoolPerBracketType?: boolean;
 	}
 
 	export interface IGuidesOptions {
@@ -4416,7 +4424,7 @@ declare namespace monaco.editor {
 		parameterHints: IEditorOption<EditorOption.parameterHints, Readonly<Required<IEditorParameterHintOptions>>>;
 		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
 		definitionLinkOpensInPeek: IEditorOption<EditorOption.definitionLinkOpensInPeek, boolean>;
-		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, any>;
+		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, InternalQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
@@ -6271,9 +6279,14 @@ declare namespace monaco.languages {
 		 * The text can also be a snippet. In that case, a preview with default parameters is shown.
 		 * When accepting the suggestion, the full snippet is inserted.
 		*/
-		readonly text: string | {
+		readonly insertText: string | {
 			snippet: string;
 		};
+		/**
+		 * A text that is used to decide if this inline completion should be shown.
+		 * An inline completion is shown if the text to replace is a subword of the filter text.
+		 */
+		readonly filterText?: string;
 		/**
 		 * The range to replace.
 		 * Must begin and end on the same line.

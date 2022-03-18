@@ -45,7 +45,7 @@ export class TimelineService implements ITimelineService {
 	}
 
 	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions) {
-		this.logService.trace(`TimelineService#getTimeline(${id}): uri=${uri.toString(true)}`);
+		this.logService.trace(`TimelineService#getTimeline(${id}): uri=${uri.toString()}`);
 
 		const provider = this.providers.get(id);
 		if (provider === undefined) {

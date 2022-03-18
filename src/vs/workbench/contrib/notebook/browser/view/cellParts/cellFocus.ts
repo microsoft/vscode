@@ -4,16 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 
 export class CellFocusPart extends CellPart {
-	private currentCell: ICellViewModel | undefined;
-
 	constructor(
 		containerElement: HTMLElement,
+		focusSinkElement: HTMLElement | undefined,
 		notebookEditor: INotebookEditor
 	) {
 		super();
@@ -23,22 +21,13 @@ export class CellFocusPart extends CellPart {
 				notebookEditor.focusElement(this.currentCell);
 			}
 		}, true));
-	}
 
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.currentCell = element;
-	}
-
-	override unrenderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.currentCell = undefined;
-	}
-
-	prepareLayout(): void {
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		if (focusSinkElement) {
+			this._register(DOM.addDisposableListener(focusSinkElement, DOM.EventType.FOCUS, () => {
+				if (this.currentCell && (this.currentCell as CodeCellViewModel).outputsViewModels.length) {
+					notebookEditor.focusNotebookCell(this.currentCell, 'output');
+				}
+			}));
+		}
 	}
 }

@@ -29,7 +29,11 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorControl } from 'vs/workbench/common/editor';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
 
 export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
@@ -51,7 +55,8 @@ export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): Re
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
-	findTextEditorIdFor(editorPane: IEditorPane): string | undefined;
+	findTextEditorIdFor(editorControl: IEditorControl): string | undefined;
+	getIdOfCodeEditor(codeEditor: ICodeEditor): string | undefined;
 }
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
@@ -64,6 +69,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[] };
 	private _editorPositionData: ITextEditorPositionData | null;
 	private _registeredDecorationTypes: { [decorationType: string]: boolean };
+	private readonly _dropIntoEditorListeners = new Map<ICodeEditor, IDisposable>();
 
 	constructor(
 		private readonly _editorLocator: IMainThreadEditorLocator,
@@ -71,7 +77,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
@@ -82,6 +88,21 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._toDispose.add(this._editorService.onDidVisibleEditorsChange(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.add(this._editorGroupService.onDidRemoveGroup(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.add(this._editorGroupService.onDidMoveGroup(() => this._updateActiveAndVisibleTextEditors()));
+
+		const registerDropListenerOnEditor = (editor: ICodeEditor) => {
+			this._dropIntoEditorListeners.get(editor)?.dispose();
+			this._dropIntoEditorListeners.set(editor, editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.dataTransfer)));
+		};
+
+		this._toDispose.add(_codeEditorService.onCodeEditorAdd(registerDropListenerOnEditor));
+
+		this._toDispose.add(_codeEditorService.onCodeEditorRemove(editor => {
+			this._dropIntoEditorListeners.get(editor)?.dispose();
+		}));
+
+		for (const editor of this._codeEditorService.listCodeEditors()) {
+			registerDropListenerOnEditor(editor);
+		}
 
 		this._registeredDecorationTypes = Object.create(null);
 	}
@@ -95,6 +116,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		for (let decorationType in this._registeredDecorationTypes) {
 			this._codeEditorService.removeDecorationType(decorationType);
 		}
+		dispose(this._dropIntoEditorListeners.values());
+		this._dropIntoEditorListeners.clear();
 		this._registeredDecorationTypes = Object.create(null);
 	}
 
@@ -132,6 +155,31 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			}
 		}
 		return result;
+	}
+
+	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dataTransfer: DataTransfer) {
+		const id = this._editorLocator.getIdOfCodeEditor(editor);
+		if (typeof id !== 'string') {
+			return;
+		}
+
+		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
+
+		for (const item of dataTransfer.items) {
+			if (item.kind === 'string') {
+				const type = item.type;
+				const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
+				textEditorDataTransfer.set(type, {
+					asString: () => asStringValue,
+					value: undefined
+				});
+			}
+		}
+
+		if (textEditorDataTransfer.size > 0) {
+			const dataTransferDto = await DataTransferConverter.toDataTransferDTO(textEditorDataTransfer);
+			return this._proxy.$textEditorHandleDrop(id, position, dataTransferDto);
+		}
 	}
 
 	// --- from extension host process

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -85,6 +85,10 @@ export interface ICwdDetectionCapability {
 export interface ICommandDetectionCapability {
 	readonly type: TerminalCapability.CommandDetection;
 	readonly commands: readonly ITerminalCommand[];
+	/** The command currently being executed, otherwise undefined. */
+	readonly executingCommand: string | undefined;
+	/** The current cwd at the cursor's position. */
+	readonly cwd: string | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	setCwd(value: string): void;
@@ -97,6 +101,8 @@ export interface ICommandDetectionCapability {
 	handlePromptStart(): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
+	handleRightPromptStart(): void;
+	handleRightPromptEnd(): void;
 	handleCommandStart(): void;
 	handleCommandExecuted(): void;
 	handleCommandFinished(exitCode: number | undefined): void;
@@ -104,8 +110,8 @@ export interface ICommandDetectionCapability {
 	 * Set the command line explicitly.
 	 */
 	setCommandLine(commandLine: string): void;
-	serializeCommands(): ISerializedCommand[];
-	restoreCommands(serialized: ISerializedCommand[]): void;
+	serialize(): ISerializedCommandDetectionCapability;
+	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
 
 export interface INaiveCwdDetectionCapability {
@@ -128,6 +134,7 @@ export interface ITerminalCommand {
 	marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
 	executedMarker?: IXtermMarker;
+	commandStartLineContent?: string;
 	getOutput(): string | undefined;
 	hasOutput: boolean;
 }

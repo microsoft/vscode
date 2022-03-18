@@ -44,7 +44,7 @@ import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelPrivacyId, TunnelProviderFeatures } from 'vs/platform/tunnel/common/tunnel';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
-import { TreeDataTransferDTO } from 'vs/workbench/api/common/shared/treeDataTransfer';
+import { DataTransferDTO } from 'vs/workbench/api/common/shared/dataTransfer';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
@@ -114,24 +114,25 @@ export interface CommentChanges {
 	readonly timestamp?: string;
 }
 
-export type CommentThreadChanges = Partial<{
-	range: IRange;
+export type CommentThreadChanges<T = IRange> = Partial<{
+	range: T;
 	label: string;
 	contextValue: string | null;
 	comments: CommentChanges[];
 	collapseState: languages.CommentThreadCollapsibleState;
 	canReply: boolean;
+	state: languages.CommentThreadState;
 }>;
 
 export interface MainThreadCommentsShape extends IDisposable {
 	$registerCommentController(handle: number, id: string, label: string): void;
 	$unregisterCommentController(handle: number): void;
 	$updateCommentControllerFeatures(handle: number, features: CommentProviderFeatures): void;
-	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange, extensionId: ExtensionIdentifier): languages.CommentThread | undefined;
+	$createCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, range: IRange | ICellRange, extensionId: ExtensionIdentifier): languages.CommentThread<IRange | ICellRange> | undefined;
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateCommentingRanges(handle: number): void;
-	$onDidCommentThreadsChange(handle: number, event: languages.CommentThreadChangedEvent): void;
+	$onDidCommentThreadsChange(handle: number, event: languages.CommentThreadChangedEvent<IRange | ICellRange>): void;
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {
@@ -609,10 +610,55 @@ export interface ExtHostEditorInsetsShape {
 
 //#region --- tabs model
 
+export const enum TabInputKind {
+	UnknownInput,
+	TextInput,
+	TextDiffInput,
+	NotebookInput,
+	NotebookDiffInput,
+	CustomEditorInput
+}
+
+export interface UnknownInputDto {
+	kind: TabInputKind.UnknownInput;
+}
+
+export interface TextInputDto {
+	kind: TabInputKind.TextInput;
+	uri: UriComponents;
+}
+
+export interface TextDiffInputDto {
+	kind: TabInputKind.TextDiffInput;
+	original: UriComponents;
+	modified: UriComponents;
+}
+
+export interface NotebookInputDto {
+	kind: TabInputKind.NotebookInput;
+	notebookType: string;
+	uri: UriComponents;
+}
+
+export interface NotebookDiffInputDto {
+	kind: TabInputKind.NotebookDiffInput;
+	notebookType: string;
+	original: UriComponents;
+	modified: UriComponents;
+}
+
+export interface CustomInputDto {
+	kind: TabInputKind.CustomEditorInput;
+	viewType: string;
+	uri: UriComponents;
+}
+
+export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto;
+
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
-	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn): void;
-	$closeTab(tabId: string, preserveFocus: boolean): Promise<void>;
+	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean): void;
+	$closeTab(tabIds: string[], preserveFocus?: boolean): Promise<void>;
 }
 
 export interface IEditorTabGroupDto {
@@ -624,28 +670,23 @@ export interface IEditorTabGroupDto {
 	groupId: number;
 }
 
-export enum TabKind {
-	Singular = 0,
-	Diff = 1,
-	SidebySide = 2
-}
-
 export interface IEditorTabDto {
 	id: string;
-	viewColumn: EditorGroupColumn;
 	label: string;
-	resource?: UriComponents;
+	input: AnyInputDto;
 	editorId?: string;
 	isActive: boolean;
 	isPinned: boolean;
+	isPreview: boolean;
 	isDirty: boolean;
-	kind: TabKind;
-	additionalResourcesAndViewTypes: { resource?: UriComponents; viewId?: string }[];
 }
 
 export interface IExtHostEditorTabsShape {
+	// Accepts a whole new model
 	$acceptEditorTabModel(tabGroups: IEditorTabGroupDto[]): void;
+	// Only when group property changes (not the tabs inside)
 	$acceptTabGroupUpdate(groupDto: IEditorTabGroupDto): void;
+	// Only when tab property changes
 	$acceptTabUpdate(groupId: number, tabDto: IEditorTabDto): void;
 }
 
@@ -1262,6 +1303,7 @@ export interface ISelectionChangeEvent {
 export interface ExtHostEditorsShape {
 	$acceptEditorPropertiesChanged(id: string, props: IEditorPropertiesChangeData): void;
 	$acceptEditorPositionData(data: ITextEditorPositionData): void;
+	$textEditorHandleDrop(id: string, position: IPosition, dataTransferDto: DataTransferDTO): Promise<void>;
 }
 
 export interface IDocumentsAndEditorsDelta {
@@ -1278,8 +1320,8 @@ export interface ExtHostDocumentsAndEditorsShape {
 
 export interface ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined>;
-	$handleDrop(destinationViewId: string, treeDataTransfer: TreeDataTransferDTO, newParentTreeItemHandle: string, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
-	$handleDrag(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<TreeDataTransferDTO | undefined>;
+	$handleDrop(destinationViewId: string, treeDataTransfer: DataTransferDTO, newParentTreeItemHandle: string, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
+	$handleDrag(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<DataTransferDTO | undefined>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
 	$setVisible(treeViewId: string, visible: boolean): void;
@@ -1681,7 +1723,7 @@ export interface ExtHostQuickOpenShape {
 }
 
 export interface ExtHostTelemetryShape {
-	$initializeTelemetryLevel(level: TelemetryLevel): void;
+	$initializeTelemetryLevel(level: TelemetryLevel, productConfig?: { usage: boolean; error: boolean }): void;
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void;
 }
 

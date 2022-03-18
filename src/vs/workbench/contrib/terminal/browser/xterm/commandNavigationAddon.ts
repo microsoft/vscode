@@ -9,8 +9,9 @@ import { ICommandTracker } from 'vs/workbench/contrib/terminal/browser/terminal'
 import { ICommandDetectionCapability, IPartialCommandDetectionCapability, ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon, IDecoration } from 'xterm';
 import { timeout } from 'vs/base/common/async';
-import { IColorTheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 
 enum Boundary {
 	Top,
@@ -22,7 +23,7 @@ export const enum ScrollPosition {
 	Middle
 }
 
-export class CommandTrackerAddon extends Disposable implements ICommandTracker, ITerminalAddon {
+export class CommandNavigationAddon extends Disposable implements ICommandTracker, ITerminalAddon {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
@@ -35,7 +36,10 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 		this._terminal = terminal;
 	}
 
-	constructor(store: ITerminalCapabilityStore) {
+	constructor(
+		store: ITerminalCapabilityStore,
+		@IThemeService private readonly _themeService: IThemeService
+	) {
 		super();
 		this._refreshActiveCapability(store);
 		this._register(store.onDidAddCapability(() => this._refreshActiveCapability(store)));
@@ -160,9 +164,14 @@ export class CommandTrackerAddon extends Disposable implements ICommandTracker, 
 			this._terminal.scrollToLine(line);
 		}
 		this._navigationDecoration?.dispose();
+		const color = this._themeService.getColorTheme().getColor(TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR);
+
 		const decoration = this._terminal.registerDecoration({
 			marker,
-			width: this._terminal.cols
+			width: this._terminal.cols,
+			overviewRulerOptions: {
+				color: color?.toString() || '#a0a0a0cc'
+			}
 		});
 		this._navigationDecoration = decoration;
 		if (decoration) {

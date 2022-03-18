@@ -101,7 +101,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.historyBasedLanguageDetection': {
 				type: 'boolean',
-				default: false,
+				default: true,
 				tags: ['experimental'],
 				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
 			},
@@ -422,6 +422,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'tags': ['experimental'],
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
+			},
+			'workbench.experimental.editor.dragAndDropIntoEditor.enabled': {
+				'type': 'boolean',
+				'tags': ['experimental'],
+				'default': false,
+				'description': localize('dragAndDropIntoEditor', "Controls whether you can drag and drop a file into an editor by holding down shift (instead of opening the file in an editor)."),
 			}
 		}
 	});

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editordroptarget';
-import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType, CodeDataTransfers, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
-import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
+import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, containsDragType, CodeDataTransfers, DraggedTreeItemsIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
+import { addDisposableListener, EventType, EventHelper, isAncestor, DragAndDropObserver } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, IEditorGroupView, fillActiveEditorViewState } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -21,9 +21,17 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
+}
+
+function isDragIntoEditorEvent(configurationService: IConfigurationService, e: DragEvent): boolean {
+	if (!configurationService.getValue<boolean>('workbench.experimental.editor.dragAndDropIntoEditor.enabled')) {
+		return false;
+	}
+	return e.shiftKey;
 }
 
 class DropOverlay extends Themable {
@@ -46,7 +54,8 @@ class DropOverlay extends Themable {
 		private accessor: IEditorGroupsAccessor,
 		private groupView: IEditorGroupView,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService private instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ITreeViewsService private readonly treeViewsDragAndDropService: ITreeViewsService,
@@ -109,6 +118,11 @@ class DropOverlay extends Themable {
 		this._register(new DragAndDropObserver(container, {
 			onDragEnter: e => undefined,
 			onDragOver: e => {
+				if (isDragIntoEditorEvent(this.configurationService, e)) {
+					this.dispose();
+					return;
+				}
+
 				const isDraggingGroup = this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype);
 				const isDraggingEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype);
 
@@ -528,6 +542,7 @@ export class EditorDropTarget extends Themable {
 		private container: HTMLElement,
 		private readonly delegate: IEditorDropTargetDelegate,
 		@IThemeService themeService: IThemeService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(themeService);
@@ -550,6 +565,10 @@ export class EditorDropTarget extends Themable {
 	}
 
 	private onDragEnter(event: DragEvent): void {
+		if (isDragIntoEditorEvent(this.configurationService, event)) {
+			return;
+		}
+
 		this.counter++;
 
 		// Validate transfer
