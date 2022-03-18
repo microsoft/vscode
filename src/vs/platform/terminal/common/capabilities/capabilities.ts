@@ -97,6 +97,8 @@ export interface ICommandDetectionCapability {
 	handlePromptStart(): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
+	handleRightPromptStart(): void;
+	handleRightPromptEnd(): void;
 	handleCommandStart(): void;
 	handleCommandExecuted(): void;
 	handleCommandFinished(exitCode: number | undefined): void;

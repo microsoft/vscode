@@ -99,6 +99,16 @@ const enum VSCodeOscPt {
 	ContinuationEnd = 'G',
 
 	/**
+	 * The start of the right prompt.
+	 */
+	RightPromptStart = 'H',
+
+	/**
+	 * The end of the right prompt.
+	 */
+	RightPromptEnd = 'I',
+
+	/**
 	 * Set an arbitrary property: `OSC 633 ; P ; <Property>=<Value> ST`, only known properties will
 	 * be handled.
 	 */
@@ -166,6 +176,14 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 			}
 			case VSCodeOscPt.ContinuationEnd: {
 				this._createOrGetCommandDetection(this._terminal).handleContinuationEnd();
+				return true;
+			}
+			case VSCodeOscPt.RightPromptStart: {
+				this._createOrGetCommandDetection(this._terminal).handleRightPromptStart();
+				return true;
+			}
+			case VSCodeOscPt.RightPromptEnd: {
+				this._createOrGetCommandDetection(this._terminal).handleRightPromptEnd();
 				return true;
 			}
 			case VSCodeOscPt.Property: {
