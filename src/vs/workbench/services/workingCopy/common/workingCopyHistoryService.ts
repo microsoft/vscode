@@ -107,6 +107,10 @@ export class WorkingCopyHistoryModel {
 		// Make sure to await resolving when removing entries
 		await this.resolveEntriesOnce();
 
+		if (token.isCancellationRequested) {
+			return false;
+		}
+
 		const index = this.entries.indexOf(entry);
 		if (index === -1) {
 			return false;
@@ -131,6 +135,10 @@ export class WorkingCopyHistoryModel {
 
 		// Make sure to await resolving when updating entries
 		await this.resolveEntriesOnce();
+
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		const index = this.entries.indexOf(entry);
 		if (index === -1) {
@@ -237,13 +245,17 @@ export class WorkingCopyHistoryModel {
 		return entries;
 	}
 
-	async store(): Promise<void> {
+	async store(token: CancellationToken): Promise<void> {
 		if (!this.shouldStore) {
 			return; // fast return to avoid disk access when nothing changed
 		}
 
 		// Make sure to await resolving when persisting
 		await this.resolveEntriesOnce();
+
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 
 		// Cleanup based on max-entries setting
 		await this.cleanUpEntries();

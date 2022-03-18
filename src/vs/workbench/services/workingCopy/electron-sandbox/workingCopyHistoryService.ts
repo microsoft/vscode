@@ -52,7 +52,7 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 					}
 
 					try {
-						await model.store();
+						await model.store(e.token);
 					} catch (error) {
 						this.logService.trace(error);
 					}
