@@ -15,7 +15,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 
 export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
@@ -42,7 +42,7 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
 		// Prolong shutdown for orderly model shutdown
 		e.join((async () => {
-			const limiter = new Limiter(20); // prevent too many IO-ops running in parallel
+			const limiter = new Limiter(MAX_PARALLEL_HISTORY_IO_OPS);
 
 			const models = Array.from(this.models.values());
 			for (const model of models) {

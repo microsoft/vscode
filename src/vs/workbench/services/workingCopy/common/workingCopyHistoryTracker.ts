@@ -17,16 +17,11 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { Schemas } from 'vs/base/common/network';
 
 export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchContribution {
-
-	// Adding history entries from the tracker should not be
-	// an operation that should be unbounded and as such we
-	// limit the write operations up to a maximum degree.
-	private static readonly MAX_PARALLEL_HISTORY_WRITES = 10;
 
 	private static readonly SETTINGS = {
 		ENABLED: 'workbench.localHistory.enabled',
@@ -35,7 +30,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 
 	private static readonly UNDO_REDO_SAVE_SOURCE = SaveSourceRegistry.registerSource('undoRedo.source', localize('undoRedo.source', "Undo / Redo"));
 
-	private readonly limiter = this._register(new Limiter(WorkingCopyHistoryTracker.MAX_PARALLEL_HISTORY_WRITES));
+	private readonly limiter = this._register(new Limiter(MAX_PARALLEL_HISTORY_IO_OPS));
 
 	private readonly pendingAddHistoryEntryOperations = new ResourceMap<CancellationTokenSource>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 

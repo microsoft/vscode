@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { WorkingCopyHistoryTracker } from 'vs/workbench/services/workingCopy/common/workingCopyHistoryTracker';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor, IWorkingCopyHistoryEvent, IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { URI } from 'vs/base/common/uri';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, Limiter } from 'vs/base/common/async';
 import { extname, isEqual, joinPath } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { hash } from 'vs/base/common/hash';
@@ -507,21 +507,29 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		try {
 			const resolvedHistoryHome = await this.fileService.resolve(historyHome);
 			if (resolvedHistoryHome.children) {
+				const limiter = new Limiter(MAX_PARALLEL_HISTORY_IO_OPS);
+
 				for (const child of resolvedHistoryHome.children) {
-					if (token.isCancellationRequested) {
-						break;
-					}
-
-					const entriesFile = joinPath(child.resource, WorkingCopyHistoryModel.ENTRIES_FILE);
-
-					try {
-						const serializedModel: ISerializedWorkingCopyHistoryModel = JSON.parse((await this.fileService.readFile(entriesFile)).value.toString());
-						if (serializedModel.entries.length > 0) {
-							all.set(URI.parse(serializedModel.resource), true);
+					limiter.queue(async () => {
+						if (token.isCancellationRequested) {
+							return;
 						}
-					} catch (error) {
-						// ignore - model might be missing or corrupt, but we need it
-					}
+
+						const entriesFile = joinPath(child.resource, WorkingCopyHistoryModel.ENTRIES_FILE);
+
+						try {
+							const serializedModel: ISerializedWorkingCopyHistoryModel = JSON.parse((await this.fileService.readFile(entriesFile)).value.toString());
+							if (serializedModel.entries.length > 0) {
+								all.set(URI.parse(serializedModel.resource), true);
+							}
+						} catch (error) {
+							// ignore - model might be missing or corrupt, but we need it
+						}
+					});
+				}
+
+				if (limiter.size > 0) {
+					await Event.toPromise(limiter.onFinished);
 				}
 			}
 		} catch (error) {
