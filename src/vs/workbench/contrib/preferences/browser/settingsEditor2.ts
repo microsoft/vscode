@@ -43,7 +43,7 @@ import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/brow
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -99,7 +99,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static NARROW_TOTAL_WIDTH: number = SettingsEditor2.TOC_MIN_WIDTH + SettingsEditor2.EDITOR_MIN_WIDTH;
 	private static MEDIUM_TOTAL_WIDTH: number = 1000;
 
-	private static readonly SUGGESTIONS: string[] = [
+	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
 		'@tag:notebookLayout',
 		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
@@ -109,7 +109,6 @@ export class SettingsEditor2 extends EditorPane {
 		'@tag:telemetry',
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,
-		`@${LANGUAGE_SETTING_TAG}`,
 		`@${FEATURE_SETTING_TAG}scm`,
 		`@${FEATURE_SETTING_TAG}explorer`,
 		`@${FEATURE_SETTING_TAG}search`,
@@ -262,6 +261,10 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this.modelDisposables = this._register(new DisposableStore());
+
+		if (ENABLE_LANGUAGE_FILTER && !SettingsEditor2.SUGGESTIONS.includes(`@${LANGUAGE_SETTING_TAG}`)) {
+			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
+		}
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }

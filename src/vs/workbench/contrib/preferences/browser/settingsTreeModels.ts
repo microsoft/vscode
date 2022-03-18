@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -892,7 +892,11 @@ export function parseQuery(query: string): IParsedQuery {
 	query = getTagsForType(query, extensionRegex, extensions);
 	query = getTagsForType(query, featureRegex, features);
 	query = getTagsForType(query, idRegex, ids);
-	query = getTagsForType(query, languageRegex, langs);
+
+	if (ENABLE_LANGUAGE_FILTER) {
+		query = getTagsForType(query, languageRegex, langs);
+	}
+
 	query = query.trim();
 
 	// For now, only return the first found language filter
