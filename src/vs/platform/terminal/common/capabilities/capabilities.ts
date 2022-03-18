@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 
 /**
  * Primarily driven by the shell integration feature, a terminal capability is the mechanism for
@@ -106,8 +106,8 @@ export interface ICommandDetectionCapability {
 	 * Set the command line explicitly.
 	 */
 	setCommandLine(commandLine: string): void;
-	serializeCommands(): ISerializedCommand[];
-	restoreCommands(serialized: ISerializedCommand[]): void;
+	serialize(): ISerializedCommandDetectionCapability;
+	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
 
 export interface INaiveCwdDetectionCapability {

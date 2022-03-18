@@ -7,7 +7,7 @@ import { timeout } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+import { ISerializedCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 // Importing types is safe in any layer
 // eslint-disable-next-line code-import-patterns
 import type { IBuffer, IDisposable, IMarker, Terminal } from 'xterm-headless';
@@ -357,8 +357,8 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._currentCommand.command = commandLine;
 	}
 
-	serializeCommands(): ISerializedCommand[] {
-		const serialized: ISerializedCommand[] = this.commands.map(e => {
+	serialize(): ISerializedCommandDetectionCapability {
+		const commands: ISerializedCommand[] = this.commands.map(e => {
 			return {
 				startLine: e.marker?.line,
 				startX: undefined,
@@ -372,7 +372,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 			};
 		});
 		if (this._currentCommand.commandStartMarker) {
-			serialized.push({
+			commands.push({
 				startLine: this._currentCommand.commandStartMarker.line,
 				startX: this._currentCommand.commandStartX,
 				endLine: undefined,
@@ -384,12 +384,18 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 				timestamp: 0,
 			});
 		}
-		return serialized;
+		return {
+			isWindowsPty: this._isWindowsPty,
+			commands
+		};
 	}
 
-	restoreCommands(serialized: ISerializedCommand[]): void {
+	deserialize(serialized: ISerializedCommandDetectionCapability): void {
+		if (serialized.isWindowsPty) {
+			this.setIsWindowsPty(serialized.isWindowsPty);
+		}
 		const buffer = this._terminal.buffer.normal;
-		for (const e of serialized) {
+		for (const e of serialized.commands) {
 			const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			// Check for invalid command
 			if (!marker) {
