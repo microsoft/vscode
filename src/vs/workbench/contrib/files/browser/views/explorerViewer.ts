@@ -439,7 +439,18 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const label = this.labels.create(container);
 		const extraClasses = ['explorer-item', 'explorer-item-edited'];
 		const fileKind = stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE;
-		const labelOptions: IFileLabelOptions = { hidePath: true, hideLabel: true, fileKind, extraClasses };
+
+		const theme = this.themeService.getFileIconTheme();
+		const themeIsUnhappyWithNesting = theme.hasFileIcons && (theme.hidesExplorerArrows || !theme.hasFolderIcons);
+		const realignNestedChildren = stat.nestedParent && themeIsUnhappyWithNesting;
+
+		const labelOptions: IFileLabelOptions = {
+			hidePath: true,
+			hideLabel: true,
+			fileKind,
+			extraClasses: realignNestedChildren ? [...extraClasses, 'align-nest-icon-with-parent-icon'] : extraClasses,
+		};
+
 
 		const parent = stat.name ? dirname(stat.resource) : stat.resource;
 		const value = stat.name || '';
