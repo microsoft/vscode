@@ -2902,24 +2902,28 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		super(
 			EditorOption.quickSuggestions, 'quickSuggestions', defaults,
 			{
-				type: 'object',
-				properties: {
-					strings: {
-						anyOf: types,
-						default: defaults.strings,
-						description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
-					},
-					comments: {
-						anyOf: types,
-						default: defaults.comments,
-						description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
-					},
-					other: {
-						anyOf: types,
-						default: defaults.other,
-						description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
-					},
-				},
+				anyOf: [{
+					type: 'boolean',
+				}, {
+					type: 'object',
+					properties: {
+						strings: {
+							anyOf: types,
+							default: defaults.strings,
+							description: nls.localize('quickSuggestions.strings', "Enable quick suggestions inside strings.")
+						},
+						comments: {
+							anyOf: types,
+							default: defaults.comments,
+							description: nls.localize('quickSuggestions.comments', "Enable quick suggestions inside comments.")
+						},
+						other: {
+							anyOf: types,
+							default: defaults.other,
+							description: nls.localize('quickSuggestions.other', "Enable quick suggestions outside of strings and comments.")
+						},
+					}
+				}],
 				default: defaults,
 				markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing.")
 			}
@@ -2929,15 +2933,16 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 
 	public validate(input: any): InternalQuickSuggestionsOptions {
 		if (typeof input === 'boolean') {
-			return this.defaultValue;
+			// boolean -> all on/off
+			const value = input ? 'on' : 'off';
+			return { comments: value, strings: value, other: value };
 		}
 		if (!input || typeof input !== 'object') {
+			// invalid object
 			return this.defaultValue;
 		}
-		type LegacyOptions = IQuickSuggestionsOptions | { [P in keyof IQuickSuggestionsOptions]: boolean; };
 
-		const { other, comments, strings } = (<LegacyOptions>input);
-
+		const { other, comments, strings } = (<IQuickSuggestionsOptions>input);
 		const allowedValues: QuickSuggestionsValue[] = ['on', 'inline', 'off'];
 		let validatedOther: QuickSuggestionsValue;
 		let validatedComments: QuickSuggestionsValue;
