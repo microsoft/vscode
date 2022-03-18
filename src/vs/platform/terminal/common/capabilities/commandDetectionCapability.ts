@@ -20,6 +20,9 @@ export interface ICurrentPartialCommand {
 	commandStartMarker?: IMarker;
 	commandStartX?: number;
 
+	commandRightPromptStartX?: number;
+	commandRightPromptEndX?: number;
+
 	commandLines?: IMarker;
 
 	commandExecutedMarker?: IMarker;
@@ -102,6 +105,16 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		this._logService.debug('CommandDetectionCapability#handleContinuationEnd', this._currentCommand.continuations[this._currentCommand.continuations.length - 1]);
 	}
 
+	handleRightPromptStart(): void {
+		this._currentCommand.commandRightPromptStartX = this._terminal.buffer.active.cursorX;
+		this._logService.debug('CommandDetectionCapability#handleRightPromptStart', this._currentCommand.commandRightPromptStartX);
+	}
+
+	handleRightPromptEnd(): void {
+		this._currentCommand.commandRightPromptEndX = this._terminal.buffer.active.cursorX;
+		this._logService.debug('CommandDetectionCapability#handleRightPromptEnd', this._currentCommand.commandRightPromptEndX);
+	}
+
 	handleCommandStart(): void {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
@@ -155,7 +168,7 @@ export class CommandDetectionCapability implements ICommandDetectionCapability {
 		}
 
 		// Calculate the command
-		this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX);
+		this._currentCommand.command = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
 		let y = this._currentCommand.commandStartMarker.line + 1;
 		const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
 		for (; y < commandExecutedLine; y++) {
