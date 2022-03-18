@@ -6,9 +6,8 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { FileAccess } from 'vs/base/common/network';
 
 export interface IExtensionManagementServer {
@@ -140,7 +139,7 @@ export interface IWorkbenchExtensionEnablementService {
 }
 
 export interface IScannedExtension extends IExtension {
-	readonly metadata?: IStringDictionary<any>;
+	readonly metadata?: Metadata;
 }
 
 export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');
@@ -152,8 +151,8 @@ export interface IWebExtensionsScannerService {
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
 	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
 
-	addExtension(location: URI, metadata?: IStringDictionary<any>): Promise<IExtension>;
-	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: IStringDictionary<any>): Promise<IExtension>;
+	addExtension(location: URI, metadata?: Metadata): Promise<IExtension>;
+	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
 
 	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
