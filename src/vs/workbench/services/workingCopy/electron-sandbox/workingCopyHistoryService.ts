@@ -46,12 +46,11 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 
 			const models = Array.from(this.models.values());
 			for (const model of models) {
-				if (e.token.isCancellationRequested) {
-					limiter.dispose();
-					return;
-				}
-
 				limiter.queue(async () => {
+					if (e.token.isCancellationRequested) {
+						return;
+					}
+
 					try {
 						await model.store();
 					} catch (error) {
