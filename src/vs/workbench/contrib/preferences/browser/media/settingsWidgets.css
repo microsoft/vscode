@@ -42,14 +42,17 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
 	margin-left: 0;
 }
+
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-value,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
 	width: 100%;
 }
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row:hover .setting-list-object-value,
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row:focus .setting-list-object-value,
-.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row.selected .setting-list-object-value {
-	margin-right: 44px;
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row .setting-list-object-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value {
+	/* In case the text is too long, we don't want to block the pencil icon. */
+	box-sizing: border-box;
+	padding-right: 40px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value,
@@ -153,6 +156,7 @@
 	margin-right: 4px;
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row,
 .settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-edit-row {
 	display: flex
 }
