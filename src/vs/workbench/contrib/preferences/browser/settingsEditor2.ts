@@ -199,6 +199,8 @@ export class SettingsEditor2 extends EditorPane {
 	private settingsTreeScrollTop = 0;
 	private dimension!: DOM.Dimension;
 
+	private searchWidgetWillBeDisposed = false;
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
@@ -339,6 +341,7 @@ export class SettingsEditor2 extends EditorPane {
 		// Don't block setInput on render (which can trigger an async search)
 		this.onConfigUpdate(undefined, true).then(() => {
 			this._register(input.onWillDispose(() => {
+				this.searchWidgetWillBeDisposed = true;
 				this.searchWidget.setValue('');
 			}));
 
@@ -1242,8 +1245,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async onSearchInputChanged(): Promise<void> {
-		if (!this.currentSettingsModel) {
-			// Initializing search widget value
+		if (!this.currentSettingsModel || this.searchWidgetWillBeDisposed) {
+			// From initializing or disposing the search widget.
 			return;
 		}
 
