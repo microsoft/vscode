@@ -20,8 +20,8 @@ suite('ExtHostEditorTabs', function () {
 		isActive: true,
 		isDirty: true,
 		isPinned: true,
+		isPreview: false,
 		label: 'label1',
-		viewColumn: 0,
 	};
 
 	function createTabDto(dto?: Partial<IEditorTabDto>): IEditorTabDto {
@@ -54,7 +54,6 @@ suite('ExtHostEditorTabs', function () {
 			isDirty: true,
 			isPinned: true,
 			label: 'label1',
-			viewColumn: 0,
 		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{
@@ -141,7 +140,6 @@ suite('ExtHostEditorTabs', function () {
 			isPinned: true,
 			label: 'label1',
 			editorId: 'default',
-			viewColumn: 0,
 		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{
@@ -277,8 +275,7 @@ suite('ExtHostEditorTabs', function () {
 			isPinned: true,
 			label: 'label1',
 			input: { kind: TabInputKind.TextInput, uri: URI.parse('file://abc/AAA.txt') },
-			editorId: 'default',
-			viewColumn: 0,
+			editorId: 'default'
 		});
 
 		const tabDtoBBB = createTabDto({
@@ -288,8 +285,7 @@ suite('ExtHostEditorTabs', function () {
 			isPinned: true,
 			label: 'label1',
 			input: { kind: TabInputKind.TextInput, uri: URI.parse('file://abc/BBB.txt') },
-			editorId: 'default',
-			viewColumn: 0,
+			editorId: 'default'
 		});
 
 		// single dirty tab
@@ -364,8 +360,7 @@ suite('ExtHostEditorTabs', function () {
 			isDirty: true,
 			isPinned: true,
 			label: 'label1',
-			editorId: 'default',
-			viewColumn: 0,
+			editorId: 'default'
 		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{
@@ -402,8 +397,7 @@ suite('ExtHostEditorTabs', function () {
 			isDirty: true,
 			isPinned: true,
 			label: 'label1',
-			editorId: 'default',
-			viewColumn: 0,
+			editorId: 'default'
 		});
 
 		extHostEditorTabs.$acceptEditorTabModel([{

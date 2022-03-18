@@ -672,12 +672,12 @@ export interface IEditorTabGroupDto {
 
 export interface IEditorTabDto {
 	id: string;
-	viewColumn: EditorGroupColumn;
 	label: string;
 	input: AnyInputDto;
 	editorId?: string;
 	isActive: boolean;
 	isPinned: boolean;
+	isPreview: boolean;
 	isDirty: boolean;
 }
 

@@ -854,8 +854,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this.model.previewEditor;
 	}
 
-	isPinned(editor: EditorInput): boolean {
-		return this.model.isPinned(editor);
+	isPinned(editorOrIndex: EditorInput | number): boolean {
+		return this.model.isPinned(editorOrIndex);
 	}
 
 	isSticky(editorOrIndex: EditorInput | number): boolean {

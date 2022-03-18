@@ -49,10 +49,9 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The column which the tab belongs to
+		 * The group which the tab belongs to
 		 */
-		// TODO@API point to TabGroup instead?
-		readonly viewColumn: ViewColumn;
+		readonly parentGroup: TabGroup;
 
 		// TODO@API NAME: optional
 		readonly input: TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookDiffEditorTabInput | unknown;
@@ -69,10 +68,14 @@ declare module 'vscode' {
 		readonly isDirty: boolean;
 
 		/**
-		 * Whether or not the tab is pinned
+		 * Whether or not the tab is pinned (pin icon is present)
 		 */
-		// TODO@API name: preview, see TextDocumentShowOptions
 		readonly isPinned: boolean;
+
+		/**
+		 * Whether or not the tab is in preview mode.
+		 */
+		readonly isPreview: boolean;
 	}
 
 	export namespace window {

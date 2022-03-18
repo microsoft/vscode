@@ -25,10 +25,12 @@ class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
 	private _dto!: IEditorTabDto;
 	private _input: AnyTabInput | undefined;
+	private _parentGroup: ExtHostEditorTabGroup;
 	private readonly _activeTabIdGetter: () => string;
 
-	constructor(dto: IEditorTabDto, activeTabIdGetter: () => string) {
+	constructor(dto: IEditorTabDto, parentGroup: ExtHostEditorTabGroup, activeTabIdGetter: () => string) {
 		this._activeTabIdGetter = activeTabIdGetter;
+		this._parentGroup = parentGroup;
 		this.acceptDtoUpdate(dto);
 	}
 
@@ -53,8 +55,11 @@ class ExtHostEditorTab {
 				get isPinned() {
 					return that._dto.isDirty;
 				},
-				get viewColumn() {
-					return typeConverters.ViewColumn.to(that._dto.viewColumn);
+				get isPreview() {
+					return that._dto.isPreview;
+				},
+				get parentGroup() {
+					return that._parentGroup.apiObject;
 				}
 			};
 			this._apiObject = Object.freeze<vscode.Tab>(obj);
@@ -105,7 +110,7 @@ class ExtHostEditorTabGroup {
 			if (tabDto.isActive) {
 				this._activeTabId = tabDto.id;
 			}
-			this._tabs.push(new ExtHostEditorTab(tabDto, () => this.activeTabId()));
+			this._tabs.push(new ExtHostEditorTab(tabDto, this, () => this.activeTabId()));
 		}
 	}
 

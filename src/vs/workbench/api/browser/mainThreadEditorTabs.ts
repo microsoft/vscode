@@ -63,11 +63,11 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const editorId = editor.editorId;
 		const tab: IEditorTabDto = {
 			id: this._generateTabId(editor, group.id),
-			viewColumn: editorGroupToColumn(this._editorGroupsService, group),
 			label: editor.getName(),
 			editorId,
 			input: this._editorInputToDto(editor),
 			isPinned: group.isSticky(editorIndex),
+			isPreview: group.isPinned(editorIndex),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
@@ -259,12 +259,12 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	}
 
 	/**
-	 * Called when the tab is pinned / unpinned
+	 * Called when the tab is pinned/unpinned
 	 * @param groupId The id of the group the tab is in
 	 * @param editorIndex The index of the tab
 	 * @param editor The editor input represented by the tab
 	 */
-	private _onDidTabStickyChange(groupId: number, editorIndex: number, editor: EditorInput) {
+	private _onDidTabPinChange(groupId: number, editorIndex: number, editor: EditorInput) {
 		const tabId = this._generateTabId(editor, groupId);
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		const group = tabInfo?.group;
@@ -277,6 +277,28 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 		// Whether or not the tab has the pin icon (internally it's called sticky)
 		tab.isPinned = group.isSticky(editorIndex);
+		this._proxy.$acceptTabUpdate(groupId, tab);
+	}
+
+	/**
+ * Called when the tab is preview / unpreviewed
+ * @param groupId The id of the group the tab is in
+ * @param editorIndex The index of the tab
+ * @param editor The editor input represented by the tab
+ */
+	private _onDidTabPreviewChange(groupId: number, editorIndex: number, editor: EditorInput) {
+		const tabId = this._generateTabId(editor, groupId);
+		const tabInfo = this._tabInfoLookup.get(tabId);
+		const group = tabInfo?.group;
+		const tab = tabInfo?.tab;
+		// Something wrong with the model state so we rebuild
+		if (!group || !tab) {
+			console.error('Invalid model for sticky change, rebuilding');
+			this._createTabsModel();
+			return;
+		}
+		// Whether or not the tab has the pin icon (internally it's called sticky)
+		tab.isPreview = group.isPinned(editorIndex);
 		this._proxy.$acceptTabUpdate(groupId, tab);
 	}
 
@@ -374,7 +396,12 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				}
 			case GroupModelChangeKind.EDITOR_STICKY:
 				if (event.editorIndex !== undefined && event.editor !== undefined) {
-					this._onDidTabStickyChange(event.groupId, event.editorIndex, event.editor);
+					this._onDidTabPinChange(event.groupId, event.editorIndex, event.editor);
+					break;
+				}
+			case GroupModelChangeKind.EDITOR_PIN:
+				if (event.editorIndex !== undefined && event.editor !== undefined) {
+					this._onDidTabPreviewChange(event.groupId, event.editorIndex, event.editor);
 					break;
 				}
 			default:
@@ -391,7 +418,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			throw new Error(`Attempted to close tab with id ${tabId} which does not exist`);
 		}
 		let targetGroup: IEditorGroup | undefined;
-		const sourceGroup = this._editorGroupsService.getGroup(columnToEditorGroup(this._editorGroupsService, tab.viewColumn));
+		const sourceGroup = this._editorGroupsService.getGroup(tabInfo.group.id);
 		if (!sourceGroup) {
 			return;
 		}
