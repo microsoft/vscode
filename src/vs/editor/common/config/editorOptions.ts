@@ -3603,7 +3603,7 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 				'editor.bracketPairColorization.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					description: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use 'workbench.colorCustomizations' to override the bracket highlight colors.")
+					markdownDescription: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use `#workbench.colorCustomizations#` to override the bracket highlight colors.")
 				},
 				'editor.bracketPairColorization.independentColorPoolPerBracketType': {
 					type: 'boolean',
