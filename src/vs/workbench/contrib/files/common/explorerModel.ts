@@ -88,7 +88,7 @@ export class ExplorerItem {
 	private _isExcluded = false;
 
 	public nestedParent: ExplorerItem | undefined;
-	private nestedChildren: ExplorerItem[] | undefined;
+	public nestedChildren: ExplorerItem[] | undefined;
 
 	constructor(
 		public resource: URI,

@@ -151,11 +151,20 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[] {
+	getContext(respectMultiSelection: boolean, includeNestedChildren = false): ExplorerItem[] {
 		if (!this.view) {
 			return [];
 		}
-		return this.view.getContext(respectMultiSelection);
+		const items = this.view.getContext(respectMultiSelection);
+		if (includeNestedChildren) {
+			items.forEach(item => {
+				const nestedChildren = item.nestedChildren;
+				if (nestedChildren) {
+					items.push(...nestedChildren);
+				}
+			});
+		}
+		return items;
 	}
 
 	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
@@ -222,7 +231,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	isCut(item: ExplorerItem): boolean {
-		return !!this.cutItems && this.cutItems.indexOf(item) >= 0;
+		return !!this.cutItems && this.cutItems.some(i => this.uriIdentityService.extUri.isEqual(i.resource, item.resource));
 	}
 
 	getEditable(): { stat: ExplorerItem; data: IEditableData } | undefined {

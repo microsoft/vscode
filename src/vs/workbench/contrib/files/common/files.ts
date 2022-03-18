@@ -101,6 +101,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		experimental: {
 			fileNesting: {
 				enabled: boolean;
+				operateAsGroup: boolean;
 				expand: boolean;
 				hideIconsToMatchFolders: boolean;
 				patterns: { [parent: string]: string };
