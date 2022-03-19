@@ -90,9 +90,14 @@ export interface IWorkingCopyHistoryService {
 	onDidRemoveEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
+	 * An event when entries are moved in history.
+	 */
+	onDidMoveEntries: Event<void>;
+
+	/**
 	 * An event when all entries are removed from the history.
 	 */
-	onDidRemoveAllEntries: Event<void>;
+	onDidRemoveEntries: Event<void>;
 
 	/**
 	 * Adds a new entry to the history for the given working copy
