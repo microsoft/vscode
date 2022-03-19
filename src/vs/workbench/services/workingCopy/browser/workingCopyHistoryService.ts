@@ -60,7 +60,7 @@ export class BrowserWorkingCopyHistoryService extends WorkingCopyHistoryService 
 	}
 
 	protected override createModel(resource: URI, historyHome: URI): WorkingCopyHistoryModel {
-		return new BrowserWorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidChangeEntry, this._onDidRemoveEntry, this.fileService, this.labelService, this.logService, this.configurationService);
+		return new BrowserWorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidChangeEntry, this._onDidReplaceEntry, this._onDidRemoveEntry, this.fileService, this.labelService, this.logService, this.configurationService);
 	}
 }
 

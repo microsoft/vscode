@@ -216,7 +216,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		if (input) {
 			this.sendEditorResolutionTelemetry(input.editor);
 			if (input.editor.editorId !== selectedEditor.editorInfo.id) {
-				console.warn(`Editor ID Mismatch: ${input.editor.editorId} !== ${selectedEditor.editorInfo.id}. This will cause bugs. Please ensure editorInput.editorId matches the registered id`);
+				this.logService.warn(`Editor ID Mismatch: ${input.editor.editorId} !== ${selectedEditor.editorInfo.id}. This will cause bugs. Please ensure editorInput.editorId matches the registered id`);
 			}
 			return { ...input, group };
 		}

@@ -30,10 +30,6 @@ export class NativeWorkingCopyHistoryService extends WorkingCopyHistoryService {
 	) {
 		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, logService, configurationService);
 
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
 		this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e));
 	}
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Event } from 'vs/base/common/event';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { TestNativePathService, TestNativeWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestContextService, TestProductService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
@@ -13,7 +14,7 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { tmpdir } from 'os';
-import { join } from 'vs/base/common/path';
+import { dirname, join } from 'vs/base/common/path';
 import { Promises } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -24,10 +25,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { TestLifecycleService, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
-import { dirname } from 'path';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { NativeWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistoryService';
-import { joinPath } from 'vs/base/common/resources';
+import { joinPath, dirname as resourcesDirname, basename } from 'vs/base/common/resources';
 import { firstOrDefault } from 'vs/base/common/arrays';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
@@ -77,6 +77,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 	let testDir: string;
 	let historyHome: string;
+	let workHome: string;
 	let service: TestWorkingCopyHistoryService;
 
 	let testFile1Path: string;
@@ -95,14 +96,16 @@ flakySuite('WorkingCopyHistoryService', () => {
 	setup(async () => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'workingcopyhistoryservice');
 		historyHome = join(testDir, 'User', 'History');
+		workHome = join(testDir, 'work');
 
 		service = new TestWorkingCopyHistoryService(testDir);
 
 		await Promises.mkdir(historyHome, { recursive: true });
+		await Promises.mkdir(workHome, { recursive: true });
 
-		testFile1Path = join(testDir, 'foo.txt');
-		testFile2Path = join(testDir, 'bar.txt');
-		testFile3Path = join(testDir, 'foo-bar.txt');
+		testFile1Path = join(workHome, 'foo.txt');
+		testFile2Path = join(workHome, 'bar.txt');
+		testFile3Path = join(workHome, 'foo-bar.txt');
 
 		await Promises.writeFile(testFile1Path, testFile1PathContents);
 		await Promises.writeFile(testFile2Path, testFile2PathContents);
@@ -297,7 +300,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 	test('removeAll', async () => {
 		let removed = false;
-		service.onDidRemoveAllEntries(() => removed = true);
+		service.onDidRemoveEntries(() => removed = true);
 
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
@@ -630,21 +633,21 @@ flakySuite('WorkingCopyHistoryService', () => {
 	});
 
 	test('entries are merged when source is same', async () => {
-		let changed: IWorkingCopyHistoryEntry | undefined = undefined;
-		service.onDidChangeEntry(e => changed = e.entry);
+		let replaced: IWorkingCopyHistoryEntry | undefined = undefined;
+		service.onDidReplaceEntry(e => replaced = e.entry);
 
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 
 		service._configurationService.setUserConfiguration('workbench.localHistory.mergePeriod', 1);
 
 		const entry1 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
-		assert.strictEqual(changed, undefined);
+		assert.strictEqual(replaced, undefined);
 
 		const entry2 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
-		assert.strictEqual(changed, entry1);
+		assert.strictEqual(replaced, entry1);
 
 		const entry3 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
-		assert.strictEqual(changed, entry2);
+		assert.strictEqual(replaced, entry2);
 
 		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);
@@ -657,5 +660,135 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 3);
+	});
+
+	test('entries moved (file rename)', async () => {
+		const entriesMoved = Event.toPromise(service.onDidMoveEntries);
+
+		const workingCopy = new TestWorkingCopy(URI.file(testFile1Path));
+
+		const entry1 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
+		const entry2 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
+		const entry3 = await addEntry({ resource: workingCopy.resource, source: 'test-source' }, CancellationToken.None);
+
+		let entries = await service.getEntries(workingCopy.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 3);
+
+		const renamedWorkingCopyResource = joinPath(resourcesDirname(workingCopy.resource), 'renamed.txt');
+		await service._fileService.move(workingCopy.resource, renamedWorkingCopyResource);
+
+		await entriesMoved;
+
+		entries = await service.getEntries(workingCopy.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 0);
+
+		entries = await service.getEntries(renamedWorkingCopyResource, CancellationToken.None);
+		assert.strictEqual(entries.length, 4);
+
+		assert.strictEqual(entries[0].id, entry1.id);
+		assert.strictEqual(entries[0].timestamp, entry1.timestamp);
+		assert.strictEqual(entries[0].source, entry1.source);
+		assert.notStrictEqual(entries[0].location, entry1.location);
+		assert.strictEqual(entries[0].workingCopy.resource.toString(), renamedWorkingCopyResource.toString());
+
+		assert.strictEqual(entries[1].id, entry2.id);
+		assert.strictEqual(entries[1].timestamp, entry2.timestamp);
+		assert.strictEqual(entries[1].source, entry2.source);
+		assert.notStrictEqual(entries[1].location, entry2.location);
+		assert.strictEqual(entries[1].workingCopy.resource.toString(), renamedWorkingCopyResource.toString());
+
+		assert.strictEqual(entries[2].id, entry3.id);
+		assert.strictEqual(entries[2].timestamp, entry3.timestamp);
+		assert.strictEqual(entries[2].source, entry3.source);
+		assert.notStrictEqual(entries[2].location, entry3.location);
+		assert.strictEqual(entries[2].workingCopy.resource.toString(), renamedWorkingCopyResource.toString());
+
+		const all = await service.getAll(CancellationToken.None);
+		assert.strictEqual(all.length, 1);
+		assert.strictEqual(all[0].toString(), renamedWorkingCopyResource.toString());
+	});
+
+	test('entries moved (folder rename)', async () => {
+		const entriesMoved = Event.toPromise(service.onDidMoveEntries);
+
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+
+		const entry1A = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+		const entry2A = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+		const entry3A = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+
+		const entry1B = await addEntry({ resource: workingCopy2.resource, source: 'test-source' }, CancellationToken.None);
+		const entry2B = await addEntry({ resource: workingCopy2.resource, source: 'test-source' }, CancellationToken.None);
+		const entry3B = await addEntry({ resource: workingCopy2.resource, source: 'test-source' }, CancellationToken.None);
+
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 3);
+
+		entries = await service.getEntries(workingCopy2.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 3);
+
+		const renamedWorkHome = joinPath(resourcesDirname(URI.file(workHome)), 'renamed');
+		await service._fileService.move(URI.file(workHome), renamedWorkHome);
+
+		const renamedWorkingCopy1Resource = joinPath(renamedWorkHome, basename(workingCopy1.resource));
+		const renamedWorkingCopy2Resource = joinPath(renamedWorkHome, basename(workingCopy2.resource));
+
+		await entriesMoved;
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 0);
+		entries = await service.getEntries(workingCopy2.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 0);
+
+		entries = await service.getEntries(renamedWorkingCopy1Resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 4);
+
+		assert.strictEqual(entries[0].id, entry1A.id);
+		assert.strictEqual(entries[0].timestamp, entry1A.timestamp);
+		assert.strictEqual(entries[0].source, entry1A.source);
+		assert.notStrictEqual(entries[0].location, entry1A.location);
+		assert.strictEqual(entries[0].workingCopy.resource.toString(), renamedWorkingCopy1Resource.toString());
+
+		assert.strictEqual(entries[1].id, entry2A.id);
+		assert.strictEqual(entries[1].timestamp, entry2A.timestamp);
+		assert.strictEqual(entries[1].source, entry2A.source);
+		assert.notStrictEqual(entries[1].location, entry2A.location);
+		assert.strictEqual(entries[1].workingCopy.resource.toString(), renamedWorkingCopy1Resource.toString());
+
+		assert.strictEqual(entries[2].id, entry3A.id);
+		assert.strictEqual(entries[2].timestamp, entry3A.timestamp);
+		assert.strictEqual(entries[2].source, entry3A.source);
+		assert.notStrictEqual(entries[2].location, entry3A.location);
+		assert.strictEqual(entries[2].workingCopy.resource.toString(), renamedWorkingCopy1Resource.toString());
+
+		entries = await service.getEntries(renamedWorkingCopy2Resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 4);
+
+		assert.strictEqual(entries[0].id, entry1B.id);
+		assert.strictEqual(entries[0].timestamp, entry1B.timestamp);
+		assert.strictEqual(entries[0].source, entry1B.source);
+		assert.notStrictEqual(entries[0].location, entry1B.location);
+		assert.strictEqual(entries[0].workingCopy.resource.toString(), renamedWorkingCopy2Resource.toString());
+
+		assert.strictEqual(entries[1].id, entry2B.id);
+		assert.strictEqual(entries[1].timestamp, entry2B.timestamp);
+		assert.strictEqual(entries[1].source, entry2B.source);
+		assert.notStrictEqual(entries[1].location, entry2B.location);
+		assert.strictEqual(entries[1].workingCopy.resource.toString(), renamedWorkingCopy2Resource.toString());
+
+		assert.strictEqual(entries[2].id, entry3B.id);
+		assert.strictEqual(entries[2].timestamp, entry3B.timestamp);
+		assert.strictEqual(entries[2].source, entry3B.source);
+		assert.notStrictEqual(entries[2].location, entry3B.location);
+		assert.strictEqual(entries[2].workingCopy.resource.toString(), renamedWorkingCopy2Resource.toString());
+
+		const all = await service.getAll(CancellationToken.None);
+		assert.strictEqual(all.length, 2);
+		for (const resource of all) {
+			if (resource.toString() !== renamedWorkingCopy1Resource.toString() && resource.toString() !== renamedWorkingCopy2Resource.toString()) {
+				assert.fail(`Unexpected history resource: ${resource.toString()}`);
+			}
+		}
 	});
 });

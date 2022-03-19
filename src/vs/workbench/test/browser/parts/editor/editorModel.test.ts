@@ -22,7 +22,7 @@ import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogSer
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestStorageService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
@@ -34,6 +34,7 @@ import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/te
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 suite('EditorModel', () => {
 
@@ -61,6 +62,7 @@ suite('EditorModel', () => {
 		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ILanguageConfigurationService, new TestLanguageConfigurationService());
+		instantiationService.stub(IStorageService, new TestStorageService());
 
 		return instantiationService.createInstance(ModelService);
 	}
