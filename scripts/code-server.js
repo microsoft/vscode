@@ -8,23 +8,15 @@
 const cp = require('child_process');
 const path = require('path');
 const opn = require('opn');
-const crypto = require('crypto');
 const minimist = require('minimist');
 
-function main() {
+async function main() {
 
 	const args = minimist(process.argv.slice(2), {
 		boolean: [
 			'help',
 			'launch'
-		],
-		string: [
-			'host',
-			'port',
-			'driver',
-			'connection-token',
-			'server-data-dir'
-		],
+		]
 	});
 
 	if (args.help) {
@@ -36,46 +28,42 @@ function main() {
 		return;
 	}
 
+	process.env['VSCODE_SERVER_PORT'] = '9888';
+
 	const serverArgs = process.argv.slice(2).filter(v => v !== '--launch');
-
-	const HOST = args['host'] ?? 'localhost';
-	const PORT = args['port'] ?? '9888';
-	const TOKEN = args['connection-token'] ?? String(crypto.randomInt(0xffffffff));
-
-	if (args['connection-token'] === undefined && args['connection-token-file'] === undefined && !args['without-connection-token']) {
-		serverArgs.push('--connection-token', TOKEN);
-	}
-	if (args['host'] === undefined) {
-		serverArgs.push('--host', HOST);
-	}
-	if (args['port'] === undefined) {
-		serverArgs.push('--port', PORT);
-	}
-
-	startServer(serverArgs);
+	const addr = await startServer(serverArgs);
 	if (args['launch']) {
-		opn(`http://${HOST}:${PORT}/?tkn=${TOKEN}`);
+		opn(addr);
 	}
 }
 
 function startServer(programArgs) {
-	const env = { ...process.env };
+	return new Promise((s, e) => {
+		const env = { ...process.env };
+		const entryPoint = path.join(__dirname, '..', 'out', 'server-main.js');
 
-	const entryPoint = path.join(__dirname, '..', 'out', 'server-main.js');
+		console.log(`Starting server: ${entryPoint} ${programArgs.join(' ')}`);
+		const proc = cp.spawn(process.execPath, [entryPoint, ...programArgs], { env, stdio: [process.stdin, null, process.stderr] });
+		proc.stdout.on('data', e => {
+			const data = e.toString();
+			console.log(data);
+			const m = data.match(/Web UI available at (.*)/);
+			if (m) {
+				s(m[1]);
+			}
+		});
 
-	console.log(`Starting server: ${entryPoint} ${programArgs.join(' ')}`);
-	const proc = cp.spawn(process.execPath, [entryPoint, ...programArgs], { env, stdio: 'inherit' });
+		proc.on('exit', (code) => process.exit(code));
 
-	proc.on('exit', (code) => process.exit(code));
-
-	process.on('exit', () => proc.kill());
-	process.on('SIGINT', () => {
-		proc.kill();
-		process.exit(128 + 2); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
-	});
-	process.on('SIGTERM', () => {
-		proc.kill();
-		process.exit(128 + 15); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+		process.on('exit', () => proc.kill());
+		process.on('SIGINT', () => {
+			proc.kill();
+			process.exit(128 + 2); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+		});
+		process.on('SIGTERM', () => {
+			proc.kill();
+			process.exit(128 + 15); // https://nodejs.org/docs/v14.16.0/api/process.html#process_signal_events
+		});
 	});
 
 }

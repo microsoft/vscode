@@ -28,7 +28,9 @@
 }
 
 .monaco-editor.hc-black .suggest-widget,
-.monaco-editor.hc-black .suggest-details {
+.monaco-editor.hc-black .suggest-details,
+.monaco-editor.hc-light .suggest-widget,
+.monaco-editor.hc-light .suggest-details {
 	border-width: 2px;
 }
 

@@ -29,16 +29,21 @@
 }
 
 /* Highlighting */
-.monaco-findInput.highlight-0 .controls {
+.monaco-findInput.highlight-0 .controls,
+.hc-light .monaco-findInput.highlight-0 .controls {
 	animation: monaco-findInput-highlight-0 100ms linear 0s;
 }
-.monaco-findInput.highlight-1 .controls {
+
+.monaco-findInput.highlight-1 .controls,
+.hc-light .monaco-findInput.highlight-1 .controls {
 	animation: monaco-findInput-highlight-1 100ms linear 0s;
 }
+
 .hc-black .monaco-findInput.highlight-0 .controls,
 .vs-dark  .monaco-findInput.highlight-0 .controls {
 	animation: monaco-findInput-highlight-dark-0 100ms linear 0s;
 }
+
 .hc-black .monaco-findInput.highlight-1 .controls,
 .vs-dark  .monaco-findInput.highlight-1 .controls {
 	animation: monaco-findInput-highlight-dark-1 100ms linear 0s;

@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { DidUninstallExtensionEvent, IExtensionManagementService, ILocalExtension, InstallExtensionEvent, InstallExtensionResult } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FileChangeType, IFileChange, IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -31,7 +31,7 @@ export class ExtensionsWatcher extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
-		this.extensionsManagementService.getInstalled(ExtensionType.User).then(extensions => {
+		this.extensionsManagementService.getInstalled().then(extensions => {
 			this.installedExtensions = extensions.map(e => e.identifier);
 			this.startTimestamp = Date.now();
 		});
@@ -111,7 +111,7 @@ export class ExtensionsWatcher extends Disposable {
 
 	private async onDidChange(): Promise<void> {
 		if (this.installedExtensions) {
-			const extensions = await this.extensionsManagementService.getInstalled(ExtensionType.User);
+			const extensions = await this.extensionsManagementService.getInstalled();
 			const added = extensions.filter(e => {
 				if ([...this.installingExtensions, ...this.installedExtensions!].some(identifier => areSameExtensions(identifier, e.identifier))) {
 					return false;

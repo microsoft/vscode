@@ -7,11 +7,9 @@ import { CharCode } from 'vs/base/common/charCode';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 
-export interface WebviewInitData {
-	readonly remote: {
-		readonly isRemote: boolean;
-		readonly authority: string | undefined;
-	};
+export interface WebviewRemoteInfo {
+	readonly isRemote: boolean;
+	readonly authority: string | undefined;
 }
 
 /**
@@ -39,10 +37,7 @@ export const webviewGenericCspSource = `https://*.${webviewResourceBaseHost}`;
  * @param resource Uri of the resource to load.
  * @param remoteInfo Optional information about the remote that specifies where `resource` should be resolved from.
  */
-export function asWebviewUri(
-	resource: URI,
-	remoteInfo?: { authority: string | undefined; isRemote: boolean }
-): URI {
+export function asWebviewUri(resource: URI, remoteInfo?: WebviewRemoteInfo): URI {
 	if (resource.scheme === Schemas.http || resource.scheme === Schemas.https) {
 		return resource;
 	}

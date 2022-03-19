@@ -51,17 +51,17 @@ export class GitTimelineItem extends TimelineItem {
 	}
 
 	setItemDetails(author: string, email: string | undefined, date: string, message: string): void {
-		this.detail = new MarkdownString('', true);
+		this.tooltip = new MarkdownString('', true);
 
 		if (email) {
 			const emailTitle = localize('git.timeline.email', "Email");
-			this.detail.appendMarkdown(`$(account) [**${author}**](mailto:${email} "${emailTitle} ${author}")\n\n`);
+			this.tooltip.appendMarkdown(`$(account) [**${author}**](mailto:${email} "${emailTitle} ${author}")\n\n`);
 		} else {
-			this.detail.appendMarkdown(`$(account) **${author}**\n\n`);
+			this.tooltip.appendMarkdown(`$(account) **${author}**\n\n`);
 		}
 
-		this.detail.appendMarkdown(`$(history) ${date}\n\n`);
-		this.detail.appendMarkdown(message);
+		this.tooltip.appendMarkdown(`$(history) ${date}\n\n`);
+		this.tooltip.appendMarkdown(message);
 	}
 
 	private shortenRef(ref: string): string {
@@ -252,7 +252,7 @@ export class GitTimelineProvider implements TimelineProvider {
 
 	private ensureProviderRegistration() {
 		if (this.providerDisposable === undefined) {
-			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git'], this);
+			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git', 'vscode-local-history'], this);
 		}
 	}
 

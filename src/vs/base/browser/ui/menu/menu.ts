@@ -1244,11 +1244,13 @@ ${formatRule(Codicon.menuSubmenu)}
 
 
 /* High Contrast Theming */
-:host-context(.hc-black) .context-view.monaco-menu-container {
+:host-context(.hc-black) .context-view.monaco-menu-container,
+:host-context(.hc-light) .context-view.monaco-menu-container {
 	box-shadow: none;
 }
 
-:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused {
+:host-context(.hc-black) .monaco-menu .monaco-action-bar.vertical .action-item.focused,
+:host-context(.hc-light) .monaco-menu .monaco-action-bar.vertical .action-item.focused {
 	background: none;
 }
 

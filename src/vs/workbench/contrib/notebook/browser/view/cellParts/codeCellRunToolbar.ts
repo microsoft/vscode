@@ -19,16 +19,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 export class RunToolbar extends CellPart {
 	private toolbar!: ToolBar;
-
-	private cellDisposable = this._register(new DisposableStore());
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
@@ -54,9 +50,8 @@ export class RunToolbar extends CellPart {
 		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(updateActions));
 	}
 
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.cellDisposable.clear();
-		this.cellDisposable.add(registerStickyScroll(this.notebookEditor, element, this.runButtonContainer));
+	override didRenderCell(element: ICellViewModel): void {
+		this.cellDisposables.add(registerStickyScroll(this.notebookEditor, element, this.runButtonContainer));
 
 		this.toolbar.context = <INotebookCellActionContext>{
 			ui: true,
@@ -64,22 +59,6 @@ export class RunToolbar extends CellPart {
 			notebookEditor: this.notebookEditor,
 			$mid: MarshalledId.NotebookCellActionContext
 		};
-	}
-
-	override unrenderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.cellDisposable.clear();
-	}
-
-	prepareLayout(): void {
-		// no op
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
-		// no op
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
-		// no op
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {

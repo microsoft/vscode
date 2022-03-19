@@ -76,9 +76,14 @@ export interface ISerializedCommand {
 	endLine: number | undefined;
 	executedLine: number | undefined;
 	exitCode: number | undefined;
+	commandStartLineContent: string | undefined;
 	timestamp: number;
+}
+export interface ISerializedCommandDetectionCapability {
+	isWindowsPty: boolean;
+	commands: ISerializedCommand[];
 }
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];
-	commands: ISerializedCommand[];
+	commands: ISerializedCommandDetectionCapability;
 }

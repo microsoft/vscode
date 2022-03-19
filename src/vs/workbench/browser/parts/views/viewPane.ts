@@ -41,6 +41,7 @@ import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
+import { IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -508,8 +509,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return createActionViewItem(this.instantiationService, action);
+	getActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		return createActionViewItem(this.instantiationService, action, options);
 	}
 
 	getActionsContext(): unknown {

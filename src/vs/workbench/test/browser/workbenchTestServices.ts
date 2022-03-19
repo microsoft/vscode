@@ -98,7 +98,7 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
@@ -929,8 +929,10 @@ export class TestEditorService implements EditorServiceImpl {
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
 	async openEditor(editor: EditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | PreferredGroup, group?: PreferredGroup): Promise<IEditorPane | undefined> {
-		throw new Error('not implemented');
+		return undefined;
 	}
+	async closeEditor(editor: IEditorIdentifier, options?: ICloseEditorOptions): Promise<void> { }
+	async closeEditors(editors: IEditorIdentifier[], options?: ICloseEditorOptions): Promise<void> { }
 	doResolveEditorOpenRequest(editor: EditorInput | IUntypedEditorInput): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
 		if (!this.editorGroupService) {
 			return undefined;
@@ -978,20 +980,8 @@ export class TestFileService implements IFileService {
 
 	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
-	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
-		return Promise.resolve({
-			resource,
-			etag: Date.now().toString(),
-			encoding: 'utf8',
-			mtime: Date.now(),
-			size: 42,
-			isFile: true,
-			isDirectory: false,
-			isSymbolicLink: false,
-			readonly: this.readonly,
-			name: basename(resource),
-			children: undefined
-		});
+	async resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
+		return createFileStat(resource, this.readonly);
 	}
 
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
@@ -1010,44 +1000,30 @@ export class TestFileService implements IFileService {
 
 	readShouldThrowError: Error | undefined = undefined;
 
-	readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
+	async readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
 		if (this.readShouldThrowError) {
 			throw this.readShouldThrowError;
 		}
 
 		this.lastReadFileUri = resource;
 
-		return Promise.resolve({
-			resource: resource,
-			value: VSBuffer.fromString(this.content),
-			etag: 'index.txt',
-			encoding: 'utf8',
-			mtime: Date.now(),
-			ctime: Date.now(),
-			name: basename(resource),
-			readonly: this.readonly,
-			size: 1
-		});
+		return {
+			...createFileStat(resource, this.readonly),
+			value: VSBuffer.fromString(this.content)
+		};
 	}
 
-	readFileStream(resource: URI, options?: IReadFileStreamOptions | undefined): Promise<IFileStreamContent> {
+	async readFileStream(resource: URI, options?: IReadFileStreamOptions | undefined): Promise<IFileStreamContent> {
 		if (this.readShouldThrowError) {
 			throw this.readShouldThrowError;
 		}
 
 		this.lastReadFileUri = resource;
 
-		return Promise.resolve({
-			resource,
-			value: bufferToStream(VSBuffer.fromString(this.content)),
-			etag: 'index.txt',
-			encoding: 'utf8',
-			mtime: Date.now(),
-			ctime: Date.now(),
-			size: 1,
-			readonly: this.readonly,
-			name: basename(resource)
-		});
+		return {
+			...createFileStat(resource, this.readonly),
+			value: bufferToStream(VSBuffer.fromString(this.content))
+		};
 	}
 
 	writeShouldThrowError: Error | undefined = undefined;
@@ -1059,23 +1035,12 @@ export class TestFileService implements IFileService {
 			throw this.writeShouldThrowError;
 		}
 
-		return ({
-			resource,
-			etag: 'index.txt',
-			mtime: Date.now(),
-			ctime: Date.now(),
-			size: 42,
-			isFile: true,
-			isDirectory: false,
-			isSymbolicLink: false,
-			readonly: this.readonly,
-			name: basename(resource),
-			children: undefined
-		});
+		return createFileStat(resource, this.readonly);
 	}
 
 	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	async cloneFile(_source: URI, _target: URI): Promise<void> { }
 	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 	createFolder(_resource: URI): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
 
@@ -1175,7 +1140,7 @@ export class InMemoryTestWorkingCopyBackupService extends BrowserWorkingCopyBack
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
 		fileService.registerProvider(Schemas.file, new InMemoryFileSystemProvider());
-		fileService.registerProvider(Schemas.userData, new InMemoryFileSystemProvider());
+		fileService.registerProvider(Schemas.vscodeUserData, new InMemoryFileSystemProvider());
 
 		super(new TestContextService(TestWorkspace), environmentService, fileService, logService);
 
@@ -1253,6 +1218,7 @@ export class TestLifecycleService implements ILifecycleService {
 				this.shutdownJoiners.push(p);
 			},
 			force: () => { /* No-Op in tests */ },
+			token: CancellationToken.None,
 			reason
 		});
 	}
@@ -1286,6 +1252,7 @@ export class TestWillShutdownEvent implements WillShutdownEvent {
 
 	value: Promise<void>[] = [];
 	reason = ShutdownReason.CLOSE;
+	token = CancellationToken.None;
 
 	join(promise: Promise<void>, id: string): void {
 		this.value.push(promise);
@@ -1698,7 +1665,7 @@ export class TestPathService implements IPathService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' })) { }
+	constructor(private readonly fallbackUserHome: URI = URI.from({ scheme: Schemas.vscodeRemote, path: '/' }), public defaultUriScheme = Schemas.vscodeRemote) { }
 
 	hasValidBasename(resource: URI, basename?: string): Promise<boolean>;
 	hasValidBasename(resource: URI, os: OperatingSystem, basename?: string): boolean;
@@ -1718,8 +1685,6 @@ export class TestPathService implements IPathService {
 	async fileURI(path: string): Promise<URI> {
 		return URI.file(path);
 	}
-
-	readonly defaultUriScheme = Schemas.vscodeRemote;
 }
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {

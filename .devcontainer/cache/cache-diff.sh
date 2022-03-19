@@ -5,16 +5,19 @@
 
 set -e
 
-SCRIPT_PATH="$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)"
 SOURCE_FOLDER="${1:-"."}"
-CACHE_FOLDER="${2:-"/usr/local/etc/devcontainer-cache"}"
+CACHE_FOLDER="${2:-"$HOME/.devcontainer-cache"}"
+
+if [ ! -d "${CACHE_FOLDER}" ]; then
+	echo "No cache folder found. Be sure to run before-cache.sh to set one up."
+	exit 1
+fi
 
 echo "[$(date)] Starting cache operation..."
 cd "${SOURCE_FOLDER}"
 echo "[$(date)] Determining diffs..."
-find -L . -not -path "*/.git/*" -and -not -path "${SCRIPT_PATH}/*.manifest" -type f > "${SCRIPT_PATH}/after.manifest"
-grep -Fxvf  "${SCRIPT_PATH}/before.manifest" "${SCRIPT_PATH}/after.manifest" > "${SCRIPT_PATH}/cache.manifest"
+find -L . -not -path "*/.git/*" -and -not -path "${CACHE_FOLDER}/*.manifest" -type f > "${CACHE_FOLDER}/after.manifest"
+grep -Fxvf  "${CACHE_FOLDER}/before.manifest" "${CACHE_FOLDER}/after.manifest" > "${CACHE_FOLDER}/cache.manifest"
 echo "[$(date)] Archiving diffs..."
-mkdir -p "${CACHE_FOLDER}"
-tar -cf "${CACHE_FOLDER}/cache.tar" --totals --files-from "${SCRIPT_PATH}/cache.manifest"
+tar -cf "${CACHE_FOLDER}/cache.tar" --totals --files-from "${CACHE_FOLDER}/cache.manifest"
 echo "[$(date)] Done! $(du -h "${CACHE_FOLDER}/cache.tar")"

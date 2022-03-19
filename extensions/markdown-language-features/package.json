@@ -15,6 +15,9 @@
   "categories": [
     "Programming Languages"
   ],
+  "enabledApiProposals": [
+    "textEditorDrop"
+  ],
   "activationEvents": [
     "onLanguage:markdown",
     "onCommand:markdown.preview.toggleLock",
@@ -430,7 +433,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "0.4.6",
+    "@vscode/extension-telemetry": "0.4.10",
     "dompurify": "^2.3.3",
     "highlight.js": "^11.4.0",
     "markdown-it": "^12.3.2",

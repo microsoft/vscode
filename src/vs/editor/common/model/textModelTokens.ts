@@ -294,13 +294,13 @@ export class TextModelTokenization extends Disposable {
 			}
 		} while (this._hasLinesToTokenize());
 
-		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
 
 	public tokenizeViewport(startLineNumber: number, endLineNumber: number): void {
 		const builder = new ContiguousMultilineTokensBuilder();
 		this._tokenizeViewport(builder, startLineNumber, endLineNumber);
-		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
 
 	public reset(): void {
@@ -311,7 +311,7 @@ export class TextModelTokenization extends Disposable {
 	public forceTokenization(lineNumber: number): void {
 		const builder = new ContiguousMultilineTokensBuilder();
 		this._updateTokensUntilLine(builder, lineNumber);
-		this._textModel.setTokens(builder.finalize(), !this._hasLinesToTokenize());
+		this._textModel.setTokens(builder.finalize(), this._isTokenizationComplete());
 	}
 
 	public getTokenTypeIfInsertingCharacter(position: Position, character: string): StandardTokenType {
@@ -403,6 +403,13 @@ export class TextModelTokenization extends Disposable {
 			return false;
 		}
 		return (this._tokenizationStateStore.invalidLineStartIndex < this._textModel.getLineCount());
+	}
+
+	private _isTokenizationComplete(): boolean {
+		if (!this._tokenizationStateStore) {
+			return false;
+		}
+		return (this._tokenizationStateStore.invalidLineStartIndex >= this._textModel.getLineCount());
 	}
 
 	private _tokenizeOneInvalidLine(builder: ContiguousMultilineTokensBuilder): number {

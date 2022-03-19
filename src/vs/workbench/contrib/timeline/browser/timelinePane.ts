@@ -15,7 +15,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basename } from 'vs/base/common/path';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -36,9 +36,9 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItem, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry, ISubmenuItem, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -50,6 +50,7 @@ import { isString } from 'vs/base/common/types';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 type TreeElement = TimelineItem | LoadMoreCommand;
 
@@ -185,7 +186,7 @@ class LoadMoreCommand {
 	readonly handle = 'vscode-command:loadMore';
 	readonly timestamp = 0;
 	readonly description = undefined;
-	readonly detail = undefined;
+	readonly tooltip = undefined;
 	readonly contextValue = undefined;
 	// Make things easier for duck typing
 	readonly id = undefined;
@@ -255,6 +256,8 @@ export class TimelinePane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@ILabelService private readonly labelService: ILabelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -263,8 +266,8 @@ export class TimelinePane extends ViewPane {
 		this.followActiveEditorContext = TimelineFollowActiveEditorContext.bindTo(this.contextKeyService);
 
 		this.excludedSources = new Set(configurationService.getValue('timeline.excludeSources'));
-		configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this);
 
+		this._register(configurationService.onDidChangeConfiguration(this.onConfigurationChanged, this));
 		this._register(timelineService.onDidChangeProviders(this.onProvidersChanged, this));
 		this._register(timelineService.onDidChangeTimeline(this.onTimelineChanged, this));
 		this._register(timelineService.onDidChangeUri(uri => this.setUri(uri), this));
@@ -322,7 +325,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this.uri = uri;
-		this.updateFilename(uri ? basename(uri.fsPath) : undefined);
+		this.updateFilename(uri ? this.labelService.getUriBasenameLabel(uri) : undefined);
 		this.treeRenderer?.setUri(uri);
 		this.loadTimeline(true);
 	}
@@ -352,7 +355,7 @@ export class TimelinePane extends ViewPane {
 
 		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
+		if ((this.uriIdentityService.extUri.isEqual(uri, this.uri) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
 			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
 
@@ -395,7 +398,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || e.uri.toString(true) !== this.uri?.toString(true)) {
+		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(e.uri, this.uri)) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;
@@ -785,11 +788,11 @@ export class TimelinePane extends ViewPane {
 			if (this.pendingRequests.size !== 0) {
 				this.setLoadingUriMessage();
 			} else {
-				this.updateFilename(basename(this.uri.fsPath));
+				this.updateFilename(this.labelService.getUriBasenameLabel(this.uri));
 				this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
 			}
 		} else {
-			this.updateFilename(basename(this.uri.fsPath));
+			this.updateFilename(this.labelService.getUriBasenameLabel(this.uri));
 			this.message = undefined;
 		}
 
@@ -964,8 +967,12 @@ export class TimelinePane extends ViewPane {
 		return true;
 	}
 
+	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+		return super.getActionViewItem(action, { menuAsChild: action instanceof SubmenuItemAction });
+	}
+
 	setLoadingUriMessage() {
-		const file = this.uri && basename(this.uri.fsPath);
+		const file = this.uri && this.labelService.getUriBasenameLabel(this.uri);
 		this.updateFilename(file);
 		this.message = file ? localize('timeline.loading', "Loading timeline for {0}...", file) : '';
 	}
@@ -1159,14 +1166,14 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 			template.icon.style.backgroundImage = '';
 			template.icon.style.color = '';
 		}
-		const detail = item.detail
-			? isString(item.detail)
-				? item.detail
-				: { markdown: item.detail, markdownNotSupportedFallback: renderMarkdownAsPlaintext(item.detail) }
+		const tooltip = item.tooltip
+			? isString(item.tooltip)
+				? item.tooltip
+				: { markdown: item.tooltip, markdownNotSupportedFallback: renderMarkdownAsPlaintext(item.tooltip) }
 			: undefined;
 
 		template.iconLabel.setLabel(item.label, item.description, {
-			title: detail,
+			title: tooltip,
 			matches: createMatches(node.filterData)
 		});
 
@@ -1192,9 +1199,11 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 const timelineRefresh = registerIcon('timeline-refresh', Codicon.refresh, localize('timelineRefresh', 'Icon for the refresh timeline action.'));
 const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timelinePin', 'Icon for the pin timeline action.'));
 const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
+const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));
 
 class TimelinePaneCommands extends Disposable {
 	private sourceDisposables: DisposableStore;
+	private readonly timelineFilterSubMenu = new MenuId('timelineFilterSubMenu');
 
 	constructor(
 		private readonly pane: TimelinePane,
@@ -1206,6 +1215,14 @@ class TimelinePaneCommands extends Disposable {
 		super();
 
 		this._register(this.sourceDisposables = new DisposableStore());
+
+		MenuRegistry.appendMenuItem(MenuId.TimelineTitle, <ISubmenuItem>{
+			submenu: this.timelineFilterSubMenu,
+			title: localize('filterTimeline', "Filter Timeline..."),
+			group: 'navigation',
+			order: 100,
+			icon: timelineFilter
+		});
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -1287,17 +1304,16 @@ class TimelinePaneCommands extends Disposable {
 		this.sourceDisposables.clear();
 
 		const excluded = new Set(this.configurationService.getValue<string[] | undefined>('timeline.excludeSources') ?? []);
-
 		for (const source of this.timelineService.getSources()) {
+			const that = this;
 			this.sourceDisposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: `timeline.toggleExcludeSource:${source.id}`,
-						title: { value: localize('timeline.filterSource', "Include: {0}", source.label), original: `Include: ${source.label}` },
-						category: { value: localize('timeline', "Timeline"), original: 'Timeline' },
+						title: source.label,
 						menu: {
-							id: MenuId.TimelineTitle,
-							group: '2_sources',
+							id: that.timelineFilterSubMenu,
+							group: 'navigation',
 						},
 						toggled: ContextKeyExpr.regex(`config.timeline.excludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
 					});
