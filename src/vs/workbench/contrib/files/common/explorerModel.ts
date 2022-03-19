@@ -333,7 +333,7 @@ export class ExplorerItem {
 					}
 				}
 
-				const nested = this.buildFileNester().nest(
+				const nested = this.fileNester.nest(
 					fileChildren.map(([name]) => name),
 					this.getPlatformAwareName(this.name));
 
@@ -364,16 +364,19 @@ export class ExplorerItem {
 		})();
 	}
 
-	// TODO:@jkearl, share one nester across all explorer items and only build on config change
-	private buildFileNester(): ExplorerFileNestingTrie {
-		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
-		const patterns = Object.entries(nestingConfig.patterns)
-			.filter(entry =>
-				typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
-			.map(([parentPattern, childrenPatterns]) =>
-				[parentPattern.trim(), childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))] as [string, string[]]);
+	private _fileNester: ExplorerFileNestingTrie | undefined;
+	private get fileNester(): ExplorerFileNestingTrie {
+		if (!this.root._fileNester) {
+			const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
+			const patterns = Object.entries(nestingConfig.patterns)
+				.filter(entry =>
+					typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
+				.map(([parentPattern, childrenPatterns]) =>
+					[parentPattern.trim(), childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))] as [string, string[]]);
 
-		return new ExplorerFileNestingTrie(patterns);
+			this.root._fileNester = new ExplorerFileNestingTrie(patterns);
+		}
+		return this.root._fileNester;
 	}
 
 	/**
@@ -386,6 +389,7 @@ export class ExplorerItem {
 	forgetChildren(): void {
 		this.children.clear();
 		this._isDirectoryResolved = false;
+		this._fileNester = undefined;
 	}
 
 	private getPlatformAwareName(name: string): string {
