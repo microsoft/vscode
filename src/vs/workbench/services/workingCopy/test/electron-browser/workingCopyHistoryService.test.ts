@@ -633,21 +633,21 @@ flakySuite('WorkingCopyHistoryService', () => {
 	});
 
 	test('entries are merged when source is same', async () => {
-		let changed: IWorkingCopyHistoryEntry | undefined = undefined;
-		service.onDidChangeEntry(e => changed = e.entry);
+		let replaced: IWorkingCopyHistoryEntry | undefined = undefined;
+		service.onDidReplaceEntry(e => replaced = e.entry);
 
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 
 		service._configurationService.setUserConfiguration('workbench.localHistory.mergePeriod', 1);
 
 		const entry1 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
-		assert.strictEqual(changed, undefined);
+		assert.strictEqual(replaced, undefined);
 
 		const entry2 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
-		assert.strictEqual(changed, entry1);
+		assert.strictEqual(replaced, entry1);
 
 		const entry3 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
-		assert.strictEqual(changed, entry2);
+		assert.strictEqual(replaced, entry2);
 
 		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
 		assert.strictEqual(entries.length, 1);

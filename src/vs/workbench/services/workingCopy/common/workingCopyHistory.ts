@@ -75,17 +75,22 @@ export interface IWorkingCopyHistoryService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * An event when entries are added to the history.
+	 * An event when an entry is added to the history.
 	 */
 	onDidAddEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
-	 * An event when entries are changed in the history.
+	 * An event when an entry is changed in the history.
 	 */
 	onDidChangeEntry: Event<IWorkingCopyHistoryEvent>;
 
 	/**
-	 * An event when entries are removed from the history.
+	 * An event when an entry is replaced in the history.
+	 */
+	onDidReplaceEntry: Event<IWorkingCopyHistoryEvent>;
+
+	/**
+	 * An event when an entry is removed from the history.
 	 */
 	onDidRemoveEntry: Event<IWorkingCopyHistoryEvent>;
 

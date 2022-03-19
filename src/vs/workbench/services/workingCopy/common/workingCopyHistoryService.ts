@@ -73,6 +73,7 @@ export class WorkingCopyHistoryModel {
 		private readonly historyHome: URI,
 		private readonly entryAddedEmitter: Emitter<IWorkingCopyHistoryEvent>,
 		private readonly entryChangedEmitter: Emitter<IWorkingCopyHistoryEvent>,
+		private readonly entryReplacedEmitter: Emitter<IWorkingCopyHistoryEvent>,
 		private readonly entryRemovedEmitter: Emitter<IWorkingCopyHistoryEvent>,
 		private readonly fileService: IFileService,
 		private readonly labelService: ILabelService,
@@ -171,7 +172,7 @@ export class WorkingCopyHistoryModel {
 		this.shouldStore = true;
 
 		// Events
-		this.entryChangedEmitter.fire({ entry });
+		this.entryReplacedEmitter.fire({ entry });
 
 		return entry;
 	}
@@ -494,6 +495,9 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 	protected readonly _onDidChangeEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
 	readonly onDidChangeEntry = this._onDidChangeEntry.event;
 
+	protected readonly _onDidReplaceEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
+	readonly onDidReplaceEntry = this._onDidReplaceEntry.event;
+
 	private readonly _onDidMoveEntries = this._register(new Emitter<void>());
 	readonly onDidMoveEntries = this._onDidMoveEntries.event;
 
@@ -721,7 +725,7 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 	}
 
 	protected createModel(resource: URI, historyHome: URI): WorkingCopyHistoryModel {
-		return new WorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidChangeEntry, this._onDidRemoveEntry, this.fileService, this.labelService, this.logService, this.configurationService);
+		return new WorkingCopyHistoryModel(resource, historyHome, this._onDidAddEntry, this._onDidChangeEntry, this._onDidReplaceEntry, this._onDidRemoveEntry, this.fileService, this.labelService, this.logService, this.configurationService);
 	}
 }
 
