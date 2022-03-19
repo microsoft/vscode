@@ -349,7 +349,7 @@ export interface IItemScore {
 	descriptionMatch?: IMatch[];
 }
 
-const NO_ITEM_SCORE: IItemScore = Object.freeze({ score: 0 });
+const NO_ITEM_SCORE = Object.freeze<IItemScore>({ score: 0 });
 
 export interface IItemAccessor<T> {
 

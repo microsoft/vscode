@@ -1677,3 +1677,62 @@ export const enum ZIndex {
 	ModalDialog = 2600,
 	PaneDropOverlay = 10000
 }
+
+
+export interface IDragAndDropObserverCallbacks {
+	readonly onDragEnter: (e: DragEvent) => void;
+	readonly onDragLeave: (e: DragEvent) => void;
+	readonly onDrop: (e: DragEvent) => void;
+	readonly onDragEnd: (e: DragEvent) => void;
+
+	readonly onDragOver?: (e: DragEvent) => void;
+}
+
+export class DragAndDropObserver extends Disposable {
+
+	// A helper to fix issues with repeated DRAG_ENTER / DRAG_LEAVE
+	// calls see https://github.com/microsoft/vscode/issues/14470
+	// when the element has child elements where the events are fired
+	// repeadedly.
+	private counter: number = 0;
+
+	constructor(private readonly element: HTMLElement, private readonly callbacks: IDragAndDropObserverCallbacks) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, (e: DragEvent) => {
+			this.counter++;
+
+			this.callbacks.onDragEnter(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
+			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
+			if (this.callbacks.onDragOver) {
+				this.callbacks.onDragOver(e);
+			}
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, (e: DragEvent) => {
+			this.counter--;
+
+			if (this.counter === 0) {
+				this.callbacks.onDragLeave(e);
+			}
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
+			this.counter = 0;
+			this.callbacks.onDragEnd(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
+			this.counter = 0;
+			this.callbacks.onDrop(e);
+		}));
+	}
+}

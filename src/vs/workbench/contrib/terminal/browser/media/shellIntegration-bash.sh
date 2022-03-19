@@ -59,8 +59,8 @@ command_complete() {
 update_prompt() {
 	PRIOR_PROMPT="$PS1"
 	IN_COMMAND_EXECUTION=""
-	PS1="$(prompt_start)$PREFIX$PS1$(prompt_end)"
-	PS2="$(continuation_start)$PS2$(continuation_end)"
+	PS1="\[$(prompt_start)\]$PREFIX$PS1\[$(prompt_end)\]"
+	PS2="\[$(continuation_start)\]$PS2\[$(continuation_end)\]"
 }
 
 precmd() {
@@ -85,16 +85,14 @@ prompt_cmd_original() {
 	STATUS="$?"
 	if [[ "$ORIGINAL_PROMPT_COMMAND" =~ .+\;.+ ]]; then
 		IFS=';'
-		read -ra ADDR <<<"$ORIGINAL_PROMPT_COMMAND"
-		for ((i = 0; i < ${#ADDR[@]}; i++)); do
-			eval ${ADDR[i]}
-		done
-		IFS=''
 	else
-		for i in "${ORIGINAL_PROMPT_COMMAND[@]}"; do
-			eval $i
-		done
+		IFS=' '
 	fi
+	read -ra ADDR <<<"$ORIGINAL_PROMPT_COMMAND"
+	for ((i = 0; i < ${#ADDR[@]}; i++)); do
+		eval ${ADDR[i]}
+	done
+	IFS=''
 	precmd
 }
 

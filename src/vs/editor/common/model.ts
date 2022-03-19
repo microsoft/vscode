@@ -488,7 +488,7 @@ export interface ITextModelCreationOptions {
 
 export interface BracketPairColorizationOptions {
 	enabled: boolean;
-	useIndependentColorPoolPerBracketType: boolean;
+	independentColorPoolPerBracketType: boolean;
 }
 
 export interface ITextModelUpdateOptions {

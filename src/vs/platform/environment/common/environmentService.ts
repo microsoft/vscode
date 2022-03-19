@@ -87,10 +87,13 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
-	get globalStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'globalStorage'); }
+	get globalStorageHome(): URI { return joinPath(this.appSettingsHome, 'globalStorage'); }
 
 	@memoize
-	get workspaceStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'workspaceStorage'); }
+	get workspaceStorageHome(): URI { return joinPath(this.appSettingsHome, 'workspaceStorage'); }
+
+	@memoize
+	get localHistoryHome(): URI { return joinPath(this.appSettingsHome, 'History'); }
 
 	@memoize
 	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }

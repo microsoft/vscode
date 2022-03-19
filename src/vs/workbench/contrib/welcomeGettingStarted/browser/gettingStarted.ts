@@ -675,7 +675,7 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsScrollbar?.scanDomNode();
 	}
 
-	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI; dark: URI; light: URI }) {
+	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hcDark: URI; hcLight: URI; dark: URI; light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
 		const src = sources[themeType].toString(true).replace(/ /g, '%20');
 		element.srcset = src.toLowerCase().endsWith('.svg') ? src : (src + ' 1.5x');

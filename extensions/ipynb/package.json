@@ -31,7 +31,9 @@
 		"commands": [
 			{
 				"command": "ipynb.newUntitledIpynb",
-				"title": "Jupyter Notebook"
+        "title": "New Jupyter Notebook",
+				"shortTitle": "Jupyter Notebook",
+        "category": "Create"
 			},
 			{
 				"command": "ipynb.openIpynbInNotebookEditor",
@@ -53,15 +55,13 @@
 		"menus": {
 			"file/newFile": [
 				{
-					"command": "ipynb.newUntitledIpynb",
-					"when": "!jupyterEnabled"
+					"command": "ipynb.newUntitledIpynb"
 				}
 			],
 			"commandPalette": [
-				{
-					"command": "ipynb.newUntitledIpynb",
-					"when": "false"
-				},
+        {
+          "command": "ipynb.newUntitledIpynb"
+        },
 				{
 					"command": "ipynb.openIpynbInNotebookEditor",
 					"when": "false"

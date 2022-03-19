@@ -92,17 +92,20 @@ import 'vs/workbench/contrib/notebook/browser/contrib/execute/executionEditorPro
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
-// Output renderers registration
+// Services
 import { editorOptionsRegistry } from 'vs/editor/common/config/editorOptions';
 import { NotebookExecutionStateService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionStateServiceImpl';
 import { NotebookExecutionService } from 'vs/workbench/contrib/notebook/browser/notebookExecutionServiceImpl';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookKeymapService } from 'vs/workbench/contrib/notebook/common/notebookKeymapService';
-import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/notebookKeymapServiceImpl';
+import { NotebookKeymapService } from 'vs/workbench/contrib/notebook/browser/services/notebookKeymapServiceImpl';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { NotebookInfo } from 'vs/editor/common/languageFeatureRegistry';
+import { COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/contrib/comments/browser/commentReply';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -208,6 +211,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	constructor(
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super();
 
@@ -221,6 +225,9 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				return NotebookContribution._getCellUndoRedoComparisonKey(uri);
 			}
 		}));
+
+		// register comment decoration
+		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
 	}
 
 	private static _getCellUndoRedoComparisonKey(uri: URI) {
@@ -617,10 +624,10 @@ class NotebookLanguageSelectorScoreRefine {
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
-		languageFeaturesService.setNotebookTypeResolver(this._getNotebookType.bind(this));
+		languageFeaturesService.setNotebookTypeResolver(this._getNotebookInfo.bind(this));
 	}
 
-	private _getNotebookType(uri: URI): string | undefined {
+	private _getNotebookInfo(uri: URI): NotebookInfo | undefined {
 		const cellUri = CellUri.parse(uri);
 		if (!cellUri) {
 			return undefined;
@@ -629,7 +636,10 @@ class NotebookLanguageSelectorScoreRefine {
 		if (!notebook) {
 			return undefined;
 		}
-		return notebook.viewType;
+		return {
+			uri: notebook.uri,
+			type: notebook.viewType
+		};
 	}
 }
 
@@ -702,7 +712,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[NotebookSetting.displayOrder]: {
 			description: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
-			type: ['array'],
+			type: 'array',
 			items: {
 				type: 'string'
 			},

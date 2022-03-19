@@ -25,7 +25,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -43,7 +43,7 @@ import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/brow
 import { AbstractSettingRenderer, HeightChangeParams, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveConfiguredUntrustedSettings, createTocTreeForExtensionSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, ENABLE_LANGUAGE_FILTER, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsHeaderBorder, settingsSashBorder, settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IOpenSettingsOptions, IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingMatchType, SettingValueType, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
@@ -99,7 +99,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static NARROW_TOTAL_WIDTH: number = SettingsEditor2.TOC_MIN_WIDTH + SettingsEditor2.EDITOR_MIN_WIDTH;
 	private static MEDIUM_TOTAL_WIDTH: number = 1000;
 
-	private static readonly SUGGESTIONS: string[] = [
+	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
 		'@tag:notebookLayout',
 		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
@@ -173,7 +173,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private settingFastUpdateDelayer: Delayer<void>;
 	private settingSlowUpdateDelayer: Delayer<void>;
-	private pendingSettingUpdate: { key: string; value: any } | null = null;
+	private pendingSettingUpdate: { key: string; value: any; languageFilter: string | undefined } | null = null;
 
 	private readonly viewState: ISettingsEditorViewState;
 	private _searchResultModel: SearchResultModel | null = null;
@@ -198,6 +198,8 @@ export class SettingsEditor2 extends EditorPane {
 	private treeFocusedElement: SettingsTreeElement | null = null;
 	private settingsTreeScrollTop = 0;
 	private dimension!: DOM.Dimension;
+
+	private searchWidgetWillBeDisposed = false;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -261,6 +263,10 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this.modelDisposables = this._register(new DisposableStore());
+
+		if (ENABLE_LANGUAGE_FILTER && !SettingsEditor2.SUGGESTIONS.includes(`@${LANGUAGE_SETTING_TAG}`)) {
+			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
+		}
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -339,6 +345,7 @@ export class SettingsEditor2 extends EditorPane {
 		// Don't block setInput on render (which can trigger an async search)
 		this.onConfigUpdate(undefined, true).then(() => {
 			this._register(input.onWillDispose(() => {
+				this.searchWidgetWillBeDisposed = true;
 				this.searchWidget.setValue('');
 			}));
 
@@ -788,7 +795,7 @@ export class SettingsEditor2 extends EditorPane {
 	private createSettingsTree(container: HTMLElement): void {
 
 		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
-		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type)));
+		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type, e.manualReset)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
 			this.openSettingsFile({ revealSetting: { key: settingKey, edit: true } });
 		}));
@@ -816,6 +823,9 @@ export class SettingsEditor2 extends EditorPane {
 			} catch (e) {
 				// the element was not found
 			}
+		}));
+		this._register(this.settingRenderers.onApplyLanguageFilter((lang: string) => {
+			this.focusSearch(`@${LANGUAGE_SETTING_TAG}${lang}`);
 		}));
 
 		this.settingsTree = this._register(this.instantiationService.createInstance(SettingsTree,
@@ -869,16 +879,18 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 	}
 
-	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[]): void {
+	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[], manualReset: boolean): void {
+		const parsedQuery = parseQuery(this.searchWidget.getValue());
+		const languageFilter = parsedQuery.languageFilter;
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
-			this.updateChangedSetting(key, value);
+			this.updateChangedSetting(key, value, manualReset, languageFilter);
 		}
 
-		this.pendingSettingUpdate = { key, value };
+		this.pendingSettingUpdate = { key, value, languageFilter };
 		if (SettingsEditor2.shouldSettingUpdateFast(type)) {
-			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+			this.settingFastUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset, languageFilter));
 		} else {
-			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+			this.settingSlowUpdateDelayer.trigger(() => this.updateChangedSetting(key, value, manualReset, languageFilter));
 		}
 	}
 
@@ -948,19 +960,22 @@ export class SettingsEditor2 extends EditorPane {
 		return ancestors.reverse();
 	}
 
-	private updateChangedSetting(key: string, value: any): Promise<void> {
+	private updateChangedSetting(key: string, value: any, manualReset: boolean, languageFilter: string | undefined): Promise<void> {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
 		const resource = URI.isUri(settingsTarget) ? settingsTarget : undefined;
 		const configurationTarget = <ConfigurationTarget>(resource ? ConfigurationTarget.WORKSPACE_FOLDER : settingsTarget);
-		const overrides: IConfigurationOverrides = { resource };
+		const overrides: IConfigurationUpdateOverrides = { resource, overrideIdentifiers: languageFilter ? [languageFilter] : undefined };
 
-		const isManualReset = value === undefined;
+		const configurationTargetIsWorkspace = configurationTarget === ConfigurationTarget.WORKSPACE || configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER;
 
-		// If the user is changing the value back to the default, do a 'reset' instead
+		const userPassedInManualReset = configurationTargetIsWorkspace || !!languageFilter;
+		const isManualReset = userPassedInManualReset ? manualReset : value === undefined;
+
+		// If the user is changing the value back to the default, and we're not targeting a workspace scope, do a 'reset' instead
 		const inspected = this.configurationService.inspect(key, overrides);
-		if (inspected.defaultValue === value) {
+		if (!userPassedInManualReset && inspected.defaultValue === value) {
 			value = undefined;
 		}
 
@@ -1031,13 +1046,13 @@ export class SettingsEditor2 extends EditorPane {
 
 		/* __GDPR__
 			"settingsEditor.settingModified" : {
-				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The setting that is being modified." },
+				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Whether the setting is from the local search or remote search provider, if applicable." },
+				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The index of the setting in the remote search provider results, if applicable." },
+				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The index of the setting in the combined search results, if applicable." },
+				"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Whether the user is in the modified view, which shows configured settings only." },
+				"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "Identifies whether a setting was reset to its default value." },
+				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The scope of the setting, such as user or workspace." }
 			}
 		*/
 		this.telemetryService.publicLog('settingsEditor.settingModified', data);
@@ -1096,7 +1111,7 @@ export class SettingsEditor2 extends EditorPane {
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, dividedGroups.extension || []));
 
 		if (!this.workspaceTrustManagementService.isWorkspaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
-			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.configurationService);
+			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.viewState.languageFilter, this.configurationService);
 			if (configuredUntrustedWorkspaceSettings.length) {
 				resolvedSettingsRoot.children!.unshift({
 					id: 'workspaceTrust',
@@ -1240,8 +1255,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async onSearchInputChanged(): Promise<void> {
-		if (!this.currentSettingsModel) {
-			// Initializing search widget value
+		if (!this.currentSettingsModel || this.searchWidgetWillBeDisposed) {
+			// From initializing or disposing the search widget.
 			return;
 		}
 
@@ -1264,6 +1279,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
 		this.viewState.idFilters = new Set<string>();
+		this.viewState.languageFilter = undefined;
 		if (query) {
 			const parsedQuery = parseQuery(query);
 			query = parsedQuery.query;
@@ -1271,13 +1287,14 @@ export class SettingsEditor2 extends EditorPane {
 			parsedQuery.extensionFilters.forEach(extensionId => this.viewState.extensionFilters!.add(extensionId));
 			parsedQuery.featureFilters!.forEach(feature => this.viewState.featureFilters!.add(feature));
 			parsedQuery.idFilters!.forEach(id => this.viewState.idFilters!.add(id));
+			this.viewState.languageFilter = parsedQuery.languageFilter;
 		}
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
 			return this.triggerFilterPreferences(query);
 		} else {
-			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size) {
+			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size || this.viewState.languageFilter) {
 				this.searchResultModel = this.createFilterModel();
 			} else {
 				this.searchResultModel = null;
@@ -1339,10 +1356,10 @@ export class SettingsEditor2 extends EditorPane {
 
 	private reportFilteringUsed(query: string, results: ISearchResult[]): void {
 		const nlpResult = results[SearchResultIdx.Remote];
-		const nlpMetadata = nlpResult && nlpResult.metadata;
+		const nlpMetadata = nlpResult?.metadata;
 
-		const durations = {
-			nlpResult: nlpMetadata && nlpMetadata.duration
+		const duration = {
+			nlpResult: nlpMetadata?.duration
 		};
 
 		// Count unique results
@@ -1356,20 +1373,20 @@ export class SettingsEditor2 extends EditorPane {
 			counts['nlpResult'] = nlpResult.filterMatches.length;
 		}
 
-		const requestCount = nlpMetadata && nlpMetadata.requestCount;
+		const requestCount = nlpMetadata?.requestCount;
 
 		const data = {
-			durations,
+			durations: duration,
 			counts,
 			requestCount
 		};
 
 		/* __GDPR__
 			"settingsEditor.filter" : {
-				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "How long the remote search provider took, if applicable." },
+				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of matches found by the remote search provider, if applicable." },
+				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of matches found by the local search provider, if applicable." },
+				"requestCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "owner": "rzhao271", "comment": "The number of requests sent to Bing, if applicable." }
 			}
 		*/
 		this.telemetryService.publicLog('settingsEditor.filter', data);
@@ -1499,7 +1516,7 @@ export class SettingsEditor2 extends EditorPane {
 				} else {
 					/* __GDPR__
 						"settingsEditor.searchError" : {
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight", "owner": "rzhao271", comment: "The error message of the search error." }
 						}
 					*/
 					const message = getErrorMessage(err).trim();
@@ -1514,7 +1531,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private layoutTrees(dimension: DOM.Dimension): void {
-		const listHeight = dimension.height - (72 + 11 /* header height + editor padding */);
+		const listHeight = dimension.height - (72 + 11 + 14 /* header height + editor padding */);
 		const settingsTreeHeight = listHeight;
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
 		this.settingsTree.layout(settingsTreeHeight, dimension.width);

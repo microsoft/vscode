@@ -197,6 +197,15 @@ export class NativeWindow extends Disposable {
 			}]
 		));
 
+		ipcRenderer.on('vscode:showCredentialsError', (event: unknown, message: string) => this.notificationService.prompt(
+			Severity.Error,
+			localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", message),
+			[{
+				label: localize('troubleshooting', "Troubleshooting Guide"),
+				run: () => this.openerService.open('https://go.microsoft.com/fwlink/?linkid=2190713')
+			}]
+		));
+
 		// Fullscreen Events
 		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
 		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
@@ -319,7 +328,7 @@ export class NativeWindow extends Disposable {
 		// Lifecycle
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
 		this._register(this.lifecycleService.onBeforeShutdownError(e => this.onBeforeShutdownError(e)));
-		this._register(this.lifecycleService.onWillShutdown((e) => this.onWillShutdown(e)));
+		this._register(this.lifecycleService.onWillShutdown(e => this.onWillShutdown(e)));
 	}
 
 	private onBeforeShutdown({ reason }: BeforeShutdownEvent): void {

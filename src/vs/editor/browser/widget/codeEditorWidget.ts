@@ -110,6 +110,11 @@ class ModelData {
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
+	private static readonly dropIntoEditorDecorationOptions = ModelDecorationOptions.register({
+		description: 'workbench-dnd-target',
+		className: 'dnd-target'
+	});
+
 	//#region Eventing
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidDispose: Event<void> = this._onDidDispose.event;
@@ -185,6 +190,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onMouseDropCanceled: Event<void> = this._onMouseDropCanceled.event;
 
+	private readonly _onDropIntoEditor = this._register(new Emitter<{ position: IPosition; dataTransfer: DataTransfer }>());
+	public readonly onDropIntoEditor = this._onDropIntoEditor.event;
+
 	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
 	public readonly onContextMenu: Event<editorBrowser.IEditorMouseEvent> = this._onContextMenu.event;
 
@@ -252,6 +260,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private _decorationTypeSubtypes: { [decorationTypeKey: string]: { [subtype: string]: boolean } };
 
 	private _bannerDomNode: HTMLElement | null = null;
+
+	private _dropIntoEditorDecorationIds: string[] = [];
 
 	constructor(
 		domElement: HTMLElement,
@@ -351,6 +361,34 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			);
 			this._actions[internalAction.id] = internalAction;
 		});
+
+		this._register(new dom.DragAndDropObserver(this._domElement, {
+			onDragEnter: () => undefined,
+			onDragOver: e => {
+				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+				if (target?.position) {
+					this.showDropIndicatorAt(target.position);
+				}
+			},
+			onDrop: async e => {
+				this.removeDropIndicator();
+
+				if (!e.dataTransfer) {
+					return;
+				}
+
+				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+				if (target?.position) {
+					this._onDropIntoEditor.fire({ position: target.position, dataTransfer: e.dataTransfer });
+				}
+			},
+			onDragLeave: () => {
+				this.removeDropIndicator();
+			},
+			onDragEnd: () => {
+				this.removeDropIndicator();
+			},
+		}));
 
 		this._codeEditorService.addCodeEditor(this);
 	}
@@ -1762,6 +1800,20 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public hasModel(): this is editorBrowser.IActiveCodeEditor {
 		return (this._modelData !== null);
+	}
+
+	private showDropIndicatorAt(position: Position): void {
+		let newDecorations: IModelDeltaDecoration[] = [{
+			range: new Range(position.lineNumber, position.column, position.lineNumber, position.column),
+			options: CodeEditorWidget.dropIntoEditorDecorationOptions
+		}];
+
+		this._dropIntoEditorDecorationIds = this.deltaDecorations(this._dropIntoEditorDecorationIds, newDecorations);
+		this.revealPosition(position, editorCommon.ScrollType.Immediate);
+	}
+
+	private removeDropIndicator(): void {
+		this._dropIntoEditorDecorationIds = this.deltaDecorations(this._dropIntoEditorDecorationIds, []);
 	}
 }
 

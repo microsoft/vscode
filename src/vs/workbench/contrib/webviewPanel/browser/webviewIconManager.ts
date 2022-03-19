@@ -66,7 +66,7 @@ export class WebviewIconManager implements IDisposable {
 				const webviewSelector = `.show-file-icons .webview-${key}-name-file-icon::before`;
 				try {
 					cssRules.push(
-						`.monaco-workbench.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`,
+						`.monaco-workbench.vs ${webviewSelector}, .monaco-workbench.hc-light ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`,
 						`.monaco-workbench.vs-dark ${webviewSelector}, .monaco-workbench.hc-black ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`
 					);
 				} catch {

@@ -11,14 +11,14 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { EditPresentationTypes } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope, EditPresentationTypes } from 'vs/platform/configuration/common/configurationRegistry';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -28,6 +28,7 @@ export interface ISettingsEditorViewState {
 	extensionFilters?: Set<string>;
 	featureFilters?: Set<string>;
 	idFilters?: Set<string>;
+	languageFilter?: string;
 	filterToCategory?: SettingsTreeGroupElement;
 }
 
@@ -138,10 +139,16 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 	tags?: Set<string>;
 	overriddenScopeList: string[] = [];
+	languageOverrideValues: Map<string, IConfigurationValue<unknown>> = new Map<string, IConfigurationValue<unknown>>();
 	description!: string;
 	valueType!: SettingValueType;
 
-	constructor(setting: ISetting, parent: SettingsTreeGroupElement, inspectResult: IInspectResult, isWorkspaceTrusted: boolean) {
+	constructor(
+		setting: ISetting,
+		parent: SettingsTreeGroupElement,
+		inspectResult: IInspectResult,
+		isWorkspaceTrusted: boolean
+	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
 		this.parent = parent;
@@ -172,7 +179,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	}
 
 	update(inspectResult: IInspectResult, isWorkspaceTrusted: boolean): void {
-		const { isConfigured, inspected, targetSelector } = inspectResult;
+		const { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector } = inspectResult;
 
 		switch (targetSelector) {
 			case 'workspaceFolderValue':
@@ -181,7 +188,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				break;
 		}
 
-		const displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
+		let displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
 		const overriddenScopeList: string[] = [];
 		if (targetSelector !== 'workspaceValue' && typeof inspected.workspaceValue !== 'undefined') {
 			overriddenScopeList.push(localize('workspace', "Workspace"));
@@ -195,9 +202,28 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
-		this.value = displayValue;
-		this.scopeValue = isConfigured && inspected[targetSelector];
-		this.defaultValue = inspected.defaultValue;
+		if (inspected.overrideIdentifiers) {
+			for (const overrideIdentifier of inspected.overrideIdentifiers) {
+				const inspectedOverride = inspectedLanguageOverrides.get(overrideIdentifier);
+				if (inspectedOverride) {
+					this.languageOverrideValues.set(overrideIdentifier, inspectedOverride);
+				}
+			}
+		}
+
+		if (languageSelector && this.languageOverrideValues.has(languageSelector)) {
+			const overrideValues = this.languageOverrideValues.get(languageSelector)!;
+			// In the worst case, go back to using the previous display value.
+			// Also, sometimes the override is in the form of a default value override, so consider that second.
+			displayValue = (isConfigured ? overrideValues[targetSelector] : overrideValues.defaultValue) ?? displayValue;
+			this.value = displayValue;
+			this.scopeValue = isConfigured && overrideValues[targetSelector];
+			this.defaultValue = overrideValues.defaultValue ?? inspected.defaultValue;
+		} else {
+			this.value = displayValue;
+			this.scopeValue = isConfigured && inspected[targetSelector];
+			this.defaultValue = inspected.defaultValue;
+		}
 
 		this.isConfigured = isConfigured;
 		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted) {
@@ -347,6 +373,23 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 		return idFilters.has(this.setting.key);
 	}
+
+	matchesAllLanguages(languageFilter?: string): boolean {
+		if (!languageFilter) {
+			// We're not filtering by language.
+			return true;
+		}
+
+		// We have a language filter in the search widget at this point.
+		// We decide to show all language overridable settings to make the
+		// lang filter act more like a scope filter,
+		// rather than adding on an implicit @modified as well.
+		if (this.setting.scope === ConfigurationScope.LANGUAGE_OVERRIDABLE) {
+			return true;
+		}
+
+		return false;
+	}
 }
 
 
@@ -426,7 +469,7 @@ export class SettingsTreeModel {
 
 	private updateSettings(settings: SettingsTreeSettingElement[]): void {
 		settings.forEach(element => {
-			const inspectResult = inspectSetting(element.setting.key, this._viewState.settingsTarget, this._configurationService);
+			const inspectResult = inspectSetting(element.setting.key, this._viewState.settingsTarget, this._viewState.languageFilter, this._configurationService);
 			element.update(inspectResult, this._isWorkspaceTrusted);
 		});
 	}
@@ -462,7 +505,7 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._configurationService);
+		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._viewState.languageFilter, this._configurationService);
 		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
@@ -476,15 +519,21 @@ interface IInspectResult {
 	isConfigured: boolean;
 	inspected: IConfigurationValue<unknown>;
 	targetSelector: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
+	inspectedLanguageOverrides: Map<string, IConfigurationValue<unknown>>;
+	languageSelector: string | undefined;
 }
 
-export function inspectSetting(key: string, target: SettingsTarget, configurationService: IWorkbenchConfigurationService): IInspectResult {
+export function inspectSetting(key: string, target: SettingsTarget, languageFilter: string | undefined, configurationService: IWorkbenchConfigurationService): IInspectResult {
 	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
 	const inspected = configurationService.inspect(key, inspectOverrides);
 	const targetSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocalValue' :
 		target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :
 			target === ConfigurationTarget.WORKSPACE ? 'workspaceValue' :
 				'workspaceFolderValue';
+	const targetOverrideSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocal' :
+		target === ConfigurationTarget.USER_REMOTE ? 'userRemote' :
+			target === ConfigurationTarget.WORKSPACE ? 'workspace' :
+				'workspaceFolder';
 	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
 	if (!isConfigured) {
 		if (target === ConfigurationTarget.USER_LOCAL) {
@@ -498,7 +547,32 @@ export function inspectSetting(key: string, target: SettingsTarget, configuratio
 		}
 	}
 
-	return { isConfigured, inspected, targetSelector };
+	const overrideIdentifiers = inspected.overrideIdentifiers;
+	const inspectedLanguageOverrides = new Map<string, IConfigurationValue<unknown>>();
+
+	// We must reset isConfigured to be false if languageFilter is set, and manually
+	// determine whether it can be set to true later.
+	if (languageFilter) {
+		isConfigured = false;
+	}
+	if (overrideIdentifiers) {
+		// The setting we're looking at has language overrides.
+		for (const overrideIdentifier of overrideIdentifiers) {
+			inspectedLanguageOverrides.set(overrideIdentifier, configurationService.inspect(key, { overrideIdentifier }));
+		}
+
+		// For all language filters, see if there's an override for that filter.
+		if (languageFilter) {
+			if (inspectedLanguageOverrides.has(languageFilter)) {
+				const overrideValue = inspectedLanguageOverrides.get(languageFilter)![targetOverrideSelector]?.override;
+				if (typeof overrideValue !== 'undefined') {
+					isConfigured = true;
+				}
+			}
+		}
+	}
+
+	return { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector: languageFilter };
 }
 
 function sanitizeId(id: string): string {
@@ -598,6 +672,7 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
+		setting.key === 'workbench.localHistory.exclude' ||
 		setting.key === 'files.watcherExclude';
 }
 
@@ -740,7 +815,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		const isRemote = !!this.environmentService.remoteAuthority;
 
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && child.matchesAnyFeature(this._viewState.featureFilters));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && child.matchesAnyFeature(this._viewState.featureFilters) && child.matchesAllLanguages(this._viewState.languageFilter));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
@@ -772,17 +847,35 @@ export interface IParsedQuery {
 	extensionFilters: string[];
 	idFilters: string[];
 	featureFilters: string[];
+	languageFilter: string | undefined;
 }
 
 const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 const extensionRegex = /(^|\s)@ext:("([^"]*)"|[^"]\S*)?/g;
 const featureRegex = /(^|\s)@feature:("([^"]*)"|[^"]\S*)?/g;
 const idRegex = /(^|\s)@id:("([^"]*)"|[^"]\S*)?/g;
+const languageRegex = /(^|\s)@lang:("([^"]*)"|[^"]\S*)?/g;
+
 export function parseQuery(query: string): IParsedQuery {
+	/**
+	 * A helper function to parse the query on one type of regex.
+	 *
+	 * @param query The search query
+	 * @param filterRegex The regex to use on the query
+	 * @param parsedParts The parts that the regex parses out will be appended to the array passed in here.
+	 * @returns The query with the parsed parts removed
+	 */
+	function getTagsForType(query: string, filterRegex: RegExp, parsedParts: string[]): string {
+		return query.replace(filterRegex, (_, __, quotedParsedElement, unquotedParsedElement) => {
+			const parsedElement: string = unquotedParsedElement || quotedParsedElement;
+			if (parsedElement) {
+				parsedParts.push(...parsedElement.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
+			}
+			return '';
+		});
+	}
+
 	const tags: string[] = [];
-	const extensions: string[] = [];
-	const features: string[] = [];
-	const ids: string[] = [];
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);
 		return '';
@@ -793,37 +886,27 @@ export function parseQuery(query: string): IParsedQuery {
 		return '';
 	});
 
-	query = query.replace(extensionRegex, (_, __, quotedExtensionId, extensionId) => {
-		const extensionIdQuery: string = extensionId || quotedExtensionId;
-		if (extensionIdQuery) {
-			extensions.push(...extensionIdQuery.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
-		}
-		return '';
-	});
+	const extensions: string[] = [];
+	const features: string[] = [];
+	const ids: string[] = [];
+	const langs: string[] = [];
+	query = getTagsForType(query, extensionRegex, extensions);
+	query = getTagsForType(query, featureRegex, features);
+	query = getTagsForType(query, idRegex, ids);
 
-	query = query.replace(featureRegex, (_, __, quotedFeature, feature) => {
-		const featureQuery: string = feature || quotedFeature;
-		if (featureQuery) {
-			features.push(...featureQuery.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
-		}
-		return '';
-	});
-
-	query = query.replace(idRegex, (_, __, quotedId, id) => {
-		const idRegex: string = id || quotedId;
-		if (idRegex) {
-			ids.push(...idRegex.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
-		}
-		return '';
-	});
+	if (ENABLE_LANGUAGE_FILTER) {
+		query = getTagsForType(query, languageRegex, langs);
+	}
 
 	query = query.trim();
 
+	// For now, only return the first found language filter
 	return {
 		tags,
 		extensionFilters: extensions,
 		featureFilters: features,
 		idFilters: ids,
-		query
+		languageFilter: langs.length ? langs[0] : undefined,
+		query,
 	};
 }

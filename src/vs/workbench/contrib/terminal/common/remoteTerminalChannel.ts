@@ -163,7 +163,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 
 		const activeFileResource = EditorResourceAccessor.getOriginalUri(this._editorService.activeEditor, {
 			supportSideBySide: SideBySideEditor.PRIMARY,
-			filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+			filterByScheme: [Schemas.file, Schemas.vscodeUserData, Schemas.vscodeRemote]
 		});
 
 		const args: ICreateTerminalProcessArguments = {

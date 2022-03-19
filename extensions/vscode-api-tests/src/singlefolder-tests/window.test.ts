@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { join } from 'path';
-import { CancellationTokenSource, commands, MarkdownString, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, Uri, ViewColumn, window, workspace } from 'vscode';
+import { CancellationTokenSource, commands, MarkdownString, NotebookEditorTabInput, Position, QuickPickItem, Selection, StatusBarAlignment, TextDiffTabInput, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TextTabInput, Uri, ViewColumn, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
@@ -383,21 +383,22 @@ suite('vscode API - window', () => {
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Two, preview: false });
 
 		const tabGroups = window.tabGroups;
-		assert.strictEqual(tabGroups.all.length, 2);
+		assert.strictEqual(tabGroups.groups.length, 2);
 
-		const group1Tabs = tabGroups.all[0].tabs;
+		const group1Tabs = tabGroups.groups[0].tabs;
 		assert.strictEqual(group1Tabs.length, 2);
 
-		const group2Tabs = tabGroups.all[1].tabs;
+		const group2Tabs = tabGroups.groups[1].tabs;
 		assert.strictEqual(group2Tabs.length, 1);
 
-		await group1Tabs[0].move(1, ViewColumn.One);
+		await tabGroups.move(group1Tabs[0], ViewColumn.One, 1);
 	});
 
+	// TODO @lramos15 re-enable these once shape is more stable
 	test('Tabs - vscode.open & vscode.diff', async function () {
 		// Simple function to get the active tab
 		const getActiveTab = () => {
-			return window.tabGroups.all.find(g => g.isActive)?.activeTab;
+			return window.tabGroups.groups.find(g => g.isActive)?.activeTab;
 		};
 
 		const [docA, docB, docC] = await Promise.all([
@@ -413,20 +414,23 @@ suite('vscode API - window', () => {
 		const commandFile = await createRandomFile();
 		await commands.executeCommand('vscode.open', commandFile, ViewColumn.Three);
 		// Ensure active tab is correct after calling vscode.opn
-		assert.strictEqual(getActiveTab()?.viewColumn, ViewColumn.Three);
+		assert.strictEqual(getActiveTab()?.parentGroup.viewColumn, ViewColumn.Three);
 
 		const leftDiff = await createRandomFile();
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Four, preview: false });
-		assert.strictEqual(getActiveTab()?.viewColumn, ViewColumn.Four);
+		assert.strictEqual(getActiveTab()?.parentGroup.viewColumn, ViewColumn.Four);
 
-		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
+		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
 		assert.strictEqual(tabs.length, 5);
-		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
-		assert.strictEqual(tabs[1].resource?.toString(), docB.uri.toString());
-		assert.strictEqual(tabs[2].resource?.toString(), docC.uri.toString());
-		assert.strictEqual(tabs[3].resource?.toString(), commandFile.toString());
-
+		assert.ok(tabs[0].input instanceof TextTabInput);
+		assert.strictEqual(tabs[0].input.uri.toString(), docA.uri.toString());
+		assert.ok(tabs[1].input instanceof TextTabInput);
+		assert.strictEqual(tabs[1].input.uri.toString(), docB.uri.toString());
+		assert.ok(tabs[2].input instanceof TextTabInput);
+		assert.strictEqual(tabs[2].input.uri.toString(), docC.uri.toString());
+		assert.ok(tabs[3].input instanceof TextTabInput);
+		assert.strictEqual(tabs[3].input.uri.toString(), commandFile.toString());
 	});
 
 	test('Tabs - Ensure tabs getter is correct', async function () {
@@ -451,25 +455,29 @@ suite('vscode API - window', () => {
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Three, preview: false });
 
-		const tabs = window.tabGroups.all.map(g => g.tabs).flat(1);
+		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
 		assert.strictEqual(tabs.length, 5);
 
 		// All resources should match the text documents as they're the only tabs currently open
-		assert.strictEqual(tabs[0].resource?.toString(), docA.uri.toString());
-		assert.strictEqual(tabs[1].resource?.toString(), notebookDoc.uri.toString());
-		assert.strictEqual(tabs[2].resource?.toString(), docB.uri.toString());
-		assert.strictEqual(tabs[3].resource?.toString(), docC.uri.toString());
+		assert.ok(tabs[0].input instanceof TextTabInput);
+		assert.strictEqual(tabs[0].input.uri.toString(), docA.uri.toString());
+		assert.ok(tabs[1].input instanceof NotebookEditorTabInput);
+		assert.strictEqual(tabs[1].input.uri.toString(), notebookDoc.uri.toString());
+		assert.ok(tabs[2].input instanceof TextTabInput);
+		assert.strictEqual(tabs[2].input.uri.toString(), docB.uri.toString());
+		assert.ok(tabs[3].input instanceof TextTabInput);
+		assert.strictEqual(tabs[3].input.uri.toString(), docC.uri.toString());
 		// Diff editor and side by side editor report the right side as the resource
-		assert.strictEqual(tabs[4].resource?.toString(), rightDiff.toString());
+		assert.ok(tabs[4].input instanceof TextDiffTabInput);
+		assert.strictEqual(tabs[4].input.modified.toString(), rightDiff.toString());
 
-		assert.strictEqual(tabs[0].viewColumn, ViewColumn.One);
-		assert.strictEqual(tabs[1].viewColumn, ViewColumn.One);
-		assert.strictEqual(tabs[2].viewColumn, ViewColumn.Two);
-		assert.strictEqual(tabs[3].viewColumn, ViewColumn.Three);
-		assert.strictEqual(tabs[4].viewColumn, ViewColumn.Three);
+		assert.strictEqual(tabs[0].parentGroup.viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[1].parentGroup.viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[2].parentGroup.viewColumn, ViewColumn.Two);
+		assert.strictEqual(tabs[3].parentGroup.viewColumn, ViewColumn.Three);
+		assert.strictEqual(tabs[4].parentGroup.viewColumn, ViewColumn.Three);
 	});
 
-	/*
 	test('Tabs - ensure active tab is correct', async () => {
 
 		const [docA, docB, docC] = await Promise.all([
@@ -480,21 +488,27 @@ suite('vscode API - window', () => {
 
 		// Function to acquire the active tab within the active group
 		const getActiveTabInActiveGroup = () => {
-			const activeGroup = window.tabGroups.all.filter(group => group.isActive)[0];
-			return activeGroup.activeTab;
+			const activeGroup = window.tabGroups.groups.filter(group => group.isActive)[0];
+			return activeGroup?.activeTab;
 		};
 
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
-		assert.ok(getActiveTabInActiveGroup());
-		assert.strictEqual(getActiveTabInActiveGroup()?.resource?.toString(), docA.uri.toString());
+		let activeTab = getActiveTabInActiveGroup();
+		assert.ok(activeTab);
+		assert.ok(activeTab.input instanceof TextTabInput);
+		assert.strictEqual(activeTab.input.uri.toString(), docA.uri.toString());
 
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
-		assert.ok(getActiveTabInActiveGroup());
-		assert.strictEqual(getActiveTabInActiveGroup()?.resource?.toString(), docB.uri.toString());
+		activeTab = getActiveTabInActiveGroup();
+		assert.ok(activeTab);
+		assert.ok(activeTab.input instanceof TextTabInput);
+		assert.strictEqual(activeTab.input.uri.toString(), docB.uri.toString());
 
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
-		assert.ok(getActiveTabInActiveGroup());
-		assert.strictEqual(getActiveTabInActiveGroup()?.resource?.toString(), docC.uri.toString());
+		activeTab = getActiveTabInActiveGroup();
+		assert.ok(activeTab);
+		assert.ok(activeTab.input instanceof TextTabInput);
+		assert.strictEqual(activeTab.input.uri.toString(), docC.uri.toString());
 
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');
@@ -502,6 +516,8 @@ suite('vscode API - window', () => {
 
 		assert.ok(!getActiveTabInActiveGroup());
 	});
+
+	/*
 
 	test('Tabs - Move Tab', async () => {
 		const [docA, docB, docC] = await Promise.all([

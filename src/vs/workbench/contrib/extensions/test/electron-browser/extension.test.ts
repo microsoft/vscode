@@ -46,14 +46,24 @@ suite('Extension Test', () => {
 		assert.strictEqual(extension.outdated, true);
 	});
 
-	test('extension is not outdated when local is built in and older than gallery', () => {
+	test('extension is outdated when local is built in and older than gallery', () => {
 		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', { version: '1.0.0' }, { type: ExtensionType.System }), aGalleryExtension('somext', { version: '1.0.1' }));
-		assert.strictEqual(extension.outdated, false);
+		assert.strictEqual(extension.outdated, true);
 	});
 
 	test('extension is outdated when local and gallery are on same version but on different target platforms', () => {
 		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_IA32 }), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WIN32_X64 }));
 		assert.strictEqual(extension.outdated, true);
+	});
+
+	test('extension is not outdated when local and gallery are on same version and local is on web', () => {
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }), aGalleryExtension('somext'));
+		assert.strictEqual(extension.outdated, false);
+	});
+
+	test('extension is not outdated when local and gallery are on same version and gallery is on web', () => {
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, undefined, aLocalExtension('somext'), aGalleryExtension('somext', {}, { targetPlatform: TargetPlatform.WEB }));
+		assert.strictEqual(extension.outdated, false);
 	});
 
 	test('extension is not outdated when local is not pre-release but gallery is pre-release', () => {
