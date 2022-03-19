@@ -26,6 +26,8 @@ import { isDefined } from 'vs/base/common/types';
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
 
+	readonly code = 'undoredo.notebooks.stackOperation';
+
 	private _operations: IUndoRedoElement[] = [];
 	private _beginSelectionState: ISelectionState | undefined = undefined;
 	private _resultSelectionState: ISelectionState | undefined = undefined;
@@ -699,6 +701,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						return that.uri;
 					}
 					readonly label = 'Update Notebook Metadata';
+					readonly code = 'undoredo.notebooks.updateCellMetadata';
 					undo() {
 						that._updateNotebookMetadata(oldMetadata, false);
 					}
@@ -923,6 +926,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					return that.uri;
 				}
 				readonly label = 'Update Cell Language';
+				readonly code = 'undoredo.notebooks.updateCellLanguage';
 				undo() {
 					that._changeCellLanguage(cell, oldLanguage, false);
 				}

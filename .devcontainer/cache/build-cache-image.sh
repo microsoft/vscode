@@ -19,10 +19,10 @@ TAG="branch-${BRANCH//\//-}"
 echo "[$(date)] ${BRANCH} => ${TAG}"
 cd "${SCRIPT_PATH}/../.."
 
-echo "[$(date)] Starting image build..."
-docker build -t ${CONTAINER_IMAGE_REPOSITORY}:"${TAG}" -f "${SCRIPT_PATH}/cache.Dockerfile" .
-echo "[$(date)] Image build complete."
+echo "[$(date)] Starting image build and push..."
+export DOCKER_BUILDKIT=1
+docker buildx create --use --name vscode-dev-containers
+docker run --privileged --rm tonistiigi/binfmt --install all
+docker buildx build --push --platform linux/amd64,linux/arm64 -t ${CONTAINER_IMAGE_REPOSITORY}:"${TAG}" -f "${SCRIPT_PATH}/cache.Dockerfile" .
 
-echo "[$(date)] Pushing image..."
-docker push ${CONTAINER_IMAGE_REPOSITORY}:"${TAG}"
 echo "[$(date)] Done!"

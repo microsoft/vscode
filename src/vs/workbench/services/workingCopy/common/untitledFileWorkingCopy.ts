@@ -5,7 +5,7 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBufferReadableStream } from 'vs/base/common/buffer';
-import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackup, IWorkingCopySaveEvent, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -104,6 +104,9 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	private readonly _onDidSave = this._register(new Emitter<IWorkingCopySaveEvent>());
+	readonly onDidSave = this._onDidSave.event;
 
 	private readonly _onDidRevert = this._register(new Emitter<void>());
 	readonly onDidRevert = this._onDidRevert.event;
@@ -243,11 +246,16 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	//#region Backup
 
 	async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
-
-		// Fill in content if we are resolved
 		let content: VSBufferReadableStream | undefined = undefined;
+
+		// Make sure to check whether this working copy has been
+		// resolved or not and fallback to the initial value -
+		// if any - to prevent backing up an unresolved working
+		// copy and loosing the initial value.
 		if (this.isResolved()) {
 			content = await raceCancellation(this.model.snapshot(token), token);
+		} else if (this.initialContents) {
+			content = this.initialContents.value;
 		}
 
 		return { content };
@@ -258,10 +266,17 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 
 	//#region Save
 
-	save(options?: ISaveOptions): Promise<boolean> {
+	async save(options?: ISaveOptions): Promise<boolean> {
 		this.trace('[untitled file working copy] save()');
 
-		return this.saveDelegate(this, options);
+		const result = await this.saveDelegate(this, options);
+
+		// Emit Save Event
+		if (result) {
+			this._onDidSave.fire({ reason: options?.reason, source: options?.source });
+		}
+
+		return result;
 	}
 
 	//#endregion
@@ -295,6 +310,6 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	}
 
 	private trace(msg: string): void {
-		this.logService.trace(msg, this.resource.toString(true), this.typeId);
+		this.logService.trace(msg, this.resource.toString(), this.typeId);
 	}
 }

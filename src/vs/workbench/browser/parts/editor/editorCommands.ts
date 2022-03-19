@@ -554,17 +554,27 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, originalResource: UriComponents, modifiedResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, originalResource: UriComponents, modifiedResource: UriComponents, labelAndOrDescription?: string | { label: string; description: string }, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const [columnArg, optionsArg] = columnAndOptions ?? [];
 		const [options, column] = mixinContext(context, optionsArg, columnArg);
 
+		let label: string | undefined = undefined;
+		let description: string | undefined = undefined;
+		if (typeof labelAndOrDescription === 'string') {
+			label = labelAndOrDescription;
+		} else if (labelAndOrDescription) {
+			label = labelAndOrDescription.label;
+			description = labelAndOrDescription.description;
+		}
+
 		await editorService.openEditor({
 			original: { resource: URI.revive(originalResource) },
 			modified: { resource: URI.revive(modifiedResource) },
 			label,
+			description,
 			options
 		}, columnToEditorGroup(editorGroupService, column));
 	});
@@ -961,7 +971,6 @@ function registerCloseEditorCommands() {
 				ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
 				to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
-
 			};
 
 			type WorkbenchEditorReopenEvent = {

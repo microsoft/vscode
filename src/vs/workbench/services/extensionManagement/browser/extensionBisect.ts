@@ -226,7 +226,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ViewContainerTitle,
 				when: ContextKeyExpr.equals('viewContainer', 'workbench.view.extensions'),
 				group: '2_enablement',
-				order: 3
+				order: 4
 			}
 		});
 	}

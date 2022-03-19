@@ -27,10 +27,10 @@ export interface IWorkspacesService {
 	readonly _serviceBrand: undefined;
 
 	// Workspaces Management
-	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | undefined>;
+	enterWorkspace(workspaceUri: URI): Promise<IEnterWorkspaceResult | undefined>;
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
-	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
+	getWorkspaceIdentifier(workspaceUri: URI): Promise<IWorkspaceIdentifier>;
 
 	// Workspaces History
 	readonly onDidChangeRecentlyOpened: Event<void>;

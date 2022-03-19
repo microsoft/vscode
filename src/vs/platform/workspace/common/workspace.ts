@@ -432,6 +432,10 @@ export function isTemporaryWorkspace(arg1: IWorkspace | URI): boolean {
 	return path?.scheme === Schemas.tmp;
 }
 
+export function isSavedWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
+	return !isUntitledWorkspace(path, environmentService) && !isTemporaryWorkspace(path);
+}
+
 export function hasWorkspaceFileExtension(path: string | URI) {
 	const ext = (typeof path === 'string') ? extname(path) : resourceExtname(path);
 

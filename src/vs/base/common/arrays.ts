@@ -390,6 +390,9 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	return result;
 }
 
+/**
+ * @deprecated Use `[].flat()`
+ */
 export function flatten<T>(arr: T[][]): T[] {
 	return (<T[]>[]).concat(...arr);
 }
@@ -433,6 +436,8 @@ export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, 
 /**
  * Inserts an element into an array. Returns a function which, when
  * called, will remove that element from the array.
+ *
+ * @deprecated In almost all cases, use a `Set<T>` instead.
  */
 export function insert<T>(array: T[], element: T): () => void {
 	array.push(element);
@@ -442,6 +447,8 @@ export function insert<T>(array: T[], element: T): () => void {
 
 /**
  * Removes an element from an array if it can be found.
+ *
+ * @deprecated In almost all cases, use a `Set<T>` instead.
  */
 export function remove<T>(array: T[], element: T): T | undefined {
 	const index = array.indexOf(element);

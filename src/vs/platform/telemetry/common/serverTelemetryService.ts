@@ -5,6 +5,7 @@
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { ITelemetryServiceConfig, TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
@@ -30,9 +31,10 @@ export class ServerTelemetryService extends TelemetryService implements IServerT
 	constructor(
 		config: ITelemetryServiceConfig,
 		injectedTelemetryLevel: TelemetryLevel | undefined,
-		@IConfigurationService _configurationService: IConfigurationService
+		@IConfigurationService _configurationService: IConfigurationService,
+		@IProductService _productService: IProductService
 	) {
-		super(config, _configurationService);
+		super(config, _configurationService, _productService);
 		this._injectedTelemetryLevel = injectedTelemetryLevel;
 	}
 

@@ -164,6 +164,7 @@
 							"delete",
 							"discover",
 							"dispose",
+							"drop",
 							"edit",
 							"end",
 							"expand",

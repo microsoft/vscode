@@ -52,7 +52,7 @@ export namespace Schemas {
 
 	export const vscodeRemoteResource = 'vscode-remote-resource';
 
-	export const userData = 'vscode-userdata';
+	export const vscodeUserData = 'vscode-userdata';
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
 
@@ -173,11 +173,6 @@ class FileAccessImpl {
 	asBrowserUri(uri: URI): URI;
 	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
 	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
-		if (URI.isUri(uriOrModule) && platform.isWebWorker) {
-			// In the web worker, only paths can be safely converted to browser URIs.
-			// Other resources such as extension resources need to go to the main thread for conversion.
-			console.warn(`FileAccess.asBrowserUri should not be used in the web worker!`);
-		}
 		const uri = this.toUri(uriOrModule, moduleIdToUrl);
 
 		// Handle remote URIs via `RemoteAuthorities`

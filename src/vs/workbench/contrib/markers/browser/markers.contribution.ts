@@ -328,6 +328,7 @@ registerAction2(class extends ViewAction<IMarkersView> {
 			keybinding: {
 				when: Constants.MarkerViewFilterFocusContextKey,
 				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyCode.Escape
 			},
 			viewId: Constants.MARKERS_VIEW_ID
 		});

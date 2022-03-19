@@ -10,7 +10,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { normalize } from 'vs/base/common/path';
+import { basename, extname, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
@@ -314,11 +314,14 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		let handleId = `/${handle.name}`;
 
 		// Compute a valid handle ID in case this exists already
-		if (map.has(handleId)) {
-			let handleIdCounter = 2;
+		if (map.has(handleId) && !await map.get(handleId)?.isSameEntry(handle)) {
+			const fileExt = extname(handle.name);
+			const fileName = basename(handle.name, fileExt);
+
+			let handleIdCounter = 1;
 			do {
-				handleId = `/${handle.name}-${handleIdCounter++}`;
-			} while (map.has(handleId));
+				handleId = `/${fileName}-${handleIdCounter++}${fileExt}`;
+			} while (map.has(handleId) && !await map.get(handleId)?.isSameEntry(handle));
 		}
 
 		map.set(handleId, handle);

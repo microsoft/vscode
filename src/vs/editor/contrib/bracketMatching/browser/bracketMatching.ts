@@ -24,7 +24,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 
-const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
+const overviewRulerBracketMatchForeground = registerColor('editorOverviewRuler.bracketMatchForeground', { dark: '#A0A0A0', light: '#A0A0A0', hcDark: '#A0A0A0', hcLight: '#A0A0A0' }, nls.localize('overviewRulerBracketMatchForeground', 'Overview ruler marker color for matching brackets.'));
 
 class JumpToBracketAction extends EditorAction {
 	constructor() {
@@ -339,7 +339,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 			if (previousIndex < previousLen && previousData[previousIndex].position.equals(position)) {
 				newData[newDataLen++] = previousData[previousIndex];
 			} else {
-				let brackets = model.bracketPairs.matchBracket(position);
+				let brackets = model.bracketPairs.matchBracket(position, 20 /* give at most 20ms to compute */);
 				let options = BracketMatchingController._DECORATION_OPTIONS_WITH_OVERVIEW_RULER;
 				if (!brackets && this._matchBrackets === 'always') {
 					brackets = model.bracketPairs.findEnclosingBrackets(position, 20 /* give at most 20ms to compute */);

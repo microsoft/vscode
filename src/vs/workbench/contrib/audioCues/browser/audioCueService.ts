@@ -18,7 +18,10 @@ export const IAudioCueService = createDecorator<IAudioCueService>('audioCue');
 export interface IAudioCueService {
 	readonly _serviceBrand: undefined;
 	playAudioCue(cue: AudioCue): Promise<void>;
+	playAudioCues(cues: AudioCue[]): Promise<void>;
 	isEnabled(cue: AudioCue): IObservable<boolean>;
+
+	playSound(cue: Sound): Promise<void>;
 }
 
 export class AudioCueService extends Disposable implements IAudioCueService {
@@ -42,7 +45,13 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 		}
 	}
 
-	private async playSound(sound: Sound): Promise<void> {
+	public async playAudioCues(cues: AudioCue[]): Promise<void> {
+		// Some audio cues might reuse sounds. Don't play the same sound twice.
+		const sounds = new Set(cues.filter(cue => this.isEnabled(cue).get()).map(cue => cue.sound));
+		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound)));
+	}
+
+	public async playSound(sound: Sound): Promise<void> {
 		const url = FileAccess.asBrowserUri(
 			`vs/workbench/contrib/audioCues/browser/media/${sound.fileName}`,
 			require
@@ -129,6 +138,7 @@ export class Sound {
 
 
 	public static readonly error = Sound.register({ fileName: 'error.opus' });
+	public static readonly warning = Sound.register({ fileName: 'warning.opus' });
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.opus' });
 	public static readonly break = Sound.register({ fileName: 'break.opus' });
 	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.opus' });
@@ -160,7 +170,7 @@ export class AudioCue {
 	});
 	public static readonly warning = AudioCue.register({
 		name: localize('audioCues.lineHasWarning.name', 'Warning on Line'),
-		sound: Sound.error,
+		sound: Sound.warning,
 		settingsKey: 'audioCues.lineHasWarning',
 	});
 	public static readonly foldedArea = AudioCue.register({
@@ -179,10 +189,10 @@ export class AudioCue {
 		settingsKey: 'audioCues.lineHasInlineSuggestion',
 	});
 
-	public static readonly debuggerStoppedOnBreakpoint = AudioCue.register({
-		name: localize('audioCues.debuggerStoppedOnBreakpoint.name', 'Debugger Stopped on Breakpoint'),
+	public static readonly onDebugBreak = AudioCue.register({
+		name: localize('audioCues.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
 		sound: Sound.break,
-		settingsKey: 'audioCues.debuggerStoppedOnBreakpoint',
+		settingsKey: 'audioCues.onDebugBreak',
 	});
 
 	public static readonly noInlayHints = AudioCue.register({

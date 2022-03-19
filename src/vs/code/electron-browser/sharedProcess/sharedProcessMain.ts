@@ -91,7 +91,6 @@ import { ipcSharedProcessTunnelChannelName, ISharedProcessTunnelService } from '
 import { SharedProcessTunnelService } from 'vs/platform/tunnel/node/sharedProcessTunnelService';
 import { ipcSharedProcessWorkerChannelName, ISharedProcessWorkerConfiguration, ISharedProcessWorkerService } from 'vs/platform/sharedProcess/common/sharedProcessWorkerService';
 import { SharedProcessWorkerService } from 'vs/platform/sharedProcess/electron-browser/sharedProcessWorkerService';
-import { AssignmentService } from 'vs/platform/assignment/common/assignmentService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { isLinux } from 'vs/base/common/platform';
@@ -215,10 +214,10 @@ class SharedProcessMain extends Disposable {
 			// Since user data can change very frequently across multiple
 			// processes, we want a single process handling these operations.
 			this._register(new DiskFileSystemProviderClient(mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME), { pathCaseSensitive: isLinux })),
-			Schemas.userData,
+			Schemas.vscodeUserData,
 			logService
 		));
-		fileService.registerProvider(Schemas.userData, userDataFileSystemProvider);
+		fileService.registerProvider(Schemas.vscodeUserData, userDataFileSystemProvider);
 
 		// Configuration
 		const configurationService = this._register(new ConfigurationService(environmentService.settingsResource, fileService));
@@ -259,9 +258,6 @@ class SharedProcessMain extends Disposable {
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(this.server.getChannel('extensionRecommendationNotification', activeWindowRouter)));
 
-		// Assignment Service (Experiment service w/out scorecards)
-		const assignmentService = new AssignmentService(this.configuration.machineId, configurationService, productService);
-
 		// Telemetry
 		let telemetryService: ITelemetryService;
 		const appenders: ITelemetryAppender[] = [];
@@ -272,16 +268,7 @@ class SharedProcessMain extends Disposable {
 
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey) {
-				const testCollector = await assignmentService.getTreatment<boolean>('telemetryMigration') ?? false;
-				const insiders = productService.quality !== 'stable';
-				// Insiders send to both collector and vortex if assigned.
-				// Stable only send to one
-				if (insiders && testCollector) {
-					const collectorAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, testCollector, true);
-					this._register(toDisposable(() => collectorAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
-					appenders.push(collectorAppender);
-				}
-				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey, insiders ? false : testCollector, testCollector && insiders);
+				const appInsightsAppender = new AppInsightsAppender('monacoworkbench', null, productService.aiConfig.asimovKey);
 				this._register(toDisposable(() => appInsightsAppender.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 				appenders.push(appInsightsAppender);
 			}
@@ -291,7 +278,7 @@ class SharedProcessMain extends Disposable {
 				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
-			}, configurationService);
+			}, configurationService, productService);
 		} else {
 			telemetryService = NullTelemetryService;
 			const nullAppender = NullAppender;
@@ -302,7 +289,7 @@ class SharedProcessMain extends Disposable {
 		services.set(ITelemetryService, telemetryService);
 
 		// Custom Endpoint Telemetry
-		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService);
+		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);
 		services.set(ICustomEndpointTelemetryService, customEndpointTelemetryService);
 
 		// Extension Management

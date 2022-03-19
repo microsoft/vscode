@@ -191,12 +191,16 @@ class CodePointHighlighter {
 			return SimpleHighlightReason.NonBasicASCII;
 		}
 
+		let hasBasicASCIICharacters = false;
 		let hasNonConfusableNonBasicAsciiCharacter = false;
 		if (wordContext) {
 			for (let char of wordContext) {
 				const codePoint = char.codePointAt(0)!;
+				const isBasicASCII = strings.isBasicASCII(char);
+				hasBasicASCIICharacters = hasBasicASCIICharacters || isBasicASCII;
+
 				if (
-					!strings.isBasicASCII(char) &&
+					!isBasicASCII &&
 					!this.ambiguousCharacters.isAmbiguous(codePoint) &&
 					!strings.InvisibleCharacters.isInvisibleCharacter(codePoint)
 				) {
@@ -205,7 +209,10 @@ class CodePointHighlighter {
 			}
 		}
 
-		if (hasNonConfusableNonBasicAsciiCharacter) {
+		if (
+			/* Don't allow mixing weird looking characters with ASCII */ !hasBasicASCIICharacters &&
+			/* Is there an obviously weird looking character? */ hasNonConfusableNonBasicAsciiCharacter
+		) {
 			return SimpleHighlightReason.None;
 		}
 

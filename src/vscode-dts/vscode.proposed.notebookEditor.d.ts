@@ -69,6 +69,7 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 	}
 
+	/** @deprecated */
 	export interface NotebookDocumentMetadataChangeEvent {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the document metadata have changed.
@@ -77,6 +78,7 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 	}
 
+	/** @deprecated */
 	export interface NotebookCellsChangeData {
 		readonly start: number;
 		// todo@API end? Use NotebookCellRange instead?
@@ -87,6 +89,7 @@ declare module 'vscode' {
 		readonly items: NotebookCell[];
 	}
 
+	/** @deprecated */
 	export interface NotebookCellsChangeEvent {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the cells have changed.
@@ -96,6 +99,7 @@ declare module 'vscode' {
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
 	}
 
+	/** @deprecated */
 	export interface NotebookCellOutputsChangeEvent {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the cell outputs have changed.
@@ -106,6 +110,7 @@ declare module 'vscode' {
 		readonly cells: NotebookCell[];
 	}
 
+	/** @deprecated */
 	export interface NotebookCellMetadataChangeEvent {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the cell metadata have changed.
@@ -141,18 +146,17 @@ declare module 'vscode' {
 	}
 
 	export namespace notebooks {
-
-
-
+		/** @deprecated */
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
-
+		/** @deprecated */
 		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
+		/** @deprecated */
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
-
 		// todo@API add onDidChangeNotebookCellOutputs
+		/** @deprecated */
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
-
 		// todo@API add onDidChangeNotebookCellMetadata
+		/** @deprecated */
 		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
 	}
 

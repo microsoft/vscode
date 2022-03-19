@@ -28,7 +28,7 @@ export interface IVariableResolveContext {
 	getLineNumber(): string | undefined;
 }
 
-type Environment = { env?: IProcessEnvironment; userHome?: string };
+type Environment = { env: IProcessEnvironment | undefined; userHome: string | undefined };
 
 export class AbstractVariableResolverService implements IConfigurationResolverService {
 
@@ -67,7 +67,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	}
 
 	public resolveWithEnvironment(environment: IProcessEnvironment, root: IWorkspaceFolder | undefined, value: string): string {
-		return this.recursiveResolve(this.prepareEnv(environment), root ? root.uri : undefined, value);
+		return this.recursiveResolve({ env: this.prepareEnv(environment), userHome: undefined }, root ? root.uri : undefined, value);
 	}
 
 	public async resolveAsync(root: IWorkspaceFolder | undefined, value: string): Promise<string>;

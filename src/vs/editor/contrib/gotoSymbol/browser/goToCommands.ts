@@ -257,7 +257,7 @@ export class DefinitionAction extends SymbolNavigationAction {
 	}
 }
 
-const goToDefinitionKb = isWeb && !isStandalone
+const goToDefinitionKb = isWeb && !isStandalone()
 	? KeyMod.CtrlCmd | KeyCode.F12
 	: KeyCode.F12;
 

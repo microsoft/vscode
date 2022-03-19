@@ -77,7 +77,7 @@ steps:
       $ErrorActionPreference = "Stop"
       $env:npm_config_arch="$(VSCODE_ARCH)"
       $env:CHILD_CONCURRENCY="1"
-      retry { exec { yarn --frozen-lockfile } }
+      retry { exec { yarn --frozen-lockfile --check-files } }
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1

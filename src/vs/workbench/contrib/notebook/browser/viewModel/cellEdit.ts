@@ -22,6 +22,7 @@ export interface IViewCellEditingDelegate extends ITextCellEditingDelegate {
 export class JoinCellEdit implements IResourceUndoRedoElement {
 	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
 	label: string = 'Join Cell';
+	code: string = 'undoredo.notebooks.joinCell';
 	private _deletedRawCell: NotebookCellTextModel;
 	constructor(
 		public resource: URI,

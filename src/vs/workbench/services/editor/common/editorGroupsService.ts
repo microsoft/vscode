@@ -549,6 +549,16 @@ export interface IEditorGroup {
 	getIndexOfEditor(editor: EditorInput): number;
 
 	/**
+	 * Whether the editor is the first in the group.
+	 */
+	isFirst(editor: EditorInput): boolean;
+
+	/**
+	 * Whether the editor is the last in the group.
+	 */
+	isLast(editor: EditorInput): boolean;
+
+	/**
 	 * Open an editor in this group.
 	 *
 	 * @returns a promise that resolves around an IEditor instance unless
@@ -569,7 +579,7 @@ export interface IEditorGroup {
 	/**
 	 * Find out if the provided editor is pinned in the group.
 	 */
-	isPinned(editor: EditorInput): boolean;
+	isPinned(editor: EditorInput | number): boolean;
 
 	/**
 	 * Find out if the provided editor or index of editor is sticky in the group.

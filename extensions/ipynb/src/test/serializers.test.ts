@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { nbformat } from '@jupyterlab/coreutils';
+import * as nbformat from '@jupyterlab/nbformat';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { jupyterCellOutputToCellOutput, jupyterNotebookModelToNotebookData } from '../deserializers';

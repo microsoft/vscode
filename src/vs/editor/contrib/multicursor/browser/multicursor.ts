@@ -438,14 +438,18 @@ export class MultiCursorSession {
 		return new Selection(previousMatch.range.startLineNumber, previousMatch.range.startColumn, previousMatch.range.endLineNumber, previousMatch.range.endColumn);
 	}
 
-	public selectAll(): FindMatch[] {
+	public selectAll(searchScope: Range[] | null): FindMatch[] {
 		if (!this._editor.hasModel()) {
 			return [];
 		}
 
 		this.findController.highlightFindOptions();
 
-		return this._editor.getModel().findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		const editorModel = this._editor.getModel();
+		if (searchScope) {
+			return editorModel.findMatches(this.searchText, searchScope, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		}
+		return editorModel.findMatches(this.searchText, true, false, this.matchCase, this.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 	}
 }
 
@@ -617,9 +621,12 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search string is non-empty
 		// - and we're searching for a regex
 		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
-
-			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
-
+			const editorModel = this._editor.getModel();
+			if (findState.searchScope) {
+				matches = editorModel.findMatches(findState.searchString, findState.searchScope, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			} else {
+				matches = editorModel.findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+			}
 		} else {
 
 			this._beginSessionIfNeeded(findController);
@@ -627,20 +634,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				return;
 			}
 
-			matches = this._session.selectAll();
-		}
-
-		if (findState.searchScope) {
-			const states = findState.searchScope;
-			let inSelection: FindMatch[] | null = [];
-			matches.forEach((match) => {
-				states.forEach((state) => {
-					if (match.range.endLineNumber <= state.endLineNumber && match.range.startLineNumber >= state.startLineNumber) {
-						inSelection!.push(match);
-					}
-				});
-			});
-			matches = inSelection;
+			matches = this._session.selectAll(findState.searchScope);
 		}
 
 		if (matches.length > 0) {

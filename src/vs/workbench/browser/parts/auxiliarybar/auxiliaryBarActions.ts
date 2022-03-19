@@ -23,7 +23,7 @@ const auxiliaryBarLeftIcon = registerIcon('auxiliarybar-left-layout-icon', Codic
 export class ToggleAuxiliaryBarAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleAuxiliaryBar';
-	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Side Panel");
+	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Secondary Side Bar");
 
 	constructor(
 		id: string,
@@ -41,7 +41,7 @@ export class ToggleAuxiliaryBarAction extends Action {
 class FocusAuxiliaryBarAction extends Action {
 
 	static readonly ID = 'workbench.action.focusAuxiliaryBar';
-	static readonly LABEL = localize('focusAuxiliaryBar', "Focus into Side Panel");
+	static readonly LABEL = localize('focusAuxiliaryBar', "Focus into Secondary Side Bar");
 
 	constructor(
 		id: string,
@@ -74,10 +74,10 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_layout',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: localize('miShowAuxiliaryBarNoMnemonic', "Show Side Panel"),
+				title: localize('miShowAuxiliaryBarNoMnemonic', "Show Secondary Side Bar"),
 				toggled: AuxiliaryBarVisibleContext
 			},
-			order: 4
+			order: 2
 		}
 	},
 	{
@@ -86,7 +86,7 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_toggles',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: localize('toggleSidePanel', "Toggle Side Panel"),
+				title: localize('toggleSecondarySideBar', "Toggle Secondary Side Bar"),
 				toggled: AuxiliaryBarVisibleContext,
 				icon: auxiliaryBarLeftIcon,
 			},
@@ -100,7 +100,7 @@ MenuRegistry.appendMenuItems([
 			group: '0_workbench_toggles',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: localize('toggleSidePanel', "Toggle Side Panel"),
+				title: localize('toggleSecondarySideBar', "Toggle Secondary Side Bar"),
 				toggled: AuxiliaryBarVisibleContext,
 				icon: auxiliaryBarRightIcon,
 			},
@@ -114,10 +114,10 @@ MenuRegistry.appendMenuItems([
 			group: '2_workbench_layout',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Si&&de Panel"),
+				title: localize({ key: 'miShowAuxiliaryBar', comment: ['&& denotes a mnemonic'] }, "Show Secondary Si&&de Bar"),
 				toggled: AuxiliaryBarVisibleContext
 			},
-			order: 5
+			order: 2
 		}
 	}, {
 		id: MenuId.ViewTitleContext,
@@ -125,7 +125,7 @@ MenuRegistry.appendMenuItems([
 			group: '3_workbench_layout_move',
 			command: {
 				id: ToggleAuxiliaryBarAction.ID,
-				title: { value: localize('hideAuxiliaryBar', "Hide Side Panel"), original: 'Hide Side Panel' },
+				title: { value: localize('hideAuxiliaryBar', "Hide Secondary Side Bar"), original: 'Hide Secondary Side Bar' },
 			},
 			when: ContextKeyExpr.and(AuxiliaryBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
 			order: 2
@@ -134,5 +134,5 @@ MenuRegistry.appendMenuItems([
 ]);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Side Panel', CATEGORIES.View.value);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Side Panel', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Secondary Side Bar', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Secondary Side Bar', CATEGORIES.View.value);

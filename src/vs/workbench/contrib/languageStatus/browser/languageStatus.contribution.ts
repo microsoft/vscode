@@ -164,9 +164,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			const ariaLabels: string[] = [];
 			const element = document.createElement('div');
 			for (const status of model.combined) {
-				element.appendChild(this._renderStatus(status, showSeverity, model.dedicated.includes(status), this._renderDisposables));
+				const isPinned = model.dedicated.includes(status);
+				element.appendChild(this._renderStatus(status, showSeverity, isPinned, this._renderDisposables));
 				ariaLabels.push(this._asAriaLabel(status));
-				isOneBusy = isOneBusy || status.busy;
+				isOneBusy = isOneBusy || (!isPinned && status.busy); // unpinned items contribute to the busy-indicator of the composite status item
 			}
 			const props: IStatusbarEntry = {
 				name: localize('langStatus.name', "Editor Language Status"),

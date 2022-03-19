@@ -58,6 +58,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorOpenSource } from 'vs/platform/editor/common/editor';
+import { ResourceMap } from 'vs/base/common/map';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -383,7 +384,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
 
-		const getFileNestingSettings = () => this.configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+		const getFileNestingSettings = () => this.configurationService.getValue<IFilesConfiguration>().explorer.fileNesting;
 
 		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
@@ -624,7 +625,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		if (this.configurationService.getValue<IFilesConfiguration>()?.explorer?.experimental?.fileNesting?.enabled) {
+		if (this.configurationService.getValue<IFilesConfiguration>().explorer.fileNesting.enabled) {
 			return (async () => {
 				try {
 					await this.tree.updateChildren(toRefresh, recursive, false, {
@@ -691,12 +692,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				if (!previousInput && input.length === 1 && this.configurationService.getValue<IFilesConfiguration>().explorer.expandSingleFolderWorkspaces) {
 					await this.tree.expand(input[0]).catch(() => { });
 				}
-				if (Array.isArray(previousInput) && previousInput.length < input.length) {
+				if (Array.isArray(previousInput)) {
+					const previousRoots = new ResourceMap<true>();
+					previousInput.forEach(previousRoot => previousRoots.set(previousRoot.resource, true));
+
 					// Roots added to the explorer -> expand them.
-					await Promise.all(input.slice(previousInput.length).map(async item => {
-						try {
-							await this.tree.expand(item);
-						} catch (e) { }
+					await Promise.all(input.map(async item => {
+						if (!previousRoots.has(item.resource)) {
+							try {
+								await this.tree.expand(item);
+							} catch (e) { }
+						}
 					}));
 				}
 			}

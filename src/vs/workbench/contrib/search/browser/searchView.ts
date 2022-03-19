@@ -78,6 +78,7 @@ import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurati
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ResourceListDnDHandler } from 'vs/workbench/browser/dnd';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 const $ = dom.$;
 
@@ -1928,17 +1929,17 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const diffInsertedOutlineColor = theme.getColor(diffInsertedOutline);
 	if (diffInsertedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${diffInsertedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replaceMatch:not(:empty) { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${diffInsertedOutlineColor}; }`);
 	}
 
 	const diffRemovedOutlineColor = theme.getColor(diffRemovedOutline);
 	if (diffRemovedOutlineColor) {
-		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${diffRemovedOutlineColor}; }`);
+		collector.addRule(`.monaco-workbench .search-view .replace.findInFileMatch { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${diffRemovedOutlineColor}; }`);
 	}
 
 	const findMatchHighlightBorder = theme.getColor(editorFindMatchHighlightBorder);
 	if (findMatchHighlightBorder) {
-		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${findMatchHighlightBorder}; }`);
+		collector.addRule(`.monaco-workbench .search-view .findInFileMatch { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${findMatchHighlightBorder}; }`);
 	}
 
 	const outlineSelectionColor = theme.getColor(listActiveSelectionForeground);

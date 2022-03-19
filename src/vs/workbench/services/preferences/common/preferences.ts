@@ -34,7 +34,8 @@ export enum SettingValueType {
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
 	Object = 'object',
-	BooleanObject = 'boolean-object'
+	BooleanObject = 'boolean-object',
+	LanguageTag = 'language-tag'
 }
 
 export interface ISettingsGroup {
@@ -87,6 +88,9 @@ export interface ISetting {
 	allKeysAreBoolean?: boolean;
 	editPresentation?: EditPresentationTypes;
 	defaultValueSource?: string | IExtensionInfo;
+	isLanguageTagSetting?: boolean;
+	categoryOrder?: number;
+	categoryLabel?: string;
 }
 
 export interface IExtensionSetting extends ISetting {

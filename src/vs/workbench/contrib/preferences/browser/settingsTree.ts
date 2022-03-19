@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -30,7 +30,7 @@ import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, getLanguageTagSettingPlainKey, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -391,9 +391,9 @@ export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGrou
 	};
 }
 
-export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, configurationService: IWorkbenchConfigurationService): ISetting[] {
+export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, languageFilter: string | undefined, configurationService: IWorkbenchConfigurationService): ISetting[] {
 	const allSettings = getFlatSettings(groups);
-	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
+	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, languageFilter, configurationService).isConfigured);
 }
 
 function compareNullableIntegers(a?: number, b?: number) {
@@ -583,7 +583,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	context?: SettingsTreeSettingElement;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
-	labelElement: HTMLElement;
+	labelElement: SimpleIconLabel;
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
 	deprecationWarningElement: HTMLElement;
@@ -593,7 +593,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 }
 
 interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
-	checkbox: Checkbox;
+	checkbox: Toggle;
 }
 
 interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
@@ -656,6 +656,7 @@ export interface ISettingChangeEvent {
 	key: string;
 	value: any; // undefined => reset/unconfigure
 	type: SettingValueType | SettingValueType[];
+	manualReset: boolean;
 }
 
 export interface ISettingLinkClickEvent {
@@ -737,6 +738,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
+	protected readonly _onApplyLanguageFilter = this._register(new Emitter<string>());
+	readonly onApplyLanguageFilter: Event<string> = this._onApplyLanguageFilter.event;
+
 	private readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
@@ -775,13 +779,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
-		const labelElement = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
+		const labelElementContainer = DOM.append(labelCategoryContainer, $('span.setting-item-label'));
+		const labelElement = new SimpleIconLabel(labelElementContainer);
 
 		const miscLabel = new SettingsTreeMiscLabel(titleElement);
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "Modified");
+		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
@@ -844,7 +849,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
 			renderDropdownAsChildElement: !isIOS,
-			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
+			moreIcon: settingsMoreActionIcon
 		});
 		return toolbar;
 	}
@@ -867,7 +872,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
 		template.categoryElement.title = titleTooltip;
 
-		template.labelElement.textContent = element.displayLabel;
+		template.labelElement.text = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
 		template.descriptionElement.innerText = '';
@@ -882,7 +887,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		template.miscLabel.updateOtherOverrides(element, template.elementDisposables, this._onDidClickOverrideElement);
 
-		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
+		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType, manualReset: false });
 		const deprecationText = element.setting.deprecationMessage || '';
 		if (deprecationText && element.setting.deprecationMessageIsMarkdown) {
 			const disposables = new DisposableStore();
@@ -1044,8 +1049,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
 		common.toDispose.add(openSettingsButton);
-		common.toDispose.add(openSettingsButton.onDidClick(() => template.onChange!()));
-		openSettingsButton.label = SettingComplexRenderer.EDIT_IN_JSON_LABEL;
+
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 		openSettingsButton.element.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 
@@ -1074,10 +1078,28 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate, onChange: (value: string) => void): void {
-		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
+		const plainKey = getLanguageTagSettingPlainKey(dataElement.setting.key);
+		const editLanguageSettingLabel = localize('editLanguageSettingLabel', "Edit settings for {0}", plainKey);
+		const isLanguageTagSetting = dataElement.setting.isLanguageTagSetting;
+		template.button.label = isLanguageTagSetting
+			? editLanguageSettingLabel
+			: SettingComplexRenderer.EDIT_IN_JSON_LABEL;
+
+		template.elementDisposables.add(template.button.onDidClick(() => {
+			if (isLanguageTagSetting) {
+				this._onApplyLanguageFilter.fire(plainKey);
+			} else {
+				this._onDidOpenSettings.fire(dataElement.setting.key);
+			}
+		}));
+
 		this.renderValidations(dataElement, template);
 
-		template.button.element.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
+		if (isLanguageTagSetting) {
+			template.button.element.setAttribute('aria-label', editLanguageSettingLabel);
+		} else {
+			template.button.element.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
+		}
 	}
 
 	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
@@ -1448,7 +1470,8 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,
 				value: Object.keys(newValue).length === 0 ? undefined : sortKeys(newValue),
-				type: template.context.valueType
+				type: template.context.valueType,
+				manualReset: false
 			});
 		}
 	}
@@ -1756,20 +1779,21 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
-		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
+		const labelElementContainer = DOM.append(titleElement, $('span.setting-item-label'));
+		const labelElement = new SimpleIconLabel(labelElementContainer);
 		const miscLabel = new SettingsTreeMiscLabel(titleElement);
 
 		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		modifiedIndicatorElement.title = localize('modified', "Modified");
+		modifiedIndicatorElement.title = localize('modified', "The setting has been configured in the current scope.");
 
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toDispose = new DisposableStore();
-		const checkbox = new Checkbox({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
+		const checkbox = new Toggle({ icon: Codicon.check, actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: undefined });
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
@@ -1888,6 +1912,8 @@ export class SettingTreeRenderers {
 
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams>;
 
+	readonly onApplyLanguageFilter: Event<string>;
+
 	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
 
 	private readonly settingActions: IAction[];
@@ -1902,7 +1928,7 @@ export class SettingTreeRenderers {
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
 				if (context instanceof SettingsTreeSettingElement) {
 					if (!context.isUntrusted) {
-						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
+						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType, manualReset: true });
 					}
 				}
 			}),
@@ -1935,6 +1961,7 @@ export class SettingTreeRenderers {
 		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
 		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));
 		this.onDidChangeSettingHeight = Event.any(...settingRenderers.map(r => r.onDidChangeSettingHeight));
+		this.onApplyLanguageFilter = Event.any(...settingRenderers.map(r => r.onApplyLanguageFilter));
 
 		this.allRenderers = [
 			...settingRenderers,
@@ -2301,6 +2328,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 			if (element.valueType === SettingValueType.BooleanObject) {
 				return SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.LanguageTag) {
+				return SETTINGS_COMPLEX_TEMPLATE_ID;
 			}
 
 			return SETTINGS_COMPLEX_TEMPLATE_ID;

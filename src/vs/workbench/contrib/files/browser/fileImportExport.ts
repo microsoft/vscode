@@ -34,6 +34,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { canceled } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -397,6 +398,7 @@ export class ExternalFileImport {
 		@IEditorService private readonly editorService: IEditorService,
 		@IProgressService private readonly progressService: IProgressService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 	}
 
@@ -424,7 +426,7 @@ export class ExternalFileImport {
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
 		// Activate all providers for the resources dropped
-		const candidateFiles = coalesce(extractEditorsDropData(source).map(editor => editor.resource));
+		const candidateFiles = coalesce((await this.instantiationService.invokeFunction(accessor => extractEditorsDropData(accessor, source))).map(editor => editor.resource));
 		await Promise.all(candidateFiles.map(resource => this.fileService.activateProvider(resource.scheme)));
 
 		// Check for dropped external files to be folders
@@ -535,11 +537,11 @@ export class ExternalFileImport {
 			const undoLevel = this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo;
 			await this.explorerService.applyBulkEdit(resourceFileEdits, {
 				undoLabel: resourcesFiltered.length === 1 ?
-					localize('importFile', "Import {0}", basename(resourcesFiltered[0])) :
-					localize('importnFile', "Import {0} resources", resourcesFiltered.length),
+					localize({ comment: ['substitution will be the name of the file that was imported'], key: 'importFile' }, "Import {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the number of files that were imported'], key: 'importnFile' }, "Import {0} resources", resourcesFiltered.length),
 				progressLabel: resourcesFiltered.length === 1 ?
-					localize('copyingFile', "Copying {0}", basename(resourcesFiltered[0])) :
-					localize('copyingnFile', "Copying {0} resources", resourcesFiltered.length),
+					localize({ comment: ['substitution will be the name of the file that was copied'], key: 'copyingFile' }, "Copying {0}", basename(resourcesFiltered[0])) :
+					localize({ comment: ['substitution will be the number of files that were copied'], key: 'copyingnFile' }, "Copying {0} resources", resourcesFiltered.length),
 				progressLocation: ProgressLocation.Window,
 				confirmBeforeUndo: undoLevel === UndoConfirmLevel.Verbose || undoLevel === UndoConfirmLevel.Default,
 			});

@@ -105,6 +105,7 @@ suite('LanguageSelector', function () {
 		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, undefined), 10);
 		assert.strictEqual(score('javascript', obj.uri, obj.langId, true, obj.notebookType), 10);
 		assert.strictEqual(score({ notebookType: 'fooBook' }, obj.uri, obj.langId, true, obj.notebookType), 10);
+		assert.strictEqual(score({ notebookType: 'fooBook', language: 'javascript', scheme: 'file' }, obj.uri, obj.langId, true, obj.notebookType), 10);
 		assert.strictEqual(score({ notebookType: 'fooBook', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 10);
 		assert.strictEqual(score({ notebookType: '*', language: '*' }, obj.uri, obj.langId, true, obj.notebookType), 5);
 		assert.strictEqual(score({ notebookType: '*', language: 'javascript' }, obj.uri, obj.langId, true, obj.notebookType), 10);

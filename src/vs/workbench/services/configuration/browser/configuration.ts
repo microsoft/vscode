@@ -233,7 +233,7 @@ class FileServiceBasedConfiguration extends Disposable {
 					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
 					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
 						&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
-						errors.onUnexpectedError(error);
+						this.logService.error(error);
 					}
 				}
 				return '{}';
@@ -307,7 +307,7 @@ class FileServiceBasedConfiguration extends Disposable {
 
 	private handleFileOperationEvent(event: FileOperationEvent): boolean {
 		// One of the resources has changed
-		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
+		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.COPY) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
 			&& this.allResources.some(resource => this.uriIdentityService.extUri.isEqual(event.resource, resource))) {
 			return true;
 		}
@@ -504,7 +504,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	private handleFileOperationEvent(event: FileOperationEvent): void {
-		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
+		if ((event.isOperation(FileOperation.CREATE) || event.isOperation(FileOperation.COPY) || event.isOperation(FileOperation.DELETE) || event.isOperation(FileOperation.WRITE))
 			&& this.uriIdentityService.extUri.isEqual(event.resource, this.configurationResource)) {
 			this.reloadConfigurationScheduler.schedule();
 		}
@@ -600,6 +600,7 @@ export class WorkspaceConfiguration extends Disposable {
 		private readonly configurationCache: IConfigurationCache,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 	) {
 		super();
 		this.fileService = fileService;
@@ -614,7 +615,7 @@ export class WorkspaceConfiguration extends Disposable {
 				this._workspaceConfiguration = this._cachedConfiguration;
 				this.waitAndInitialize(this._workspaceIdentifier);
 			} else {
-				this.doInitialize(new FileServiceBasedWorkspaceConfiguration(this.fileService, this.uriIdentityService));
+				this.doInitialize(new FileServiceBasedWorkspaceConfiguration(this.fileService, this.uriIdentityService, this.logService));
 			}
 		}
 		await this.reload();
@@ -663,7 +664,7 @@ export class WorkspaceConfiguration extends Disposable {
 	private async waitAndInitialize(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		await whenProviderRegistered(workspaceIdentifier.configPath, this.fileService);
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
-			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this.fileService, this.uriIdentityService));
+			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this.fileService, this.uriIdentityService, this.logService));
 			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier, { scopes: WORKSPACE_SCOPES, skipRestricted: this.isUntrusted() });
 			this.doInitialize(fileServiceBasedWorkspaceConfiguration);
 			this.onDidWorkspaceConfigurationChange(false, true);
@@ -710,7 +711,8 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 
 	constructor(
 		private readonly fileService: IFileService,
-		uriIdentityService: IUriIdentityService
+		uriIdentityService: IUriIdentityService,
+		private readonly logService: ILogService,
 	) {
 		super();
 
@@ -719,7 +721,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 
 		this._register(Event.any(
 			Event.filter(this.fileService.onDidFilesChange, e => !!this._workspaceIdentifier && e.contains(this._workspaceIdentifier.configPath)),
-			Event.filter(this.fileService.onDidRunOperation, e => !!this._workspaceIdentifier && (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE)) && uriIdentityService.extUri.isEqual(e.resource, this._workspaceIdentifier.configPath))
+			Event.filter(this.fileService.onDidRunOperation, e => !!this._workspaceIdentifier && (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE)) && uriIdentityService.extUri.isEqual(e.resource, this._workspaceIdentifier.configPath))
 		)(() => this.reloadConfigurationScheduler.schedule()));
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
 		this.workspaceConfigWatcher = this._register(this.watchWorkspaceConfigurationFile());
@@ -747,7 +749,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		} catch (error) {
 			const exists = await this.fileService.exists(this._workspaceIdentifier.configPath);
 			if (exists) {
-				errors.onUnexpectedError(error);
+				this.logService.error(error);
 			}
 		}
 		this.workspaceConfigurationModelParser.parse(contents, configurationParseOptions);

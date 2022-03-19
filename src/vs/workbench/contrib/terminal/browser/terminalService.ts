@@ -296,7 +296,9 @@ export class TerminalService implements ITerminalService {
 			this._onDidFocusInstance.fire(instance);
 			this._evaluateActiveInstance(host, instance);
 		});
-		host.onDidChangeInstanceCapability(this._onDidChangeInstanceCapability.fire, this.onDidChangeInstanceCapability);
+		host.onDidChangeInstanceCapability((instance) => {
+			this._onDidChangeInstanceCapability.fire(instance);
+		});
 		this._hostActiveTerminals.set(host, undefined);
 	}
 
@@ -637,7 +639,7 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _updateTitle(instance?: ITerminalInstance): void {
-		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title) {
+		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title || instance.isDisposed) {
 			return;
 		}
 		if (instance.staticTitle) {
@@ -649,7 +651,7 @@ export class TerminalService implements ITerminalService {
 
 	@debounce(500)
 	private _updateIcon(instance?: ITerminalInstance): void {
-		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon) {
+		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon || instance.isDisposed) {
 			return;
 		}
 		this._primaryBackend?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);

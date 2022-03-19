@@ -73,6 +73,9 @@ export interface IAddStandardDisposableListenerSignature {
 	(node: HTMLElement, type: 'keydown', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keypress', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: 'keyup', handler: (event: IKeyboardEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'pointerdown', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'pointermove', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
+	(node: HTMLElement, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 }
 function _wrapAsStandardMouseEvent(handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
@@ -1415,6 +1418,49 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 // -- sanitize and trusted html
 
 /**
+ * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
+ * attributes are valid.
+ */
+export function hookDomPurifyHrefAndSrcSanitizer(allowedProtocols: readonly string[], allowDataImages = false): IDisposable {
+	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
+
+	// build an anchor to map URLs to
+	const anchor = document.createElement('a');
+
+	dompurify.addHook('afterSanitizeAttributes', (node) => {
+		// check all href/src attributes for validity
+		for (const attr of ['href', 'src']) {
+			if (node.hasAttribute(attr)) {
+				const attrValue = node.getAttribute(attr) as string;
+				if (attr === 'href' && attrValue.startsWith('#')) {
+					// Allow fragment links
+					continue;
+				}
+
+				anchor.href = attrValue;
+				if (!allowedProtocols.includes(anchor.protocol.replace(/:$/, ''))) {
+					if (allowDataImages && attr === 'src' && anchor.href.startsWith('data:')) {
+						continue;
+					}
+
+					node.removeAttribute(attr);
+				}
+			}
+		}
+	});
+
+	return toDisposable(() => {
+		dompurify.removeHook('afterSanitizeAttributes');
+	});
+}
+
+const defaultSafeProtocols = [
+	Schemas.http,
+	Schemas.https,
+	Schemas.command,
+];
+
+/**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeInnerHtml(node: HTMLElement, value: string): void {
@@ -1425,29 +1471,12 @@ export function safeInnerHtml(node: HTMLElement, value: string): void {
 		RETURN_DOM_FRAGMENT: false,
 	};
 
-	const allowedProtocols = [Schemas.http, Schemas.https, Schemas.command];
-
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	dompurify.addHook('afterSanitizeAttributes', (node) => {
-		// build an anchor to map URLs to
-		const anchor = document.createElement('a');
-
-		// check all href/src attributes for validity
-		for (const attr in ['href', 'src']) {
-			if (node.hasAttribute(attr)) {
-				anchor.href = node.getAttribute(attr) as string;
-				if (!allowedProtocols.includes(anchor.protocol)) {
-					node.removeAttribute(attr);
-				}
-			}
-		}
-	});
-
+	const hook = hookDomPurifyHrefAndSrcSanitizer(defaultSafeProtocols);
 	try {
 		const html = dompurify.sanitize(value, { ...options, RETURN_TRUSTED_TYPE: true });
 		node.innerHTML = html as unknown as string;
 	} finally {
-		dompurify.removeHook('afterSanitizeAttributes');
+		hook.dispose();
 	}
 }
 
@@ -1638,11 +1667,6 @@ export function getCookieValue(name: string): string | undefined {
 	return match ? match.pop() : undefined;
 }
 
-export function addMatchMediaChangeListener(query: string, callback: () => void): void {
-	const mediaQueryList = window.matchMedia(query);
-	mediaQueryList.addEventListener('change', callback);
-}
-
 export const enum ZIndex {
 	SASH = 35,
 	SuggestWidget = 40,
@@ -1652,4 +1676,63 @@ export const enum ZIndex {
 	ContextView = 2500,
 	ModalDialog = 2600,
 	PaneDropOverlay = 10000
+}
+
+
+export interface IDragAndDropObserverCallbacks {
+	readonly onDragEnter: (e: DragEvent) => void;
+	readonly onDragLeave: (e: DragEvent) => void;
+	readonly onDrop: (e: DragEvent) => void;
+	readonly onDragEnd: (e: DragEvent) => void;
+
+	readonly onDragOver?: (e: DragEvent) => void;
+}
+
+export class DragAndDropObserver extends Disposable {
+
+	// A helper to fix issues with repeated DRAG_ENTER / DRAG_LEAVE
+	// calls see https://github.com/microsoft/vscode/issues/14470
+	// when the element has child elements where the events are fired
+	// repeadedly.
+	private counter: number = 0;
+
+	constructor(private readonly element: HTMLElement, private readonly callbacks: IDragAndDropObserverCallbacks) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, (e: DragEvent) => {
+			this.counter++;
+
+			this.callbacks.onDragEnter(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
+			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
+
+			if (this.callbacks.onDragOver) {
+				this.callbacks.onDragOver(e);
+			}
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, (e: DragEvent) => {
+			this.counter--;
+
+			if (this.counter === 0) {
+				this.callbacks.onDragLeave(e);
+			}
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
+			this.counter = 0;
+			this.callbacks.onDragEnd(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
+			this.counter = 0;
+			this.callbacks.onDrop(e);
+		}));
+	}
 }

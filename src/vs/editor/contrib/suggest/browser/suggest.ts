@@ -26,6 +26,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistr
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from 'vs/editor/common/config/editorOptions';
 
 export const Context = {
 	Visible: historyNavigationVisible,
@@ -401,32 +402,30 @@ interface SuggestController extends IEditorContribution {
 }
 
 
-const _once = new WeakMap<ICodeEditor, IDisposable>();
+let _onlyOnceProvider: languages.CompletionItemProvider | undefined;
+let _onlyOnceSuggestions: languages.CompletionItem[] = [];
 
 export function showSimpleSuggestions(accessor: ServicesAccessor, editor: ICodeEditor, suggestions: languages.CompletionItem[]) {
 
 	const { completionProvider } = accessor.get(ILanguageFeaturesService);
 
-	const _provider = new class implements languages.CompletionItemProvider {
-
-		onlyOnceSuggestions: languages.CompletionItem[] = [];
-
-		provideCompletionItems(): languages.CompletionList {
-			let suggestions = this.onlyOnceSuggestions.slice(0);
-			let result = { suggestions };
-			this.onlyOnceSuggestions.length = 0;
-			dispo.dispose();
-			return result;
-		}
-	};
-
-	const dispo = completionProvider.register('*', _provider);
-	_once.get(editor)?.dispose();
-	_once.set(editor, dispo);
+	if (!_onlyOnceProvider) {
+		_onlyOnceProvider = new class implements languages.CompletionItemProvider {
+			provideCompletionItems(): languages.CompletionList {
+				let suggestions = _onlyOnceSuggestions.slice(0);
+				let result = { suggestions };
+				_onlyOnceSuggestions.length = 0;
+				return result;
+			}
+		};
+		completionProvider.register('*', _onlyOnceProvider);
+	}
 
 	setTimeout(() => {
-		_provider.onlyOnceSuggestions.push(...suggestions);
-		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(new Set<languages.CompletionItemProvider>().add(_provider));
+		_onlyOnceSuggestions.push(...suggestions);
+		editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(
+			new Set<languages.CompletionItemProvider>().add(_onlyOnceProvider!)
+		);
 	}, 0);
 }
 
@@ -441,4 +440,24 @@ export interface ISuggestItemPreselector {
 	 * When -1 is returned, item preselectors with lower priority are asked.
 	*/
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number | -1;
+}
+
+
+export abstract class QuickSuggestionsOptions {
+
+	static isAllOff(config: InternalQuickSuggestionsOptions): boolean {
+		return config.other === 'off' && config.comments === 'off' && config.strings === 'off';
+	}
+
+	static isAllOn(config: InternalQuickSuggestionsOptions): boolean {
+		return config.other === 'on' && config.comments === 'on' && config.strings === 'on';
+	}
+
+	static valueFor(config: InternalQuickSuggestionsOptions, tokenType: languages.StandardTokenType): QuickSuggestionsValue {
+		switch (tokenType) {
+			case languages.StandardTokenType.Comment: return config.comments;
+			case languages.StandardTokenType.String: return config.strings;
+			default: return config.other;
+		}
+	}
 }

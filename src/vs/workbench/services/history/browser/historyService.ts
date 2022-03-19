@@ -1112,7 +1112,7 @@ class EditorSelectionState {
 
 		const result = this.selection.compare(other.selection);
 
-		if (result !== EditorPaneSelectionCompareResult.IDENTICAL && other.reason === EditorPaneSelectionChangeReason.NAVIGATION) {
+		if (result === EditorPaneSelectionCompareResult.SIMILAR && (other.reason === EditorPaneSelectionChangeReason.NAVIGATION || other.reason === EditorPaneSelectionChangeReason.JUMP)) {
 			// let navigation sources win even if the selection is `SIMILAR`
 			// (e.g. "Go to definition" should add a history entry)
 			return true;
@@ -1347,9 +1347,9 @@ export class EditorNavigationStack extends Disposable {
 		let entryLabels: string[] = [];
 		for (const entry of this.stack) {
 			if (typeof entry.selection?.log === 'function') {
-				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: ${entry.selection.log()}`);
+				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString()}, selection: ${entry.selection.log()}`);
 			} else {
-				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: <none>`);
+				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString()}, selection: <none>`);
 			}
 		}
 
@@ -1388,7 +1388,7 @@ ${entryLabels.join('\n')}
 		}
 
 		if (editor !== null) {
-			this.logService.trace(`[History stack ${filterLabel}-${scopeLabel}]: ${msg} (editor: ${editor?.resource?.toString(true)}, event: ${this.traceEvent(event)})`);
+			this.logService.trace(`[History stack ${filterLabel}-${scopeLabel}]: ${msg} (editor: ${editor?.resource?.toString()}, event: ${this.traceEvent(event)})`);
 		} else {
 			this.logService.trace(`[History stack ${filterLabel}-${scopeLabel}]: ${msg}`);
 		}
@@ -1899,7 +1899,7 @@ class EditorHelper {
 		const hasValidResourceEditorInputScheme =
 			resource?.scheme === Schemas.file ||
 			resource?.scheme === Schemas.vscodeRemote ||
-			resource?.scheme === Schemas.userData ||
+			resource?.scheme === Schemas.vscodeUserData ||
 			resource?.scheme === this.pathService.defaultUriScheme;
 
 		// Scheme is valid: prefer the untyped input

@@ -26,7 +26,7 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 	const testDir = '/';
 
 	const logfileURIFromPaths = (paths: string[]) => joinPath(URI.from({ scheme: logSchema, path: testDir }), ...paths);
-	const userdataURIFromPaths = (paths: readonly string[]) => joinPath(URI.from({ scheme: Schemas.userData, path: testDir }), ...paths);
+	const userdataURIFromPaths = (paths: readonly string[]) => joinPath(URI.from({ scheme: Schemas.vscodeUserData, path: testDir }), ...paths);
 
 	const disposables = new DisposableStore();
 
@@ -73,8 +73,8 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		disposables.add(service.registerProvider(logSchema, logFileProvider));
 		disposables.add(logFileProvider);
 
-		userdataFileProvider = new IndexedDBFileSystemProvider(Schemas.userData, indexedDB, 'vscode-userdata-store', true);
-		disposables.add(service.registerProvider(Schemas.userData, userdataFileProvider));
+		userdataFileProvider = new IndexedDBFileSystemProvider(Schemas.vscodeUserData, indexedDB, 'vscode-userdata-store', true);
+		disposables.add(service.registerProvider(Schemas.vscodeUserData, userdataFileProvider));
 		disposables.add(userdataFileProvider);
 	};
 
