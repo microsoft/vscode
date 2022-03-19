@@ -216,6 +216,19 @@
 	align-items: center;
 }
 
+.quick-input-list .monaco-icon-label-container {
+	display: flex;
+	align-items: center;
+}
+.quick-input-list .monaco-icon-description-container {
+	display:inline-block;
+	block-size: 1.5rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	width: 100%;
+	direction: rtl;
+	text-align: left;
+}
 .quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label,
 .quick-input-list .quick-input-list-rows > .quick-input-list-row .monaco-icon-label .monaco-icon-label-container > .monaco-icon-name-container {
 	flex: 1; /* make sure the icon label grows within the row */
