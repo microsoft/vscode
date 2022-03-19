@@ -1712,7 +1712,7 @@ export interface ExtHostLanguageFeaturesShape {
 
 export interface ExtHostQuickOpenShape {
 	$onItemSelected(handle: number): void;
-	$validateInput(input: string): Promise<string | null | undefined>;
+	$validateInput(input: string): Promise<string | { content: string; severity: Severity } | null | undefined>;
 	$onDidChangeActive(sessionId: number, handles: number[]): void;
 	$onDidChangeSelection(sessionId: number, handles: number[]): void;
 	$onDidAccept(sessionId: number): void;
