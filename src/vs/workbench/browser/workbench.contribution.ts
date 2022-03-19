@@ -282,6 +282,13 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'markdownDescription': localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from being added to local history."),
 				'scope': ConfigurationScope.RESOURCE
 			},
+			'workbench.localHistory.mergePeriod': {
+				'type': 'number',
+				'default': 10,
+				'minimum': 1,
+				'markdownDescription': localize('mergePeriod', "Configure an interval in seconds during which the last entry in local history is replaced with the entry that is being added. This helps reduce the overall number of entries that are added, for example when auto save is enabled. This setting is only applied to entries that have the same source of origin."),
+				'scope': ConfigurationScope.RESOURCE
+			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),

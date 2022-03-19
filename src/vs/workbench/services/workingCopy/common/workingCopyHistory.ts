@@ -42,7 +42,7 @@ export interface IWorkingCopyHistoryEntry {
 	/**
 	 * The time when this history entry was created.
 	 */
-	readonly timestamp: number;
+	timestamp: number;
 
 	/**
 	 * Associated source with the history entry.

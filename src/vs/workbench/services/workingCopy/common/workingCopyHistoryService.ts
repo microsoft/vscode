@@ -27,6 +27,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SaveSource, SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { lastOrDefault } from 'vs/base/common/arrays';
 
 interface ISerializedWorkingCopyHistoryModel {
 	readonly version: number;
@@ -46,7 +47,10 @@ export class WorkingCopyHistoryModel {
 
 	private static readonly DEFAULT_ENTRY_SOURCE = SaveSourceRegistry.registerSource('default.source', localize('default.source', "File Saved"));
 
-	private static readonly MAX_ENTRIES_SETTINGS_KEY = 'workbench.localHistory.maxFileEntries';
+	private static readonly SETTINGS = {
+		MAX_ENTRIES: 'workbench.localHistory.maxFileEntries',
+		MERGE_PERIOD: 'workbench.localHistory.mergePeriod'
+	};
 
 	private entries: IWorkingCopyHistoryEntry[] = [];
 
@@ -74,11 +78,34 @@ export class WorkingCopyHistoryModel {
 	}
 
 	async addEntry(source = WorkingCopyHistoryModel.DEFAULT_ENTRY_SOURCE, timestamp = Date.now(), token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+		let entryToReplace: IWorkingCopyHistoryEntry | undefined = undefined;
 
-		// Clone to a potentially unique location within
-		// the history entries folder. The idea is to
-		// execute this as fast as possible, tolerating
-		// naming collisions, even though unlikely.
+		// Figure out if the last entry should be replaced based
+		// on settings that can define a interval for when an
+		// entry is not added as new entry but should replace.
+		// However, when save source is different, never replace.
+		const lastEntry = lastOrDefault(this.entries);
+		if (lastEntry && lastEntry.source === source) {
+			const configuredReplaceInterval = this.configurationService.getValue<number>(WorkingCopyHistoryModel.SETTINGS.MERGE_PERIOD, { resource: this.workingCopyResource });
+			if (timestamp - lastEntry.timestamp <= (configuredReplaceInterval * 1000 /* convert to millies */)) {
+				entryToReplace = lastEntry;
+			}
+		}
+
+		// Replace lastest entry in history
+		if (entryToReplace) {
+			return this.doReplaceEntry(entryToReplace, timestamp, token);
+		}
+
+		// Add entry to history
+		else {
+			return this.doAddEntry(source, timestamp, token);
+		}
+	}
+
+	private async doAddEntry(source: SaveSource, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+
+		// Perform a fast clone operation with minimal overhead to a new random location
 		const id = `${randomPath(undefined, undefined, 4)}${extname(this.workingCopyResource)}`;
 		const location = joinPath(this.historyEntriesFolder, id);
 		await this.fileService.cloneFile(this.workingCopyResource, location);
@@ -98,6 +125,23 @@ export class WorkingCopyHistoryModel {
 
 		// Events
 		this.entryAddedEmitter.fire({ entry });
+
+		return entry;
+	}
+
+	private async doReplaceEntry(entry: IWorkingCopyHistoryEntry, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+
+		// Perform a fast clone operation with minimal overhead to the existing location
+		await this.fileService.cloneFile(this.workingCopyResource, entry.location);
+
+		// Update entry
+		entry.timestamp = timestamp;
+
+		// Mark as in need to be stored to disk
+		this.shouldStore = true;
+
+		// Events
+		this.entryChangedEmitter.fire({ entry });
 
 		return entry;
 	}
@@ -161,7 +205,7 @@ export class WorkingCopyHistoryModel {
 		await this.resolveEntriesOnce();
 
 		// Return as many entries as configured by user settings
-		const configuredMaxEntries = this.configurationService.getValue<number>(WorkingCopyHistoryModel.MAX_ENTRIES_SETTINGS_KEY, { resource: this.workingCopyResource });
+		const configuredMaxEntries = this.configurationService.getValue<number>(WorkingCopyHistoryModel.SETTINGS.MAX_ENTRIES, { resource: this.workingCopyResource });
 		if (this.entries.length > configuredMaxEntries) {
 			return this.entries.slice(this.entries.length - configuredMaxEntries);
 		}
@@ -279,7 +323,7 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async cleanUpEntries(): Promise<void> {
-		const configuredMaxEntries = this.configurationService.getValue<number>(WorkingCopyHistoryModel.MAX_ENTRIES_SETTINGS_KEY, { resource: this.workingCopyResource });
+		const configuredMaxEntries = this.configurationService.getValue<number>(WorkingCopyHistoryModel.SETTINGS.MAX_ENTRIES, { resource: this.workingCopyResource });
 		if (this.entries.length <= configuredMaxEntries) {
 			return; // nothing to cleanup
 		}

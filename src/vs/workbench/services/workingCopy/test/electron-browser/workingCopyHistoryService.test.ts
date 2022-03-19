@@ -628,4 +628,34 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assertEntryEqual(entries[1], entry4);
 		assertEntryEqual(entries[2], entry5);
 	});
+
+	test('entries are merged when source is same', async () => {
+		let changed: IWorkingCopyHistoryEntry | undefined = undefined;
+		service.onDidChangeEntry(e => changed = e.entry);
+
+		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
+
+		service._configurationService.setUserConfiguration('workbench.localHistory.mergePeriod', 1);
+
+		const entry1 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+		assert.strictEqual(changed, undefined);
+
+		const entry2 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+		assert.strictEqual(changed, entry1);
+
+		const entry3 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+		assert.strictEqual(changed, entry2);
+
+		let entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 1);
+		assertEntryEqual(entries[0], entry3);
+
+		service._configurationService.setUserConfiguration('workbench.localHistory.mergePeriod', undefined);
+
+		await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+		await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
+
+		entries = await service.getEntries(workingCopy1.resource, CancellationToken.None);
+		assert.strictEqual(entries.length, 3);
+	});
 });
