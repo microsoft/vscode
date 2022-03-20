@@ -3724,6 +3724,11 @@ declare namespace monaco.editor {
 		 * Defaults to editor font family.
 		 */
 		fontFamily?: string;
+		/**
+		 * Debounce delay for when inlay hints will update after you stop typing.
+		 * Defaults to 1250ms.
+		 */
+		typingDebounceDelay?: number;
 	}
 
 	/**

@@ -131,7 +131,9 @@ export class InlayHintsController implements IEditorContribution {
 		this._sessionDisposables.clear();
 		this._removeAllDecorations();
 
-		if (!this._editor.getOption(EditorOption.inlayHints).enabled) {
+		const options = this._editor.getOption(EditorOption.inlayHints);
+
+		if (!options.enabled) {
 			return;
 		}
 
@@ -211,7 +213,7 @@ export class InlayHintsController implements IEditorContribution {
 		}));
 		this._sessionDisposables.add(this._editor.onDidChangeModelContent((e) => {
 			// update less aggressive when typing
-			const delay = Math.max(scheduler.delay, 1250);
+			const delay = Math.max(scheduler.delay, options.typingDebounceDelay);
 			scheduler.schedule(delay);
 		}));
 

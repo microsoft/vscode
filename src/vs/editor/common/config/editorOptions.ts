@@ -2514,6 +2514,12 @@ export interface IEditorInlayHintsOptions {
 	 * Defaults to editor font family.
 	 */
 	fontFamily?: string;
+
+	/**
+	 * Debounce delay for when inlay hints will update after you stop typing.
+	 * Defaults to 1250ms.
+	 */
+	typingDebounceDelay?: number;
 }
 
 /**
@@ -2524,7 +2530,7 @@ export type EditorInlayHintsOptions = Readonly<Required<IEditorInlayHintsOptions
 class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditorInlayHintsOptions, EditorInlayHintsOptions> {
 
 	constructor() {
-		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '' };
+		const defaults: EditorInlayHintsOptions = { enabled: true, fontSize: 0, fontFamily: '', typingDebounceDelay: 1250 };
 		super(
 			EditorOption.inlayHints, 'inlayHints', defaults,
 			{
@@ -2543,6 +2549,13 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					default: defaults.fontFamily,
 					markdownDescription: nls.localize('inlayHints.fontFamily', "Controls font family of inlay hints in the editor. When set to empty, the `#editor.fontFamily#` is used.")
 				},
+				'editor.inlayHints.typingDebounceDelay': {
+					type: 'number',
+					minimum: 0,
+					maximum: 3000,
+					default: defaults.typingDebounceDelay,
+					markdownDescription: nls.localize('inlayHints.typingDebounceDelay', "Debounce delay for when inlay hints will update after you stop typing.")
+				}
 			}
 		);
 	}
@@ -2555,7 +2568,8 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
-			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily)
+			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
+			typingDebounceDelay: EditorIntOption.clampedInt(input.typingDebounceDelay, this.defaultValue.typingDebounceDelay, 0, 3000),
 		};
 	}
 }
