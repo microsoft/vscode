@@ -14,5 +14,6 @@ export const LOCAL_HISTORY_DATE_FORMATTER = new Intl.DateTimeFormat(language, { 
 export const LOCAL_HISTORY_MENU_CONTEXT_VALUE = 'localHistory:item';
 export const LOCAL_HISTORY_MENU_CONTEXT_KEY = ContextKeyExpr.equals('timelineItem', LOCAL_HISTORY_MENU_CONTEXT_VALUE);
 
-export const LOCAL_HISTORY_ICON_ENTRY = registerIcon('localHistory-icon', Codicon.circleOutline, localize('localHistoryIcon', "Icon for a local history entry in the timeline view."));
-export const LOCAL_HISTORY_ICON_RESTORE = registerIcon('localHistory-restore', Codicon.check, localize('localHistoryRestore', "Icon for restoring contents of a local history entry."));
+export const LOCAL_HISTORY_ICON_ENTRY = registerIcon('localHistory-entry', Codicon.circleOutline, localize('localHistoryEntryIcon', "Icon for a local history entry in the timeline view."));
+export const LOCAL_HISTORY_ICON_ENTRIES = registerIcon('localHistory-entries', Codicon.circleOutline, localize('localHistoryEntriesIcon', "Icon for a set of local history entries in the timeline view."));
+export const LOCAL_HISTORY_ICON_RESTORE = registerIcon('localHistory-restore', Codicon.check, localize('localHistoryRestoreIcon', "Icon for restoring contents of a local history entry."));
