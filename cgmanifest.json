@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "e2aa76f05f3a6ccadbf43e37f5dfc195cc090b6a"
+					"commitHash": "20d57147be17d551f68ae56b649d7f529cd104bd"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "98.0.4758.141"
+			"version": "100.0.4894.0"
 		},
 		{
 			"component": {
@@ -48,11 +48,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "40ecd5601193c316e62e9216e8a4259130686208"
+					"commitHash": "acb71eab779fb56bf70e8a9e0cb2e82a089a87de"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "16.13.0"
+			"version": "16.13.2"
 		},
 		{
 			"component": {
@@ -60,12 +60,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "3a1945bd6c62459a457bd8d0b922259234816e22"
+					"commitHash": "fc3172dd2a6a0f0e8289a5e72483c66d559b65a2"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "17.4.6"
+			"version": "18.0.0-beta.4"
 		},
 		{
 			"component": {
