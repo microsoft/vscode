@@ -447,6 +447,16 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.EnableUriLinks]: {
+			description: localize('terminal.integrated.enableUriLinks', "Whether to enable uri links in the terminal."),
+			type: 'boolean',
+			default: true
+		},
+		[TerminalSettingId.EnableWordLinks]: {
+			description: localize('terminal.integrated.enableWordLinks', "Whether to enable word in the terminal to be searched in the workspace."),
+			type: 'boolean',
+			default: true
+		},
 		[TerminalSettingId.UnicodeVersion]: {
 			type: 'string',
 			enum: ['6', '11'],

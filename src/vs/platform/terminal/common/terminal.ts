@@ -90,6 +90,8 @@ export const enum TerminalSettingId {
 	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
+	EnableUriLinks = 'terminal.integrated.enableUriLinks',
+	EnableWordLinks = 'terminal.integrated.enableWordLinks',
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
 	LocalEchoLatencyThreshold = 'terminal.integrated.localEchoLatencyThreshold',
 	LocalEchoEnabled = 'terminal.integrated.localEchoEnabled',
