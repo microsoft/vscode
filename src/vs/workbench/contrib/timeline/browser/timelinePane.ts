@@ -694,7 +694,7 @@ export class TimelinePane extends ViewPane {
 				}
 
 				lastRelativeTime = updateRelativeTime(item, lastRelativeTime);
-				yield this.toTreeItem(item);
+				yield { element: item };
 			}
 
 			timeline.lastRenderedIndex = count - 1;
@@ -754,7 +754,7 @@ export class TimelinePane extends ViewPane {
 					}
 
 					lastRelativeTime = updateRelativeTime(item, lastRelativeTime);
-					yield this.toTreeItem(item);
+					yield { element: item };
 				}
 
 				nextSource.nextItem = nextSource.iterator.next();
@@ -774,20 +774,12 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
-	private toTreeItem(item: TimelineItem): ITreeElement<TreeElement> {
-		if (Array.isArray(item.children) && item.children.length > 0) {
-			return { element: item, children: item.children.map(child => this.toTreeItem(child)) };
-		}
-
-		return { element: item };
-	}
-
 	private refresh() {
 		if (!this.isBodyVisible()) {
 			return;
 		}
 
-		this.tree.setChildren(null, this.getItems());
+		this.tree.setChildren(null, this.getItems() as any);
 		this._isEmpty = !this.hasVisibleItems;
 
 		if (this.uri === undefined) {
@@ -905,7 +897,6 @@ export class TimelinePane extends ViewPane {
 				}
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
-			collapseByDefault: true,
 			multipleSelectionSupport: true,
 			overrideStyles: {
 				listBackground: this.getBackgroundColor(),

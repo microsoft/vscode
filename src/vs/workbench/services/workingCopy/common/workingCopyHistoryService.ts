@@ -16,7 +16,7 @@ import { FileOperation, FileOperationError, FileOperationEvent, FileOperationRes
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { URI } from 'vs/base/common/uri';
 import { DeferredPromise, Limiter } from 'vs/base/common/async';
-import { dirname, extname, isEqual, joinPath } from 'vs/base/common/resources';
+import { extname, isEqual, joinPath } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { hash } from 'vs/base/common/hash';
 import { indexOfPath, randomPath } from 'vs/base/common/extpath';
@@ -47,6 +47,7 @@ export class WorkingCopyHistoryModel {
 	static readonly ENTRIES_FILE = 'entries.json';
 
 	private static readonly FILE_SAVED_SOURCE = SaveSourceRegistry.registerSource('default.source', localize('default.source', "File Saved"));
+	private static readonly FILE_MOVED_SOURCE = SaveSourceRegistry.registerSource('moved.source', localize('moved.source', "File Moved"));
 
 	private static readonly SETTINGS = {
 		MAX_ENTRIES: 'workbench.localHistory.maxFileEntries',
@@ -322,7 +323,7 @@ export class WorkingCopyHistoryModel {
 		return entries;
 	}
 
-	async moveEntries(targetWorkingCopyResource: URI, source: SaveSource, token: CancellationToken): Promise<void> {
+	async moveEntries(targetWorkingCopyResource: URI, token: CancellationToken): Promise<void> {
 
 		// Ensure model stored so that any pending data is flushed
 		await this.store(token);
@@ -346,7 +347,7 @@ export class WorkingCopyHistoryModel {
 		this.setWorkingCopy(targetWorkingCopyResource);
 
 		// Add entry for the move
-		await this.addEntry(source, undefined, token);
+		await this.addEntry(WorkingCopyHistoryModel.FILE_MOVED_SOURCE, undefined, token);
 
 		// Store model again to updated location
 		await this.store(token);
@@ -486,9 +487,6 @@ export class WorkingCopyHistoryModel {
 
 export abstract class WorkingCopyHistoryService extends Disposable implements IWorkingCopyHistoryService {
 
-	private static readonly FILE_MOVED_SOURCE = SaveSourceRegistry.registerSource('moved.source', localize('moved.source', "File Moved"));
-	private static readonly FILE_RENAMED_SOURCE = SaveSourceRegistry.registerSource('renamed.source', localize('renamed.source', "File Renamed"));
-
 	declare readonly _serviceBrand: undefined;
 
 	protected readonly _onDidAddEntry = this._register(new Emitter<IWorkingCopyHistoryEvent>());
@@ -566,7 +564,6 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 				continue; // model does not match moved resource
 			}
 
-
 			// Determine new resulting target resource
 			let targetResource: URI;
 			if (isEqual(source, resource)) {
@@ -576,16 +573,8 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 			}
 
-			// Figure out save source
-			let saveSource: SaveSource;
-			if (isEqual(dirname(resource), dirname(targetResource))) {
-				saveSource = WorkingCopyHistoryService.FILE_RENAMED_SOURCE;
-			} else {
-				saveSource = WorkingCopyHistoryService.FILE_MOVED_SOURCE;
-			}
-
 			// Move entries to target queued
-			promises.push(limiter.queue(() => this.moveEntries(model, saveSource, resource, targetResource)));
+			promises.push(limiter.queue(() => this.moveEntries(model, resource, targetResource)));
 		}
 
 		if (!promises.length) {
@@ -599,10 +588,10 @@ export abstract class WorkingCopyHistoryService extends Disposable implements IW
 		this._onDidMoveEntries.fire();
 	}
 
-	private async moveEntries(model: WorkingCopyHistoryModel, source: SaveSource, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<void> {
+	private async moveEntries(model: WorkingCopyHistoryModel, sourceWorkingCopyResource: URI, targetWorkingCopyResource: URI): Promise<void> {
 
 		// Move to target via model
-		await model.moveEntries(targetWorkingCopyResource, source, CancellationToken.None);
+		await model.moveEntries(targetWorkingCopyResource, CancellationToken.None);
 
 		// Update model in our map
 		this.models.delete(sourceWorkingCopyResource);

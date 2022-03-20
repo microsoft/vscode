@@ -52,13 +52,6 @@ export interface TimelineItem {
 
 	relativeTime?: string;
 	hideRelativeTime?: boolean;
-
-	/**
-	 * Optional support for grouping multiple timeline items
-	 * under a parent timeline, e.g. to flatten entries of
-	 * the same kind.
-	 */
-	children?: TimelineItem[];
 }
 
 export interface TimelineChangeEvent {

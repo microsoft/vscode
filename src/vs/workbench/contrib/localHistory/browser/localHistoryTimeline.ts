@@ -20,7 +20,7 @@ import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMPARE_WITH_FILE_LABEL, toDiffEditorArguments } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_ENTRIES, LOCAL_HISTORY_ICON_ENTRY, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_ENTRY, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 import { Schemas } from 'vs/base/common/network';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
@@ -118,13 +118,12 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 		if (resource) {
 
-			// Aggregate local history entries of same source into
-			// buckets so that the overall number of timeline entries
-			// is not too spammy.
+			// Retrieve from working copy history
+			const entries = await this.workingCopyHistoryService.getEntries(resource, token);
 
-			const aggregatedEntries = await this.aggregateLocalHistory(resource, token);
-			for (const [entry, entries] of aggregatedEntries) {
-				items.push(this.toTimelineItem(entry, entries));
+			// Convert to timeline items
+			for (const entry of entries) {
+				items.push(this.toTimelineItem(entry));
 			}
 		}
 
@@ -134,58 +133,20 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		};
 	}
 
-	private async aggregateLocalHistory(resource: URI, token: CancellationToken): Promise<Map<IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntry[]>> {
-		const aggregatedEntries = new Map<IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntry[]>();
-
-		const entries = await this.workingCopyHistoryService.getEntries(resource, token);
-
-		let currentHistoryEntry: IWorkingCopyHistoryEntry | undefined = undefined;
-		for (const entry of entries) {
-
-			// Open new bucket for first entry or when sources differ
-			if (!currentHistoryEntry || currentHistoryEntry.source !== entry.source) {
-				currentHistoryEntry = entry;
-				aggregatedEntries.set(currentHistoryEntry, [currentHistoryEntry]);
-			}
-
-			// Otherwise add to previous bucket
-			else {
-				aggregatedEntries.get(currentHistoryEntry)?.push(entry);
-			}
-		}
-
-		return aggregatedEntries;
-	}
-
-	private toTimelineItem(entry: IWorkingCopyHistoryEntry, aggregatedEntries: IWorkingCopyHistoryEntry[]): TimelineItem {
-
-		// Single entry: return without children
-		if (aggregatedEntries.length === 1) {
-			return {
-				handle: entry.id,
-				label: SaveSourceRegistry.getSourceLabel(entry.source),
-				tooltip: new MarkdownString(`$(history) ${LOCAL_HISTORY_DATE_FORMATTER.format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
-				source: LocalHistoryTimeline.ID,
-				timestamp: entry.timestamp,
-				themeIcon: LOCAL_HISTORY_ICON_ENTRY,
-				contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
-				command: {
-					id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
-					title: COMPARE_WITH_FILE_LABEL.value,
-					arguments: toDiffEditorArguments(entry, entry.workingCopy.resource)
-				}
-			};
-		}
-
-		// Aggregated entry: return with children
-		const children = aggregatedEntries.map(entry => this.toTimelineItem(entry, [entry]));
+	private toTimelineItem(entry: IWorkingCopyHistoryEntry): TimelineItem {
 		return {
 			handle: entry.id,
-			label: localize('multipleLocalHistoryEntries', "{0} ({1} entries)", SaveSourceRegistry.getSourceLabel(entry.source), children.length),
+			label: SaveSourceRegistry.getSourceLabel(entry.source),
+			tooltip: new MarkdownString(`$(history) ${LOCAL_HISTORY_DATE_FORMATTER.format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp,
-			themeIcon: LOCAL_HISTORY_ICON_ENTRIES,
-			children
+			themeIcon: LOCAL_HISTORY_ICON_ENTRY,
+			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
+			command: {
+				id: API_OPEN_DIFF_EDITOR_COMMAND_ID,
+				title: COMPARE_WITH_FILE_LABEL.value,
+				arguments: toDiffEditorArguments(entry, entry.workingCopy.resource)
+			}
 		};
 	}
 }
