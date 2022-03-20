@@ -897,9 +897,9 @@ export class TimelinePane extends ViewPane {
 				}
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
-			multipleSelectionSupport: true,
+			multipleSelectionSupport: false,
 			overrideStyles: {
-				listBackground: this.getBackgroundColor(),
+				listBackground: this.getBackgroundColor()
 			}
 		});
 
