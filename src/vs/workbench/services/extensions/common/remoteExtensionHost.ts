@@ -126,19 +126,20 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			}
 
 			return connectRemoteAgentExtensionHost(options, startParams).then(result => {
-				let { protocol, debugPort } = result;
+				this._register(result);
+				let { protocol, debugPort, reconnectionToken } = result;
 				const isExtensionDevelopmentDebug = typeof debugPort === 'number';
 				if (debugOk && this._environmentService.isExtensionDevelopment && this._environmentService.debugExtensionHost.debugId && debugPort) {
 					this._extensionHostDebugService.attachSession(this._environmentService.debugExtensionHost.debugId, debugPort, this._initDataProvider.remoteAuthority);
 				}
 
 				protocol.onDidDispose(() => {
-					this._onExtHostConnectionLost();
+					this._onExtHostConnectionLost(reconnectionToken);
 				});
 
 				protocol.onSocketClose(() => {
 					if (this._isExtensionDevHost) {
-						this._onExtHostConnectionLost();
+						this._onExtHostConnectionLost(reconnectionToken);
 					}
 				});
 
@@ -189,7 +190,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		});
 	}
 
-	private _onExtHostConnectionLost(): void {
+	private _onExtHostConnectionLost(reconnectionToken: string): void {
 		if (this._hasLostConnection) {
 			// avoid re-entering this method
 			return;
@@ -205,7 +206,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			return;
 		}
 
-		this._onExit.fire([0, null]);
+		this._onExit.fire([0, reconnectionToken]);
 	}
 
 	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {

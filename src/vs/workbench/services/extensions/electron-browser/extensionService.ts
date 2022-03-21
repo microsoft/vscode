@@ -71,7 +71,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
@@ -93,7 +93,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			configurationService,
 			extensionManifestPropertiesService,
 			webExtensionsScannerService,
-			logService
+			logService,
+			remoteAgentService
 		);
 
 		[this._enableLocalWebWorker, this._lazyLocalWebWorker] = this._isLocalWebWorkerEnabled();

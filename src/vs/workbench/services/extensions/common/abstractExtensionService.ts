@@ -37,6 +37,7 @@ import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensi
 import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { forEach } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -184,6 +185,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService protected readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService protected readonly _logService: ILogService,
+		@IRemoteAgentService protected readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -645,6 +647,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			this.stopExtensionHosts();
 		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
+			if (signal) {
+				this._onRemoteExtensionHostCrashed(signal);
+			}
 			for (let i = 0; i < this._extensionHostManagers.length; i++) {
 				if (this._extensionHostManagers[i] === extensionHost) {
 					this._extensionHostManagers[i].dispose();
@@ -652,6 +657,38 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					break;
 				}
 			}
+		}
+	}
+
+	private _getExtensionHostExitInfoWithTimeout(reconnectionToken: string): Promise<IExtensionHostExitInfo | null> {
+		return new Promise((resolve, reject) => {
+			const timeoutHandle = setTimeout(() => {
+				reject(new Error('getExtensionHostExitInfo timed out'));
+			}, 2000);
+			this._remoteAgentService.getExtensionHostExitInfo(reconnectionToken).then(
+				(r) => {
+					clearTimeout(timeoutHandle);
+					resolve(r);
+				},
+				reject
+			);
+		});
+	}
+
+	private async _onRemoteExtensionHostCrashed(reconnectionToken: string): Promise<void> {
+		try {
+			const info = await this._getExtensionHostExitInfoWithTimeout(reconnectionToken);
+			// TODO:
+			console.error(info?.code, info?.signal);
+			this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Remote Extension host terminated unexpectedly."),
+				[{
+					label: nls.localize('restart', "Restart Extension Host"),
+					run: () => console.log(`todo`)//this.startExtensionHosts()
+				}]
+			);
+
+		} catch (err) {
+			// maybe this wasn't an extension host crash and it was a permanent disconnection
 		}
 	}
 
