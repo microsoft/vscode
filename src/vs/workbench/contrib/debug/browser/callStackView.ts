@@ -587,11 +587,11 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 
 		if (stoppedDetails) {
 			data.stateLabel.textContent = stoppedDescription(stoppedDetails);
-			data.session.title = stoppedText(stoppedDetails);
+			data.session.title = `${session.getLabel()}: ${stoppedText(stoppedDetails)}`;
 			data.stateLabel.classList.toggle('exception', stoppedDetails.reason === 'exception');
 		} else if (thread && thread.stoppedDetails) {
 			data.stateLabel.textContent = stoppedDescription(thread.stoppedDetails);
-			data.session.title = stoppedText(thread.stoppedDetails);
+			data.session.title = `${session.getLabel()}: ${stoppedText(thread.stoppedDetails)}`;
 			data.stateLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
 		} else {
 			data.stateLabel.textContent = localize({ key: 'running', comment: ['indicates state'] }, "Running");
@@ -634,7 +634,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 
 	renderElement(element: ITreeNode<IThread, FuzzyScore>, _index: number, data: IThreadTemplateData): void {
 		const thread = element.element;
-		data.thread.title = localize('thread', "Thread");
+		data.thread.title = thread.name;
 		data.label.set(thread.name, createMatches(element.filterData));
 		data.stateLabel.textContent = thread.stateLabel;
 		data.stateLabel.classList.toggle('exception', thread.stoppedDetails?.reason === 'exception');

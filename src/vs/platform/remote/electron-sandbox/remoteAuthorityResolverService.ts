@@ -113,7 +113,8 @@ export class RemoteAuthorityResolverService extends Disposable implements IRemot
 	_setResolvedAuthorityError(authority: string, err: any): void {
 		if (this._resolveAuthorityRequests.has(authority)) {
 			const request = this._resolveAuthorityRequests.get(authority)!;
-			request.reject(err);
+			// Avoid that this error makes it to telemetry
+			request.reject(errors.ErrorNoTelemetry.fromError(err));
 		}
 	}
 

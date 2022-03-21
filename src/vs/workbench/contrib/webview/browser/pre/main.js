@@ -22,7 +22,6 @@ const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
 const onElectron = searchParams.get('platform') === 'electron';
 const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
-const parentOrigin = searchParams.get('parentOrigin');
 
 /**
  * Use polling to track focus of main webview and iframes within the webview
@@ -309,8 +308,43 @@ const hostMessaging = new class HostMessaging {
 		handlers.push(handler);
 	}
 
-	signalReady() {
-		window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
+	async signalReady() {
+		const start = (/** @type {string} */ parentOrigin) => {
+			window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
+		};
+
+		const parentOrigin = searchParams.get('parentOrigin');
+		const id = searchParams.get('id');
+
+		const hostname = location.hostname;
+
+		if (!crypto.subtle) {
+			// cannot validate, not running in a secure context
+			throw new Error(`Cannot validate in current context!`);
+		}
+
+		// Here the `parentOriginHash()` function from `src/vs/workbench/common/webview.ts` is inlined
+		// compute a sha-256 composed of `parentOrigin` and `salt` converted to base 32
+		let parentOriginHash;
+		try {
+			const strData = JSON.stringify({ parentOrigin, salt: id });
+			const encoder = new TextEncoder();
+			const arrData = encoder.encode(strData);
+			const hash = await crypto.subtle.digest('sha-256', arrData);
+			const hashArray = Array.from(new Uint8Array(hash));
+			const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+			// sha256 has 256 bits, so we need at most ceil(lg(2^256-1)/lg(32)) = 52 chars to represent it in base 32
+			parentOriginHash = BigInt(`0x${hashHex}`).toString(32).padStart(52, '0');
+		} catch (err) {
+			throw err instanceof Error ? err : new Error(String(err));
+		}
+
+		if (hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {
+			// validation succeeded!
+			return start(parentOrigin);
+		}
+
+		throw new Error(`Expected '${parentOriginHash}' as hostname or subdomain!`);
 	}
 }();
 
@@ -389,6 +423,12 @@ const initData = {
 
 	/** @type {string | undefined} */
 	themeName: undefined,
+
+	/** @type {boolean} */
+	screenReader: false,
+
+	/** @type {boolean} */
+	reduceMotion: false,
 };
 
 hostMessaging.onMessage('did-load-resource', (_event, data) => {
@@ -421,9 +461,17 @@ const applyStyles = (document, body) => {
 	}
 
 	if (body) {
-		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
+		body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-reduce-motion', 'vscode-using-screen-reader');
 		if (initData.activeTheme) {
 			body.classList.add(initData.activeTheme);
+		}
+
+		if (initData.reduceMotion) {
+			body.classList.add('vscode-reduce-motion');
+		}
+
+		if (initData.screenReader) {
+			body.classList.add('vscode-using-screen-reader');
 		}
 
 		body.dataset.vscodeThemeKind = initData.activeTheme;
@@ -742,6 +790,8 @@ onDomReady(() => {
 		initData.styles = data.styles;
 		initData.activeTheme = data.activeTheme;
 		initData.themeName = data.themeName;
+		initData.reduceMotion = data.reduceMotion;
+		initData.screenReader = data.screenReader;
 
 		const target = getActiveFrame();
 		if (!target) {

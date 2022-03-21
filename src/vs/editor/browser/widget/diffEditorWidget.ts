@@ -55,6 +55,7 @@ import { ILineBreaksComputer } from 'vs/editor/common/modelLineProjectionData';
 import { IChange, IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/diffComputer';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { IDimension } from 'vs/editor/common/core/dimension';
+import { isHighContrast } from 'vs/platform/theme/common/theme';
 
 export interface IDiffCodeEditorWidgetOptions {
 	originalEditor?: ICodeEditorWidgetOptions;
@@ -2583,12 +2584,12 @@ registerThemingParticipant((theme, collector) => {
 
 	const addedOutline = theme.getColor(diffInsertedOutline);
 	if (addedOutline) {
-		collector.addRule(`.monaco-editor .line-insert, .monaco-editor .char-insert { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${addedOutline}; }`);
+		collector.addRule(`.monaco-editor .line-insert, .monaco-editor .char-insert { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${addedOutline}; }`);
 	}
 
 	const removedOutline = theme.getColor(diffRemovedOutline);
 	if (removedOutline) {
-		collector.addRule(`.monaco-editor .line-delete, .monaco-editor .char-delete { border: 1px ${theme.type === 'hc' ? 'dashed' : 'solid'} ${removedOutline}; }`);
+		collector.addRule(`.monaco-editor .line-delete, .monaco-editor .char-delete { border: 1px ${isHighContrast(theme.type) ? 'dashed' : 'solid'} ${removedOutline}; }`);
 	}
 
 	const shadow = theme.getColor(scrollbarShadow);

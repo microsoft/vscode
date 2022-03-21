@@ -12,7 +12,7 @@ import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { cellEditorBackground, getDefaultNotebookCreationOptions, notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from '../notebookDiffEditorInput';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDiffElementViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffElementViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
@@ -83,6 +83,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private readonly _localStore = this._register(new DisposableStore());
+
+	private _layoutCancellationTokenSource?: CancellationTokenSource;
 
 	private _isDisposed: boolean = false;
 
@@ -312,9 +314,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._modifiedResourceDisposableStore.clear();
 
+		this._layoutCancellationTokenSource = new CancellationTokenSource();
+
 		this._modifiedResourceDisposableStore.add(Event.any(this._model.original.notebook.onDidChangeContent, this._model.modified.notebook.onDidChangeContent)(e => {
 			if (this._model !== null) {
-				this.updateLayout();
+				this._layoutCancellationTokenSource?.dispose();
+				this._layoutCancellationTokenSource = new CancellationTokenSource();
+				this.updateLayout(this._layoutCancellationTokenSource.token);
 			}
 		}));
 
@@ -327,7 +333,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._modifiedResourceDisposableStore.add(this._modifiedWebview);
 		}
 
-		await this.updateLayout();
+		await this.updateLayout(this._layoutCancellationTokenSource.token);
 	}
 
 	private _detachModel() {
@@ -409,12 +415,18 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		this._originalWebview.element.style.left = `16px`;
 	}
 
-	async updateLayout() {
+	async updateLayout(token: CancellationToken) {
 		if (!this._model) {
 			return;
 		}
 
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
+
+		if (token.isCancellationRequested) {
+			// after await the editor might be disposed.
+			return;
+		}
+
 		NotebookTextDiffEditor.prettyChanges(this._model, diffResult.cellsDiff);
 		const { viewModels, firstChangeIndex } = NotebookTextDiffEditor.computeDiff(this.instantiationService, this.configurationService, this._model, this._eventDispatcher!, diffResult);
 		const isSame = this._isViewModelTheSame(viewModels);
@@ -899,6 +911,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	override dispose() {
 		this._isDisposed = true;
+		this._layoutCancellationTokenSource?.dispose();
 		super.dispose();
 	}
 }

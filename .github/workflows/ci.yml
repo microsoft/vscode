@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - uses: actions/setup-python@v2
         with:
@@ -57,18 +57,7 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: |
-          # update node-gyp to latest for support in detecting VS 2022 toolchain
-          npm install -g node-gyp@latest
-          # Resolve to node-gyp.js
-          # Remove this once node-version > 17.4.x or > 16.14.0,
-          # which ships with npm > 8.4.0 that has support for VS 2022 toolchain.
-          $env:npm_config_node_gyp=$(Join-Path $(Get-Command node-gyp.cmd).Path "..\node_modules\node-gyp\bin\node-gyp.js" -Resolve)
-          # Electron <= 13 does not ship with correct config.gypi headers,
-          # remove this once we update to newer versions.
-          # Refs https://github.com/nodejs/node-gyp/pull/2497
-          $env:npm_config_force_process_config="true"
-          yarn --frozen-lockfile --network-timeout 180000
+        run: yarn --frozen-lockfile --network-timeout 180000
       - name: Create node_modules archive
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
@@ -124,7 +113,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -134,8 +123,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules20-
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -196,7 +185,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -206,8 +195,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules20-
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -270,7 +259,7 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-          node-version: 14
+          node-version: 16
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -280,8 +269,8 @@ jobs:
         uses: actions/cache@v2
         with:
           path: "**/node_modules"
-          key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-cacheNodeModules20-
+          key: ${{ runner.os }}-cacheNodeModules21-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-cacheNodeModules21-
       - name: Get yarn cache directory path
         id: yarnCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
@@ -318,43 +307,8 @@ jobs:
       - name: Run eslint
         run: yarn eslint
 
-      - name: Run Monaco Editor Checks
-        run: yarn monaco-compile-check
-
       - name: Run vscode-dts Compile Checks
         run: yarn vscode-dts-compile-check
 
       - name: Run Trusted Types Checks
         run: yarn tsec-compile-check
-
-      - name: Editor Distro & ESM Bundle
-        run: yarn gulp editor-esm-bundle
-
-      - name: Editor ESM sources check
-        working-directory: ./test/monaco
-        run: yarn run esm-check
-
-      - name: Typings validation prep
-        run: |
-          mkdir typings-test
-
-      - name: Typings validation
-        working-directory: ./typings-test
-        run: |
-          yarn init -yp
-          ../node_modules/.bin/tsc --init
-          echo "import '../out-monaco-editor-core';" > a.ts
-          ../node_modules/.bin/tsc --noEmit
-
-      - name: Package Editor with Webpack
-        working-directory: ./test/monaco
-        run: yarn run bundle-webpack
-
-      - name: Compile Editor Tests
-        working-directory: ./test/monaco
-        run: yarn run compile
-
-      - name: Run Editor Tests
-        timeout-minutes: 5
-        working-directory: ./test/monaco
-        run: yarn test

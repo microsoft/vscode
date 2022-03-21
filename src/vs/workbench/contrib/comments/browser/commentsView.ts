@@ -7,7 +7,7 @@ import 'vs/css!./media/panel';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { basename } from 'vs/base/common/resources';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads, ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
@@ -29,6 +29,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
+import { IEditor } from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 const CONTEXT_KEY_HAS_COMMENTS = new RawContextKey<boolean>('commentsView.hasComments', false);
 
@@ -211,18 +213,24 @@ export class CommentsPanel extends ViewPane {
 
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
 
-		const activeEditor = this.editorService.activeEditor;
-		let currentActiveResource = activeEditor ? activeEditor.resource : undefined;
-		if (this.uriIdentityService.extUri.isEqual(element.resource, currentActiveResource)) {
-			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
-			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
-			const control = this.editorService.activeTextEditorControl;
-			if (threadToReveal && isCodeEditor(control)) {
-				const controller = CommentController.get(control);
-				controller?.revealCommentThread(threadToReveal, commentToReveal, false);
-			}
+		const activeEditor = this.editorService.activeTextEditorControl;
+		// If the active editor is a diff editor where one of the sides has the comment,
+		// then we try to reveal the comment in the diff editor.
+		let currentActiveResources: IEditor[] = isDiffEditor(activeEditor) ? [activeEditor.getOriginalEditor(), activeEditor.getModifiedEditor()]
+			: (activeEditor ? [activeEditor] : []);
 
-			return true;
+		for (const editor of currentActiveResources) {
+			const model = editor.getModel();
+			if ((model instanceof TextModel) && this.uriIdentityService.extUri.isEqual(element.resource, model.uri)) {
+				const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
+				const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
+				if (threadToReveal && isCodeEditor(editor)) {
+					const controller = CommentController.get(editor);
+					controller?.revealCommentThread(threadToReveal, commentToReveal, false);
+				}
+
+				return true;
+			}
 		}
 
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;

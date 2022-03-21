@@ -14,7 +14,7 @@ import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { areFunctions, isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy, IWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
@@ -308,13 +308,24 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 	readonly allowBinary?: boolean;
 }
 
-export interface ITextFileSaveEvent {
+export interface ITextFileSaveEvent extends ITextFileEditorModelSaveEvent {
+
+	/**
+	 * The model that was saved.
+	 */
 	readonly model: ITextFileEditorModel;
-	readonly reason: SaveReason;
 }
 
 export interface ITextFileResolveEvent {
+
+	/**
+	 * The model that was resolved.
+	 */
 	readonly model: ITextFileEditorModel;
+
+	/**
+	 * The reason why the model was resolved.
+	 */
 	readonly reason: TextFileResolveReason;
 }
 
@@ -476,9 +487,17 @@ export interface ILanguageSupport {
 	setLanguageId(languageId: string, setExplicitly?: boolean): void;
 }
 
+export interface ITextFileEditorModelSaveEvent extends IWorkingCopySaveEvent {
+
+	/**
+	 * The resolved stat from the save operation.
+	 */
+	readonly stat: IFileStatWithMetadata;
+}
+
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, ILanguageSupport, IWorkingCopy {
 
-	readonly onDidChangeContent: Event<void>;
+	readonly onDidSave: Event<ITextFileEditorModelSaveEvent>;
 	readonly onDidSaveError: Event<void>;
 	readonly onDidChangeOrphaned: Event<void>;
 	readonly onDidChangeReadonly: Event<void>;

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList } from 'vscode';
-import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, CommonLanguageClient } from 'vscode-languageclient';
+import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList, FormattingOptions, workspace } from 'vscode';
+import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, CommonLanguageClient, DocumentRangeFormattingParams, DocumentRangeFormattingRequest } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
 import { getCustomDataSource } from './customData';
 import { RequestService, serveFileSystemRequests } from './requests';
@@ -22,11 +22,29 @@ export interface Runtime {
 	fs?: RequestService;
 }
 
+interface FormatterRegistration {
+	readonly languageId: string;
+	readonly settingId: string;
+	provider: Disposable | undefined;
+}
+
+interface CSSFormatSettings {
+	selectorSeparatorNewline?: boolean;
+	newlineBetweenRules?: boolean;
+	spaceAroundSelectorSeparator?: boolean;
+}
+
+const cssFormatSettingKeys: (keyof CSSFormatSettings)[] = ['selectorSeparatorNewline', 'newlineBetweenRules', 'spaceAroundSelectorSeparator'];
+
 export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
 
 	const customDataSource = getCustomDataSource(context.subscriptions);
 
 	let documentSelector = ['css', 'scss', 'less'];
+
+	const formatterRegistrations: FormatterRegistration[] = documentSelector.map(languageId => ({
+		languageId, settingId: `${languageId}.format.enable`, provider: undefined
+	}));
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -35,7 +53,9 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			configurationSection: ['css', 'scss', 'less']
 		},
 		initializationOptions: {
-			handledSchemas: ['file']
+			handledSchemas: ['file'],
+			provideFormatter: false, // tell the server to not provide formatting capability
+			customCapabilities: { rangeFormatting: { editLimit: 10000 } }
 		},
 		middleware: {
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
@@ -83,6 +103,13 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		customDataSource.onDidChange(() => {
 			client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
 		});
+
+		// manually register / deregister format provider based on the `css/less/scss.format.enable` setting avoiding issues with late registration. See #71652.
+		for (const registration of formatterRegistrations) {
+			updateFormatterRegistration(registration);
+			context.subscriptions.push({ dispose: () => registration.provider?.dispose() });
+			context.subscriptions.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(registration.settingId) && updateFormatterRegistration(registration)));
+		}
 
 		serveFileSystemRequests(client, runtime);
 	});
@@ -139,6 +166,49 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			}).then(success => {
 				if (!success) {
 					window.showErrorMessage('Failed to apply CSS fix to the document. Please consider opening an issue with steps to reproduce.');
+				}
+			});
+		}
+	}
+
+	function updateFormatterRegistration(registration: FormatterRegistration) {
+		const formatEnabled = workspace.getConfiguration().get(registration.settingId);
+		if (!formatEnabled && registration.provider) {
+			registration.provider.dispose();
+			registration.provider = undefined;
+		} else if (formatEnabled && !registration.provider) {
+			registration.provider = languages.registerDocumentRangeFormattingEditProvider(registration.languageId, {
+				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+					const filesConfig = workspace.getConfiguration('files', document);
+
+					const fileFormattingOptions = {
+						trimTrailingWhitespace: filesConfig.get<boolean>('trimTrailingWhitespace'),
+						trimFinalNewlines: filesConfig.get<boolean>('trimFinalNewlines'),
+						insertFinalNewline: filesConfig.get<boolean>('insertFinalNewline'),
+					};
+					const params: DocumentRangeFormattingParams = {
+						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+						range: client.code2ProtocolConverter.asRange(range),
+						options: client.code2ProtocolConverter.asFormattingOptions(options, fileFormattingOptions)
+					};
+					// add the css formatter options from the settings
+					const formatterSettings = workspace.getConfiguration(registration.languageId, document).get<CSSFormatSettings>('format');
+					if (formatterSettings) {
+						for (const key of cssFormatSettingKeys) {
+							const val = formatterSettings[key];
+							if (val !== undefined) {
+								params.options[key] = val;
+							}
+						}
+					}
+					console.log(JSON.stringify(params.options));
+					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
+						client.protocol2CodeConverter.asTextEdits,
+						(error) => {
+							client.handleFailedRequest(DocumentRangeFormattingRequest.type, error, []);
+							return Promise.resolve([]);
+						}
+					);
 				}
 			});
 		}

@@ -12,7 +12,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IRemoteConsoleLog } from 'vs/base/common/console';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { getResolvedShellEnv } from 'vs/platform/terminal/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteExtensionHostStartParams } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IExtHostReadyMessage, IExtHostSocketMessage, IExtHostReduceGraceTimeMessage } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
@@ -20,6 +20,7 @@ import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentServi
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { logRemoteEntry } from 'vs/workbench/services/extensions/common/remoteConsoleUtil';
 import { removeDangerousEnvVariables } from 'vs/base/node/processes';
+import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 
 export async function buildUserEnvironment(startParamsEnv: { [key: string]: string | null } = {}, withUserShellEnvironment: boolean, language: string, isDebug: boolean, environmentService: IServerEnvironmentService, logService: ILogService): Promise<IProcessEnvironment> {
 	const nlsConfig = await getNLSConfiguration(language, environmentService.userDataPath);
@@ -102,12 +103,13 @@ export class ExtensionHostConnection {
 	private _connectionData: ConnectionData | null;
 
 	constructor(
-		private readonly _environmentService: IServerEnvironmentService,
-		private readonly _logService: ILogService,
 		private readonly _reconnectionToken: string,
 		remoteAddress: string,
 		socket: NodeSocket | WebSocketNodeSocket,
-		initialDataChunk: VSBuffer
+		initialDataChunk: VSBuffer,
+		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
+		@ILogService private readonly _logService: ILogService,
+		@IExtensionHostStatusService private readonly _extensionHostStatusService: IExtensionHostStatusService,
 	) {
 		this._disposed = false;
 		this._remoteAddress = remoteAddress;
@@ -233,6 +235,7 @@ export class ExtensionHostConnection {
 			});
 
 			this._extensionHostProcess.on('exit', (code: number, signal: string) => {
+				this._extensionHostStatusService.setExitInfo(this._reconnectionToken, { code, signal });
 				this._log(`<${pid}> Extension Host Process exited with code: ${code}, signal: ${signal}.`);
 				this._cleanResources();
 			});

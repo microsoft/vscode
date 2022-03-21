@@ -26,6 +26,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistr
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { historyNavigationVisible } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { InternalQuickSuggestionsOptions, QuickSuggestionsValue } from 'vs/editor/common/config/editorOptions';
 
 export const Context = {
 	Visible: historyNavigationVisible,
@@ -439,4 +440,24 @@ export interface ISuggestItemPreselector {
 	 * When -1 is returned, item preselectors with lower priority are asked.
 	*/
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number | -1;
+}
+
+
+export abstract class QuickSuggestionsOptions {
+
+	static isAllOff(config: InternalQuickSuggestionsOptions): boolean {
+		return config.other === 'off' && config.comments === 'off' && config.strings === 'off';
+	}
+
+	static isAllOn(config: InternalQuickSuggestionsOptions): boolean {
+		return config.other === 'on' && config.comments === 'on' && config.strings === 'on';
+	}
+
+	static valueFor(config: InternalQuickSuggestionsOptions, tokenType: languages.StandardTokenType): QuickSuggestionsValue {
+		switch (tokenType) {
+			case languages.StandardTokenType.Comment: return config.comments;
+			case languages.StandardTokenType.String: return config.strings;
+			default: return config.other;
+		}
+	}
 }

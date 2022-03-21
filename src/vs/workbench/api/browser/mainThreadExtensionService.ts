@@ -87,9 +87,9 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 			const extension = await this._extensionService.getExtension(extensionId.value);
 			if (extension) {
 				const local = await this._extensionsWorkbenchService.queryLocal();
-				const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }))[0];
-				if (installedDependency) {
-					await this._handleMissingInstalledDependency(extension, installedDependency.local!);
+				const installedDependency = local.find(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }));
+				if (installedDependency?.local) {
+					await this._handleMissingInstalledDependency(extension, installedDependency.local);
 					return;
 				} else {
 					await this._handleMissingNotInstalledDependency(extension, missingExtensionDependency.dependency);
@@ -197,9 +197,9 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	resolveAuthority(remoteAuthority: string, resolveAttempt: number): Promise<IResolveAuthorityResult> {
 		return this._actual.$resolveAuthority(remoteAuthority, resolveAttempt);
 	}
-	async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+	async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI | null> {
 		const uriComponents = await this._actual.$getCanonicalURI(remoteAuthority, uri);
-		return URI.revive(uriComponents);
+		return (uriComponents ? URI.revive(uriComponents) : uriComponents);
 	}
 	startExtensionHost(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {
 		return this._actual.$startExtensionHost(enabledExtensionIds);

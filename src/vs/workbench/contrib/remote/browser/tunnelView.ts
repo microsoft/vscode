@@ -1692,7 +1692,8 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 export const portWithRunningProcessForeground = registerColor('ports.iconRunningProcessForeground', {
 	light: STATUS_BAR_HOST_NAME_BACKGROUND,
 	dark: STATUS_BAR_HOST_NAME_BACKGROUND,
-	hc: STATUS_BAR_HOST_NAME_BACKGROUND
+	hcDark: STATUS_BAR_HOST_NAME_BACKGROUND,
+	hcLight: STATUS_BAR_HOST_NAME_BACKGROUND
 }, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
 
 registerThemingParticipant((theme, collector) => {

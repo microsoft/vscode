@@ -101,9 +101,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.historyBasedLanguageDetection': {
 				type: 'boolean',
-				default: false,
+				default: true,
 				tags: ['experimental'],
 				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
+			},
+			'workbench.editor.preferHistoryBasedLanguageDetection': {
+				type: 'boolean',
+				default: false,
+				tags: ['experimental'],
+				description: localize('workbench.editor.preferBasedLanguageDetection', "When enabled, a language detection model that takes into account editor history will be given higher precedence."),
 			},
 			'workbench.editor.tabCloseButton': {
 				'type': 'string',
@@ -257,10 +263,43 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
+			'workbench.localHistory.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': localize('localHistoryEnabled', "Controls whether local file history is enabled. When enabled, the file contents of an editor that is saved will be stored to a backup location to be able to restore or review the contents later. Changing this setting has no effect on existing local file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.maxFileSize': {
+				'type': 'number',
+				'default': 256,
+				'minimum': 1,
+				'description': localize('localHistoryMaxFileSize', "Controls the maximum size of a file (in KB) to be considered for local file history. Files that are larger will not be added to the local file history. Changing this setting has no effect on existing local file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.maxFileEntries': {
+				'type': 'number',
+				'default': 50,
+				'minimum': 0,
+				'description': localize('localHistoryMaxFileEntries', "Controls the maximum number of local file history entries per file. When the number of local file history entries exceeds this number for a file, the oldest entries will be discarded."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.exclude': {
+				'type': 'object',
+				'markdownDescription': localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Changing this setting has no effect on existing local file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.mergePeriod': {
+				'type': 'number',
+				'default': 10,
+				'minimum': 1,
+				'markdownDescription': localize('mergePeriod', "Configure an interval in seconds during which the last entry in local file history is replaced with the entry that is being added. This helps reduce the overall number of entries that are added, for example when auto save is enabled. This setting is only applied to entries that have the same source of origin. Changing this setting has no effect on existing local file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),
-				'default': 50
+				'default': 50,
+				'minimum': 0
 			},
 			'workbench.commandPalette.preserveInput': {
 				'type': 'boolean',
@@ -296,7 +335,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'right'],
 				'default': 'left',
-				'description': localize('sideBarLocation', "Controls the location of the sidebar and activity bar. They can either show on the left or right of the workbench.")
+				'description': localize('sideBarLocation', "Controls the location of the primary sidebar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
@@ -370,11 +409,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('workbench.hover.delay', "Controls the delay in milliseconds after which the hover is shown for workbench items (ex. some extension provided tree view items). Already visible items may require a refresh before reflecting this setting change."),
 				// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 				// On Mac, the delay is 1500.
-				'default': isMacintosh ? 1500 : 500
+				'default': isMacintosh ? 1500 : 500,
+				'minimum': 0
 			},
 			'workbench.reduceMotion': {
 				type: 'string',
-				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animated effects."),
+				description: localize('workbench.reduceMotion', "Controls whether the workbench should render with fewer animations."),
 				'enumDescriptions': [
 					localize('workbench.reduceMotion.on', "Always render with reduced motion."),
 					localize('workbench.reduceMotion.off', "Do not render with reduced motion"),
@@ -398,9 +438,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('layoutcontrol.type.both', "Shows both the dropdown and toggle buttons."),
 				],
 				'tags': ['experimental'],
-				'default': 'menu',
+				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
 			},
+			'workbench.experimental.editor.dragAndDropIntoEditor.enabled': {
+				'type': 'boolean',
+				'tags': ['experimental'],
+				'default': false,
+				'description': localize('dragAndDropIntoEditor', "Controls whether you can drag and drop a file into an editor by holding down shift (instead of opening the file in an editor)."),
+			}
 		}
 	});
 

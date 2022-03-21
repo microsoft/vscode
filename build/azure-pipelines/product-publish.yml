@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.x"
+      versionSpec: "16.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -10,11 +10,36 @@ steps:
       KeyVaultName: vscode
       SecretsFilter: "github-distro-mixin-password"
 
+  - script: |
+      set -e
+      cat << EOF > ~/.netrc
+      machine github.com
+      login vscode
+      password $(github-distro-mixin-password)
+      EOF
+
+      git config user.email "vscode@microsoft.com"
+      git config user.name "VSCode"
+    displayName: Prepare tooling
+
+  - script: |
+      set -e
+      git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
+      echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
+      git checkout FETCH_HEAD
+    condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
+    displayName: Checkout override commit
+
+  - script: |
+      set -e
+      git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
+    displayName: Merge distro
+
   - pwsh: |
       . build/azure-pipelines/win32/exec.ps1
       cd build
       exec { yarn }
-    displayName: Install dependencies
+    displayName: Install build dependencies
 
   - download: current
     patterns: "**/artifacts_processed_*.txt"

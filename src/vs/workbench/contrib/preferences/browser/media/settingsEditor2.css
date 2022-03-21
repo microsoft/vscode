@@ -137,6 +137,10 @@
 	box-sizing: border-box;
 }
 
+.settings-editor > .settings-body > .monaco-split-view2 {
+	margin-top: 14px;
+}
+
 .settings-editor.no-results > .settings-body .settings-toc-container,
 .settings-editor.no-results > .settings-body .settings-tree-container {
 	display: none;
@@ -281,7 +285,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
-	max-width: 1200px;
+	max-width: min(100%, 1200px); /* We don't want the widgets to be too long */
 	margin: auto;
 	box-sizing: border-box;
 	padding-left: 24px;

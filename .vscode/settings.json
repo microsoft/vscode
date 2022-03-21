@@ -95,7 +95,7 @@
 		"git",
 		"sash"
 	],
-	"explorer.experimental.fileNesting.patterns": {
+	"explorer.fileNesting.patterns": {
 		"*.js": "$(capture).*.js",
 		"bootstrap.js": "bootstrap-*.js"
 	}

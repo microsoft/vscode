@@ -7,11 +7,34 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
-	export enum TabKind {
-		Singular = 0,
-		Diff = 1,
-		SidebySide = 2,
-		Other = 3
+	export class TabKindText {
+		readonly uri: Uri;
+		constructor(uri: Uri);
+	}
+
+	export class TabKindTextDiff {
+		readonly original: Uri;
+		readonly modified: Uri;
+		constructor(original: Uri, modified: Uri);
+	}
+
+	export class TabKindCustom {
+		readonly uri: Uri;
+		readonly viewType: string;
+		constructor(uri: Uri, viewType: string);
+	}
+
+	export class TabKindNotebook {
+		readonly uri: Uri;
+		readonly notebookType: string;
+		constructor(uri: Uri, notebookType: string);
+	}
+
+	export class TabKindNotebookDiff {
+		readonly original: Uri;
+		readonly modified: Uri;
+		readonly notebookType: string;
+		constructor(original: Uri, modified: Uri, notebookType: string);
 	}
 
 	/**
@@ -24,32 +47,15 @@ declare module 'vscode' {
 		readonly label: string;
 
 		/**
-		 * The column which the tab belongs to
+		 * The group which the tab belongs to
 		 */
-		readonly viewColumn: ViewColumn;
+		readonly group: TabGroup;
 
 		/**
-		 * The resource represented by the tab if available.
-		 * Note: Not all tabs have a resource associated with them.
+		 * Defines the structure of the tab i.e. text, notebook, custom, etc.
+		 * Resource and other useful properties are defined on the tab kind.
 		 */
-		readonly resource: Uri | undefined;
-
-		/**
-		 * The type of view contained in the tab
-		 * This is equivalent to `viewType` for custom editors and `notebookType` for notebooks.
-		 * The built-in text editor has an id of 'default' for all configurations.
-		 */
-		readonly viewType: string | undefined;
-
-		/**
-		 * All the resources and viewIds represented by a tab
-		 * {@link Tab.resource resource} and {@link Tab.viewType viewType} will
-		 * always be at index 0.
-		 */
-		readonly additionalResourcesAndViewTypes: readonly {
-			readonly resource: Uri | undefined;
-			readonly viewType: string | undefined;
-		}[];
+		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindNotebook | TabKindNotebookDiff | unknown;
 
 		/**
 		 * Whether or not the tab is currently active
@@ -63,29 +69,14 @@ declare module 'vscode' {
 		readonly isDirty: boolean;
 
 		/**
-		 * Whether or not the tab is pinned
+		 * Whether or not the tab is pinned (pin icon is present)
 		 */
 		readonly isPinned: boolean;
 
 		/**
-		 * Indicates the type of tab it is.
+		 * Whether or not the tab is in preview mode.
 		 */
-		readonly kind: TabKind;
-
-		/**
-		 * Moves a tab to the given index within the column.
-		 * If the index is out of range, the tab will be moved to the end of the column.
-		 * If the column is out of range, a new one will be created after the last existing column.
-		 * @param index The index to move the tab to
-		 * @param viewColumn The column to move the tab into
-		 */
-		move(index: number, viewColumn: ViewColumn): Thenable<void>;
-
-		/**
-		 * Closes the tab. This makes the tab object invalid and the tab
-		 * should no longer be used for further actions.
-		 */
-		close(): Thenable<void>;
+		readonly isPreview: boolean;
 	}
 
 	export namespace window {
@@ -95,31 +86,7 @@ declare module 'vscode' {
 		export const tabGroups: TabGroups;
 	}
 
-	interface TabGroups {
-		/**
-		 * All the groups within the group container
-		 */
-		// TODO@API rename to groups
-		readonly all: TabGroup[];
-
-		/**
-		 * The currently active group
-		 */
-		readonly activeTabGroup: TabGroup | undefined;
-
-		/**
-		 * An {@link Event} which fires when a group changes.
-		 */
-		onDidChangeTabGroup: Event<void>;
-
-		/**
-		 * An {@link Event} which fires when the active group changes.
-		 * Whether it be which group is active or its properties.
-		 */
-		onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
-	}
-
-	interface TabGroup {
+	export interface TabGroup {
 		/**
 		 * Whether or not the group is currently active
 		 */
@@ -133,11 +100,64 @@ declare module 'vscode' {
 		/**
 		 * The active tab within the group
 		 */
+		// TODO@API explain the relation between active tab groups and active tab
 		readonly activeTab: Tab | undefined;
 
 		/**
 		 * The list of tabs contained within the group
 		 */
-		readonly tabs: Tab[];
+		readonly tabs: readonly Tab[];
+	}
+
+	export interface TabGroups {
+		/**
+		 * All the groups within the group container
+		 */
+		readonly groups: readonly TabGroup[];
+
+		/**
+		 * The currently active group
+		 */
+		readonly activeTabGroup: TabGroup | undefined;
+
+		/**
+		 * An {@link Event} which fires when a group changes.
+		 */
+		// TODO@API add TabGroup instance
+		readonly onDidChangeTabGroup: Event<void>;
+
+		/**
+		 * An {@link Event} which fires when a tab changes.
+		 */
+		// TODO@API use richer event type?
+		readonly onDidChangeTab: Event<Tab>;
+
+		/**
+		 * An {@link Event} which fires when the active group changes.
+		 * Whether it be which group is active.
+		 */
+		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
+
+		/**
+		 * Closes the tab. This makes the tab object invalid and the tab
+		 * should no longer be used for further actions.
+		 * @param tab The tab to close, must be reference equal to a tab given by the API
+		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
+		 */
+		close(tab: Tab[], preserveFocus?: boolean): Thenable<void>;
+		close(tab: Tab, preserveFocus?: boolean): Thenable<void>;
+
+		/**
+		 * Moves a tab to the given index within the column.
+		 * If the index is out of range, the tab will be moved to the end of the column.
+		 * If the column is out of range, a new one will be created after the last existing column.
+		 *
+		 * @package tab The tab to move.
+		 * @param viewColumn The column to move the tab into
+		 * @param index The index to move the tab to
+		 */
+		// TODO@API support TabGroup in addition to ViewColumn
+		// TODO@API support just index for moving inside current group
+		move(tab: Tab, viewColumn: ViewColumn, index: number, preserveFocus?: boolean): Thenable<void>;
 	}
 }

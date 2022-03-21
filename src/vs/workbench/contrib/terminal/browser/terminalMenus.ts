@@ -141,11 +141,22 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalInstanceContext,
 				item: {
 					command: {
+						id: TerminalCommandId.CopySelectionAsHtml,
+						title: localize('workbench.action.terminal.copySelectionAsHtml', "Copy as HTML")
+					},
+					group: ContextMenuGroup.Edit,
+					order: 2
+				}
+			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
 						id: TerminalCommandId.Paste,
 						title: localize('workbench.action.terminal.paste.short', "Paste")
 					},
 					group: ContextMenuGroup.Edit,
-					order: 2
+					order: 3
 				}
 			},
 			{
@@ -241,11 +252,22 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalEditorInstanceContext,
 				item: {
 					command: {
+						id: TerminalCommandId.CopySelectionAsHtml,
+						title: localize('workbench.action.terminal.copySelectionAsHtml', "Copy as HTML")
+					},
+					group: ContextMenuGroup.Edit,
+					order: 2
+				}
+			},
+			{
+				id: MenuId.TerminalEditorInstanceContext,
+				item: {
+					command: {
 						id: TerminalCommandId.Paste,
 						title: localize('workbench.action.terminal.paste.short', "Paste")
 					},
 					group: ContextMenuGroup.Edit,
-					order: 2
+					order: 3
 				}
 			},
 			{

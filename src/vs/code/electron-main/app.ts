@@ -32,7 +32,6 @@ import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICredentialsMainService } from 'vs/platform/credentials/common/credentials';
-import { CredentialsMainService } from 'vs/platform/credentials/node/credentialsMainService';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { DiagnosticsMainService, IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
@@ -43,7 +42,7 @@ import { EncryptionMainService } from 'vs/platform/encryption/node/encryptionMai
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
-import { getResolvedShellEnv } from 'vs/platform/terminal/node/shellEnv';
+import { getResolvedShellEnv } from 'vs/platform/shell/node/shellEnv';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { IExtensionHostStarter, ipcExtensionHostStarterChannelName } from 'vs/platform/extensions/common/extensionHostStarter';
@@ -99,6 +98,7 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesHistoryMainService, WorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesManagementMainService, WorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { CredentialsNativeMainService } from 'vs/platform/credentials/electron-main/credentialsMainService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -195,8 +195,37 @@ export class CodeApplication extends Disposable {
 			return false;
 		};
 
+		const isAllowedWebviewRequest = (uri: URI, details: Electron.OnBeforeRequestListenerDetails): boolean => {
+			// Only restrict top level page of webviews: index.html
+			if (uri.path !== '/index.html') {
+				return true;
+			}
+
+			const frame = details.frame;
+			if (!frame || !this.windowsMainService) {
+				return false;
+			}
+
+			// Check to see if the request comes from one of the main editor windows.
+			for (const window of this.windowsMainService.getWindows()) {
+				if (window.win) {
+					if (frame.processId === window.win.webContents.mainFrame.processId) {
+						return true;
+					}
+				}
+			}
+
+			return false;
+		};
+
 		session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
+			if (uri.scheme === Schemas.vscodeWebview) {
+				if (!isAllowedWebviewRequest(uri, details)) {
+					this.logService.error('Blocked vscode-webview request', details.url);
+					return callback({ cancel: true });
+				}
+			}
 
 			if (uri.scheme === Schemas.vscodeFileResource) {
 				if (!isAllowedVsCodeFileRequest(details)) {
@@ -246,7 +275,7 @@ export class CodeApplication extends Disposable {
 
 		//#region Code Cache
 
-		type SessionWithCodeCachePathSupport = typeof Session & {
+		type SessionWithCodeCachePathSupport = Session & {
 			/**
 			 * Sets code cache directory. By default, the directory will be `Code Cache` under
 			 * the respective user data folder.
@@ -603,7 +632,7 @@ export class CodeApplication extends Disposable {
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, [sharedProcess]));
 
 		// Credentials
-		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsMainService, [false]));
+		services.set(ICredentialsMainService, new SyncDescriptor(CredentialsNativeMainService));
 
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));

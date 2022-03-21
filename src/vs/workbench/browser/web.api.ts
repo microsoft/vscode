@@ -171,6 +171,11 @@ export interface IWorkbenchConstructionOptions {
 	readonly additionalTrustedDomains?: string[];
 
 	/**
+	 * Enable workspace trust feature for the current window
+	 */
+	readonly enableWorkspaceTrust?: boolean;
+
+	/**
 	 * Urls that will be opened externally that are allowed access
 	 * to the opener window. This is primarily used to allow
 	 * `window.close()` to be called from the newly opened window.
@@ -512,7 +517,8 @@ export interface IWindowIndicator {
 export enum ColorScheme {
 	DARK = 'dark',
 	LIGHT = 'light',
-	HIGH_CONTRAST = 'hc'
+	HIGH_CONTRAST_LIGHT = 'hcLight',
+	HIGH_CONTRAST_DARK = 'hcDark'
 }
 
 export interface IInitialColorTheme {

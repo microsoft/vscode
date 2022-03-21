@@ -2065,12 +2065,14 @@ declare module 'vscode' {
 		readonly language?: string;
 
 		/**
-		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter`. This allows
+		 * The {@link NotebookDocument.notebookType type} of a notebook, like `jupyter-notebook`. This allows
 		 * to narrow down on the type of a notebook that a {@link NotebookCell.document cell document} belongs to.
 		 *
-		 * *Note* that combining `notebookType` and {@link DocumentFilter.scheme `scheme`} with a value
-		 * different than `"vscode-notebook-cell"` or `undefined` is invalid and will not match
-		 * any document.
+		 * *Note* that setting the `notebookType`-property changes how `scheme` and `pattern` are interpreted. When set
+		 * they are evaluated against the {@link NotebookDocument.uri notebook uri}, not the document uri.
+		 *
+		 * @example <caption>Match python document inside jupyter notebook that aren't stored yet (`untitled`)</caption>
+		 * { language: 'python', notebookType: 'jupyter-notebook', scheme: 'untitled' }
 		 */
 		readonly notebookType?: string;
 
@@ -6536,8 +6538,8 @@ declare module 'vscode' {
 		extensionKind: ExtensionKind;
 
 		/**
-		 * The public API exported by this extension. It is an invalid action
-		 * to access this field before this extension has been activated.
+		 * The public API exported by this extension (return value of `activate`).
+		 * It is an invalid action to access this field before this extension has been activated.
 		 */
 		readonly exports: T;
 
@@ -6823,7 +6825,8 @@ declare module 'vscode' {
 	export enum ColorThemeKind {
 		Light = 1,
 		Dark = 2,
-		HighContrast = 3
+		HighContrast = 3,
+		HighContrastLight = 4
 	}
 
 	/**
@@ -6832,7 +6835,7 @@ declare module 'vscode' {
 	export interface ColorTheme {
 
 		/**
-		 * The kind of this color theme: light, dark or high contrast.
+		 * The kind of this color theme: light, dark, high contrast dark and high contrast light.
 		 */
 		readonly kind: ColorThemeKind;
 	}
@@ -9400,11 +9403,16 @@ declare module 'vscode' {
 		export function createInputBox(): InputBox;
 
 		/**
-		 * Creates a new {@link OutputChannel output channel} with the given name.
+		 * Creates a new {@link OutputChannel output channel} with the given name and language id
+		 * If language id is not provided, then **Log** is used as default language id.
+		 *
+		 * You can access the visible or active output channel as a {@link TextDocument text document} from {@link window.visibleTextEditors visible editors} or {@link window.activeTextEditor active editor}
+		 * and use the langage id to contribute language features like syntax coloring, code lens etc.,
 		 *
 		 * @param name Human-readable string which will be used to represent the channel in the UI.
+		 * @param languageId The identifier of the language associated with the channel.
 		 */
-		export function createOutputChannel(name: string): OutputChannel;
+		export function createOutputChannel(name: string, languageId?: string): OutputChannel;
 
 		/**
 		 * Create and show a new webview panel.
@@ -9778,7 +9786,11 @@ declare module 'vscode' {
 	export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
 		/**
 		 * Retrieves the data transfer item for a given mime type.
-		 * @param mimeType The mime type to get the data transfer item for.
+		 *
+		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
+		 *
+		 * Special mime types:
+		 * - `resourceurls` — A JSON array of uris from files dropped from within the editor, such as from the explorer or an editor tab.
 		 */
 		get(mimeType: string): T | undefined;
 
@@ -11908,10 +11920,10 @@ declare module 'vscode' {
 		 * 1. When {@linkcode DocumentSelector} is an array, compute the match for each contained `DocumentFilter` or language identifier and take the maximum value.
 		 * 2. A string will be desugared to become the `language`-part of a {@linkcode DocumentFilter}, so `"fooLang"` is like `{ language: "fooLang" }`.
 		 * 3. A {@linkcode DocumentFilter} will be matched against the document by comparing its parts with the document. The following rules apply:
-		 *  1. When the `DocumentFilter` is empty (`{}`) the result is `0`
-		 *  2. When `scheme`, `language`, or `pattern` are defined but one doesn't match, the result is `0`
-		 *  3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
-		 *  4. The result is the maximum value of each match
+		 *    1. When the `DocumentFilter` is empty (`{}`) the result is `0`
+		 *    2. When `scheme`, `language`, `pattern`, or `notebook` are defined but one doesn't match, the result is `0`
+		 *    3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
+		 *    4. The result is the maximum value of each match
 		 *
 		 * Samples:
 		 * ```js
@@ -11919,8 +11931,8 @@ declare module 'vscode' {
 		 * doc.uri; //'file:///my/file.js'
 		 * doc.languageId; // 'javascript'
 		 * match('javascript', doc); // 10;
-		 * match({language: 'javascript'}, doc); // 10;
-		 * match({language: 'javascript', scheme: 'file'}, doc); // 10;
+		 * match({ language: 'javascript' }, doc); // 10;
+		 * match({ language: 'javascript', scheme: 'file' }, doc); // 10;
 		 * match('*', doc); // 5
 		 * match('fooLang', doc); // 0
 		 * match(['fooLang', '*'], doc); // 5
@@ -11929,8 +11941,16 @@ declare module 'vscode' {
 		 * doc.uri; // 'git:/my/file.js'
 		 * doc.languageId; // 'javascript'
 		 * match('javascript', doc); // 10;
-		 * match({language: 'javascript', scheme: 'git'}, doc); // 10;
+		 * match({ language: 'javascript', scheme: 'git' }, doc); // 10;
 		 * match('*', doc); // 5
+		 *
+		 * // notebook cell document
+		 * doc.uri; // `vscode-notebook-cell:///my/notebook.ipynb#gl65s2pmha`;
+		 * doc.languageId; // 'python'
+		 * match({ notebookType: 'jupyter-notebook' }, doc) // 10
+		 * match({ notebookType: 'fooNotebook', language: 'python' }, doc) // 0
+		 * match({ language: 'python' }, doc) // 10
+		 * match({ notebookType: '*' }, doc) // 5
 		 * ```
 		 *
 		 * @param selector A document selector.

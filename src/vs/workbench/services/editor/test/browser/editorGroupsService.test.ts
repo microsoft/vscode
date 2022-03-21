@@ -1232,16 +1232,31 @@ suite('EditorGroupsService', () => {
 		const group = part.activeGroup;
 		assert.strictEqual(group.isEmpty, true);
 
-		const input1 = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.file('foo/bar1'), `${TEST_EDITOR_INPUT_ID}-1`);
+		const secondaryInput = new TestFileEditorInput(URI.file('foo/bar-secondary'), TEST_EDITOR_INPUT_ID);
+		const primaryInput = new TestFileEditorInput(URI.file('foo/bar-primary'), `${TEST_EDITOR_INPUT_ID}-1`);
 
-		const sideBySideEditor = new SideBySideEditorInput(undefined, undefined, input1, input2, accessor.editorService);
+		const sideBySideEditor = new SideBySideEditorInput(undefined, undefined, secondaryInput, primaryInput, accessor.editorService);
 		await group.openEditor(sideBySideEditor, { pinned: true });
 
-		let foundEditors = group.findEditors(URI.file('foo/bar1'));
+		let foundEditors = group.findEditors(URI.file('foo/bar-secondary'));
 		assert.strictEqual(foundEditors.length, 0);
 
-		foundEditors = group.findEditors(URI.file('foo/bar1'), { supportSideBySide: SideBySideEditor.PRIMARY });
+		foundEditors = group.findEditors(URI.file('foo/bar-secondary'), { supportSideBySide: SideBySideEditor.PRIMARY });
+		assert.strictEqual(foundEditors.length, 0);
+
+		foundEditors = group.findEditors(URI.file('foo/bar-primary'), { supportSideBySide: SideBySideEditor.PRIMARY });
+		assert.strictEqual(foundEditors.length, 1);
+
+		foundEditors = group.findEditors(URI.file('foo/bar-secondary'), { supportSideBySide: SideBySideEditor.SECONDARY });
+		assert.strictEqual(foundEditors.length, 1);
+
+		foundEditors = group.findEditors(URI.file('foo/bar-primary'), { supportSideBySide: SideBySideEditor.SECONDARY });
+		assert.strictEqual(foundEditors.length, 0);
+
+		foundEditors = group.findEditors(URI.file('foo/bar-secondary'), { supportSideBySide: SideBySideEditor.ANY });
+		assert.strictEqual(foundEditors.length, 1);
+
+		foundEditors = group.findEditors(URI.file('foo/bar-primary'), { supportSideBySide: SideBySideEditor.ANY });
 		assert.strictEqual(foundEditors.length, 1);
 	});
 

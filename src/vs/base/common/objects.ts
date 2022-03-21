@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { isArray, isTypedArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
@@ -35,7 +35,7 @@ export function deepFreeze<T>(obj: T): T {
 		for (const key in obj) {
 			if (_hasOwnProperty.call(obj, key)) {
 				const prop = obj[key];
-				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
+				if (typeof prop === 'object' && !Object.isFrozen(prop) && !isTypedArray(prop)) {
 					stack.push(prop);
 				}
 			}
@@ -45,6 +45,7 @@ export function deepFreeze<T>(obj: T): T {
 }
 
 const _hasOwnProperty = Object.prototype.hasOwnProperty;
+
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
 	return _cloneAndChange(obj, changer, new Set());

@@ -170,7 +170,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 				priority: Number.MAX_SAFE_INTEGER
 			};
 		} else if (state === NotebookCellExecutionState.Executing) {
-			const icon = runState?.isPaused ?
+			const icon = runState?.didPause ?
 				executingStateIcon :
 				ThemeIcon.modify(executingStateIcon, 'spin');
 			return <INotebookCellStatusBarItem>{

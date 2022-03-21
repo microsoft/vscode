@@ -380,6 +380,12 @@ export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoun
 	return array.length > 0 ? array[0] : notFoundValue;
 }
 
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
+export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
+	return array.length > 0 ? array[array.length - 1] : notFoundValue;
+}
+
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 

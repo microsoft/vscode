@@ -35,7 +35,7 @@ const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-l
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
 	static readonly historyBasedEnablementConfig = 'workbench.editor.historyBasedLanguageDetection';
-	static readonly preferHistoryConfig = 'workbench.editor.preferHistoryBasedLanguageDetection'; // hidden
+	static readonly preferHistoryConfig = 'workbench.editor.preferHistoryBasedLanguageDetection';
 	static readonly workspaceOpenedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages.workspace';
 	static readonly globalOpenedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages.global';
 
@@ -141,7 +141,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 		this._logService.trace('Workspace Languages:', JSON.stringify([...this.workspaceLanguageIds]));
 		this._logService.trace('Historical Workspace Opened Languages:', JSON.stringify([...this.historicalWorkspaceOpenedLanguageIds.keys()]));
 		this._logService.trace('Historical Globally Opened Languages:', JSON.stringify([...this.historicalGlobalOpenedLanguageIds.keys()]));
-		this._logService.info('Computed Language Detection Biases:', JSON.stringify(biases));
+		this._logService.trace('Computed Language Detection Biases:', JSON.stringify(biases));
 		this.dirtyBiases = false;
 		this.langBiases = biases;
 		return biases;

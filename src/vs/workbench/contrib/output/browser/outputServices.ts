@@ -159,7 +159,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			if (this.activeChannel === channel) {
 				const channels = this.getChannelDescriptors();
 				const channel = channels.length ? this.getChannel(channels[0].id) : undefined;
-				if (channel) {
+				if (channel && this.viewsService.isViewVisible(OUTPUT_VIEW_ID)) {
 					this.showChannel(channel.id);
 				} else {
 					this.setActiveChannel(undefined);

@@ -32,6 +32,10 @@
 	transition:	transform 300ms ease-out, opacity 300ms ease-out;
 }
 
+.monaco-workbench.reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast {
+	transition:	transform 0ms ease-out, opacity 0ms ease-out;
+}
+
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in {
 	opacity: 1;
 	transform: none;

@@ -1145,8 +1145,8 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 
 }
 
-const keybindingTableHeader = registerColor('keybindingTable.headerBackground', { dark: tableOddRowsBackgroundColor, light: tableOddRowsBackgroundColor, hc: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table header.');
-const keybindingTableRows = registerColor('keybindingTable.rowsBackground', { light: tableOddRowsBackgroundColor, dark: tableOddRowsBackgroundColor, hc: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table alternating rows.');
+const keybindingTableHeader = registerColor('keybindingTable.headerBackground', { dark: tableOddRowsBackgroundColor, light: tableOddRowsBackgroundColor, hcDark: tableOddRowsBackgroundColor, hcLight: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table header.');
+const keybindingTableRows = registerColor('keybindingTable.rowsBackground', { light: tableOddRowsBackgroundColor, dark: tableOddRowsBackgroundColor, hcDark: tableOddRowsBackgroundColor, hcLight: tableOddRowsBackgroundColor }, 'Background color for the keyboard shortcuts table alternating rows.');
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 

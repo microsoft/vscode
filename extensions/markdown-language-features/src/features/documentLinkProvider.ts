@@ -5,10 +5,10 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import * as uri from 'vscode-uri';
 import { OpenDocumentLinkCommand } from '../commands/openDocumentLink';
 import { MarkdownEngine } from '../markdownEngine';
 import { getUriForLinkWithKnownExternalScheme, isOfScheme, Schemes } from '../util/links';
-import { dirname } from '../util/path';
 
 const localize = nls.loadMessageBundle();
 
@@ -46,7 +46,7 @@ function parseLink(
 				resourceUri = vscode.Uri.joinPath(root, tempUri.path);
 			}
 		} else {
-			const base = document.uri.with({ path: dirname(document.uri.fsPath) });
+			const base = uri.Utils.dirname(document.uri);
 			resourceUri = vscode.Uri.joinPath(base, tempUri.path);
 		}
 	}
@@ -104,7 +104,7 @@ export function stripAngleBrackets(link: string) {
 }
 
 const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
-const referenceLinkPattern = /(\[((?:\\\]|[^\]])+)\]\[\s*?)([^\s\]]*?)\]/g;
+const referenceLinkPattern = /((?<=^|[^\]])\[((?:\\\]|[^\]])+)\])(?!:)(?:[^\[]|$|\[\s*?([^\s\]]*?)\])/g;
 const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
 const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
 
@@ -186,10 +186,10 @@ export default class LinkProvider implements vscode.DocumentLinkProvider {
 			let reference = match[3];
 			if (reference) { // [text][ref]
 				const pre = match[1];
-				const offset = (match.index || 0) + pre.length;
+				const offset = (match.index || 0) + pre.length + 1;
 				linkStart = document.positionAt(offset);
 				linkEnd = document.positionAt(offset + reference.length);
-			} else if (match[2]) { // [ref][]
+			} else if (match[2]) { // [ref][], [ref]
 				reference = match[2];
 				const offset = (match.index || 0) + 1;
 				linkStart = document.positionAt(offset);

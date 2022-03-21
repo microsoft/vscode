@@ -1612,6 +1612,28 @@ export class InlineSuggestions implements vscode.InlineCompletionList {
 	}
 }
 
+@es5ClassCompat
+export class InlineSuggestionNew implements vscode.InlineCompletionItemNew {
+	insertText: string;
+	range?: Range;
+	command?: vscode.Command;
+
+	constructor(insertText: string, range?: Range, command?: vscode.Command) {
+		this.insertText = insertText;
+		this.range = range;
+		this.command = command;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestionsNew implements vscode.InlineCompletionListNew {
+	items: vscode.InlineCompletionItemNew[];
+
+	constructor(items: vscode.InlineCompletionItemNew[]) {
+		this.items = items;
+	}
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -2587,6 +2609,11 @@ export enum InlineCompletionTriggerKind {
 	Explicit = 1,
 }
 
+export enum InlineCompletionTriggerKindNew {
+	Invoke = 0,
+	Automatic = 1,
+}
+
 @es5ClassCompat
 export class InlineValueText implements vscode.InlineValueText {
 	readonly range: Range;
@@ -2995,6 +3022,12 @@ export enum QuickPickItemKind {
 	Default = 0,
 }
 
+export enum InputBoxValidationSeverity {
+	Info = 1,
+	Warning = 2,
+	Error = 3
+}
+
 export enum ExtensionKind {
 	UI = 1,
 	Workspace = 2
@@ -3041,7 +3074,8 @@ export class ColorTheme implements vscode.ColorTheme {
 export enum ColorThemeKind {
 	Light = 1,
 	Dark = 2,
-	HighContrast = 3
+	HighContrast = 3,
+	HighContrastLight = 4
 }
 
 //#endregion Theming
@@ -3567,3 +3601,26 @@ export class TypeHierarchyItem {
 		this.selectionRange = selectionRange;
 	}
 }
+
+//#region Tab Inputs
+
+export class TextTabInput {
+	constructor(readonly uri: URI) { }
+}
+
+export class TextDiffTabInput {
+	constructor(readonly original: URI, readonly modified: URI) { }
+}
+
+export class CustomEditorTabInput {
+	constructor(readonly uri: URI, readonly viewType: string) { }
+}
+
+export class NotebookEditorTabInput {
+	constructor(readonly uri: URI, readonly notebookType: string) { }
+}
+
+export class NotebookDiffEditorTabInput {
+	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
+}
+//#endregion

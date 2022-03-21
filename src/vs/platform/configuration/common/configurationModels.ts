@@ -441,7 +441,7 @@ export class UserSettings extends Disposable {
 		this._register(this.fileService.watch(this.userSettingsResource));
 		this._register(Event.any(
 			Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.userSettingsResource)),
-			Event.filter(this.fileService.onDidRunOperation, e => (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE)) && extUri.isEqual(e.resource, userSettingsResource))
+			Event.filter(this.fileService.onDidRunOperation, e => (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY) || e.isOperation(FileOperation.DELETE) || e.isOperation(FileOperation.WRITE)) && extUri.isEqual(e.resource, userSettingsResource))
 		)(() => this._onDidChange.fire()));
 	}
 

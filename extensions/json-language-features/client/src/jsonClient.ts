@@ -327,7 +327,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 		client.onNotification(ResultLimitReachedNotification.type, async message => {
 			const shouldPrompt = context.globalState.get<boolean>(StorageIds.maxItemsExceededInformation) !== false;
 			if (shouldPrompt) {
-				const ok = localize('ok', "Ok");
+				const ok = localize('ok', "OK");
 				const openSettings = localize('goToSetting', 'Open Settings');
 				const neverAgain = localize('yes never again', "Don't Show Again");
 				const pick = await window.showInformationMessage(`${message}\n${localize('configureLimit', 'Use setting \'{0}\' to configure the limit.', SettingIds.maxItemsComputed)}`, ok, openSettings, neverAgain);
