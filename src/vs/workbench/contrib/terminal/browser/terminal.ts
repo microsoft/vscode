@@ -865,10 +865,6 @@ export interface IXtermTerminal {
 	target?: TerminalLocation;
 
 	/**
-	 * Find all instances of the term and select the next one
-	*/
-	find(term: string, searchOptions: ISearchOptions): Promise<boolean>;
-	/**
 	 * Find the next instance of the term
 	*/
 	findNext(term: string, searchOptions: ISearchOptions): Promise<boolean>;

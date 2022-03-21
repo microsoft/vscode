@@ -252,32 +252,27 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 	}
 
-	async find(term: string, searchOptions: ISearchOptions): Promise<boolean> {
-		if (!this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground')) {
-			if (this._themeService.getColorTheme().type === ColorScheme.DARK) {
-				searchOptions.overviewRulerSelectionDecorationColor = '#515C6A';
-			} else {
-				searchOptions.overviewRulerSelectionDecorationColor = '#A8AC94';
-			}
-		} else {
-			searchOptions.overviewRulerSelectionDecorationColor = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground');
-		}
-		if (!this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground')) {
-			searchOptions.overviewRulerResultDecorationColor = '#EA5C0055';
-		} else {
-			searchOptions.overviewRulerResultDecorationColor = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground');
-		}
-
-
-		return (await this._getSearchAddon()).find(term, searchOptions);
-	}
-
 	async findNext(term: string, searchOptions: ISearchOptions): Promise<boolean> {
+		this._updateFindColors(searchOptions);
 		return (await this._getSearchAddon()).findNext(term, searchOptions);
 	}
 
 	async findPrevious(term: string, searchOptions: ISearchOptions): Promise<boolean> {
+		this._updateFindColors(searchOptions);
 		return (await this._getSearchAddon()).findPrevious(term, searchOptions);
+	}
+
+	private _updateFindColors(searchOptions: ISearchOptions): void {
+		let selectedColor = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground');
+		let matchColor = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground') || '#EA5C0055';
+		if (!selectedColor) {
+			if (this._themeService.getColorTheme().type === ColorScheme.DARK) {
+				selectedColor = '#515C6A';
+			} else {
+				selectedColor = '#A8AC94';
+			}
+		}
+		searchOptions.decorations = { selectedColor, matchColor };
 	}
 
 	private async _getSearchAddon(): Promise<SearchAddonType> {
