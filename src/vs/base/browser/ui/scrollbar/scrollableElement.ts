@@ -675,7 +675,7 @@ function resolveOptions(opts: ScrollableElementCreationOptions): ScrollableEleme
 		verticalHasArrows: (typeof opts.verticalHasArrows !== 'undefined' ? opts.verticalHasArrows : false),
 		verticalSliderSize: (typeof opts.verticalSliderSize !== 'undefined' ? opts.verticalSliderSize : 0),
 
-		scrollByPage: (typeof opts.scrollByPage !== 'undefined' ? opts.scrollByPage : false)
+		scrollByPage: (typeof opts.scrollByPage !== 'undefined' ? opts.scrollByPage : true)
 	};
 
 	result.horizontalSliderSize = (typeof opts.horizontalSliderSize !== 'undefined' ? opts.horizontalSliderSize : result.horizontalScrollbarSize);
