@@ -1058,7 +1058,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				continue;
 			}
 			if (installed.isBuiltin && !installed.local?.identifier.uuid) {
-				// Skip if the builtin extension does not has Marketplace id
+				// Skip if the builtin extension does not have Marketplace id
 				continue;
 			}
 			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
