@@ -45,6 +45,7 @@ import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSe
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { isArray, isObject } from 'vs/base/common/types';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -560,8 +561,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		if (setting) {
 			if (edit) {
-				position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
-				if (type === 'object' || type === 'array') {
+				if (isObject(setting.value) || isArray(setting.value)) {
+					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 					codeEditor.setPosition(position);
 					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
 					position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
@@ -572,6 +573,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
 						position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
 					}
+				} else {
+					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.endColumn };
 				}
 			} else {
 				position = { lineNumber: setting.keyRange.startLineNumber, column: setting.keyRange.startColumn };
