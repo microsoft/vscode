@@ -478,4 +478,19 @@ suite('NotebookCell#Document', function () {
 		assert.strictEqual(event.cellChanges.length, 0);
 		assert.deepStrictEqual(event.metadata, { foo: 2 });
 	});
+
+	test('onDidChangeNotebook-event, froozen data', async function () {
+
+		const p = Event.toPromise(extHostNotebookDocuments.onDidChangeNotebookDocument);
+
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, new SerializableObjectWithBuffers({ versionId: 12, rawEvents: [] }), false, { foo: 2 });
+
+		const event = await p;
+
+		assert.ok(Object.isFrozen(event));
+		assert.ok(Object.isFrozen(event.cellChanges));
+		assert.ok(Object.isFrozen(event.contentChanges));
+		assert.ok(!Object.isFrozen(event.notebook));
+		assert.ok(!Object.isFrozen(event.metadata));
+	});
 });

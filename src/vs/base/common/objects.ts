@@ -46,22 +46,6 @@ export function deepFreeze<T>(obj: T): T {
 
 const _hasOwnProperty = Object.prototype.hasOwnProperty;
 
-export function shallowFreeze<T>(obj: T): T {
-	if (!obj || typeof obj !== 'object') {
-		return obj;
-	}
-	Object.freeze(obj);
-	for (const key in obj) {
-		if (_hasOwnProperty.call(obj, key)) {
-			const prop = obj[key];
-			if (typeof prop === 'object' && !Object.isFrozen(prop) && !isTypedArray(prop)) {
-				Object.freeze(prop);
-			}
-		}
-	}
-	return obj;
-}
-
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
 	return _cloneAndChange(obj, changer, new Set());
