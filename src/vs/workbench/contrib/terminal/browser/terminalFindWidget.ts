@@ -59,7 +59,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (instance) {
 			instance.focus();
 		}
-		instance?.xterm?.clearDecorations();
+		instance?.xterm?.clearSearchDecorations();
 	}
 
 	protected _onInputChanged() {
