@@ -157,6 +157,7 @@
 	content: ')';
 }
 
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .multiline-actions,
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-source,
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container .marker-line {
 	margin-left: 6px;
