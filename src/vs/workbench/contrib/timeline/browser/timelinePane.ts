@@ -36,9 +36,9 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ActionBar, IActionViewItem, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -966,10 +966,6 @@ export class TimelinePane extends ViewPane {
 		}
 
 		return true;
-	}
-
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return super.getActionViewItem(action, { menuAsChild: action instanceof SubmenuItemAction });
 	}
 
 	setLoadingUriMessage() {
