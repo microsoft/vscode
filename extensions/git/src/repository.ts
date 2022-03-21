@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TextDiffTabInput, NotebookDiffEditorTabInput } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration, commands, Tab, TabKindTextDiff, TabKindNotebookDiff } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, Change, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery, FetchOptions } from './api/git';
@@ -1273,13 +1273,13 @@ export class Repository implements Disposable {
 		const diffEditorTabsToClose: Tab[] = [];
 
 		for (const tab of window.tabGroups.groups.map(g => g.tabs).flat()) {
-			const { input } = tab;
-			if (input instanceof TextDiffTabInput || input instanceof NotebookDiffEditorTabInput) {
-				if (input.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, input.modified.fsPath))) {
+			const { kind } = tab;
+			if (kind instanceof TabKindTextDiff || kind instanceof TabKindNotebookDiff) {
+				if (kind.modified.scheme === 'git' && indexResources.some(r => pathEquals(r, kind.modified.fsPath))) {
 					// Index
 					diffEditorTabsToClose.push(tab);
 				}
-				if (input.modified.scheme === 'file' && input.original.scheme === 'git' && workingTreeResources.some(r => pathEquals(r, input.modified.fsPath))) {
+				if (kind.modified.scheme === 'file' && kind.original.scheme === 'git' && workingTreeResources.some(r => pathEquals(r, kind.modified.fsPath))) {
 					// Working Tree
 					diffEditorTabsToClose.push(tab);
 				}

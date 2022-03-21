@@ -96,7 +96,8 @@ export class SettingsEditor2 extends EditorPane {
 	private static TOC_MIN_WIDTH: number = 100;
 	private static TOC_RESET_WIDTH: number = 200;
 	private static EDITOR_MIN_WIDTH: number = 500;
-	private static NARROW_TOTAL_WIDTH: number = SettingsEditor2.TOC_MIN_WIDTH + SettingsEditor2.EDITOR_MIN_WIDTH;
+	// Below NARROW_TOTAL_WIDTH, we only render the editor rather than the ToC.
+	private static NARROW_TOTAL_WIDTH: number = SettingsEditor2.TOC_RESET_WIDTH + SettingsEditor2.EDITOR_MIN_WIDTH;
 	private static MEDIUM_TOTAL_WIDTH: number = 1000;
 
 	private static SUGGESTIONS: string[] = [

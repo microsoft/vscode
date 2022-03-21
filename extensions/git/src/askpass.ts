@@ -79,13 +79,19 @@ export class Askpass implements IIPCHandler {
 			};
 		}
 
-		return {
+		let env: { [key: string]: string } = {
 			...this.ipc.getEnv(),
-			GIT_ASKPASS: path.join(__dirname, 'askpass.sh'),
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_EXTRA_ARGS: (process.versions['electron'] && process.versions['microsoft-build']) ? '--ms-enable-electron-run-as-node' : '',
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js')
 		};
+
+		const config = workspace.getConfiguration('git');
+		if (config.get<boolean>('useIntegratedAskPass')) {
+			env.GIT_ASKPASS = path.join(__dirname, 'askpass.sh');
+		}
+
+		return env;
 	}
 
 	registerCredentialsProvider(provider: CredentialsProvider): Disposable {

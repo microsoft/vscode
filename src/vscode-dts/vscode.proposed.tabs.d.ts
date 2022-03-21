@@ -7,32 +7,30 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
-	// TODO@API names
-	export class TextTabInput {
+	export class TabKindText {
 		readonly uri: Uri;
 		constructor(uri: Uri);
 	}
 
-	// TODO@API names
-	export class TextDiffTabInput {
+	export class TabKindTextDiff {
 		readonly original: Uri;
 		readonly modified: Uri;
 		constructor(original: Uri, modified: Uri);
 	}
 
-	export class CustomEditorTabInput {
+	export class TabKindCustom {
 		readonly uri: Uri;
 		readonly viewType: string;
 		constructor(uri: Uri, viewType: string);
 	}
 
-	export class NotebookEditorTabInput {
+	export class TabKindNotebook {
 		readonly uri: Uri;
 		readonly notebookType: string;
 		constructor(uri: Uri, notebookType: string);
 	}
 
-	export class NotebookDiffEditorTabInput {
+	export class TabKindNotebookDiff {
 		readonly original: Uri;
 		readonly modified: Uri;
 		readonly notebookType: string;
@@ -51,10 +49,13 @@ declare module 'vscode' {
 		/**
 		 * The group which the tab belongs to
 		 */
-		readonly parentGroup: TabGroup;
+		readonly group: TabGroup;
 
-		// TODO@API NAME: optional
-		readonly input: TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookDiffEditorTabInput | unknown;
+		/**
+		 * Defines the structure of the tab i.e. text, notebook, custom, etc.
+		 * Resource and other useful properties are defined on the tab kind.
+		 */
+		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindNotebook | TabKindNotebookDiff | unknown;
 
 		/**
 		 * Whether or not the tab is currently active
@@ -99,6 +100,7 @@ declare module 'vscode' {
 		/**
 		 * The active tab within the group
 		 */
+		// TODO@API explain the relation between active tab groups and active tab
 		readonly activeTab: Tab | undefined;
 
 		/**
@@ -121,6 +123,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires when a group changes.
 		 */
+		// TODO@API add TabGroup instance
 		readonly onDidChangeTabGroup: Event<void>;
 
 		/**

@@ -31,6 +31,10 @@ export interface IRemoteAgentService {
 	 * Get the remote environment. Can return an error.
 	 */
 	getRawEnvironment(): Promise<IRemoteAgentEnvironment | null>;
+	/**
+	 * Get exit information for a remote extension host.
+	 */
+	getExtensionHostExitInfo(reconnectionToken: string): Promise<IExtensionHostExitInfo | null>;
 
 	whenExtensionsReady(): Promise<void>;
 	/**
@@ -45,6 +49,11 @@ export interface IRemoteAgentService {
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>;
 	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void>;
 	flushTelemetry(): Promise<void>;
+}
+
+export interface IExtensionHostExitInfo {
+	code: number;
+	signal: string;
 }
 
 export interface IRemoteAgentConnection {

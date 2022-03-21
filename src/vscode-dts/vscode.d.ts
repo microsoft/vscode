@@ -2071,7 +2071,7 @@ declare module 'vscode' {
 		 * *Note* that setting the `notebookType`-property changes how `scheme` and `pattern` are interpreted. When set
 		 * they are evaluated against the {@link NotebookDocument.uri notebook uri}, not the document uri.
 		 *
-		 * @example <caption>Match python document inside jupyter notebook that aren't stored yet</caption>
+		 * @example <caption>Match python document inside jupyter notebook that aren't stored yet (`untitled`)</caption>
 		 * { language: 'python', notebookType: 'jupyter-notebook', scheme: 'untitled' }
 		 */
 		readonly notebookType?: string;
@@ -9786,7 +9786,11 @@ declare module 'vscode' {
 	export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
 		/**
 		 * Retrieves the data transfer item for a given mime type.
-		 * @param mimeType The mime type to get the data transfer item for.
+		 *
+		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
+		 *
+		 * Special mime types:
+		 * - `resourceurls` — A JSON array of uris from files dropped from within the editor, such as from the explorer or an editor tab.
 		 */
 		get(mimeType: string): T | undefined;
 
@@ -11916,10 +11920,10 @@ declare module 'vscode' {
 		 * 1. When {@linkcode DocumentSelector} is an array, compute the match for each contained `DocumentFilter` or language identifier and take the maximum value.
 		 * 2. A string will be desugared to become the `language`-part of a {@linkcode DocumentFilter}, so `"fooLang"` is like `{ language: "fooLang" }`.
 		 * 3. A {@linkcode DocumentFilter} will be matched against the document by comparing its parts with the document. The following rules apply:
-		 *  1. When the `DocumentFilter` is empty (`{}`) the result is `0`
-		 *  2. When `scheme`, `language`, or `pattern` are defined but one doesn't match, the result is `0`
-		 *  3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
-		 *  4. The result is the maximum value of each match
+		 *    1. When the `DocumentFilter` is empty (`{}`) the result is `0`
+		 *    2. When `scheme`, `language`, `pattern`, or `notebook` are defined but one doesn't match, the result is `0`
+		 *    3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
+		 *    4. The result is the maximum value of each match
 		 *
 		 * Samples:
 		 * ```js
@@ -11927,8 +11931,8 @@ declare module 'vscode' {
 		 * doc.uri; //'file:///my/file.js'
 		 * doc.languageId; // 'javascript'
 		 * match('javascript', doc); // 10;
-		 * match({language: 'javascript'}, doc); // 10;
-		 * match({language: 'javascript', scheme: 'file'}, doc); // 10;
+		 * match({ language: 'javascript' }, doc); // 10;
+		 * match({ language: 'javascript', scheme: 'file' }, doc); // 10;
 		 * match('*', doc); // 5
 		 * match('fooLang', doc); // 0
 		 * match(['fooLang', '*'], doc); // 5
@@ -11937,8 +11941,16 @@ declare module 'vscode' {
 		 * doc.uri; // 'git:/my/file.js'
 		 * doc.languageId; // 'javascript'
 		 * match('javascript', doc); // 10;
-		 * match({language: 'javascript', scheme: 'git'}, doc); // 10;
+		 * match({ language: 'javascript', scheme: 'git' }, doc); // 10;
 		 * match('*', doc); // 5
+		 *
+		 * // notebook cell document
+		 * doc.uri; // `vscode-notebook-cell:///my/notebook.ipynb#gl65s2pmha`;
+		 * doc.languageId; // 'python'
+		 * match({ notebookType: 'jupyter-notebook' }, doc) // 10
+		 * match({ notebookType: 'fooNotebook', language: 'python' }, doc) // 0
+		 * match({ language: 'python' }, doc) // 10
+		 * match({ notebookType: '*' }, doc) // 5
 		 * ```
 		 *
 		 * @param selector A document selector.

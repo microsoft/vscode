@@ -87,9 +87,9 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 			const extension = await this._extensionService.getExtension(extensionId.value);
 			if (extension) {
 				const local = await this._extensionsWorkbenchService.queryLocal();
-				const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }))[0];
-				if (installedDependency) {
-					await this._handleMissingInstalledDependency(extension, installedDependency.local!);
+				const installedDependency = local.find(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }));
+				if (installedDependency?.local) {
+					await this._handleMissingInstalledDependency(extension, installedDependency.local);
 					return;
 				} else {
 					await this._handleMissingNotInstalledDependency(extension, missingExtensionDependency.dependency);

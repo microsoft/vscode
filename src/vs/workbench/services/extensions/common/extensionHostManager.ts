@@ -40,6 +40,7 @@ export interface IExtensionHostManager {
 	ready(): Promise<void>;
 	representsRunningLocation(runningLocation: ExtensionRunningLocation): boolean;
 	deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void>;
+	containsExtension(extensionId: ExtensionIdentifier): boolean;
 	activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean>;
 	activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void>;
 	activationEventIsDone(activationEvent: string): boolean;
@@ -440,6 +441,10 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 		return proxy.deltaExtensions(toAdd, toRemove);
 	}
 
+	public containsExtension(extensionId: ExtensionIdentifier): boolean {
+		return this._extensionHost.extensions.containsExtension(extensionId);
+	}
+
 	public async setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
 		const proxy = await this._proxy;
 		if (!proxy) {
@@ -515,6 +520,9 @@ class LazyStartExtensionHostManager extends Disposable implements IExtensionHost
 			const actual = await this._getOrCreateActualAndStart(`contains ${toAdd.length} new extension(s) (installed or enabled): ${toAdd.map(ext => ext.identifier.value)}`);
 			return actual.deltaExtensions(toAdd, toRemove);
 		}
+	}
+	public containsExtension(extensionId: ExtensionIdentifier): boolean {
+		return this._extensionHost.extensions.containsExtension(extensionId);
 	}
 	public async activate(extension: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<boolean> {
 		await this._startCalled.wait();

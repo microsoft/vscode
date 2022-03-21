@@ -15,7 +15,7 @@ import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryMetadata, isTargetPlatformCompatible, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryMetadata, Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { groupByExtension, areSameExtensions, getGalleryExtensionId, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
@@ -309,7 +309,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 				const missingExtensions = extensions.filter(({ id }) => !galleryExtensionsMap.has(id.toLowerCase()));
 				if (missingExtensions.length) {
-					this.logService.info('Skipping the additional builtin extnsions because they are not found in Marketplace.', missingExtensions);
+					this.logService.info('Skipping the additional builtin extensions because their compatible versions are not foud.', missingExtensions);
 				}
 
 				const webExtensions: IWebExtension[] = [];
@@ -332,16 +332,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (toGet.length === 0) {
 			return result;
 		}
-		const extensions = await this.galleryService.getExtensions(toGet, CancellationToken.None);
+		const extensions = await this.galleryService.getExtensions(toGet, { compatible: true, targetPlatform: TargetPlatform.WEB }, CancellationToken.None);
 		const packsAndDependencies = new Map<string, IExtensionInfo>();
 		for (const extension of extensions) {
-			if (extension.allTargetPlatforms.some(targetPlatform => isTargetPlatformCompatible(targetPlatform, extension.allTargetPlatforms, TargetPlatform.WEB))) {
-				result.set(extension.identifier.id.toLowerCase(), extension);
-				for (const id of [...(isNonEmptyArray(extension.properties.dependencies) ? extension.properties.dependencies : []), ...(isNonEmptyArray(extension.properties.extensionPack) ? extension.properties.extensionPack : [])]) {
-					if (!result.has(id.toLowerCase()) && !packsAndDependencies.has(id.toLowerCase())) {
-						const extensionInfo = toGet.find(e => areSameExtensions(e, extension.identifier));
-						packsAndDependencies.set(id.toLowerCase(), { id, preRelease: extensionInfo?.preRelease });
-					}
+			result.set(extension.identifier.id.toLowerCase(), extension);
+			for (const id of [...(isNonEmptyArray(extension.properties.dependencies) ? extension.properties.dependencies : []), ...(isNonEmptyArray(extension.properties.extensionPack) ? extension.properties.extensionPack : [])]) {
+				if (!result.has(id.toLowerCase()) && !packsAndDependencies.has(id.toLowerCase())) {
+					const extensionInfo = toGet.find(e => areSameExtensions(e, extension.identifier));
+					packsAndDependencies.set(id.toLowerCase(), { id, preRelease: extensionInfo?.preRelease });
 				}
 			}
 		}

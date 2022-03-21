@@ -30,6 +30,7 @@ import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { assertNever } from 'vs/base/common/types';
 import { matchesSubString } from 'vs/base/common/filters';
+import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -483,7 +484,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
-					EditOperation.replaceMove(completion.range, '')
+					EditOperation.replaceMove(completion.range, ''),
+					...completion.additionalTextEdits
 				]
 			);
 			this.editor.setPosition(completion.snippetInfo.range.getStartPosition());
@@ -492,10 +494,12 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.editor.executeEdits(
 				'inlineSuggestion.accept',
 				[
-					EditOperation.replaceMove(completion.range, completion.insertText)
+					EditOperation.replaceMove(completion.range, completion.insertText),
+					...completion.additionalTextEdits
 				]
 			);
 		}
+
 		if (completion.command) {
 			this.commandService
 				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
@@ -608,6 +612,7 @@ class CachedInlineCompletion {
 			sourceInlineCompletion: this.inlineCompletion.sourceInlineCompletion,
 			snippetInfo: this.inlineCompletion.snippetInfo,
 			filterText: this.inlineCompletion.filterText,
+			additionalTextEdits: this.inlineCompletion.additionalTextEdits,
 		};
 	}
 }
@@ -696,6 +701,7 @@ export async function provideInlineCompletions(
 				sourceInlineCompletions: completions,
 				sourceInlineCompletion: item,
 				filterText: item.filterText || insertText,
+				additionalTextEdits: item.additionalTextEdits || getReadonlyEmptyArray()
 			});
 
 			itemsByHash.set(JSON.stringify({ insertText, range: item.range }), trackedItem);
@@ -715,7 +721,8 @@ export async function provideInlineCompletions(
 /**
  * Contains no duplicated items and can be disposed.
 */
-export interface TrackedInlineCompletions extends InlineCompletions<TrackedInlineCompletion> {
+export interface TrackedInlineCompletions {
+	readonly items: readonly TrackedInlineCompletion[];
 	dispose(): void;
 }
 

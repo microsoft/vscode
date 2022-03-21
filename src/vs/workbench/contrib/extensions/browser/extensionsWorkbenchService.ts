@@ -1053,9 +1053,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 		const infos: IExtensionInfo[] = [];
 		for (const installed of this.local) {
-			if (!onlyBuiltin || installed.isBuiltin) {
-				infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
+			if (onlyBuiltin && !installed.isBuiltin) {
+				// Skip if check updates only for builtin extensions and current extension is not builtin.
+				continue;
 			}
+			if (installed.isBuiltin && !installed.local?.identifier.uuid) {
+				// Skip if the builtin extension does not have Marketplace id
+				continue;
+			}
+			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
 		}
 		if (infos.length) {
 			const targetPlatform = await extensions[0].server.extensionManagementService.getTargetPlatform();
