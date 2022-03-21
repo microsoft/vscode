@@ -37,6 +37,7 @@ import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensi
 import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { forEach } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
@@ -165,6 +166,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	private _lastExtensionHostId: number = 0;
 	private _maxLocalProcessAffinity: number = 0;
 
+	private readonly _remoteCrashTracker = new ExtensionHostCrashTracker();
+
 	// --- Members used per extension host process
 	private _extensionHostManagers: IExtensionHostManager[];
 	protected _extensionHostActiveExtensions: Map<string, ExtensionIdentifier>;
@@ -185,6 +188,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@IExtensionManifestPropertiesService protected readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService protected readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService protected readonly _logService: ILogService,
+		@IRemoteAgentService protected readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -881,6 +885,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			this.stopExtensionHosts();
 		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
+			if (signal) {
+				this._onRemoteExtensionHostCrashed(extensionHost, signal);
+			}
 			for (let i = 0; i < this._extensionHostManagers.length; i++) {
 				if (this._extensionHostManagers[i] === extensionHost) {
 					this._extensionHostManagers[i].dispose();
@@ -888,6 +895,59 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					break;
 				}
 			}
+		}
+	}
+
+	private _getExtensionHostExitInfoWithTimeout(reconnectionToken: string): Promise<IExtensionHostExitInfo | null> {
+		return new Promise((resolve, reject) => {
+			const timeoutHandle = setTimeout(() => {
+				reject(new Error('getExtensionHostExitInfo timed out'));
+			}, 2000);
+			this._remoteAgentService.getExtensionHostExitInfo(reconnectionToken).then(
+				(r) => {
+					clearTimeout(timeoutHandle);
+					resolve(r);
+				},
+				reject
+			);
+		});
+	}
+
+	private async _onRemoteExtensionHostCrashed(extensionHost: IExtensionHostManager, reconnectionToken: string): Promise<void> {
+		try {
+			const info = await this._getExtensionHostExitInfoWithTimeout(reconnectionToken);
+			if (info) {
+				this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly with code ${info.code}.`);
+			}
+
+			this._logExtensionHostCrash(extensionHost);
+			this._remoteCrashTracker.registerCrash();
+
+			if (this._remoteCrashTracker.shouldAutomaticallyRestart()) {
+				this._logService.info(`Automatically restarting the remote extension host.`);
+				this._notificationService.status(nls.localize('extensionService.autoRestart', "The remote extension host terminated unexpectedly. Restarting..."), { hideAfter: 5000 });
+				this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
+			} else {
+				this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Remote Extension host terminated unexpectedly 3 times within the last 5 minutes."),
+					[{
+						label: nls.localize('restart', "Restart Remote Extension Host"),
+						run: () => {
+							this._startExtensionHostsIfNecessary(false, Array.from(this._allRequestedActivateEvents.keys()));
+						}
+					}]
+				);
+			}
+		} catch (err) {
+			// maybe this wasn't an extension host crash and it was a permanent disconnection
+		}
+	}
+
+	protected _logExtensionHostCrash(extensionHost: IExtensionHostManager): void {
+		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values()).filter(extensionId => extensionHost.containsExtension(extensionId));
+		if (activatedExtensions.length > 0) {
+			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`);
+		} else {
+			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. No extensions were activated.`);
 		}
 	}
 
@@ -1491,6 +1551,35 @@ class ProposedApiController {
 			this._logService.critical(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
 			extension.enabledApiProposals = [];
 		}
+	}
+}
+
+interface IExtensionHostCrashInfo {
+	timestamp: number;
+}
+
+export class ExtensionHostCrashTracker {
+
+	private static _TIME_LIMIT = 5 * 60 * 1000; // 5 minutes
+	private static _CRASH_LIMIT = 3;
+
+	private readonly _recentCrashes: IExtensionHostCrashInfo[] = [];
+
+	private _removeOldCrashes(): void {
+		const limit = Date.now() - ExtensionHostCrashTracker._TIME_LIMIT;
+		while (this._recentCrashes.length > 0 && this._recentCrashes[0].timestamp < limit) {
+			this._recentCrashes.shift();
+		}
+	}
+
+	public registerCrash(): void {
+		this._removeOldCrashes();
+		this._recentCrashes.push({ timestamp: Date.now() });
+	}
+
+	public shouldAutomaticallyRestart(): boolean {
+		this._removeOldCrashes();
+		return (this._recentCrashes.length < ExtensionHostCrashTracker._CRASH_LIMIT);
 	}
 }
 
