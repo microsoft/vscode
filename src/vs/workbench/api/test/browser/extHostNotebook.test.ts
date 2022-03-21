@@ -490,7 +490,7 @@ suite('NotebookCell#Document', function () {
 		assert.ok(Object.isFrozen(event));
 		assert.ok(Object.isFrozen(event.cellChanges));
 		assert.ok(Object.isFrozen(event.contentChanges));
-		assert.ok(!Object.isFrozen(event.notebook));
+		assert.ok(Object.isFrozen(event.notebook));
 		assert.ok(!Object.isFrozen(event.metadata));
 	});
 });
