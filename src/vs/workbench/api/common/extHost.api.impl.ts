@@ -1333,11 +1333,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageStatusSeverity: extHostTypes.LanguageStatusSeverity,
 			QuickPickItemKind: extHostTypes.QuickPickItemKind,
 			InputBoxValidationSeverity: extHostTypes.InputBoxValidationSeverity,
-			TextTabInput: extHostTypes.TextTabInput,
-			TextDiffTabInput: extHostTypes.TextDiffTabInput,
-			CustomEditorTabInput: extHostTypes.CustomEditorTabInput,
-			NotebookEditorTabInput: extHostTypes.NotebookEditorTabInput,
-			NotebookDiffEditorTabInput: extHostTypes.NotebookDiffEditorTabInput
+			TabKindText: extHostTypes.TextTabInput,
+			TabKindTextDiff: extHostTypes.TextDiffTabInput,
+			TabKindCustom: extHostTypes.CustomEditorTabInput,
+			TabKindNotebook: extHostTypes.NotebookEditorTabInput,
+			TabKindNotebookDiff: extHostTypes.NotebookDiffEditorTabInput
 		};
 	};
 }
