@@ -34,6 +34,7 @@ import { ResizableHTMLElement } from './resizable';
 import { CompletionItem, Context as SuggestContext } from './suggest';
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * Suggest widget colors
@@ -217,6 +218,7 @@ export class SuggestWidget implements IDisposable {
 		this._disposables.add(renderer.onDidToggleDetails(() => this.toggleDetails()));
 
 		this._list = new List('SuggestWidget', this._listElement, {
+			getFontSize: (configurationService: IConfigurationService): number => configurationService.getValue<number>('workbench.FontSize'),
 			getHeight: (_element: CompletionItem): number => this.getLayoutInfo().itemHeight,
 			getTemplateId: (_element: CompletionItem): string => 'suggestion'
 		}, [renderer], {
