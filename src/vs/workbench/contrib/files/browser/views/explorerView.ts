@@ -382,8 +382,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
-		const autoExpandSingleChildren = () => this.configurationService.getValue<boolean>('explorer.autoExpandSingleChildren');
+		const isCompressionEnabled = () => this.configurationService.getValue<IFilesConfiguration>().explorer.compactFolders;
+		const autoExpandSingleChildren = () => this.configurationService.getValue<IFilesConfiguration>().explorer.autoExpandSingleChildren;
 
 		const getFileNestingSettings = () => this.configurationService.getValue<IFilesConfiguration>().explorer.fileNesting;
 
