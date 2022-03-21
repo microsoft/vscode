@@ -12,7 +12,7 @@ parameters:
   - name: VSCODE_DISTRO_REF
     displayName: Distro Ref (Private build)
     type: string
-    default: ""
+    default: " "
   - name: VSCODE_QUALITY
     displayName: Quality
     type: string
@@ -366,7 +366,7 @@ stages:
             steps:
               - template: product-publish.yml
 
-      - ${{ if or(and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, '')), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+      - ${{ if or(and(parameters.VSCODE_RELEASE, eq(parameters.VSCODE_DISTRO_REF, ' ')), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - stage: Release
             dependsOn:
               - Publish
