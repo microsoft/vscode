@@ -35,7 +35,7 @@ const moduleLocationAsar = '../../../../../../node_modules.asar/@vscode/vscode-l
 export class LanguageDetectionService extends Disposable implements ILanguageDetectionService {
 	static readonly enablementSettingKey = 'workbench.editor.languageDetection';
 	static readonly historyBasedEnablementConfig = 'workbench.editor.historyBasedLanguageDetection';
-	static readonly preferHistoryConfig = 'workbench.editor.preferHistoryBasedLanguageDetection'; // hidden
+	static readonly preferHistoryConfig = 'workbench.editor.preferHistoryBasedLanguageDetection';
 	static readonly workspaceOpenedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages.workspace';
 	static readonly globalOpenedLanguagesStorageKey = 'workbench.editor.languageDetectionOpenedLanguages.global';
 
