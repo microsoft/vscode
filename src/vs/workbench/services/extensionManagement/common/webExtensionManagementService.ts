@@ -112,7 +112,8 @@ function toLocalExtension(extension: IScannedExtension): ILocalExtension {
 		installedTimestamp: metadata.installedTimestamp,
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
 		preRelease: !!metadata.preRelease,
-		targetPlatform: TargetPlatform.WEB
+		targetPlatform: TargetPlatform.WEB,
+		updated: !!metadata.updated
 	};
 }
 
@@ -157,6 +158,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 			metadata.isPreReleaseVersion = this.extension.properties.isPreReleaseVersion;
 			metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
 			metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
+			metadata.updated = !!existingExtension;
 			metadata.preRelease = this.extension.properties.isPreReleaseVersion ||
 				(isBoolean(this.options.installPreReleaseVersion)
 					? this.options.installPreReleaseVersion /* Respect the passed flag */

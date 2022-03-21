@@ -268,6 +268,7 @@ class InstallGalleryExtensionTask extends AbstractInstallExtensionTask {
 		installableExtension.metadata.isMachineScoped = this.options.isMachineScoped || existingExtension?.isMachineScoped;
 		installableExtension.metadata.isBuiltin = this.options.isBuiltin || existingExtension?.isBuiltin;
 		installableExtension.metadata.isSystem = existingExtension?.type === ExtensionType.System ? true : undefined;
+		installableExtension.metadata.updated = !!existingExtension;
 		installableExtension.metadata.isPreReleaseVersion = this.gallery.properties.isPreReleaseVersion;
 		installableExtension.metadata.preRelease = this.gallery.properties.isPreReleaseVersion ||
 			(isBoolean(this.options.installPreReleaseVersion)
