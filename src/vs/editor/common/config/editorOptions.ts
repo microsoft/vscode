@@ -2516,7 +2516,7 @@ export interface IEditorInlayHintsOptions {
 	fontFamily?: string;
 
 	/**
-	 * Debounce delay for when inlay hints will update after you stop typing.
+	 * Debounce delay in milliseconds for when inlay hints will update after you stop typing.
 	 * Defaults to 1250ms.
 	 */
 	typingDebounceDelay?: number;
