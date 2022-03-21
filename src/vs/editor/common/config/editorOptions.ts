@@ -2554,7 +2554,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 					minimum: 0,
 					maximum: 3000,
 					default: defaults.typingDebounceDelay,
-					markdownDescription: nls.localize('inlayHints.typingDebounceDelay', "Debounce delay for when inlay hints will update after you stop typing.")
+					markdownDescription: nls.localize('inlayHints.typingDebounceDelay', "Debounce delay in milliseconds for when inlay hints will update after you stop typing.")
 				}
 			}
 		);
