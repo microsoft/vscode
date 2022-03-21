@@ -9786,7 +9786,11 @@ declare module 'vscode' {
 	export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
 		/**
 		 * Retrieves the data transfer item for a given mime type.
-		 * @param mimeType The mime type to get the data transfer item for.
+		 *
+		 * @param mimeType The mime type to get the data transfer item for, such as `text/plain` or `image/png`.
+		 *
+		 * Special mime types:
+		 * - `resourceurls` — A JSON array of uris from files dropped from within the editor, such as from the explorer or an editor tab.
 		 */
 		get(mimeType: string): T | undefined;
 

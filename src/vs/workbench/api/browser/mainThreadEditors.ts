@@ -34,6 +34,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
@@ -164,7 +165,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		}
 
 		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
-
+		const fileUris: string[] = [];
 		for (const item of dataTransfer.items) {
 			if (item.kind === 'string') {
 				const type = item.type;
@@ -173,7 +174,20 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 					asString: () => asStringValue,
 					value: undefined
 				});
+			} else if (item.kind === 'file') {
+				const file = item.getAsFile();
+				if (file?.path) {
+					fileUris.push(file.path);
+				}
 			}
+		}
+
+		if (fileUris.length && !textEditorDataTransfer.has(DataTransfers.RESOURCES.toLowerCase())) {
+			const str = JSON.stringify(fileUris);
+			textEditorDataTransfer.set(DataTransfers.RESOURCES.toLowerCase(), {
+				asString: () => Promise.resolve(str),
+				value: undefined
+			});
 		}
 
 		if (textEditorDataTransfer.size > 0) {
