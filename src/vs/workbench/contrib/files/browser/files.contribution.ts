@@ -462,6 +462,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
 			'default': true
 		},
+		'explorer.autoExpandSingleChildren': {
+			'type': 'boolean',
+			'description': nls.localize('autoExpandSingleChildren', "Controls whether the explorer should automatically expand entries that have no sibilings."),
+			'default': true
+		},
 		'explorer.copyRelativePathSeparator': {
 			'type': 'string',
 			'enum': [
