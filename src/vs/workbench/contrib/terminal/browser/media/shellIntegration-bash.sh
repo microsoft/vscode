@@ -101,25 +101,7 @@ prompt_cmd() {
 	precmd
 }
 
-check_for_complex_prompt() {
-	IFS=';'
-	read -ra SEMI_COLON <<<"$PROMPT_COMMAND"
-	if [[ (${#SEMI_COLON[@]} > 1) ]]; then
-		IFS=' '
-		TEMP=${PROMPT_COMMAND[@]}
-		read -ra SPACE <<<"$TEMP"
-		IFS=''
-		if [[  (${#SPACE[@]} > 1) ]]; then
-			echo -e "\033[1;32mShell integration cannot be activated for complex PROMPT_COMMAND\033[0m"
-			VSCODE_SHELL_HIDE_WELCOME="1"
-			return;
-		fi
-	fi
-}
-
-check_for_complex_prompt
-
-if [[ "$PROMPT_COMMAND" =~ .+\;.+ ]]; then
+if [[ "$PROMPT_COMMAND" =~ (.+\;.+) ]]; then
 	# item1;item2...
 	ORIGINAL_PROMPT_COMMAND="$PROMPT_COMMAND"
 else
