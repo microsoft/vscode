@@ -32,7 +32,7 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { NaiveCwdDetectionCapability } from 'vs/platform/terminal/common/capabilities/naiveCwdDetectionCapability';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { URI } from 'vs/base/common/uri';
-import { ISerializedCommand } from 'vs/platform/terminal/common/terminalProcess';
+import { ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/terminalProcess';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -106,7 +106,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	readonly onEnvironmentVariableInfoChanged = this._onEnvironmentVariableInfoChange.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit = this._onProcessExit.event;
-	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommand[]>());
+	private readonly _onRestoreCommands = this._register(new Emitter<ISerializedCommandDetectionCapability>());
 	readonly onRestoreCommands = this._onRestoreCommands.event;
 
 	get persistentProcessId(): number | undefined { return this._process?.id; }

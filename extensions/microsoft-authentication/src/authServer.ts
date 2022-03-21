@@ -155,6 +155,10 @@ export class LoopbackAuthServer implements ILoopbackServer {
 				}
 
 				clearTimeout(portTimeout);
+
+				// set state which will be used to redirect back to vscode
+				this.state = `http://127.0.0.1:${this.port}/callback?nonce=${encodeURIComponent(this.nonce)}`;
+
 				resolve(this.port);
 			});
 			this._server.on('error', err => {

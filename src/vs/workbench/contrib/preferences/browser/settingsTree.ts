@@ -30,7 +30,7 @@ import { isArray, isDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, getLanguageTagSettingPlainKey, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -391,9 +391,9 @@ export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGrou
 	};
 }
 
-export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, configurationService: IWorkbenchConfigurationService): ISetting[] {
+export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, languageFilter: string | undefined, configurationService: IWorkbenchConfigurationService): ISetting[] {
 	const allSettings = getFlatSettings(groups);
-	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
+	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, languageFilter, configurationService).isConfigured);
 }
 
 function compareNullableIntegers(a?: number, b?: number) {
@@ -738,6 +738,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
+	protected readonly _onApplyLanguageFilter = this._register(new Emitter<string>());
+	readonly onApplyLanguageFilter: Event<string> = this._onApplyLanguageFilter.event;
+
 	private readonly markdownRenderer: MarkdownRenderer;
 
 	constructor(
@@ -846,7 +849,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
 			renderDropdownAsChildElement: !isIOS,
-			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
+			moreIcon: settingsMoreActionIcon
 		});
 		return toolbar;
 	}
@@ -1046,8 +1049,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 
 		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
 		common.toDispose.add(openSettingsButton);
-		common.toDispose.add(openSettingsButton.onDidClick(() => template.onChange!()));
-		openSettingsButton.label = SettingComplexRenderer.EDIT_IN_JSON_LABEL;
+
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 		openSettingsButton.element.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 
@@ -1076,10 +1078,28 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate, onChange: (value: string) => void): void {
-		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
+		const plainKey = getLanguageTagSettingPlainKey(dataElement.setting.key);
+		const editLanguageSettingLabel = localize('editLanguageSettingLabel', "Edit settings for {0}", plainKey);
+		const isLanguageTagSetting = dataElement.setting.isLanguageTagSetting;
+		template.button.label = isLanguageTagSetting
+			? editLanguageSettingLabel
+			: SettingComplexRenderer.EDIT_IN_JSON_LABEL;
+
+		template.elementDisposables.add(template.button.onDidClick(() => {
+			if (isLanguageTagSetting) {
+				this._onApplyLanguageFilter.fire(plainKey);
+			} else {
+				this._onDidOpenSettings.fire(dataElement.setting.key);
+			}
+		}));
+
 		this.renderValidations(dataElement, template);
 
-		template.button.element.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
+		if (isLanguageTagSetting) {
+			template.button.element.setAttribute('aria-label', editLanguageSettingLabel);
+		} else {
+			template.button.element.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
+		}
 	}
 
 	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
@@ -1892,6 +1912,8 @@ export class SettingTreeRenderers {
 
 	readonly onDidChangeSettingHeight: Event<HeightChangeParams>;
 
+	readonly onApplyLanguageFilter: Event<string>;
+
 	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
 
 	private readonly settingActions: IAction[];
@@ -1939,6 +1961,7 @@ export class SettingTreeRenderers {
 		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
 		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));
 		this.onDidChangeSettingHeight = Event.any(...settingRenderers.map(r => r.onDidChangeSettingHeight));
+		this.onApplyLanguageFilter = Event.any(...settingRenderers.map(r => r.onApplyLanguageFilter));
 
 		this.allRenderers = [
 			...settingRenderers,

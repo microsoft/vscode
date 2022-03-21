@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from 'vs/base/common/network';
-import { deepFreeze, equals } from 'vs/base/common/objects';
+import { deepFreeze, equals, shallowFreeze } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -293,6 +293,9 @@ export class ExtHostNotebookDocument {
 				};
 			}
 		}
+
+		// Freeze event properties so handlers cannot accidentally modify them
+		shallowFreeze(result);
 
 		return result;
 	}

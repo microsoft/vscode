@@ -768,7 +768,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		if (hasAllVersions) {
 			const extensions: IGalleryExtension[] = [];
 			for (const rawGalleryExtension of rawGalleryExtensions) {
-				const extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, criteria, true);
+				const extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, criteria);
 				if (extension) {
 					extensions.push(extension);
 				}
@@ -782,16 +782,22 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			const rawGalleryExtension = rawGalleryExtensions[index];
 			const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
 			const includePreRelease = isBoolean(criteria.includePreRelease) ? criteria.includePreRelease : !!criteria.includePreRelease.find(extensionIdentifierWithPreRelease => areSameExtensions(extensionIdentifierWithPreRelease, extensionIdentifier))?.includePreRelease;
-			let extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, criteria, false);
+			let extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, criteria);
+			if (!extension && criteria.compatible && criteria.targetPlatform === TargetPlatform.WEB) {
+				/** Skip if requested for a web-compatible extension and not found.
+				 * All versions are not needed in case of web-compatible extension
+				*/
+				continue;
+			}
 			if (!extension
-				/** Skip if the extension is a pre-release version but
+				/** Need all versions if the extension is a pre-release version but
 				 * 		- the query is to look for a release version or
 				 * 		- the extension has no release version
 				 * Get all versions to get or check the release version
 				*/
 				|| (extension.properties.isPreReleaseVersion && (!includePreRelease || !extension.hasReleaseVersion))
 				/**
-				 * Skip if the extension is a release version with a different target platform than requested and also has a pre-release version
+				 * Need all versions if the extension is a release version with a different target platform than requested and also has a pre-release version
 				 * Because, this is a platform specific extension and can have a newer release version supporting this platform.
 				 * See https://github.com/microsoft/vscode/issues/139628
 				*/
@@ -823,7 +829,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return { extensions: result.sort((a, b) => a[0] - b[0]).map(([, extension]) => extension), total };
 	}
 
-	private async toGalleryExtensionWithCriteria(rawGalleryExtension: IRawGalleryExtension, criteria: IExtensionCriteria, hasAllVersions: boolean): Promise<IGalleryExtension | null> {
+	private async toGalleryExtensionWithCriteria(rawGalleryExtension: IRawGalleryExtension, criteria: IExtensionCriteria): Promise<IGalleryExtension | null> {
 
 		const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
 		const version = criteria.versions?.find(extensionIdentifierWithVersion => areSameExtensions(extensionIdentifierWithVersion, extensionIdentifier))?.version;
@@ -831,7 +837,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const allTargetPlatforms = getAllTargetPlatforms(rawGalleryExtension);
 		const rawGalleryExtensionVersions = sortExtensionVersions(rawGalleryExtension.versions, criteria.targetPlatform);
 
-		if (criteria.compatible && hasAllVersions && isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, criteria.targetPlatform)) {
+		if (criteria.compatible && isNotWebExtensionInWebTargetPlatform(allTargetPlatforms, criteria.targetPlatform)) {
 			return null;
 		}
 

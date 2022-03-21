@@ -18,7 +18,11 @@ export default () => `
 	</checkbox>
 	<checkbox when-checked="setTheme:Default High Contrast" checked-on="config.workbench.colorTheme == 'Default High Contrast'">
 		<img width="150" src="./monokai.png"/>
-		${escape(localize('HighContrast', "High Contrast"))}
+		${escape(localize('HighContrast', "Dark High Contrast"))}
+	</checkbox>
+	<checkbox when-checked="setTheme:Default High Contrast Light" checked-on="config.workbench.colorTheme == 'Default High Contrast Light'">
+		<img width="150" src="./light-hc.png"/>
+		${escape(localize('HighContrastLight', "Light High Contrast"))}
 	</checkbox>
 </checklist>
 <checkbox when-checked="command:workbench.action.selectTheme" checked-on="false">

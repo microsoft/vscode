@@ -7,33 +7,25 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities, FileType, FileWriteOptions, hasReadWriteCapability, IFileService, IFileSystemProvider, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
-import { ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
-import { sep } from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 interface ILocalHistoryResource {
 
 	/**
-	 * The label to use for the local history entry.
-	 */
-	label: string;
-
-	/**
 	 * The location of the local history entry to read from.
 	 */
-	location: URI;
+	readonly location: URI;
 
 	/**
 	 * The associated resource the local history entry is about.
 	 */
-	associatedResource: URI;
+	readonly associatedResource: URI;
 }
 
 interface ISerializedLocalHistoryResource {
-	label: string;
-	location: string;
-	associatedResource: string;
+	readonly location: string;
+	readonly associatedResource: string;
 }
 
 /**
@@ -46,7 +38,6 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 
 	static toLocalHistoryFileSystem(resource: ILocalHistoryResource): URI {
 		const serializedLocalHistoryResource: ISerializedLocalHistoryResource = {
-			label: resource.label,
 			location: resource.location.toString(true),
 			associatedResource: resource.associatedResource.toString(true)
 		};
@@ -65,7 +56,6 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 		const serializedLocalHistoryResource: ISerializedLocalHistoryResource = JSON.parse(resource.query);
 
 		return {
-			label: serializedLocalHistoryResource.label,
 			location: URI.parse(serializedLocalHistoryResource.location),
 			associatedResource: URI.parse(serializedLocalHistoryResource.associatedResource)
 		};
@@ -75,8 +65,7 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 
 	static readonly EMPTY: ILocalHistoryResource = {
 		location: LocalHistoryFileSystemProvider.EMPTY_RESOURCE,
-		associatedResource: LocalHistoryFileSystemProvider.EMPTY_RESOURCE,
-		label: ''
+		associatedResource: LocalHistoryFileSystemProvider.EMPTY_RESOURCE
 	};
 
 	get capabilities() {
@@ -167,18 +156,4 @@ export class LocalHistoryFileSystemProvider implements IFileSystemProvider, IFil
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return Disposable.None; }
 
 	//#endregion
-}
-
-export class LocalHistoryFileLabelFormatter implements ResourceLabelFormatter {
-
-	readonly scheme: string = LocalHistoryFileSystemProvider.SCHEMA;
-
-	readonly formatting: ResourceLabelFormatting = {
-		label: '${query.label}',
-		separator: sep,
-		tildify: false,
-		normalizeDriveLetter: false,
-		authorityPrefix: sep + sep,
-		workspaceSuffix: ''
-	};
 }

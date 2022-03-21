@@ -103,6 +103,7 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 			embeddedLanguages,
 			handledSchemas: ['file'],
 			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
+			customCapabilities: { rangeFormatting: { editLimit: 10000 } }
 		},
 		middleware: {
 			// testing the replace / insert mode

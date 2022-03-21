@@ -68,9 +68,9 @@ export class StatefulMarkdownCell extends Disposable {
 		this.registerListeners();
 
 		// update for init state
-		this.templateData.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell, this.templateData));
+		this.templateData.cellParts.forEach(cellPart => cellPart.renderCell(this.viewCell));
 		this._register(toDisposable(() => {
-			this.templateData.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell, this.templateData));
+			this.templateData.cellParts.forEach(cellPart => cellPart.unrenderCell(this.viewCell));
 		}));
 
 		this.updateForHover();

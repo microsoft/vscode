@@ -6081,6 +6081,29 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #144693: Typing a quote using US Intl PC keyboard layout always surrounds words', () => {
+		const mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'const hello = 3;'
+			],
+			languageId: mode.languageId
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 7, 1, 12)]);
+
+			// Pressing ' + e
+
+			viewModel.startComposition();
+			viewModel.type(`'`, 'keyboard');
+			viewModel.compositionType(`é`, 1, 0, 0, 'keyboard');
+			viewModel.compositionType(`é`, 1, 0, 0, 'keyboard');
+			viewModel.endComposition('keyboard');
+
+			assert.strictEqual(model.getValue(), `const é = 3;`);
+		});
+		mode.dispose();
+	});
+
 	test('issue #82701: auto close does not execute when IME is canceled via backspace', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({

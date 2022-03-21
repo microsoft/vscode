@@ -70,6 +70,12 @@
 	z-index: 30;
 }
 
+.monaco-workbench .editor-instance .xterm-decoration-overview-ruler,
+.monaco-workbench .pane-body.integrated-terminal .xterm-decoration-overview-ruler {
+	z-index: 31; /* Must be higher than .xterm-viewport */
+	pointer-events: none;
+}
+
 .monaco-workbench .editor-instance .xterm-screen,
 .monaco-workbench .pane-body.integrated-terminal .xterm-screen {
 	z-index: 31;
@@ -184,7 +190,9 @@
 }
 
 .monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
-.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before {
+.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before,
+.monaco-workbench.hc-light .pane-body.integrated-terminal .xterm:focus::before,
+.monaco-workbench.hc-light .pane-body.integrated-terminal .xterm.focus::before {
 	display: block;
 	content: "";
 	border: 1px solid;
@@ -197,7 +205,9 @@
 }
 
 .monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm.focus::before,
-.monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm:focus::before {
+.monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm:focus::before,
+.monaco-workbench.hc-light .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm.focus::before,
+.monaco-workbench.hc-light .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm:focus::before {
 	right: 0;
 }
 
@@ -416,4 +426,10 @@
 
 .terminal-command-decoration.default {
 	pointer-events: none;
+}
+
+.terminal-scroll-highlight {
+	left: 0;
+	right: 0;
+	border: 1px solid #ffffff;
 }

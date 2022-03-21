@@ -11,6 +11,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
@@ -35,20 +36,21 @@ export class TelemetryService implements ITelemetryService {
 	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
 	private _telemetryLevel: TelemetryLevel;
-	public readonly sendErrorTelemetry: boolean;
+	private _sendErrorTelemetry: boolean;
 
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
 
 	constructor(
 		config: ITelemetryServiceConfig,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@IProductService private _productService: IProductService
 	) {
 		this._appenders = config.appenders;
 		this._commonProperties = config.commonProperties || Promise.resolve({});
 		this._piiPaths = config.piiPaths || [];
 		this._telemetryLevel = TelemetryLevel.USAGE;
-		this.sendErrorTelemetry = !!config.sendErrorTelemetry;
+		this._sendErrorTelemetry = !!config.sendErrorTelemetry;
 
 		// static cleanup pattern for: `file:///DANGEROUS/PATH/resources/app/Useful/Information`
 		this._cleanupPatterns = [/file:\/\/\/.*?\/resources\/app\//gi];
@@ -68,10 +70,22 @@ export class TelemetryService implements ITelemetryService {
 
 	private _updateTelemetryLevel(): void {
 		this._telemetryLevel = getTelemetryLevel(this._configurationService);
+		const collectableTelemetry = this._productService.enabledTelemetryLevels;
+		// Also ensure that error telemetry is respecting the product configuration for collectable telemetry
+		if (collectableTelemetry) {
+			this._sendErrorTelemetry = this.sendErrorTelemetry ? collectableTelemetry.error : false;
+			// Make sure the telemetry level from the service is the minimum of the config and product
+			const maxCollectableTelemetryLevel = collectableTelemetry.usage ? TelemetryLevel.USAGE : collectableTelemetry.error ? TelemetryLevel.ERROR : TelemetryLevel.NONE;
+			this._telemetryLevel = Math.min(this._telemetryLevel, maxCollectableTelemetryLevel);
+		}
 	}
 
 	get telemetryLevel(): TelemetryLevel {
 		return this._telemetryLevel;
+	}
+
+	get sendErrorTelemetry(): boolean {
+		return this._sendErrorTelemetry;
 	}
 
 	async getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -130,7 +144,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<any> {
-		if (!this.sendErrorTelemetry) {
+		if (!this._sendErrorTelemetry) {
 			return Promise.resolve(undefined);
 		}
 

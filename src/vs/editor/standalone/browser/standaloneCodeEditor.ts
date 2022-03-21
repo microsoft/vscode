@@ -144,7 +144,7 @@ export interface IGlobalEditorOptions {
 	maxTokenizationLineLength?: number;
 	/**
 	 * Theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light'.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -177,7 +177,7 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 	language?: string;
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.
@@ -208,7 +208,7 @@ export interface IStandaloneEditorConstructionOptions extends IEditorConstructio
 export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorConstructionOptions {
 	/**
 	 * Initial theme to be used for rendering.
-	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black'.
+	 * The current out-of-the-box available themes are: 'vs' (default), 'vs-dark', 'hc-black', 'hc-light.
 	 * You can create custom themes via `monaco.editor.defineTheme`.
 	 * To switch a theme, use `monaco.editor.setTheme`.
 	 * **NOTE**: The theme might be overwritten if the OS is in high contrast mode, unless `autoDetectHighContrast` is set to false.

@@ -6,6 +6,7 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadWebviews, reviveWebviewContentOptions, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
@@ -16,7 +17,7 @@ import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewE
 import { WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -89,9 +90,10 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	constructor(
 		context: IExtHostContext,
 		private readonly _mainThreadWebviews: MainThreadWebviews,
-		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IExtensionService extensionService: IExtensionService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 	) {
@@ -230,7 +232,8 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 			// of creating all the groups up to 99.
 			const newGroup = this._editorGroupService.findGroup({ location: GroupLocation.LAST });
 			if (newGroup) {
-				return this._editorGroupService.addGroup(newGroup, GroupDirection.RIGHT);
+				const direction = preferredSideBySideGroupDirection(this._configurationService);
+				return this._editorGroupService.addGroup(newGroup, direction);
 			}
 		}
 

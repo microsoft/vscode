@@ -12,9 +12,10 @@ import * as arrays from 'vs/base/common/arrays';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { getGalleryExtensionId, groupByExtension, getExtensionId, ExtensionKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionId, getExtensionId, ExtensionKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
+import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -115,12 +116,6 @@ abstract class ExtensionManifestHandler {
 	}
 }
 
-interface ILocalExtensionMetadata {
-	id?: string;
-	targetPlatform?: TargetPlatform;
-	isBuiltin?: boolean;
-}
-
 class ExtensionManifestParser extends ExtensionManifestHandler {
 
 	private static _fastParseJSON<T>(text: string, errors: json.ParseError[]): T {
@@ -135,7 +130,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	public parse(): Promise<IExtensionDescription | null> {
 		return this._host.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
-			const manifest = ExtensionManifestParser._fastParseJSON<IRelaxedExtensionDescription & { __metadata?: ILocalExtensionMetadata }>(manifestContents, errors);
+			const manifest = ExtensionManifestParser._fastParseJSON<IRelaxedExtensionDescription & { __metadata?: Metadata }>(manifestContents, errors);
 			if (json.getNodeType(manifest) !== 'object') {
 				this._error(this._absoluteFolderPath, nls.localize('jsonParseInvalidType', "Invalid manifest file {0}: Not an JSON object.", this._absoluteManifestPath));
 			} else if (errors.length === 0) {
@@ -522,6 +517,7 @@ export class ExtensionScannerInput {
 		public readonly absoluteFolderPath: string,
 		public readonly isBuiltin: boolean,
 		public readonly isUnderDevelopment: boolean,
+		public readonly targetPlatform: TargetPlatform,
 		public readonly translations: Translations
 	) {
 		// Keep empty!! (JSON.parse)
@@ -547,6 +543,7 @@ export class ExtensionScannerInput {
 			&& a.isBuiltin === b.isBuiltin
 			&& a.isUnderDevelopment === b.isUnderDevelopment
 			&& a.mtime === b.mtime
+			&& a.targetPlatform === b.targetPlatform
 			&& Translations.equals(a.translations, b.translations)
 		);
 	}
@@ -648,9 +645,7 @@ export class ExtensionScanner {
 			extensionDescriptions = extensionDescriptions.filter(item => item !== null && !obsolete[new ExtensionKey({ id: getGalleryExtensionId(item.publisher, item.name) }, item.version, item.targetPlatform).toString()]);
 
 			if (!isBuiltin) {
-				// Filter out outdated extensions
-				const byExtension: IExtensionDescription[][] = groupByExtension(extensionDescriptions, e => ({ id: e.identifier.value, uuid: e.uuid }));
-				extensionDescriptions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+				extensionDescriptions = this.filterOutdatedExtensions(extensionDescriptions, input.targetPlatform);
 			}
 
 			extensionDescriptions.sort((a, b) => {
@@ -725,5 +720,23 @@ export class ExtensionScanner {
 			});
 			return resultArr;
 		});
+	}
+
+	private static filterOutdatedExtensions(extensions: IExtensionDescription[], targetPlatform: TargetPlatform): IExtensionDescription[] {
+		const result = new Map<string, IExtensionDescription>();
+		for (const extension of extensions) {
+			const extensionKey = extension.identifier.value;
+			const existing = result.get(extensionKey);
+			if (existing) {
+				if (semver.gt(existing.version, extension.version)) {
+					continue;
+				}
+				if (semver.eq(existing.version, extension.version) && existing.targetPlatform === targetPlatform) {
+					continue;
+				}
+			}
+			result.set(extensionKey, extension);
+		}
+		return [...result.values()];
 	}
 }

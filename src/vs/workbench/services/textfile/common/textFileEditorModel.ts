@@ -269,11 +269,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	//#region Resolve
 
 	override async resolve(options?: ITextFileResolveOptions): Promise<void> {
-		this.logService.trace('[text file model] resolve() - enter', this.resource.toString(true));
+		this.trace('[text file model] resolve() - enter');
 
 		// Return early if we are disposed
 		if (this.isDisposed()) {
-			this.logService.trace('[text file model] resolve() - exit - without resolving because model is disposed', this.resource.toString(true));
+			this.trace('[text file model] resolve() - exit - without resolving because model is disposed');
 
 			return;
 		}
@@ -282,7 +282,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// resolve a model that is dirty or is in the process of saving to prevent data
 		// loss.
 		if (!options?.contents && (this.dirty || this.saveSequentializer.hasPending())) {
-			this.logService.trace('[text file model] resolve() - exit - without resolving because model is dirty or being saved', this.resource.toString(true));
+			this.trace('[text file model] resolve() - exit - without resolving because model is dirty or being saved');
 
 			return;
 		}
@@ -311,7 +311,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async resolveFromBuffer(buffer: ITextBufferFactory, options?: ITextFileResolveOptions): Promise<void> {
-		this.logService.trace('[text file model] resolveFromBuffer()', this.resource.toString(true));
+		this.trace('[text file model] resolveFromBuffer()');
 
 		// Try to resolve metdata from disk
 		let mtime: number;
@@ -369,7 +369,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Abort if someone else managed to resolve the model by now
 		let isNewModel = !this.isResolved();
 		if (!isNewModel) {
-			this.logService.trace('[text file model] resolveFromBackup() - exit - without resolving because previously new model got created meanwhile', this.resource.toString(true));
+			this.trace('[text file model] resolveFromBackup() - exit - without resolving because previously new model got created meanwhile');
 
 			return true; // imply that resolving has happened in another operation
 		}
@@ -386,7 +386,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async doResolveFromBackup(backup: IResolvedWorkingCopyBackup<IBackupMetaData>, encoding: string, options?: ITextFileResolveOptions): Promise<void> {
-		this.logService.trace('[text file model] doResolveFromBackup()', this.resource.toString(true));
+		this.trace('[text file model] doResolveFromBackup()');
 
 		// Resolve with backup
 		this.resolveFromContent({
@@ -408,7 +408,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async resolveFromFile(options?: ITextFileResolveOptions): Promise<void> {
-		this.logService.trace('[text file model] resolveFromFile()', this.resource.toString(true));
+		this.trace('[text file model] resolveFromFile()');
 
 		const forceReadFromFile = options?.forceReadFromFile;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || options?.allowBinary;
@@ -435,7 +435,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Return early if the model content has changed
 			// meanwhile to prevent loosing any changes
 			if (currentVersionId !== this.versionId) {
-				this.logService.trace('[text file model] resolveFromFile() - exit - without resolving because model content changed', this.resource.toString(true));
+				this.trace('[text file model] resolveFromFile() - exit - without resolving because model content changed');
 
 				return;
 			}
@@ -472,11 +472,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private resolveFromContent(content: ITextFileStreamContent, dirty: boolean, options?: ITextFileResolveOptions): void {
-		this.logService.trace('[text file model] resolveFromContent() - enter', this.resource.toString(true));
+		this.trace('[text file model] resolveFromContent() - enter');
 
 		// Return early if we are disposed
 		if (this.isDisposed()) {
-			this.logService.trace('[text file model] resolveFromContent() - exit - because model is disposed', this.resource.toString(true));
+			this.trace('[text file model] resolveFromContent() - exit - because model is disposed');
 
 			return;
 		}
@@ -529,7 +529,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private doCreateTextModel(resource: URI, value: ITextBufferFactory): void {
-		this.logService.trace('[text file model] doCreateTextModel()', this.resource.toString(true));
+		this.trace('[text file model] doCreateTextModel()');
 
 		// Create model
 		const textModel = this.createTextEditorModel(value, resource, this.preferredLanguageId);
@@ -542,7 +542,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private doUpdateTextModel(value: ITextBufferFactory): void {
-		this.logService.trace('[text file model] doUpdateTextModel()', this.resource.toString(true));
+		this.trace('[text file model] doUpdateTextModel()');
 
 		// Update model value in a block that ignores content change events for dirty tracking
 		this.ignoreDirtyOnModelContentChange = true;
@@ -564,11 +564,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
-		this.logService.trace(`[text file model] onModelContentChanged() - enter`, this.resource.toString(true));
+		this.trace(`[text file model] onModelContentChanged() - enter`);
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
 		this.versionId++;
-		this.logService.trace(`[text file model] onModelContentChanged() - new versionId ${this.versionId}`, this.resource.toString(true));
+		this.trace(`[text file model] onModelContentChanged() - new versionId ${this.versionId}`);
 
 		// Remember when the user changed the model through a undo/redo operation.
 		// We need this information to throttle save participants to fix
@@ -585,7 +585,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// The contents changed as a matter of Undo and the version reached matches the saved one
 			// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 			if (model.getAlternativeVersionId() === this.bufferSavedVersionId) {
-				this.logService.trace('[text file model] onModelContentChanged() - model content changed back to last saved version', this.resource.toString(true));
+				this.trace('[text file model] onModelContentChanged() - model content changed back to last saved version');
 
 				// Clear flags
 				const wasDirty = this.dirty;
@@ -599,7 +599,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Otherwise the content has changed and we signal this as becoming dirty
 			else {
-				this.logService.trace('[text file model] onModelContentChanged() - model content changed and marked as dirty', this.resource.toString(true));
+				this.trace('[text file model] onModelContentChanged() - model content changed and marked as dirty');
 
 				// Mark as dirty
 				this.setDirty(true);
@@ -693,7 +693,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		if (this.isReadonly()) {
-			this.logService.trace('[text file model] save() - ignoring request for readonly resource', this.resource.toString(true));
+			this.trace('[text file model] save() - ignoring request for readonly resource');
 
 			return false; // if model is readonly we do not attempt to save at all
 		}
@@ -702,15 +702,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			(this.hasState(TextFileEditorModelState.CONFLICT) || this.hasState(TextFileEditorModelState.ERROR)) &&
 			(options.reason === SaveReason.AUTO || options.reason === SaveReason.FOCUS_CHANGE || options.reason === SaveReason.WINDOW_CHANGE)
 		) {
-			this.logService.trace('[text file model] save() - ignoring auto save request for model that is in conflict or error', this.resource.toString(true));
+			this.trace('[text file model] save() - ignoring auto save request for model that is in conflict or error');
 
 			return false; // if model is in save conflict or error, do not save unless save reason is explicit
 		}
 
 		// Actually do save and log
-		this.logService.trace('[text file model] save() - enter', this.resource.toString(true));
+		this.trace('[text file model] save() - enter');
 		await this.doSave(options);
-		this.logService.trace('[text file model] save() - exit', this.resource.toString(true));
+		this.trace('[text file model] save() - exit');
 
 		return this.hasState(TextFileEditorModelState.SAVED);
 	}
@@ -721,7 +721,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 
 		let versionId = this.versionId;
-		this.logService.trace(`[text file model] doSave(${versionId}) - enter with versionId ${versionId}`, this.resource.toString(true));
+		this.trace(`[text file model] doSave(${versionId}) - enter with versionId ${versionId}`);
 
 		// Lookup any running pending save for this versionId and return it if found
 		//
@@ -729,7 +729,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		//           while the save was not yet finished to disk
 		//
 		if (this.saveSequentializer.hasPending(versionId)) {
-			this.logService.trace(`[text file model] doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`, this.resource.toString(true));
+			this.trace(`[text file model] doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`);
 
 			return this.saveSequentializer.pending;
 		}
@@ -738,7 +738,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		//
 		// Scenario: user invoked save action even though the model is not dirty
 		if (!options.force && !this.dirty) {
-			this.logService.trace(`[text file model] doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource.toString(true));
+			this.trace(`[text file model] doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`);
 
 			return;
 		}
@@ -752,7 +752,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		//             while the first save has not returned yet.
 		//
 		if (this.saveSequentializer.hasPending()) {
-			this.logService.trace(`[text file model] doSave(${versionId}) - exit - because busy saving`, this.resource.toString(true));
+			this.trace(`[text file model] doSave(${versionId}) - exit - because busy saving`);
 
 			// Indicate to the save sequentializer that we want to
 			// cancel the pending operation so that ours can run
@@ -808,7 +808,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
 					}
 				} catch (error) {
-					this.logService.error(`[text file model] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(true));
+					this.logService.error(`[text file model] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString());
 				}
 			}
 
@@ -848,7 +848,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save to Disk. We mark the save operation as currently pending with
 			// the latest versionId because it might have changed from a save
 			// participant triggering
-			this.logService.trace(`[text file model] doSave(${versionId}) - before write()`, this.resource.toString(true));
+			this.trace(`[text file model] doSave(${versionId}) - before write()`);
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
 			const resolvedTextFileEditorModel = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
@@ -876,10 +876,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Update dirty state unless model has changed meanwhile
 		if (versionId === this.versionId) {
-			this.logService.trace(`[text file model] handleSaveSuccess(${versionId}) - setting dirty to false because versionId did not change`, this.resource.toString(true));
+			this.trace(`[text file model] handleSaveSuccess(${versionId}) - setting dirty to false because versionId did not change`);
 			this.setDirty(false);
 		} else {
-			this.logService.trace(`[text file model] handleSaveSuccess(${versionId}) - not setting dirty to false because versionId did change meanwhile`, this.resource.toString(true));
+			this.trace(`[text file model] handleSaveSuccess(${versionId}) - not setting dirty to false because versionId did change meanwhile`);
 		}
 
 		// Update orphan state given save was successful
@@ -890,7 +890,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: ITextFileSaveOptions): void {
-		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error).apply(this.logService, [`[text file model] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString(true)]);
+		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error).apply(this.logService, [`[text file model] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString()]);
 
 		// Return early if the save() call was made asking to
 		// handle the save error itself.
@@ -1049,6 +1049,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#endregion
 
+	private trace(msg: string): void {
+		this.logService.trace(msg, this.resource.toString());
+	}
+
 	override isResolved(): this is IResolvedTextFileEditorModel {
 		return !!this.textEditorModel;
 	}
@@ -1058,7 +1062,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override dispose(): void {
-		this.logService.trace('[text file model] dispose()', this.resource.toString(true));
+		this.trace('[text file model] dispose()');
 
 		this.inConflictMode = false;
 		this.inOrphanMode = false;

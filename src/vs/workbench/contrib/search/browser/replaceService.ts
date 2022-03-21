@@ -92,7 +92,7 @@ export class ReplaceService implements IReplaceService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly REPLACE_SAVE_SOURCE = SaveSourceRegistry.registerSource('searchReplace.source', nls.localize('searchReplace.source', "Search & Replace"));
+	private static readonly REPLACE_SAVE_SOURCE = SaveSourceRegistry.registerSource('searchReplace.source', nls.localize('searchReplace.source', "Search and Replace"));
 
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,

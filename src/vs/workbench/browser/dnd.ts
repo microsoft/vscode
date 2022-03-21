@@ -23,7 +23,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, DragAndDropObserver, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -33,7 +33,7 @@ import { parse, stringify } from 'vs/base/common/marshalling';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { ITreeDataTransfer } from 'vs/workbench/common/views';
+import { IDataTransfer } from 'vs/workbench/common/dnd';
 import { extractSelection } from 'vs/platform/opener/common/opener';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
@@ -177,7 +177,7 @@ function createDraggedEditorInputFromRawResourcesData(rawResourcesData: string |
 	return editors;
 }
 
-export async function extractTreeDropData(dataTransfer: ITreeDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
+export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
 	const resourcesKey = Mimes.uriList.toLowerCase();
 
@@ -629,64 +629,6 @@ export class LocalSelectionTransfer<T> {
 			this.data = data;
 			this.proto = proto;
 		}
-	}
-}
-
-export interface IDragAndDropObserverCallbacks {
-	readonly onDragEnter: (e: DragEvent) => void;
-	readonly onDragLeave: (e: DragEvent) => void;
-	readonly onDrop: (e: DragEvent) => void;
-	readonly onDragEnd: (e: DragEvent) => void;
-
-	readonly onDragOver?: (e: DragEvent) => void;
-}
-
-export class DragAndDropObserver extends Disposable {
-
-	// A helper to fix issues with repeated DRAG_ENTER / DRAG_LEAVE
-	// calls see https://github.com/microsoft/vscode/issues/14470
-	// when the element has child elements where the events are fired
-	// repeadedly.
-	private counter: number = 0;
-
-	constructor(private readonly element: HTMLElement, private readonly callbacks: IDragAndDropObserverCallbacks) {
-		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, (e: DragEvent) => {
-			this.counter++;
-
-			this.callbacks.onDragEnter(e);
-		}));
-
-		this._register(addDisposableListener(this.element, EventType.DRAG_OVER, (e: DragEvent) => {
-			e.preventDefault(); // needed so that the drop event fires (https://stackoverflow.com/questions/21339924/drop-event-not-firing-in-chrome)
-
-			if (this.callbacks.onDragOver) {
-				this.callbacks.onDragOver(e);
-			}
-		}));
-
-		this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, (e: DragEvent) => {
-			this.counter--;
-
-			if (this.counter === 0) {
-				this.callbacks.onDragLeave(e);
-			}
-		}));
-
-		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
-			this.counter = 0;
-			this.callbacks.onDragEnd(e);
-		}));
-
-		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
-			this.counter = 0;
-			this.callbacks.onDrop(e);
-		}));
 	}
 }
 
