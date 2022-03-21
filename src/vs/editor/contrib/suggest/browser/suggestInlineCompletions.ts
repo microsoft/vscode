@@ -63,7 +63,8 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 				range,
 				filterText: item.filterTextLow ?? item.labelLow,
 				insertText,
-				command: item.completion.command
+				command: item.completion.command,
+				additionalTextEdits: item.completion.additionalTextEdits
 			});
 		}
 		return result;
