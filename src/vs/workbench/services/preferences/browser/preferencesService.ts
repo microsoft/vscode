@@ -547,7 +547,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		let position = null;
-		const type = schema ? schema.type : 'object' /* Override Identifier */;
+		const type = schema?.type ?? 'object' /* Type not defined or is an Override Identifier */;
 		let setting = settingsModel.getPreference(settingKey);
 		if (!setting && edit) {
 			let defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
