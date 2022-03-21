@@ -125,6 +125,7 @@
         "emmet.triggerExpansionOnTab": {
           "type": "boolean",
           "default": false,
+          "scope": "resource",
           "markdownDescription": "%emmetTriggerExpansionOnTab%"
         },
         "emmet.preferences": {
