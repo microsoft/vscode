@@ -8,6 +8,10 @@ autoload -Uz add-zsh-hook
 # as prevent problems that may occur if the user's init scripts depend on ZDOTDIR not being set.
 unset ZDOTDIR
 
+# This variable allows the shell to both detect that VS Code's shell integration is enabled as well
+# as disable it by unsetting the variable.
+VSCODE_SHELL_INTEGRATION=1
+
 if [ -f ~/.zshenv ]; then
 	. ~/.zshenv
 fi
@@ -16,6 +20,11 @@ if [[ -o "login" &&  -f ~/.zprofile ]]; then
 fi
 if [ -f ~/.zshrc ]; then
 	. ~/.zshrc
+fi
+
+if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
+	echo -e "\033[1;32mShell integration was disabled by the shell\033[0m"
+	return
 fi
 
 IN_COMMAND_EXECUTION="1"
