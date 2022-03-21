@@ -41,7 +41,7 @@ export class SCMViewService implements ISCMViewService {
 	readonly menus: ISCMMenus;
 
 	private didFinishLoading: boolean = false;
-	private provisionalVisibleRepository: ISCMRepository | undefined;
+	private didSelectRepository: boolean = false;
 	private previousState: ISCMViewServiceState | undefined;
 	private disposables = new DisposableStore();
 
@@ -176,21 +176,19 @@ export class SCMViewService implements ISCMViewService {
 				return;
 			}
 
-			const visible = this.previousState.visible.indexOf(index) > -1;
+			if (this.previousState.visible.indexOf(index) > -1) {
+				// First visible repository
+				if (!this.didSelectRepository) {
+					removed = this._visibleRepositories;
 
-			if (!visible) {
-				if (this._visibleRepositories.length === 0) { // should make it visible, until other repos come along
-					this.provisionalVisibleRepository = repository;
-				} else {
-					this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
-					return;
-				}
-			} else {
-				if (this.provisionalVisibleRepository) {
 					this._visibleRepositories = [];
 					this._visibleRepositoriesSet = new Set();
-					removed = [this.provisionalVisibleRepository];
-					this.provisionalVisibleRepository = undefined;
+					this.didSelectRepository = true;
+				}
+			} else {
+				// Explicit selection started
+				if (this.didSelectRepository) {
+					return;
 				}
 			}
 		}
