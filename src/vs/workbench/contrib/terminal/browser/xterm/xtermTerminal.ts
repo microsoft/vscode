@@ -98,7 +98,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 		this.target = location;

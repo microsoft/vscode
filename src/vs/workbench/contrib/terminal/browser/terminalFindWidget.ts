@@ -30,16 +30,17 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(_contextKeyService);
 	}
 
-	async find(previous: boolean): Promise<void> {
+	find(previous: boolean): void {
 		const instance = this._terminalService.activeInstance;
 		if (!instance) {
 			return;
 		}
 		if (previous) {
 			instance.xterm?.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
-			return;
+		} else {
+			instance.xterm?.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		}
-		await instance.xterm?.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		return;
 	}
 	override reveal(initialInput?: string): void {
 		super.reveal(initialInput);
