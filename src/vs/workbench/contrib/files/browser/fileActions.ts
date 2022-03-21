@@ -18,7 +18,7 @@ import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/commo
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -906,7 +906,9 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 
 export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests).filter(s => !s.isRoot);
 	if (stats.length) {
 		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
 	}
@@ -914,7 +916,9 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 
 export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests).filter(s => !s.isRoot);
 
 	if (stats.length) {
 		await deleteFiles(accessor.get(IExplorerService), accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
@@ -924,7 +928,9 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 let pasteShouldMove = false;
 export const copyFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests);
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, false);
 		pasteShouldMove = false;
@@ -933,7 +939,9 @@ export const copyFileHandler = async (accessor: ServicesAccessor) => {
 
 export const cutFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const stats = explorerService.getContext(true);
+	const configurationService = accessor.get(IConfigurationService);
+	const groupNests = configurationService.getValue<IFilesConfiguration>().explorer.fileNesting.operateAsGroup;
+	const stats = explorerService.getContext(true, groupNests);
 	if (stats.length > 0) {
 		await explorerService.setToCopy(stats, true);
 		pasteShouldMove = true;

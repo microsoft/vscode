@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable
+	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable, TextDocumentIdentifier, Range, FormattingOptions, TextEdit
 } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position } from 'vscode-css-languageservice';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position, CSSFormatConfiguration } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { formatError, runSafeAsync } from './utils/runner';
 import { getDocumentContext } from './utils/documentContext';
@@ -52,6 +52,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	let scopedSettingsSupport = false;
 	let foldingRangeLimit = Number.MAX_VALUE;
 	let workspaceFolders: WorkspaceFolder[];
+	let formatterMaxNumberOfEdits = Number.MAX_VALUE;
 
 	let dataProvidersReady: Promise<any> = Promise.resolve();
 
@@ -87,6 +88,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		const snippetSupport = !!getClientCapability('textDocument.completion.completionItem.snippetSupport', false);
 		scopedSettingsSupport = !!getClientCapability('workspace.configuration', false);
 		foldingRangeLimit = getClientCapability('textDocument.foldingRange.rangeLimit', Number.MAX_VALUE);
+		formatterMaxNumberOfEdits = params.initializationOptions?.customCapabilities?.rangeFormatting?.editLimit || Number.MAX_VALUE;
 
 		languageServices.css = getCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
 		languageServices.scss = getSCSSLanguageService({ fileSystemProvider: requestService, clientCapabilities: params.capabilities });
@@ -107,7 +109,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			renameProvider: true,
 			colorProvider: {},
 			foldingRangeProvider: true,
-			selectionRangeProvider: true
+			selectionRangeProvider: true,
+			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
+			documentFormattingProvider: params.initializationOptions?.provideFormatter === true,
 		};
 		return { capabilities };
 	});
@@ -367,11 +371,38 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 	});
 
+	async function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): Promise<TextEdit[]> {
+		const document = documents.get(textDocument.uri);
+		if (document) {
+			console.log(JSON.stringify(options));
+			const edits = getLanguageService(document).format(document, range ?? getFullRange(document), options as CSSFormatConfiguration);
+			if (edits.length > formatterMaxNumberOfEdits) {
+				const newText = TextDocument.applyEdits(document, edits);
+				return [TextEdit.replace(getFullRange(document), newText)];
+			}
+			return edits;
+		}
+		return [];
+	}
+
+	connection.onDocumentRangeFormatting((formatParams, token) => {
+		return runSafeAsync(runtime, () => onFormat(formatParams.textDocument, formatParams.range, formatParams.options), [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
+	});
+
+	connection.onDocumentFormatting((formatParams, token) => {
+		return runSafeAsync(runtime, () => onFormat(formatParams.textDocument, undefined, formatParams.options), [], `Error while formatting ${formatParams.textDocument.uri}`, token);
+	});
+
 	connection.onNotification(CustomDataChangedNotification.type, updateDataProviders);
 
 	// Listen on the connection
 	connection.listen();
 
 }
+
+function getFullRange(document: TextDocument): Range {
+	return Range.create(Position.create(0, 0), document.positionAt(document.getText().length));
+}
+
 
 

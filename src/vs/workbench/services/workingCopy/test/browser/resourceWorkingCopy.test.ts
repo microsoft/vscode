@@ -23,6 +23,7 @@ suite('ResourceWorkingCopy', function () {
 		capabilities = WorkingCopyCapabilities.None;
 		onDidChangeDirty = Event.None;
 		onDidChangeContent = Event.None;
+		onDidSave = Event.None;
 		isDirty(): boolean { return false; }
 		async backup(token: CancellationToken): Promise<IWorkingCopyBackup> { throw new Error('Method not implemented.'); }
 		async save(options?: ISaveOptions): Promise<boolean> { return false; }

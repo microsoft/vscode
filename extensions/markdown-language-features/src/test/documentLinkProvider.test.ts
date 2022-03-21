@@ -151,6 +151,33 @@ suite('markdown.DocumentLinkProvider', () => {
 		assertRangeEqual(link2.range, new vscode.Range(1, 6, 1, 8));
 	});
 
+	test('Should only find one link for reference sources [a]: source (#141285)', async () => {
+		const links = await getLinksForFile([
+			'[Works]: https://microsoft.com',
+		].join('\n'));
+
+		assert.strictEqual(links.length, 1);
+	});
+
+	test('Should find links for referenes with only one [] (#141285)', async () => {
+		let links = await getLinksForFile([
+			'[Works]',
+			'[Works]: https://microsoft.com',
+		].join('\n'));
+		assert.strictEqual(links.length, 2);
+
+		links = await getLinksForFile([
+			'[Does Not Work]',
+			'[Works]: https://microsoft.com',
+		].join('\n'));
+		assert.strictEqual(links.length, 1);
+	});
+
+	test('Should not find link for reference using one [] when source does not exist (#141285)', async () => {
+		const links = await getLinksForFile('[Works]');
+		assert.strictEqual(links.length, 0);
+	});
+
 	test('Should not consider links in code fenced with backticks', async () => {
 		const text = joinLines(
 			'```',

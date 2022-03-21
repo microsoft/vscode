@@ -107,7 +107,7 @@
 
 		// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
 		const isHighContrast = configuration.colorScheme.highContrast && configuration.autoDetectHighContrast;
-		if (data && isHighContrast && data.baseTheme !== 'hc-black') {
+		if (data && isHighContrast && data.baseTheme !== 'hc-black' && data.baseTheme !== 'hc-light') {
 			data = undefined;
 		}
 

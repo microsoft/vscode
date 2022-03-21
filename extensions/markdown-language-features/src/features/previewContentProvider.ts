@@ -5,11 +5,11 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import * as uri from 'vscode-uri';
 import { Logger } from '../logger';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
-import { basename, dirname, isAbsolute, join } from '../util/path';
 import { WebviewResourceProvider } from '../util/resources';
 import { MarkdownPreviewConfiguration, MarkdownPreviewConfigurationManager } from './previewConfig';
 
@@ -128,7 +128,7 @@ export class MarkdownContentProvider {
 	public provideFileNotFoundContent(
 		resource: vscode.Uri,
 	): string {
-		const resourcePath = basename(resource.fsPath);
+		const resourcePath = uri.Utils.basename(resource);
 		const body = localize('preview.notFound', '{0} cannot be found', resourcePath);
 		return `<!DOCTYPE html>
 			<html>
@@ -154,7 +154,7 @@ export class MarkdownContentProvider {
 		}
 
 		// Assume it must be a local file
-		if (isAbsolute(href)) {
+		if (href.startsWith('/') || /^[a-z]:\\/i.test(href)) {
 			return resourceProvider.asWebviewUri(vscode.Uri.file(href)).toString();
 		}
 
@@ -165,7 +165,7 @@ export class MarkdownContentProvider {
 		}
 
 		// Otherwise look relative to the markdown file
-		return resourceProvider.asWebviewUri(vscode.Uri.file(join(dirname(resource.fsPath), href))).toString();
+		return resourceProvider.asWebviewUri(vscode.Uri.joinPath(uri.Utils.dirname(resource), href)).toString();
 	}
 
 	private computeCustomStyleSheetIncludes(resourceProvider: WebviewResourceProvider, resource: vscode.Uri, config: MarkdownPreviewConfiguration): string {

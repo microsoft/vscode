@@ -23,23 +23,26 @@ function Global:__VSCode-Get-LastExitCode {
 function Global:Prompt() {
 	$LastExitCode = $(__VSCode-Get-LastExitCode);
 	$LastHistoryEntry = $(Get-History -Count 1)
-	if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
-		# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
-		$Result  = "`e]633;E`a"
-		$Result += "`e]633;D`a"
-	} else {
-		# Command finished command line
-		# OSC 633 ; A ; <CommandLine?> ST
-		$Result  = "`e]633;E;"
-		# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
-		# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
-		# to only be composed of _printable_ characters as per the spec.
-		$CommandLine = $LastHistoryEntry.CommandLine ?? ""
-		$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
-		$Result += "`a"
-		# Command finished exit code
-		# OSC 633 ; D [; <ExitCode>] ST
-		$Result += "`e]633;D;$LastExitCode`a"
+	# Skip finishing the command if the first command has not yet started
+	if ($Global:__LastHistoryId -ne -1) {
+		if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
+			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
+			$Result  = "`e]633;E`a"
+			$Result += "`e]633;D`a"
+		} else {
+			# Command finished command line
+			# OSC 633 ; A ; <CommandLine?> ST
+			$Result  = "`e]633;E;"
+			# Sanitize the command line to ensure it can get transferred to the terminal and can be parsed
+			# correctly. This isn't entirely safe but good for most cases, it's important for the Pt parameter
+			# to only be composed of _printable_ characters as per the spec.
+			$CommandLine = $LastHistoryEntry.CommandLine ?? ""
+			$Result += $CommandLine.Replace("`n", "<LF>").Replace(";", "<CL>")
+			$Result += "`a"
+			# Command finished exit code
+			# OSC 633 ; D [; <ExitCode>] ST
+			$Result += "`e]633;D;$LastExitCode`a"
+		}
 	}
 	# Prompt started
 	# OSC 633 ; A ST
@@ -55,13 +58,16 @@ function Global:Prompt() {
 	return $Result
 }
 
-# TODO: Gracefully fallback when PSReadLine is not loaded
-$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
-function Global:PSConsoleHostReadLine {
-	$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
-	# Write command executed sequence directly to Console to avoid the new line from Write-Host
-	[Console]::Write("`e]633;C`a")
-	$tmp
+# Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
+# still work thanks to the command line sequence
+if (Get-Module -Name PSReadLine) {
+	$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
+	function Global:PSConsoleHostReadLine {
+		$tmp = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
+		# Write command executed sequence directly to Console to avoid the new line from Write-Host
+		[Console]::Write("`e]633;C`a")
+		$tmp
+	}
 }
 
 # Set IsWindows property

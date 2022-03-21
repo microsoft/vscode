@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, markAsSingleton } from 'vs/base/common/lifecycle';
 
 class WindowManager {
 
@@ -124,7 +124,7 @@ class PixelRatioFacade {
 	private _pixelRatioMonitor: PixelRatioImpl | null = null;
 	private _getOrCreatePixelRatioMonitor(): PixelRatioImpl {
 		if (!this._pixelRatioMonitor) {
-			this._pixelRatioMonitor = new PixelRatioImpl();
+			this._pixelRatioMonitor = markAsSingleton(new PixelRatioImpl());
 		}
 		return this._pixelRatioMonitor;
 	}

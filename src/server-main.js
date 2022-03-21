@@ -24,6 +24,14 @@ async function start() {
 		string: ['install-extension', 'install-builtin-extension', 'uninstall-extension', 'locate-extension', 'socket-path', 'host', 'port', 'pick-port', 'compatibility'],
 		alias: { help: 'h', version: 'v' }
 	});
+	['host', 'port', 'accept-server-license-terms'].forEach(e => {
+		if (!parsedArgs[e]) {
+			const envValue = process.env[`VSCODE_SERVER_${e.toUpperCase().replace('-', '_')}`];
+			if (envValue) {
+				parsedArgs[e] = envValue;
+			}
+		}
+	});
 
 	const extensionLookupArgs = ['list-extensions', 'locate-extension'];
 	const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 'uninstall-extension'];
@@ -66,16 +74,16 @@ async function start() {
 		if (product.serverLicensePrompt && parsedArgs['accept-server-license-terms'] !== true) {
 			if (hasStdinWithoutTty()) {
 				console.log('To accept the license terms, start the server with --accept-server-license-terms');
-				process.exit();
+				process.exit(1);
 			}
 			try {
 				const accept = await prompt(product.serverLicensePrompt);
 				if (!accept) {
-					process.exit();
+					process.exit(1);
 				}
 			} catch (e) {
 				console.log(e);
-				process.exit();
+				process.exit(1);
 			}
 		}
 	}

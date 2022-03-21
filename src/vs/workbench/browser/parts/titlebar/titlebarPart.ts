@@ -293,7 +293,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		// vscode-remtoe: use as is
 		// otherwise figure out if we have a virtual folder opened
 		let remoteName: string | undefined = undefined;
-		if (this.environmentService.remoteAuthority) {
+		if (this.environmentService.remoteAuthority && !isWeb) {
 			remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
 		} else {
 			const virtualWorkspaceLocation = getVirtualWorkspaceLocation(workspace);
@@ -594,7 +594,7 @@ registerThemingParticipant((theme, collector) => {
 	const titlebarActiveFg = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
 	if (titlebarActiveFg) {
 		collector.addRule(`
-		.monaco-workbench .part.titlebar > .window-controls-container .window-icon {
+		.monaco-workbench .part.titlebar .window-controls-container .window-icon {
 			color: ${titlebarActiveFg};
 		}
 		`);
@@ -603,7 +603,7 @@ registerThemingParticipant((theme, collector) => {
 	const titlebarInactiveFg = theme.getColor(TITLE_BAR_INACTIVE_FOREGROUND);
 	if (titlebarInactiveFg) {
 		collector.addRule(`
-		.monaco-workbench .part.titlebar.inactive > .window-controls-container .window-icon {
+		.monaco-workbench .part.titlebar.inactive .window-controls-container .window-icon {
 				color: ${titlebarInactiveFg};
 			}
 		`);

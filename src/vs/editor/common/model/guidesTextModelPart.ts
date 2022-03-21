@@ -290,16 +290,15 @@ export class GuidesTextModelPart extends TextModelPart implements IGuidesTextMod
 
 		let activeBracketPairRange: Range | undefined = undefined;
 		if (activePosition && bracketPairs.length > 0) {
-			const bracketsContainingActivePosition =
+			const bracketsContainingActivePosition = (
 				startLineNumber <= activePosition.lineNumber &&
 					activePosition.lineNumber <= endLineNumber
-					? // Does active position intersect with the view port? -> Intersect bracket pairs with activePosition
-					bracketPairs.filter((bp) =>
-						Range.strictContainsPosition(bp.range, activePosition)
-					)
+					// We don't need to query the brackets again if the cursor is in the viewport
+					? bracketPairs
 					: this.textModel.bracketPairs.getBracketPairsInRange(
 						Range.fromPositions(activePosition)
-					);
+					)
+			).filter((bp) => Range.strictContainsPosition(bp.range, activePosition));
 
 			activeBracketPairRange = findLast(
 				bracketsContainingActivePosition,

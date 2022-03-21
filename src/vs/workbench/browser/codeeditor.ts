@@ -13,7 +13,7 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { hasWorkspaceFileExtension, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { hasWorkspaceFileExtension, isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -256,6 +256,10 @@ export class OpenWorkspaceButtonContribution extends Disposable implements IEdit
 
 		if (!this.fileService.hasProvider(model.uri)) {
 			return false; // needs to be backed by a file service
+		}
+
+		if (isTemporaryWorkspace(this.contextService.getWorkspace())) {
+			return false; // unsupported in temporary workspaces
 		}
 
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {

@@ -100,12 +100,15 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					}
 					return `darwin-${arch}`;
 				case 'server':
-					return 'server-darwin';
-				case 'web':
-					if (arch !== 'x64') {
-						throw new Error(`What should the platform be?: ${product} ${os} ${arch} ${type}`);
+					if (arch === 'x64') {
+						return 'server-darwin';
 					}
-					return 'server-darwin-web';
+					return `server-darwin-${arch}`;
+				case 'web':
+					if (arch === 'x64') {
+						return 'server-darwin-web';
+					}
+					return `server-darwin-${arch}-web`;
 				default:
 					throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 			}
@@ -154,7 +157,7 @@ async function main(): Promise<void> {
 	const platform = getPlatform(product, os, arch, unprocessedType);
 	const type = getRealType(unprocessedType);
 	const quality = getEnv('VSCODE_QUALITY');
-	const commit = getEnv('BUILD_SOURCEVERSION');
+	const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');
 
 	console.log('Creating asset...');
 

@@ -6,10 +6,11 @@
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { Comment, CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/languages';
-import { groupBy, flatten } from 'vs/base/common/arrays';
+import { groupBy } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent {
+export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent<IRange | ICellRange> {
 	owner: string;
 }
 
@@ -71,9 +72,16 @@ export class CommentsModel {
 		this.commentThreadsMap = new Map<string, ResourceWithCommentThreads[]>();
 	}
 
+	private updateResourceCommentThreads() {
+		this.resourceCommentThreads = [...this.commentThreadsMap.values()].flat();
+		this.resourceCommentThreads.sort((a, b) => {
+			return a.resource.toString() > b.resource.toString() ? 1 : -1;
+		});
+	}
+
 	public setCommentThreads(owner: string, commentThreads: CommentThread[]): void {
 		this.commentThreadsMap.set(owner, this.groupByResource(owner, commentThreads));
-		this.resourceCommentThreads = flatten([...this.commentThreadsMap.values()]);
+		this.updateResourceCommentThreads();
 	}
 
 	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
@@ -97,33 +105,37 @@ export class CommentsModel {
 		});
 
 		changed.forEach(thread => {
-			// Find resource that has the comment thread
-			const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
-			const matchingResourceData = threadsForOwner[matchingResourceIndex];
+			if (thread.isDocumentCommentThread()) {
+				// Find resource that has the comment thread
+				const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
+				const matchingResourceData = threadsForOwner[matchingResourceIndex];
 
-			// Find comment node on resource that is that thread and replace it
-			const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);
-			if (index >= 0) {
-				matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread);
-			} else if (thread.comments && thread.comments.length) {
-				matchingResourceData.commentThreads.push(ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread));
+				// Find comment node on resource that is that thread and replace it
+				const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);
+				if (index >= 0) {
+					matchingResourceData.commentThreads[index] = ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread);
+				} else if (thread.comments && thread.comments.length) {
+					matchingResourceData.commentThreads.push(ResourceWithCommentThreads.createCommentNode(owner, URI.parse(matchingResourceData.id), thread));
+				}
 			}
 		});
 
 		added.forEach(thread => {
-			const existingResource = threadsForOwner.filter(resourceWithThreads => resourceWithThreads.resource.toString() === thread.resource);
-			if (existingResource.length) {
-				const resource = existingResource[0];
-				if (thread.comments && thread.comments.length) {
-					resource.commentThreads.push(ResourceWithCommentThreads.createCommentNode(owner, resource.resource, thread));
+			if (thread.isDocumentCommentThread()) {
+				const existingResource = threadsForOwner.filter(resourceWithThreads => resourceWithThreads.resource.toString() === thread.resource);
+				if (existingResource.length) {
+					const resource = existingResource[0];
+					if (thread.comments && thread.comments.length) {
+						resource.commentThreads.push(ResourceWithCommentThreads.createCommentNode(owner, resource.resource, thread));
+					}
+				} else {
+					threadsForOwner.push(new ResourceWithCommentThreads(owner, URI.parse(thread.resource!), [thread]));
 				}
-			} else {
-				threadsForOwner.push(new ResourceWithCommentThreads(owner, URI.parse(thread.resource!), [thread]));
 			}
 		});
 
 		this.commentThreadsMap.set(owner, threadsForOwner);
-		this.resourceCommentThreads = flatten([...this.commentThreadsMap.values()]);
+		this.updateResourceCommentThreads();
 
 		return removed.length > 0 || changed.length > 0 || added.length > 0;
 	}

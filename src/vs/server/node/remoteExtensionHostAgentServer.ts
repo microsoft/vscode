@@ -51,7 +51,7 @@ declare module vsda {
 	}
 }
 
-export class RemoteExtensionHostAgentServer extends Disposable {
+export class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 	private readonly _extHostConnections: { [reconnectionToken: string]: ExtensionHostConnection };
 	private readonly _managementConnections: { [reconnectionToken: string]: ManagementConnection };
@@ -63,6 +63,7 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 	constructor(
 		private readonly _socketServer: SocketServer<RemoteAgentConnectionContext>,
 		private readonly _connectionToken: ServerConnectionToken,
+		private readonly _vsdaMod: typeof vsda | null,
 		hasWebClient: boolean,
 		@IServerEnvironmentService private readonly _environmentService: IServerEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
@@ -266,14 +267,8 @@ export class RemoteExtensionHostAgentServer extends Disposable {
 		const logPrefix = `[${remoteAddress}][${reconnectionToken.substr(0, 8)}]`;
 		const protocol = new PersistentProtocol(socket);
 
-		let validator: vsda.validator;
-		let signer: vsda.signer;
-		try {
-			const vsdaMod = <typeof vsda>require.__$__nodeRequire('vsda');
-			validator = new vsdaMod.validator();
-			signer = new vsdaMod.signer();
-		} catch (e) {
-		}
+		const validator = this._vsdaMod ? new this._vsdaMod.validator() : null;
+		const signer = this._vsdaMod ? new this._vsdaMod.signer() : null;
 
 		const enum State {
 			WaitingForAuth,
@@ -684,6 +679,19 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		}
 	});
 
+	const vsdaMod = instantiationService.invokeFunction((accessor) => {
+		const logService = accessor.get(ILogService);
+		const hasVSDA = fs.existsSync(join(FileAccess.asFileUri('', require).fsPath, '../node_modules/vsda'));
+		if (hasVSDA) {
+			try {
+				return <typeof vsda>require.__$__nodeRequire('vsda');
+			} catch (err) {
+				logService.error(err);
+			}
+		}
+		return null;
+	});
+
 	const hasWebClient = fs.existsSync(FileAccess.asFileUri('vs/code/browser/workbench/workbench.html', require).fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {
@@ -692,7 +700,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		console.log(`Web UI available at http://localhost${address.port === 80 ? '' : `:${address.port}`}/${queryPart}`);
 	}
 
-	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, hasWebClient);
+	const remoteExtensionHostAgentServer = instantiationService.createInstance(RemoteExtensionHostAgentServer, socketServer, connectionToken, vsdaMod, hasWebClient);
 
 	perf.mark('code/server/ready');
 	const currentTime = performance.now();

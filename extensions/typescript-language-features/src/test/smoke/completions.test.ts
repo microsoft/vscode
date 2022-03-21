@@ -14,7 +14,7 @@ const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 const insertModes = Object.freeze(['insert', 'replace']);
 
 suite.skip('TypeScript Completions', () => {
-	const configDefaults: VsCodeConfiguration = Object.freeze({
+	const configDefaults = Object.freeze<VsCodeConfiguration>({
 		[Config.autoClosingBrackets]: 'always',
 		[Config.typescriptCompleteFunctionCalls]: false,
 		[Config.insertMode]: 'insert',

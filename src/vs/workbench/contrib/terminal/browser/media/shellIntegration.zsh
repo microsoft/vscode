@@ -2,8 +2,18 @@
 #   Copyright (c) Microsoft Corporation. All rights reserved.
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
-
 autoload -Uz add-zsh-hook
+
+if [ -f ~/.zshenv ]; then
+	. ~/.zshenv
+fi
+if [[ -o "login" &&  -f ~/.zprofile ]]; then
+	. ~/.zprofile
+fi
+if [ -f ~/.zshrc ]; then
+	. ~/.zshrc
+fi
+unset ZDOTDIR # ensure ~/.zlogout runs as expected
 
 IN_COMMAND_EXECUTION="1"
 LAST_HISTORY_ID=0
@@ -32,6 +42,14 @@ continuation_end() {
 	printf "\033]633;G\007"
 }
 
+right_prompt_start() {
+	printf "\033]633;H\007"
+}
+
+right_prompt_end() {
+	printf "\033]633;I\007"
+}
+
 command_complete() {
 	local HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
 	if [[ "$HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
@@ -46,8 +64,12 @@ command_complete() {
 update_prompt() {
 	PRIOR_PROMPT="$PS1"
 	IN_COMMAND_EXECUTION=""
-	PS1="$(prompt_start)$PREFIX$PS1$(prompt_end)"
-	PS2="$(continuation_start)$PS2$(continuation_end)"
+	PS1="%{$(prompt_start)%}$PREFIX$PS1%{$(prompt_end)%}"
+	PS2="%{$(continuation_start)%}$PS2%{$(continuation_end)%}"
+	if [ -n "$RPROMPT" ]; then
+		PRIOR_RPROMPT="$RPROMPT"
+		RPROMPT="%{$(right_prompt_start)%}$RPROMPT%{$(right_prompt_end)%}"
+	fi
 }
 
 precmd() {
@@ -68,6 +90,9 @@ precmd() {
 
 preexec() {
 	PS1="$PRIOR_PROMPT"
+	if [ -n "$RPROMPT" ]; then
+		RPROMPT="$PRIOR_RPROMPT"
+	fi
 	IN_COMMAND_EXECUTION="1"
 	command_output_start
 }

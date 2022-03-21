@@ -98,6 +98,7 @@ export interface IDiffElementLayoutInfo {
 	metadataHeight: number;
 	metadataStatusHeight: number;
 	rawOutputHeight: number;
+	outputMetadataHeight: number;
 	outputTotalHeight: number;
 	outputStatusHeight: number;
 	bodyMargin: number;

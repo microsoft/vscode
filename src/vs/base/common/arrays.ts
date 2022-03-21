@@ -380,6 +380,12 @@ export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoun
 	return array.length > 0 ? array[0] : notFoundValue;
 }
 
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
+export function lastOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
+export function lastOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
+	return array.length > 0 ? array[array.length - 1] : notFoundValue;
+}
+
 export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): number {
 	let result = 0;
 
@@ -390,6 +396,9 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	return result;
 }
 
+/**
+ * @deprecated Use `[].flat()`
+ */
 export function flatten<T>(arr: T[][]): T[] {
 	return (<T[]>[]).concat(...arr);
 }
@@ -433,6 +442,8 @@ export function index<T, R>(array: ReadonlyArray<T>, indexer: (t: T) => string, 
 /**
  * Inserts an element into an array. Returns a function which, when
  * called, will remove that element from the array.
+ *
+ * @deprecated In almost all cases, use a `Set<T>` instead.
  */
 export function insert<T>(array: T[], element: T): () => void {
 	array.push(element);
@@ -442,6 +453,8 @@ export function insert<T>(array: T[], element: T): () => void {
 
 /**
  * Removes an element from an array if it can be found.
+ *
+ * @deprecated In almost all cases, use a `Set<T>` instead.
  */
 export function remove<T>(array: T[], element: T): T | undefined {
 	const index = array.indexOf(element);

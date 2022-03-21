@@ -87,7 +87,7 @@ export class BrowserDialogHandler implements IDialogHandler {
 
 		const renderBody = customOptions ? (parent: HTMLElement) => {
 			parent.classList.add(...(customOptions.classes || []));
-			(customOptions.markdownDetails || []).forEach(markdownDetail => {
+			customOptions.markdownDetails?.forEach(markdownDetail => {
 				const result = this.markdownRenderer.render(markdownDetail.markdown);
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));

@@ -138,6 +138,9 @@ function renderStream(outputInfo: OutputItem, container: HTMLElement, error: boo
 
 	const text = outputInfo.text();
 	truncatedArrayOfString(outputInfo.id, [text], ctx.settings.lineLimit, element);
+	while (container.firstChild) {
+		container.removeChild(container.firstChild);
+	}
 	container.appendChild(element);
 	container.setAttribute('output-mime-type', outputInfo.mime);
 	if (error) {
@@ -172,6 +175,22 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		-webkit-user-select: text;
 		-ms-user-select: text;
 		cursor: auto;
+	}
+	.output-plaintext .code-bold,
+	.output-stream .code-bold {
+		font-weight: bold;
+	}
+	.output-plaintext .code-italic,
+	.output-stream .code-italic {
+		font-style: italic;
+	}
+	.output-plaintext .code-strike-through,
+	.output-stream .code-strike-through {
+		text-decoration: line-through;
+	}
+	.output-plaintext .code-underline,
+	.output-stream .code-underline {
+		text-decoration: underline;
 	}
 	`;
 	document.body.appendChild(style);

@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 let err = false;
 
 const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
@@ -88,12 +87,11 @@ function hasSupportedVisualStudioVersion() {
 
 function installHeaders() {
 	const yarn = 'yarn.cmd';
-	const opts = {
+	const yarnResult = cp.spawnSync(yarn, ['install'], {
 		env: process.env,
 		cwd: path.join(__dirname, 'gyp'),
 		stdio: 'inherit'
-	};
-	const yarnResult = cp.spawnSync(yarn, ['install'], opts);
+	});
 	if (yarnResult.error || yarnResult.status !== 0) {
 		console.error(`Installing node-gyp failed`);
 		err = true;

@@ -15,10 +15,11 @@ import { isSupportedEnvironment } from './common/env';
 
 const localize = nls.loadMessageBundle();
 const CLIENT_ID = '01ab8ac9400c4e429b23';
-
+const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
+// TODO: change to stable when that happens
+const GITHUB_TOKEN_URL = 'https://insiders.vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
+const REDIRECT_URL = 'https://insiders.vscode.dev/redirect';
 const NETWORK_ERROR = 'network error';
-const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
-// const AUTH_RELAY_STAGING_SERVER = 'client-auth-staging-14a768b.herokuapp.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	constructor(private readonly Logger: Log) {
@@ -29,14 +30,6 @@ class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.
 		this.Logger.trace('Handling Uri...');
 		this.fire(uri);
 	}
-}
-
-function parseQuery(uri: vscode.Uri) {
-	return uri.query.split('&').reduce((prev: any, current) => {
-		const queryString = current.split('=');
-		prev[queryString[0]] = queryString[1];
-		return prev;
-	}, {});
 }
 
 export interface IGitHubServer extends vscode.Disposable {
@@ -115,19 +108,15 @@ async function getUserInfo(token: string, serverUri: vscode.Uri, logger: Log): P
 export class GitHubServer implements IGitHubServer {
 	friendlyName = 'GitHub';
 	type = AuthProviderType.github;
-	private _statusBarItem: vscode.StatusBarItem | undefined;
 	private _onDidManuallyProvideToken = new vscode.EventEmitter<string | undefined>();
 
-	private _pendingStates = new Map<string, string[]>();
+	private _pendingNonces = new Map<string, string[]>();
 	private _codeExchangePromises = new Map<string, { promise: Promise<string>; cancel: vscode.EventEmitter<void> }>();
-	private _statusBarCommandId = `${this.type}.provide-manually`;
 	private _disposable: vscode.Disposable;
 	private _uriHandler = new UriEventHandler(this._logger);
 
 	constructor(private readonly _supportDeviceCodeFlow: boolean, private readonly _logger: Log, private readonly _telemetryReporter: ExperimentationTelemetry) {
-		this._disposable = vscode.Disposable.from(
-			vscode.commands.registerCommand(this._statusBarCommandId, () => this.manuallyProvideUri()),
-			vscode.window.registerUriHandler(this._uriHandler));
+		this._disposable = vscode.window.registerUriHandler(this._uriHandler);
 	}
 
 	dispose() {
@@ -143,7 +132,8 @@ export class GitHubServer implements IGitHubServer {
 	public async login(scopes: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+		const nonce = uuid();
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate?nonce=${encodeURIComponent(nonce)}`));
 
 		if (!isSupportedEnvironment(callbackUri)) {
 			const token = this._supportDeviceCodeFlow
@@ -170,38 +160,46 @@ export class GitHubServer implements IGitHubServer {
 			return token;
 		}
 
-		this.updateStatusBarItem(true);
+		const existingNonces = this._pendingNonces.get(scopes) || [];
+		this._pendingNonces.set(scopes, [...existingNonces, nonce]);
 
-		const state = uuid();
-		const existingStates = this._pendingStates.get(scopes) || [];
-		this._pendingStates.set(scopes, [...existingStates, state]);
+		const searchParams = new URLSearchParams([
+			['client_id', CLIENT_ID],
+			['redirect_uri', REDIRECT_URL],
+			['scope', scopes],
+			['state', encodeURIComponent(callbackUri.toString(true))]
+		]);
+		const uri = vscode.Uri.parse(`${GITHUB_AUTHORIZE_URL}?${searchParams.toString()}`);
 
-		const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
-		await vscode.env.openExternal(uri);
+		return vscode.window.withProgress({
+			location: vscode.ProgressLocation.Window,
+			title: localize('signingIn', " $(mark-github) Signing in to github.com..."),
+		}, async () => {
+			await vscode.env.openExternal(uri);
 
-		// Register a single listener for the URI callback, in case the user starts the login process multiple times
-		// before completing it.
-		let codeExchangePromise = this._codeExchangePromises.get(scopes);
-		if (!codeExchangePromise) {
-			codeExchangePromise = promiseFromEvent(this._uriHandler.event, this.exchangeCodeForToken(scopes));
-			this._codeExchangePromises.set(scopes, codeExchangePromise);
-		}
+			// Register a single listener for the URI callback, in case the user starts the login process multiple times
+			// before completing it.
+			let codeExchangePromise = this._codeExchangePromises.get(scopes);
+			if (!codeExchangePromise) {
+				codeExchangePromise = promiseFromEvent(this._uriHandler.event, this.exchangeCodeForToken(scopes));
+				this._codeExchangePromises.set(scopes, codeExchangePromise);
+			}
 
-		return Promise.race([
-			codeExchangePromise.promise,
-			promiseFromEvent<string | undefined, string>(this._onDidManuallyProvideToken.event, (token: string | undefined, resolve, reject): void => {
-				if (!token) {
-					reject('Cancelled');
-				} else {
-					resolve(token);
-				}
-			}).promise,
-			new Promise<string>((_, reject) => setTimeout(() => reject('Cancelled'), 60000))
-		]).finally(() => {
-			this._pendingStates.delete(scopes);
-			codeExchangePromise?.cancel.fire();
-			this._codeExchangePromises.delete(scopes);
-			this.updateStatusBarItem(false);
+			return Promise.race([
+				codeExchangePromise.promise,
+				promiseFromEvent<string | undefined, string>(this._onDidManuallyProvideToken.event, (token: string | undefined, resolve, reject): void => {
+					if (!token) {
+						reject('Cancelled');
+					} else {
+						resolve(token);
+					}
+				}).promise,
+				new Promise<string>((_, reject) => setTimeout(() => reject('Cancelled'), 60000))
+			]).finally(() => {
+				this._pendingNonces.delete(scopes);
+				codeExchangePromise?.cancel.fire();
+				this._codeExchangePromises.delete(scopes);
+			});
 		});
 	}
 
@@ -298,29 +296,41 @@ export class GitHubServer implements IGitHubServer {
 
 	private exchangeCodeForToken: (scopes: string) => PromiseAdapter<vscode.Uri, string> =
 		(scopes) => async (uri, resolve, reject) => {
-			const query = parseQuery(uri);
-			const code = query.code;
+			const query = new URLSearchParams(uri.query);
+			const code = query.get('code');
 
-			const acceptedStates = this._pendingStates.get(scopes) || [];
-			if (!acceptedStates.includes(query.state)) {
+			const acceptedNonces = this._pendingNonces.get(scopes) || [];
+			const nonce = query.get('nonce');
+			if (!nonce) {
+				this._logger.error('No nonce in response.');
+				return;
+			}
+			if (!acceptedNonces.includes(nonce)) {
 				// A common scenario of this happening is if you:
 				// 1. Trigger a sign in with one set of scopes
 				// 2. Before finishing 1, you trigger a sign in with a different set of scopes
 				// In this scenario we should just return and wait for the next UriHandler event
 				// to run as we are probably still waiting on the user to hit 'Continue'
-				this._logger.info('State not found in accepted state. Skipping this execution...');
+				this._logger.info('Nonce not found in accepted nonces. Skipping this execution...');
 				return;
 			}
 
-			const url = `https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`;
 			this._logger.info('Exchanging code for token...');
 
+			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
+			const endpointUrl = proxyEndpoints?.github ? `${proxyEndpoints.github}/login/oauth/access_token` : GITHUB_TOKEN_URL;
+
 			try {
-				const result = await fetch(url, {
+				const body = `code=${code}`;
+				const result = await fetch(endpointUrl, {
 					method: 'POST',
 					headers: {
-						Accept: 'application/json'
-					}
+						Accept: 'application/json',
+						'Content-Type': 'application/x-www-form-urlencoded',
+						'Content-Length': body.toString()
+
+					},
+					body
 				});
 
 				if (result.ok) {
@@ -338,48 +348,6 @@ export class GitHubServer implements IGitHubServer {
 	private getServerUri(path: string = '') {
 		const apiUri = vscode.Uri.parse('https://api.github.com');
 		return vscode.Uri.parse(`${apiUri.scheme}://${apiUri.authority}${path}`);
-	}
-
-	private updateStatusBarItem(isStart?: boolean) {
-		if (isStart && !this._statusBarItem) {
-			this._statusBarItem = vscode.window.createStatusBarItem('status.git.signIn', vscode.StatusBarAlignment.Left);
-			this._statusBarItem.name = localize('status.git.signIn.name', "GitHub Sign-in");
-			this._statusBarItem.text = localize('signingIn', "$(mark-github) Signing in to github.com...");
-			this._statusBarItem.command = this._statusBarCommandId;
-			this._statusBarItem.show();
-		}
-
-		if (!isStart && this._statusBarItem) {
-			this._statusBarItem.dispose();
-			this._statusBarItem = undefined;
-		}
-	}
-
-	private async manuallyProvideUri() {
-		const uri = await vscode.window.showInputBox({
-			prompt: 'Uri',
-			ignoreFocusOut: true,
-			validateInput(value) {
-				if (!value) {
-					return undefined;
-				}
-				const error = localize('validUri', "Please enter a valid Uri from the GitHub login page.");
-				try {
-					const uri = vscode.Uri.parse(value.trim());
-					if (!uri.scheme || uri.scheme === 'file') {
-						return error;
-					}
-				} catch (e) {
-					return error;
-				}
-				return undefined;
-			}
-		});
-		if (!uri) {
-			return;
-		}
-
-		this._uriHandler.handleUri(vscode.Uri.parse(uri.trim()));
 	}
 
 	public getUserInfo(token: string): Promise<{ id: string; accountName: string }> {
@@ -460,20 +428,9 @@ export class GitHubEnterpriseServer implements IGitHubServer {
 	friendlyName = 'GitHub Enterprise';
 	type = AuthProviderType.githubEnterprise;
 
-	private _onDidManuallyProvideToken = new vscode.EventEmitter<string | undefined>();
-	private _statusBarCommandId = `github-enterprise.provide-manually`;
-	private _disposable: vscode.Disposable;
+	constructor(private readonly _logger: Log, private readonly telemetryReporter: ExperimentationTelemetry) { }
 
-	constructor(private readonly _logger: Log, private readonly telemetryReporter: ExperimentationTelemetry) {
-		this._disposable = vscode.commands.registerCommand(this._statusBarCommandId, async () => {
-			const token = await vscode.window.showInputBox({ prompt: 'Token', ignoreFocusOut: true });
-			this._onDidManuallyProvideToken.fire(token);
-		});
-	}
-
-	dispose() {
-		this._disposable.dispose();
-	}
+	dispose() { }
 
 	public async login(scopes: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
