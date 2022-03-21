@@ -3727,7 +3727,7 @@ declare namespace monaco.editor {
 		/**
 		 * The display style to render inlay hints with.
 		 * Compact mode disables the borders and padding around the inlay hint.
-		 * Defalts to 'standard'.
+		 * Defaults to 'standard'.
 		 */
 		displayStyle: 'standard' | 'compact';
 	}
