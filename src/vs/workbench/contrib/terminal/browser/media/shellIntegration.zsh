@@ -4,6 +4,10 @@
 # ---------------------------------------------------------------------------------------------
 autoload -Uz add-zsh-hook
 
+# Now that the init script is running, unset ZDOTDIR to ensure ~/.zlogout runs as expected as well
+# as prevent problems that may occur if the user's init scripts depend on ZDOTDIR not being set.
+unset ZDOTDIR
+
 if [ -f ~/.zshenv ]; then
 	. ~/.zshenv
 fi
@@ -13,7 +17,6 @@ fi
 if [ -f ~/.zshrc ]; then
 	. ~/.zshrc
 fi
-unset ZDOTDIR # ensure ~/.zlogout runs as expected
 
 IN_COMMAND_EXECUTION="1"
 LAST_HISTORY_ID=0
