@@ -1240,7 +1240,7 @@ export class ChangeLanguageAction extends Action {
 					languageSupport.setLanguageId(languageSelection.languageId);
 
 					if (resource?.scheme === Schemas.untitled) {
-						type SetUntitledDocumentLanguageEvent = { to: string; from: string };
+						type SetUntitledDocumentLanguageEvent = { to: string; from: string; modelPreference: string };
 						type SetUntitledDocumentLanguageClassification = {
 							to: {
 								classification: 'SystemMetaData';
@@ -1254,10 +1254,18 @@ export class ChangeLanguageAction extends Action {
 								owner: 'JacksonKearl';
 								comment: 'Help understand effectiveness of automatic language detection';
 							};
+							modelPreference: {
+								classification: 'SystemMetaData';
+								purpose: 'FeatureInsight';
+								owner: 'JacksonKearl';
+								comment: 'Help understand effectiveness of automatic language detection';
+							};
 						};
+						const modelPreference = this.configurationService.getValue<boolean>('workbench.editor.preferHistoryBasedLanguageDetection') ? 'history' : 'classic';
 						this.telemetryService.publicLog2<SetUntitledDocumentLanguageEvent, SetUntitledDocumentLanguageClassification>('setUntitledDocumentLanguage', {
 							to: languageSelection.languageId,
 							from: currentLanguageId ?? 'none',
+							modelPreference,
 						});
 					}
 				}
