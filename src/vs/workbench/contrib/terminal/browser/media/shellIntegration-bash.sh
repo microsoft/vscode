@@ -3,6 +3,8 @@
 #   Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------------------------------------------------------------------------------
 
+VSCODE_SHELL_INTEGRATION=1
+
 if [ -z "$VSCODE_SHELL_LOGIN" ]; then
 	. ~/.bashrc
 else
@@ -16,6 +18,11 @@ else
 		. ~/.profile
 	fi
 	VSCODE_SHELL_LOGIN=""
+fi
+
+if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
+	echo -e "\033[1;32mShell integration was disabled by the shell\033[0m"
+	return
 fi
 
 IN_COMMAND_EXECUTION="1"
