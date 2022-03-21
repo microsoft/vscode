@@ -12,17 +12,16 @@ import { InternalTimelineOptions, ITimelineService, Timeline, TimelineChangeEven
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { URI } from 'vs/base/common/uri';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { Codicon } from 'vs/base/common/codicons';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IFileService } from 'vs/platform/files/common/files';
-import { LocalHistoryFileLabelFormatter, LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { LocalHistoryFileSystemProvider } from 'vs/workbench/contrib/localHistory/browser/localHistoryFileSystemProvider';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { SaveSourceRegistry } from 'vs/workbench/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMPARE_WITH_FILE_LABEL, toDiffEditorArguments } from 'vs/workbench/contrib/localHistory/browser/localHistoryCommands';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_ENTRY, LOCAL_HISTORY_MENU_CONTEXT_VALUE } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { Schemas } from 'vs/base/common/network';
 
 export class LocalHistoryTimeline extends Disposable implements IWorkbenchContribution, TimelineProvider {
 
@@ -46,7 +45,6 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		@IWorkingCopyHistoryService private readonly workingCopyHistoryService: IWorkingCopyHistoryService,
 		@IPathService private readonly pathService: IPathService,
 		@IFileService private readonly fileService: IFileService,
-		@ILabelService private readonly labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -63,9 +61,6 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 
 		// File Service Provider
 		this._register(this.fileService.registerProvider(LocalHistoryFileSystemProvider.SCHEMA, new LocalHistoryFileSystemProvider(this.fileService)));
-
-		// Formatter
-		this._register(this.labelService.registerFormatter(new LocalHistoryFileLabelFormatter()));
 	}
 
 	private updateTimelineRegistration(): void {
@@ -81,8 +76,10 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		// History changes
 		this._register(this.workingCopyHistoryService.onDidAddEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry added */)));
 		this._register(this.workingCopyHistoryService.onDidChangeEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, false /* entry changed */)));
+		this._register(this.workingCopyHistoryService.onDidReplaceEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry replaced */)));
 		this._register(this.workingCopyHistoryService.onDidRemoveEntry(e => this.onDidChangeWorkingCopyHistoryEntry(e.entry, true /* entry removed */)));
-		this._register(this.workingCopyHistoryService.onDidRemoveAllEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all history */, true /* entry removed */)));
+		this._register(this.workingCopyHistoryService.onDidRemoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */, true /* entry removed */)));
+		this._register(this.workingCopyHistoryService.onDidMoveEntries(() => this.onDidChangeWorkingCopyHistoryEntry(undefined /* all entries */, true /* entry moved */)));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -92,13 +89,13 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		}));
 	}
 
-	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined, entryRemoved: boolean): void {
+	private onDidChangeWorkingCopyHistoryEntry(entry: IWorkingCopyHistoryEntry | undefined, reset: boolean): void {
 
 		// Re-emit as timeline change event
 		this._onDidChange.fire({
 			id: LocalHistoryTimeline.ID,
 			uri: entry?.workingCopy.resource,
-			reset: entryRemoved
+			reset
 		});
 	}
 
@@ -108,12 +105,12 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		// Try to convert the provided `uri` into a form that is likely
 		// for the provider to find entries for:
 		// - `vscode-local-history`: convert back to the associated resource
-		// - default-scheme: keep as is
+		// - default-scheme / settings: keep as is
 		// - anything that is backed by a file system provider: convert
 		let resource: URI | undefined = undefined;
 		if (uri.scheme === LocalHistoryFileSystemProvider.SCHEMA) {
 			resource = LocalHistoryFileSystemProvider.fromLocalHistoryFileSystem(uri).associatedResource;
-		} else if (uri.scheme === this.pathService.defaultUriScheme) {
+		} else if (uri.scheme === this.pathService.defaultUriScheme || uri.scheme === Schemas.vscodeUserData) {
 			resource = uri;
 		} else if (this.fileService.hasProvider(uri)) {
 			resource = URI.from({ scheme: this.pathService.defaultUriScheme, authority: this.environmentService.remoteAuthority, path: uri.path });
@@ -143,7 +140,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 			tooltip: new MarkdownString(`$(history) ${LOCAL_HISTORY_DATE_FORMATTER.format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
 			source: LocalHistoryTimeline.ID,
 			timestamp: entry.timestamp,
-			themeIcon: Codicon.circleOutline,
+			themeIcon: LOCAL_HISTORY_ICON_ENTRY,
 			contextValue: LOCAL_HISTORY_MENU_CONTEXT_VALUE,
 			command: {
 				id: API_OPEN_DIFF_EDITOR_COMMAND_ID,

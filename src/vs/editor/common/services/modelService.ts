@@ -238,7 +238,7 @@ export class ModelService extends Disposable implements IModelService {
 		if (config.editor?.bracketPairColorization && typeof config.editor.bracketPairColorization === 'object') {
 			bracketPairColorizationOptions = {
 				enabled: !!config.editor.bracketPairColorization.enabled,
-				useIndependentColorPoolPerBracketType: !!config.editor.bracketPairColorization.useIndependentColorPoolPerBracketType
+				independentColorPoolPerBracketType: !!config.editor.bracketPairColorization.independentColorPoolPerBracketType
 			};
 		}
 
@@ -567,7 +567,7 @@ export class ModelService extends Disposable implements IModelService {
 		return (
 			resource.scheme === Schemas.file
 			|| resource.scheme === Schemas.vscodeRemote
-			|| resource.scheme === Schemas.userData
+			|| resource.scheme === Schemas.vscodeUserData
 			|| resource.scheme === Schemas.vscodeNotebookCell
 			|| resource.scheme === 'fake-fs' // for tests
 		);

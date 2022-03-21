@@ -205,6 +205,12 @@ class TypeScriptLanguageServiceHost {
     isDefaultLibFileName(fileName) {
         return fileName === this.getDefaultLibFileName(this._compilerOptions);
     }
+    readFile(path, _encoding) {
+        return this._files[path] || this._libs[path];
+    }
+    fileExists(path) {
+        return path in this._files || path in this._libs;
+    }
 }
 //#endregion
 //#region Tree Shaking

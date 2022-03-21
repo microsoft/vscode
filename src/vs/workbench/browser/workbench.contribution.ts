@@ -101,7 +101,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.historyBasedLanguageDetection': {
 				type: 'boolean',
-				default: false,
+				default: true,
 				tags: ['experimental'],
 				description: localize('workbench.editor.historyBasedLanguageDetection', "Enables use of editor history in language detection. This causes automatic language detection to favor languages that have been recently opened and allows for automatic language detection to operate with smaller inputs."),
 			},
@@ -260,14 +260,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.localHistory.enabled': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('localHistoryEnabled', "Controls whether the local file history is enabled. When enabled, the file contents of an editor that is saved will be stored to a backup location and can be restored or reviewed later. Changing this setting has no effect on existing file history entries."),
+				'description': localize('localHistoryEnabled', "Controls whether local file history is enabled. When enabled, the file contents of an editor that is saved will be stored to a backup location to be able to restore or review the contents later. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
 			'workbench.localHistory.maxFileSize': {
 				'type': 'number',
 				'default': 256,
 				'minimum': 1,
-				'description': localize('localHistoryMaxFileSize', "Controls the maximum size of a file (in KB) to be considered for local history. Files that are larger will not be added to the local history unless explicitly added by via user gesture. Changing this setting has no effect on existing file history entries."),
+				'description': localize('localHistoryMaxFileSize', "Controls the maximum size of a file (in KB) to be considered for local file history. Files that are larger will not be added to the local file history. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
 			'workbench.localHistory.maxFileEntries': {
@@ -275,6 +275,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 50,
 				'minimum': 0,
 				'description': localize('localHistoryMaxFileEntries', "Controls the maximum number of local file history entries per file. When the number of local file history entries exceeds this number for a file, the oldest entries will be discarded."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.exclude': {
+				'type': 'object',
+				'markdownDescription': localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files from the local file history. Changing this setting has no effect on existing local file history entries."),
+				'scope': ConfigurationScope.RESOURCE
+			},
+			'workbench.localHistory.mergePeriod': {
+				'type': 'number',
+				'default': 10,
+				'minimum': 1,
+				'markdownDescription': localize('mergePeriod', "Configure an interval in seconds during which the last entry in local file history is replaced with the entry that is being added. This helps reduce the overall number of entries that are added, for example when auto save is enabled. This setting is only applied to entries that have the same source of origin. Changing this setting has no effect on existing local file history entries."),
 				'scope': ConfigurationScope.RESOURCE
 			},
 			'workbench.commandPalette.history': {
@@ -422,6 +434,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'tags': ['experimental'],
 				'default': 'both',
 				'description': localize('layoutControlType', "Controls whether the layout control in the custom title bar is displayed as a single menu button or with multiple UI toggles."),
+			},
+			'workbench.experimental.editor.dragAndDropIntoEditor.enabled': {
+				'type': 'boolean',
+				'tags': ['experimental'],
+				'default': false,
+				'description': localize('dragAndDropIntoEditor', "Controls whether you can drag and drop a file into an editor by holding down shift (instead of opening the file in an editor)."),
 			}
 		}
 	});

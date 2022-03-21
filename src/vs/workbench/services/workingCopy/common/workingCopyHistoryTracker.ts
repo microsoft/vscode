@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Limiter } from 'vs/base/common/async';
+import { IdleValue, Limiter } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
@@ -17,25 +17,34 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isStoredFileWorkingCopySaveEvent, IStoredFileWorkingCopyModel } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { IStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopyManager';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
+import { IWorkingCopyHistoryService, MAX_PARALLEL_HISTORY_IO_OPS } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { Schemas } from 'vs/base/common/network';
+import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchContribution {
-
-	// Adding history entries from the tracker should not be
-	// an operation that should be unbounded and as such we
-	// limit the write operations up to a maximum degree.
-	private static readonly MAX_PARALLEL_HISTORY_WRITES = 10;
 
 	private static readonly SETTINGS = {
 		ENABLED: 'workbench.localHistory.enabled',
 		SIZE_LIMIT: 'workbench.localHistory.maxFileSize',
+		EXCLUDES: 'workbench.localHistory.exclude'
 	};
 
 	private static readonly UNDO_REDO_SAVE_SOURCE = SaveSourceRegistry.registerSource('undoRedo.source', localize('undoRedo.source', "Undo / Redo"));
 
-	private readonly limiter = this._register(new Limiter(WorkingCopyHistoryTracker.MAX_PARALLEL_HISTORY_WRITES));
+	private readonly limiter = this._register(new Limiter(MAX_PARALLEL_HISTORY_IO_OPS));
+
+	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
+		const matcher = this._register(new ResourceGlobMatcher(
+			root => this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES, { resource: root }),
+			event => event.affectsConfiguration(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES),
+			this.contextService,
+			this.configurationService
+		));
+
+		return matcher;
+	}));
 
 	private readonly pendingAddHistoryEntryOperations = new ResourceMap<CancellationTokenSource>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
@@ -48,7 +57,8 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPathService private readonly pathService: IPathService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUndoRedoService private readonly undoRedoService: IUndoRedoService
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super();
 
@@ -140,7 +150,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 	private shouldTrackHistory(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent<IStoredFileWorkingCopyModel> {
 		if (
 			e.workingCopy.resource.scheme !== this.pathService.defaultUriScheme && 	// track history for all workspace resources
-			e.workingCopy.resource.scheme !== Schemas.userData						// track history for all settings
+			e.workingCopy.resource.scheme !== Schemas.vscodeUserData				// track history for all settings
 		) {
 			return false; // do not support unknown resources
 		}
@@ -154,7 +164,11 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 			return false; // only track files that are not too large
 		}
 
-		// Finally check for setting
-		return this.configurationService.getValue<boolean>(WorkingCopyHistoryTracker.SETTINGS.ENABLED, { resource: e.workingCopy.resource }) !== false;
+		if (this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.ENABLED, { resource: e.workingCopy.resource }) === false) {
+			return false; // do not track when history is disabled
+		}
+
+		// Finally check for exclude setting
+		return !this.resourceExcludeMatcher.value.matches(e.workingCopy.resource);
 	}
 }

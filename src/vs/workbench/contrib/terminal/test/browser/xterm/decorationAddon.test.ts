@@ -16,6 +16,8 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 class TestTerminal extends Terminal {
 	override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
@@ -38,6 +40,7 @@ suite('DecorationAddon', () => {
 				hover: { delay: 5 }
 			}
 		});
+		instantiationService.stub(IThemeService, new TestThemeService());
 		xterm = new TestTerminal({
 			cols: 80,
 			rows: 30

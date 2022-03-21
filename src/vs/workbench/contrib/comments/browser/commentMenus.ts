@@ -7,7 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction } from 'vs/base/common/actions';
-import { Comment, CommentThread } from 'vs/editor/common/languages';
+import { Comment } from 'vs/editor/common/languages';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class CommentMenus implements IDisposable {
@@ -15,11 +15,11 @@ export class CommentMenus implements IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) { }
 
-	getCommentThreadTitleActions(commentThread: CommentThread, contextKeyService: IContextKeyService): IMenu {
+	getCommentThreadTitleActions(contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.CommentThreadTitle, contextKeyService);
 	}
 
-	getCommentThreadActions(commentThread: CommentThread, contextKeyService: IContextKeyService): IMenu {
+	getCommentThreadActions(contextKeyService: IContextKeyService): IMenu {
 		return this.getMenu(MenuId.CommentThreadActions, contextKeyService);
 	}
 

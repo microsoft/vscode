@@ -35,11 +35,11 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (!instance) {
 			return;
 		}
-		// if (previous) {
-		// 	instance.xterm?.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
-		// 	return;
-		// }
-		await instance.xterm?.find(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		if (previous) {
+			instance.xterm?.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+			return;
+		}
+		await instance.xterm?.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 	}
 	override reveal(initialInput?: string): void {
 		super.reveal(initialInput);

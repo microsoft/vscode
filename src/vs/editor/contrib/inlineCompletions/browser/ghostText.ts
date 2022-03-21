@@ -7,8 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { applyEdits } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
 export class GhostText {
 	public static equals(a: GhostText | undefined, b: GhostText | undefined): boolean {
@@ -28,6 +27,9 @@ export class GhostText {
 			this.parts.every((part, index) => part.equals(other.parts[index]));
 	}
 
+	/**
+	 * Only used for testing/debugging.
+	*/
 	render(documentText: string, debug: boolean = false): string {
 		const l = this.lineNumber;
 		return applyEdits(documentText,
@@ -62,44 +64,6 @@ export class GhostText {
 	}
 }
 
-class PositionOffsetTransformer {
-	private readonly lineStartOffsetByLineIdx: number[];
-
-	constructor(text: string) {
-		this.lineStartOffsetByLineIdx = [];
-		this.lineStartOffsetByLineIdx.push(0);
-		for (let i = 0; i < text.length; i++) {
-			if (text.charAt(i) === '\n') {
-				this.lineStartOffsetByLineIdx.push(i + 1);
-			}
-		}
-	}
-
-	getOffset(position: Position): number {
-		return this.lineStartOffsetByLineIdx[position.lineNumber - 1] + position.column - 1;
-	}
-}
-
-function applyEdits(text: string, edits: { range: IRange; text: string }[]): string {
-	const transformer = new PositionOffsetTransformer(text);
-	const offsetEdits = edits.map(e => {
-		const range = Range.lift(e.range);
-		return ({
-			startOffset: transformer.getOffset(range.getStartPosition()),
-			endOffset: transformer.getOffset(range.getEndPosition()),
-			text: e.text
-		});
-	});
-
-	offsetEdits.sort((a, b) => b.startOffset - a.startOffset);
-
-	for (const edit of offsetEdits) {
-		text = text.substring(0, edit.startOffset) + edit.text + text.substring(edit.endOffset);
-	}
-
-	return text;
-}
-
 export class GhostTextPart {
 	constructor(
 		readonly column: number,
@@ -118,10 +82,59 @@ export class GhostTextPart {
 	}
 }
 
+export class GhostTextReplacement {
+	constructor(
+		readonly lineNumber: number,
+		readonly columnStart: number,
+		readonly length: number,
+		readonly newLines: readonly string[],
+		public readonly additionalReservedLineCount: number = 0,
+	) { }
+	public readonly parts: ReadonlyArray<GhostTextPart> = [
+		new GhostTextPart(
+			this.columnStart + this.length,
+			this.newLines,
+			false
+		),
+	];
+
+	renderForScreenReader(_lineText: string): string {
+		return this.newLines.join('\n');
+	}
+
+	render(documentText: string, debug: boolean = false): string {
+		const startLineNumber = this.lineNumber;
+		const endLineNumber = this.lineNumber;
+
+		if (debug) {
+			return applyEdits(documentText,
+				[
+					{
+						range: { startLineNumber, endLineNumber, startColumn: this.columnStart, endColumn: this.columnStart },
+						text: `(`
+					},
+					{
+						range: { startLineNumber, endLineNumber, startColumn: this.columnStart + this.length, endColumn: this.columnStart + this.length },
+						text: `)[${this.newLines.join('\n')}]`
+					}
+				]
+			);
+		} else {
+			return applyEdits(documentText,
+				[
+					{
+						range: { startLineNumber, endLineNumber, startColumn: this.columnStart, endColumn: this.columnStart + this.length },
+						text: this.newLines.join('\n')
+					}
+				]
+			);
+		}
+	}
+}
 
 export interface GhostTextWidgetModel {
 	readonly onDidChange: Event<void>;
-	readonly ghostText: GhostText | undefined;
+	readonly ghostText: GhostText | GhostTextReplacement | undefined;
 
 	setExpanded(expanded: boolean): void;
 	readonly expanded: boolean;
@@ -130,7 +143,7 @@ export interface GhostTextWidgetModel {
 }
 
 export abstract class BaseGhostTextWidgetModel extends Disposable implements GhostTextWidgetModel {
-	public abstract readonly ghostText: GhostText | undefined;
+	public abstract readonly ghostText: GhostText | GhostTextReplacement | undefined;
 
 	private _expanded: boolean | undefined = undefined;
 

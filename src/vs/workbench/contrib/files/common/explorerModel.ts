@@ -87,8 +87,8 @@ export class ExplorerItem {
 	public isError = false;
 	private _isExcluded = false;
 
-	public isNestedChild = false;
-	private nestedChildren: ExplorerItem[] | undefined;
+	public nestedParent: ExplorerItem | undefined;
+	public nestedChildren: ExplorerItem[] | undefined;
 
 	constructor(
 		public resource: URI,
@@ -298,7 +298,7 @@ export class ExplorerItem {
 	}
 
 	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
-		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.fileNesting;
 
 		// fast path when the children can be resolved sync
 		if (nestingConfig.enabled && this.nestedChildren) { return this.nestedChildren; }
@@ -325,7 +325,7 @@ export class ExplorerItem {
 				const fileChildren: [string, ExplorerItem][] = [];
 				const dirChildren: [string, ExplorerItem][] = [];
 				for (const child of this.children.entries()) {
-					child[1].isNestedChild = false;
+					child[1].nestedParent = undefined;
 					if (child[1].isDirectory) {
 						dirChildren.push(child);
 					} else {
@@ -333,7 +333,9 @@ export class ExplorerItem {
 					}
 				}
 
-				const nested = this.buildFileNester().nest(fileChildren.map(([name]) => name));
+				const nested = this.fileNester.nest(
+					fileChildren.map(([name]) => name),
+					this.getPlatformAwareName(this.name));
 
 				for (const [fileEntryName, fileEntryItem] of fileChildren) {
 					const nestedItems = nested.get(fileEntryName);
@@ -342,7 +344,7 @@ export class ExplorerItem {
 						for (const name of nestedItems.keys()) {
 							const child = assertIsDefined(this.children.get(name));
 							fileEntryItem.nestedChildren.push(child);
-							child.isNestedChild = true;
+							child.nestedParent = fileEntryItem;
 						}
 						items.push(fileEntryItem);
 					} else {
@@ -362,16 +364,19 @@ export class ExplorerItem {
 		})();
 	}
 
-	// TODO:@jkearl, share one nester across all explorer items and only build on config change
-	private buildFileNester(): ExplorerFileNestingTrie {
-		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
-		const patterns = Object.entries(nestingConfig.patterns)
-			.filter(entry =>
-				typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
-			.map(([parentPattern, childrenPatterns]) =>
-				[parentPattern.trim(), childrenPatterns.split(',').map(p => p.trim())] as [string, string[]]);
+	private _fileNester: ExplorerFileNestingTrie | undefined;
+	private get fileNester(): ExplorerFileNestingTrie {
+		if (!this.root._fileNester) {
+			const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.fileNesting;
+			const patterns = Object.entries(nestingConfig.patterns)
+				.filter(entry =>
+					typeof (entry[0]) === 'string' && typeof (entry[1]) === 'string' && entry[0] && entry[1])
+				.map(([parentPattern, childrenPatterns]) =>
+					[parentPattern.trim(), childrenPatterns.split(',').map(p => this.getPlatformAwareName(p.trim().replace(/\u200b/g, '')))] as [string, string[]]);
 
-		return new ExplorerFileNestingTrie(patterns);
+			this.root._fileNester = new ExplorerFileNestingTrie(patterns);
+		}
+		return this.root._fileNester;
 	}
 
 	/**
@@ -384,6 +389,7 @@ export class ExplorerItem {
 	forgetChildren(): void {
 		this.children.clear();
 		this._isDirectoryResolved = false;
+		this._fileNester = undefined;
 	}
 
 	private getPlatformAwareName(name: string): string {

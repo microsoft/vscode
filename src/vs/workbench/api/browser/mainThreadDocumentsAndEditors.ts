@@ -420,6 +420,15 @@ export class MainThreadDocumentsAndEditors {
 		return undefined;
 	}
 
+	getIdOfCodeEditor(codeEditor: ICodeEditor): string | undefined {
+		for (const [id, editor] of this._textEditors) {
+			if (editor.getCodeEditor() === codeEditor) {
+				return id;
+			}
+		}
+		return undefined;
+	}
+
 	getEditor(id: string): MainThreadTextEditor | undefined {
 		return this._textEditors.get(id);
 	}

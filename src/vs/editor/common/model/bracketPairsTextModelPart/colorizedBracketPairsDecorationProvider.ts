@@ -59,7 +59,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 					description: 'BracketPairColorization',
 					inlineClassName: this.colorProvider.getInlineClassName(
 						bracket,
-						this.colorizationOptions.useIndependentColorPoolPerBracketType
+						this.colorizationOptions.independentColorPoolPerBracketType
 					),
 				},
 				ownerId: 0,
@@ -87,11 +87,11 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 class ColorProvider {
 	public readonly unexpectedClosingBracketClassName = 'unexpected-closing-bracket';
 
-	getInlineClassName(bracket: BracketInfo, useIndependentColorPoolPerBracketType: boolean): string {
+	getInlineClassName(bracket: BracketInfo, independentColorPoolPerBracketType: boolean): string {
 		if (bracket.isInvalid) {
 			return this.unexpectedClosingBracketClassName;
 		}
-		return this.getInlineClassNameOfLevel(useIndependentColorPoolPerBracketType ? bracket.nestingLevelOfEqualBracketType : bracket.nestingLevel);
+		return this.getInlineClassNameOfLevel(independentColorPoolPerBracketType ? bracket.nestingLevelOfEqualBracketType : bracket.nestingLevel);
 	}
 
 	getInlineClassNameOfLevel(level: number): string {

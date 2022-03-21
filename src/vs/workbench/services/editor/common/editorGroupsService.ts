@@ -579,7 +579,7 @@ export interface IEditorGroup {
 	/**
 	 * Find out if the provided editor is pinned in the group.
 	 */
-	isPinned(editor: EditorInput): boolean;
+	isPinned(editor: EditorInput | number): boolean;
 
 	/**
 	 * Find out if the provided editor or index of editor is sticky in the group.

@@ -587,7 +587,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 				// of untitled model if it is a valid path name,
 				// otherwise fallback to `basename`.
 				let untitledName = model.name;
-				if (!(await this.pathService.hasValidBasename(joinPath(defaultFilePath, untitledName)))) {
+				if (!(await this.pathService.hasValidBasename(joinPath(defaultFilePath, untitledName), untitledName))) {
 					untitledName = basename(resource);
 				}
 

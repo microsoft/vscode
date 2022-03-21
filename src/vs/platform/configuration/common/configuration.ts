@@ -290,3 +290,7 @@ export function getMigratedSettingValue<T>(configurationService: IConfigurationS
 		return setting.defaultValue!;
 	}
 }
+
+export function getLanguageTagSettingPlainKey(settingKey: string) {
+	return settingKey.replace(/[\[\]]/g, '');
+}

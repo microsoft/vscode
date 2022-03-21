@@ -48,7 +48,7 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { CodeDataTransfers, containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkQuickpick';
@@ -708,7 +708,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._areLinksReady = true;
 			this._onLinksReady.fire(this);
 		});
-		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.restoreCommands(e));
+		this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e));
 
 		this._loadTypeAheadAddon(xterm);
 
@@ -784,8 +784,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		};
 
 		if (type === 'command') {
-			const commands = this.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			const cmdDetection = this.capabilities.get(TerminalCapability.CommandDetection);
+			const commands = cmdDetection?.commands;
 			// Current session history
+			const executingCommand = cmdDetection?.executingCommand;
+			if (executingCommand) {
+				commandMap.add(executingCommand);
+			}
 			if (commands && commands.length > 0) {
 				for (const entry of commands) {
 					// trim off any whitespace and/or line endings
@@ -827,6 +832,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					commandMap.add(label);
 				}
 				items = items.reverse();
+			}
+			if (executingCommand) {
+				items.unshift({
+					label: executingCommand,
+					description: cmdDetection.cwd
+				});
+			}
+			if (items.length > 0) {
 				items.unshift({ type: 'separator', label: terminalStrings.currentSessionCategory });
 			}
 
@@ -1120,7 +1133,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.focus();
 			await this.sendPath(path, false);
 		});
-		this._dndObserver = new DragAndDropObserver(container, dndController);
+		this._dndObserver = new dom.DragAndDropObserver(container, dndController);
 	}
 
 	hasSelection(): boolean {
@@ -2248,7 +2261,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 }
 
-class TerminalInstanceDragAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
+class TerminalInstanceDragAndDropController extends Disposable implements dom.IDragAndDropObserverCallbacks {
 	private _dropOverlay?: HTMLElement;
 
 	private readonly _onDropFile = new Emitter<string>();
