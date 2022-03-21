@@ -7,31 +7,32 @@ declare module 'vscode' {
 
 	// https://github.com/Microsoft/vscode/issues/15178
 
-	// TODO@API names
 	export class TextTabInput {
 		readonly uri: Uri;
 		constructor(uri: Uri);
 	}
 
-	// TODO@API names
 	export class TextDiffTabInput {
 		readonly original: Uri;
 		readonly modified: Uri;
 		constructor(original: Uri, modified: Uri);
 	}
 
+	// TODO@API remove `Editor`
 	export class CustomEditorTabInput {
 		readonly uri: Uri;
 		readonly viewType: string;
 		constructor(uri: Uri, viewType: string);
 	}
 
+	// TODO@API remove `Editor`
 	export class NotebookEditorTabInput {
 		readonly uri: Uri;
 		readonly notebookType: string;
 		constructor(uri: Uri, notebookType: string);
 	}
 
+	// TODO@API remove `Editor`
 	export class NotebookDiffEditorTabInput {
 		readonly original: Uri;
 		readonly modified: Uri;
@@ -51,9 +52,12 @@ declare module 'vscode' {
 		/**
 		 * The group which the tab belongs to
 		 */
+		// TODO@API names?: `tabGroup`, `group`
 		readonly parentGroup: TabGroup;
 
-		// TODO@API NAME: optional
+		// TODO@API NAME: xyzOptions, xyzType
+		// TabTypeText, TabTypeTextDiff, TabTypeNotebook, TabTypeNotebookDiff, TabTypeCustom
+		// TabKindText, TabKindTextDiff, TabKindNotebook, TabKindNotebookDiff, TabKindCustom
 		readonly input: TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookDiffEditorTabInput | unknown;
 
 		/**
@@ -99,6 +103,7 @@ declare module 'vscode' {
 		/**
 		 * The active tab within the group
 		 */
+		// TODO@API explain the relation between active tab groups and active tab
 		readonly activeTab: Tab | undefined;
 
 		/**
@@ -121,6 +126,7 @@ declare module 'vscode' {
 		/**
 		 * An {@link Event} which fires when a group changes.
 		 */
+		// TODO@API add TabGroup instance
 		readonly onDidChangeTabGroup: Event<void>;
 
 		/**
