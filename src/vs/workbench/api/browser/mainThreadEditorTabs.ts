@@ -474,7 +474,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 		// Loop over keys of the groups map and call closeEditors
 		for (const [group, editors] of groups) {
-			group.closeEditors(editors, { preserveFocus });
+			await group.closeEditors(editors, { preserveFocus });
 		}
 	}
 	//#endregion
