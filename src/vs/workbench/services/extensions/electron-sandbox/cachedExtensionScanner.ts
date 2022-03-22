@@ -16,9 +16,9 @@ import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { Translations, ILog, ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IExtensionScannerHost } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { Translations, ILog, ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 
@@ -65,43 +65,6 @@ export class CachedExtensionScanner {
 		this.translationConfig = this._readTranslationConfig();
 	}
 
-	private _createExtensionScannerHost(log: ILog): IExtensionScannerHost {
-		return {
-			log: log,
-			readFile: async (filename) => {
-				try {
-					const contents = await this._fileService.readFile(URI.file(filename), { atomic: true });
-					return contents.value.toString();
-				} catch (err) {
-					if (toFileOperationResult(err) === FileOperationResult.FILE_NOT_FOUND) {
-						const nodeLikeError = new Error(`File not found`);
-						(<any>nodeLikeError).code = 'ENOENT';
-						throw nodeLikeError;
-					}
-					throw err;
-				}
-			},
-			existsFile: async (filename) => {
-				try {
-					const stat = await this._fileService.resolve(URI.file(filename));
-					return stat.isFile;
-				} catch (err) {
-					return false;
-				}
-			},
-			readDirsInDir: async (dirPath) => {
-				const stat = await this._fileService.resolve(URI.file(dirPath));
-				const result: string[] = [];
-				for (const child of (stat.children || [])) {
-					if (child.isDirectory) {
-						result.push(child.name);
-					}
-				}
-				return result;
-			}
-		};
-	}
-
 	public async scanSingleExtension(path: string, isBuiltin: boolean, log: ILog): Promise<IExtensionDescription | null> {
 		const translations = await this.translationConfig;
 
@@ -112,7 +75,7 @@ export class CachedExtensionScanner {
 		const locale = platform.language;
 		const targetPlatform = await this._extensionManagementService.getTargetPlatform();
 		const input = new ExtensionScannerInput(version, date, commit, locale, devMode, path, isBuiltin, false, targetPlatform, translations);
-		return ExtensionScanner.scanSingleExtension(input, this._createExtensionScannerHost(log));
+		return ExtensionScanner.scanSingleExtension(input, log, this._fileService);
 	}
 
 	public async startScanningExtensions(log: ILog): Promise<void> {
@@ -130,7 +93,7 @@ export class CachedExtensionScanner {
 		const cacheFolder = path.join(this._environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
-		const expected = JSON.parse(JSON.stringify(await ExtensionScanner.scanExtensions(input, this._createExtensionScannerHost(new NullLogger()))));
+		const expected = JSON.parse(JSON.stringify(await ExtensionScanner.scanExtensions(input, new NullLogger(), this._fileService)));
 
 		const cacheContents = await this._readExtensionCache(cacheKey);
 		if (!cacheContents) {
@@ -195,7 +158,7 @@ export class CachedExtensionScanner {
 	private async _scanExtensionsWithCache(cacheKey: string, input: ExtensionScannerInput, log: ILog): Promise<IExtensionDescription[]> {
 		if (input.devMode) {
 			// Do not cache when running out of sources...
-			return ExtensionScanner.scanExtensions(input, this._createExtensionScannerHost(log));
+			return ExtensionScanner.scanExtensions(input, log, this._fileService);
 		}
 
 		try {
@@ -225,7 +188,7 @@ export class CachedExtensionScanner {
 		}
 
 		const counterLogger = new CounterLogger(log);
-		const result = await ExtensionScanner.scanExtensions(input, this._createExtensionScannerHost(counterLogger));
+		const result = await ExtensionScanner.scanExtensions(input, counterLogger, this._fileService);
 		if (counterLogger.errorCnt === 0) {
 			// Nothing bad happened => cache the result
 			const cacheContents: IExtensionCacheData = {
@@ -280,7 +243,7 @@ export class CachedExtensionScanner {
 			const input = new ExtensionScannerInput(version, date, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, targetPlatform, translations);
 			const extraBuiltinExtensions = Promise.all([builtInExtensions, controlFile])
 				.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
-				.then(resolver => ExtensionScanner.scanExtensions(input, this._createExtensionScannerHost(log), resolver));
+				.then(resolver => ExtensionScanner.scanExtensions(input, log, this._fileService, resolver));
 
 			finalBuiltinExtensions = ExtensionScanner.mergeBuiltinExtensions(builtinExtensions, extraBuiltinExtensions);
 		}
@@ -297,7 +260,8 @@ export class CachedExtensionScanner {
 			const extDescsP = this._environmentService.extensionDevelopmentLocationURI.filter(extLoc => extLoc.scheme === Schemas.file).map(extLoc => {
 				return ExtensionScanner.scanOneOrMultipleExtensions(
 					new ExtensionScannerInput(version, date, commit, locale, devMode, originalFSPath(extLoc), false, true, targetPlatform, translations),
-					this._createExtensionScannerHost(log)
+					log,
+					this._fileService
 				);
 			});
 			developedExtensions = Promise.all(extDescsP).then((extDescArrays: IExtensionDescription[][]) => {
