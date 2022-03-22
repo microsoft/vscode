@@ -73,6 +73,7 @@ export class BreakpointsView extends ViewPane {
 
 	private list!: WorkbenchList<BreakpointItem>;
 	private needsRefresh = false;
+	private needsStateChange = false;
 	private ignoreLayout = false;
 	private menu: IMenu;
 	private breakpointItemType: IContextKey<string | undefined>;
@@ -176,8 +177,14 @@ export class BreakpointsView extends ViewPane {
 		this.list.splice(0, this.list.length, this.elements);
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (visible && this.needsRefresh) {
-				this.onBreakpointsChange();
+			if (visible) {
+				if (this.needsRefresh) {
+					this.onBreakpointsChange();
+				}
+
+				if (this.needsStateChange) {
+					this.onStateChange();
+				}
 			}
 		}));
 
@@ -269,31 +276,36 @@ export class BreakpointsView extends ViewPane {
 	}
 
 	private onStateChange(): void {
-		const thread = this.debugService.getViewModel().focusedThread;
-		let found = false;
-		if (thread && thread.stoppedDetails && thread.stoppedDetails.hitBreakpointIds && thread.stoppedDetails.hitBreakpointIds.length > 0) {
-			const hitBreakpointIds = thread.stoppedDetails.hitBreakpointIds;
-			const elements = this.elements;
-			const index = elements.findIndex(e => {
-				const id = e.getIdFromAdapter(thread.session.getId());
-				return typeof id === 'number' && hitBreakpointIds.indexOf(id) !== -1;
-			});
-			if (index >= 0) {
-				this.list.setFocus([index]);
-				this.list.setSelection([index]);
-				found = true;
-				this.autoFocusedIndex = index;
+		if (this.isBodyVisible()) {
+			this.needsStateChange = false;
+			const thread = this.debugService.getViewModel().focusedThread;
+			let found = false;
+			if (thread && thread.stoppedDetails && thread.stoppedDetails.hitBreakpointIds && thread.stoppedDetails.hitBreakpointIds.length > 0) {
+				const hitBreakpointIds = thread.stoppedDetails.hitBreakpointIds;
+				const elements = this.elements;
+				const index = elements.findIndex(e => {
+					const id = e.getIdFromAdapter(thread.session.getId());
+					return typeof id === 'number' && hitBreakpointIds.indexOf(id) !== -1;
+				});
+				if (index >= 0) {
+					this.list.setFocus([index]);
+					this.list.setSelection([index]);
+					found = true;
+					this.autoFocusedIndex = index;
+				}
 			}
-		}
-		if (!found) {
-			// Deselect breakpoint in breakpoint view when no longer stopped on it #125528
-			const focus = this.list.getFocus();
-			const selection = this.list.getSelection();
-			if (this.autoFocusedIndex >= 0 && equals(focus, selection) && focus.indexOf(this.autoFocusedIndex) >= 0) {
-				this.list.setFocus([]);
-				this.list.setSelection([]);
+			if (!found) {
+				// Deselect breakpoint in breakpoint view when no longer stopped on it #125528
+				const focus = this.list.getFocus();
+				const selection = this.list.getSelection();
+				if (this.autoFocusedIndex >= 0 && equals(focus, selection) && focus.indexOf(this.autoFocusedIndex) >= 0) {
+					this.list.setFocus([]);
+					this.list.setSelection([]);
+				}
+				this.autoFocusedIndex = -1;
 			}
-			this.autoFocusedIndex = -1;
+		} else {
+			this.needsStateChange = true;
 		}
 	}
 

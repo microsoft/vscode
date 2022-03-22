@@ -134,13 +134,14 @@ declare module 'vscode' {
 
 		/**
 		 * An {@link Event} which fires when the active group changes.
-		 * Whether it be which group is active.
+		 * This does not fire when the properties within the group change.
 		 */
 		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
 		 * should no longer be used for further actions.
+		 * Note: In the case of a dirty tab, a confirmation dialog will be shown which may be cancelled. If cancelled the tab is still valid
 		 * @param tab The tab to close, must be reference equal to a tab given by the API
 		 * @param preserveFocus When `true` focus will remain in its current position. If `false` it will jump to the next tab.
 		 */

@@ -2675,7 +2675,7 @@ export class CommandCenter {
 
 		return {
 			command: 'vscode.diff',
-			title: 'Open Comparison',
+			title: localize('git.timeline.openDiffCommand', "Open Comparison"),
 			arguments: [toGitUri(uri, item.previousRef), item.ref === '' ? uri : toGitUri(uri, item.ref), title, options]
 		};
 	}

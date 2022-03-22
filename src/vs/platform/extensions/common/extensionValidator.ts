@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -232,24 +233,16 @@ export function isValidVersion(_inputVersion: string | INormalizedVersion, _inpu
 	return true;
 }
 
-export interface IReducedExtensionDescription {
-	isBuiltin: boolean;
-	engines: {
-		vscode: string;
-	};
-	main?: string;
-}
-
 type ProductDate = string | Date | undefined;
 
-export function isValidExtensionVersion(version: string, date: ProductDate, extensionDesc: IReducedExtensionDescription, notices: string[]): boolean {
+export function isValidExtensionVersion(productVersion: string, productDate: ProductDate, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean, notices: string[]): boolean {
 
-	if (extensionDesc.isBuiltin || typeof extensionDesc.main === 'undefined') {
+	if (extensionIsBuiltin || (typeof extensionManifest.main === 'undefined' && typeof extensionManifest.browser === 'undefined')) {
 		// No version check for builtin or declarative extensions
 		return true;
 	}
 
-	return isVersionValid(version, date, extensionDesc.engines.vscode, notices);
+	return isVersionValid(productVersion, productDate, extensionManifest.engines.vscode, notices);
 }
 
 export function isEngineValid(engine: string, version: string, date: ProductDate): boolean {

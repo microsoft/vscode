@@ -280,6 +280,8 @@ function loadCode() {
 	return new Promise((resolve, reject) => {
 		const path = require('path');
 
+		delete process.env['ELECTRON_RUN_AS_NODE']; // Keep bootstrap-amd.js from redefining 'fs'.
+
 		if (process.env['VSCODE_DEV']) {
 			// When running out of sources, we need to load node modules from remote/node_modules,
 			// which are compiled against nodejs, not electron
