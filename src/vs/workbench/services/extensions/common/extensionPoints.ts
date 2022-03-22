@@ -15,7 +15,7 @@ import * as types from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { getGalleryExtensionId, getExtensionId, ExtensionKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isValidExtensionVersion } from 'vs/platform/extensions/common/extensionValidator';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, IExtensionManifest, IRelaxedExtensionDescription, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
 import { Metadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 const MANIFEST_FILE = 'package.json';
@@ -370,7 +370,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		extensionDescription.isUnderDevelopment = this._isUnderDevelopment;
 
 		let notices: string[] = [];
-		if (!ExtensionManifestValidator.isValidExtensionDescription(this._ourVersion, this._ourProductDate, URI.file(this._absoluteFolderPath), extensionDescription, notices)) {
+		if (!ExtensionManifestValidator.isValidExtensionManifest(this._ourVersion, this._ourProductDate, URI.file(this._absoluteFolderPath), extensionDescription, extensionDescription.isBuiltin, notices)) {
 			notices.forEach((error) => {
 				this._error(this._absoluteFolderPath, error);
 			});
@@ -396,21 +396,21 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		return extensionDescription;
 	}
 
-	private static isValidExtensionDescription(version: string, productDate: string | undefined, extensionLocation: URI, extensionDescription: IExtensionDescription, notices: string[]): boolean {
+	public static isValidExtensionManifest(productVersion: string, productDate: string | undefined, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean, notices: string[]): boolean {
 
-		if (!ExtensionManifestValidator.baseIsValidExtensionDescription(extensionLocation, extensionDescription, notices)) {
+		if (!ExtensionManifestValidator.baseIsValidExtensionManifest(extensionLocation, extensionManifest, notices)) {
 			return false;
 		}
 
-		if (!semver.valid(extensionDescription.version)) {
+		if (!semver.valid(extensionManifest.version)) {
 			notices.push(nls.localize('notSemver', "Extension version is not semver compatible."));
 			return false;
 		}
 
-		return isValidExtensionVersion(version, productDate, extensionDescription, notices);
+		return isValidExtensionVersion(productVersion, productDate, extensionManifest, extensionIsBuiltin, notices);
 	}
 
-	private static baseIsValidExtensionDescription(extensionLocation: URI, extensionDescription: IExtensionDescription, notices: string[]): boolean {
+	private static baseIsValidExtensionManifest(extensionLocation: URI, extensionDescription: IExtensionManifest, notices: string[]): boolean {
 		if (!extensionDescription) {
 			notices.push(nls.localize('extensionDescription.empty', "Got empty extension description"));
 			return false;
