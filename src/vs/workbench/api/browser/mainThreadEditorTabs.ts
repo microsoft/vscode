@@ -6,7 +6,7 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, AnyInputDto, TabInputKind } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { GroupModelChangeKind } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -15,6 +15,7 @@ import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/edito
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
+import { URI } from 'vs/base/common/uri';
 
 
 interface TabInfo {
@@ -127,7 +128,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 * @returns A unique identifier for a specific tab
 	 */
 	private _generateTabId(editor: EditorInput, groupId: number) {
-		return `${groupId}~${editor.editorId}-${editor.typeId}-${editor.resource?.toString()}`;
+		let resourceString: string | undefined;
+		// Properly get the reousrce and account for sideby side editors
+		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
+		if (resource instanceof URI) {
+			resourceString = resource.toString();
+		} else {
+			resourceString = `${resource?.primary?.toString()}-${resource?.secondary?.toString()}`;
+		}
+		return `${groupId}~${editor.editorId}-${editor.typeId}-${resourceString} `;
 	}
 
 	/**

@@ -17,9 +17,11 @@ const localize = nls.loadMessageBundle();
 const CLIENT_ID = '01ab8ac9400c4e429b23';
 const GITHUB_AUTHORIZE_URL = 'https://github.com/login/oauth/authorize';
 // TODO: change to stable when that happens
-const GITHUB_TOKEN_URL = 'https://insiders.vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
-const REDIRECT_URL = 'https://insiders.vscode.dev/redirect';
+const GITHUB_TOKEN_URL = 'https://vscode.dev/codeExchangeProxyEndpoints/github/login/oauth/access_token';
 const NETWORK_ERROR = 'network error';
+
+const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
+const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	constructor(private readonly Logger: Log) {
@@ -163,9 +165,12 @@ export class GitHubServer implements IGitHubServer {
 		const existingNonces = this._pendingNonces.get(scopes) || [];
 		this._pendingNonces.set(scopes, [...existingNonces, nonce]);
 
+		const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
+		// If we are running in insiders vscode.dev, then ensure we use the redirect route on that.
+		const redirectUri = proxyEndpoints?.github?.includes('https://insiders.vscode.dev') ? REDIRECT_URL_INSIDERS : REDIRECT_URL_STABLE;
 		const searchParams = new URLSearchParams([
 			['client_id', CLIENT_ID],
-			['redirect_uri', REDIRECT_URL],
+			['redirect_uri', redirectUri],
 			['scope', scopes],
 			['state', encodeURIComponent(callbackUri.toString(true))]
 		]);

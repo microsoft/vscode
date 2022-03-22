@@ -67,6 +67,7 @@ import { ServerEnvironmentService, ServerParsedArgs } from 'vs/server/node/serve
 import { REMOTE_TERMINAL_CHANNEL_NAME } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { RemoteExtensionLogFileName } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteFileSystemProviderClient';
+import { ExtensionHostStatusService, IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -106,6 +107,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	const configurationService = new ConfigurationService(environmentService.machineSettingsResource, fileService);
 	services.set(IConfigurationService, configurationService);
+
+	const extensionHostStatusService = new ExtensionHostStatusService();
+	services.set(IExtensionHostStatusService, extensionHostStatusService);
 
 	// URI Identity
 	services.set(IUriIdentityService, new UriIdentityService(fileService));
@@ -172,7 +176,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 	instantiationService.invokeFunction(accessor => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, extensionManagementService, logService, productService);
+		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, extensionManagementCLIService, extensionManagementService, logService, productService, extensionHostStatusService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), appInsightsAppender);

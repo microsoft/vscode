@@ -46,7 +46,7 @@ class ExtHostEditorTab {
 				get label() {
 					return that._dto.label;
 				},
-				get input() {
+				get kind() {
 					return that._input;
 				},
 				get isDirty() {
@@ -58,7 +58,7 @@ class ExtHostEditorTab {
 				get isPreview() {
 					return that._dto.isPreview;
 				},
-				get parentGroup() {
+				get group() {
 					return that._parentGroup.apiObject;
 				}
 			};
