@@ -8,7 +8,7 @@
 declare module 'vscode' {
 
 	/**
-	 * Describes a chaneg to a notebook cell.
+	 * Describes a change to a notebook cell.
 	 *
 	 * @see {@link NotebookDocumentChangeEvent}
 	 */
@@ -43,7 +43,7 @@ declare module 'vscode' {
 	export interface NotebookDocumentContentChange {
 
 		/**
-		 * The range at which cells have been either and or removed.
+		 * The range at which cells have been either added or removed.
 		 */
 		readonly range: NotebookRange;
 
@@ -74,7 +74,7 @@ declare module 'vscode' {
 		readonly metadata: { [key: string]: any } | undefined;
 
 		/**
-		 * An array of content changes describing added and removed {@link NotebookCell cells}.
+		 * An array of content changes describing added or removed {@link NotebookCell cells}.
 		 */
 		readonly contentChanges: readonly NotebookDocumentContentChange[];
 
