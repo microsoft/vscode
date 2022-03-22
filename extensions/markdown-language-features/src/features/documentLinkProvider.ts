@@ -104,6 +104,7 @@ export function stripAngleBrackets(link: string) {
 }
 
 const linkPattern = /(\[((!\[[^\]]*?\]\(\s*)([^\s\(\)]+?)\s*\)\]|(?:\\\]|[^\]])*\])\(\s*)(([^\s\(\)]|\([^\s\(\)]*?\))+)\s*(".*?")?\)/g;
+// eslint-disable-next-line code-no-look-behind-regex
 const referenceLinkPattern = /((?<=^|[^\]])\[((?:\\\]|[^\]])+)\])(?!:)(?:[^\[]|$|\[\s*?([^\s\]]*?)\])/g;
 const definitionPattern = /^([\t ]*\[(?!\^)((?:\\\]|[^\]])+)\]:\s*)([^<]\S*|<[^>]+>)/gm;
 const inlineCodePattern = /(?:^|[^`])(`+)(?:.+?|.*?(?:(?:\r?\n).+?)*?)(?:\r?\n)?\1(?:$|[^`])/gm;
