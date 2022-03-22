@@ -1263,6 +1263,7 @@ interface TreeDragSourceInfo {
 }
 
 const TREE_DRAG_UUID_MIME = 'tree-dnd';
+const INTERNAL_MIME_TYPES = ['codeeditors'];
 
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	private readonly treeMimeType: string;
@@ -1338,8 +1339,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	}
 
 	private debugLog(originalEvent: DragEvent) {
-		const types = originalEvent.dataTransfer?.types.filter((_value, index) => {
-			return (originalEvent.dataTransfer?.items[index].kind === 'string');
+		const types = originalEvent.dataTransfer?.types.filter((value, index) => {
+			return (originalEvent.dataTransfer?.items[index].kind === 'string') && (INTERNAL_MIME_TYPES.indexOf(value) < 0);
 		});
 		if (types?.length) {
 			this.logService.debug(`TreeView dragged mime types: ${types.join(', ')}`);
@@ -1421,7 +1422,10 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 							} else if (type === TREE_DRAG_UUID_MIME) {
 								willDropUuid = dataValue;
 							}
-							if (dataValue && (type !== TREE_DRAG_UUID_MIME) && ((type === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(type) >= 0))) {
+							if (dataValue
+								&& (type !== TREE_DRAG_UUID_MIME)
+								&& (INTERNAL_MIME_TYPES.indexOf(type) < 0)
+								&& ((type === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(type) >= 0))) {
 								treeDataTransfer.set(type, {
 									asString: () => Promise.resolve(dataValue),
 									value: undefined
