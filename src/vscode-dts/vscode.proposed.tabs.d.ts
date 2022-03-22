@@ -134,7 +134,7 @@ declare module 'vscode' {
 
 		/**
 		 * An {@link Event} which fires when the active group changes.
-		 * Whether it be which group is active.
+		 * This does not fire when the properties within the group change.
 		 */
 		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
 
