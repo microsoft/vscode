@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ArrayQueue } from 'vs/base/common/arrays';
+import { ArrayQueue, pushMany } from 'vs/base/common/arrays';
 import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CharCode } from 'vs/base/common/charCode';
 import { Color } from 'vs/base/common/color';
@@ -1600,7 +1600,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			return;
 		}
 
-		const affectedLines = [...affectedInjectedTextLines];
+		const affectedLines = Array.from(affectedInjectedTextLines);
 		const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
 
 		this._onDidChangeInjectedText.fire(new ModelInjectedTextChangedEvent(lineChangeEvents));
@@ -1752,7 +1752,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const range = new Range(startLineNumber, 1, endLineNumber, endColumn);
 
 		const decorations = this._getDecorationsInRange(range, ownerId, filterOutValidation);
-		decorations.push(...this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
+		pushMany(decorations, this._decorationProvider.getDecorationsInRange(range, ownerId, filterOutValidation));
 		return decorations;
 	}
 
@@ -1760,7 +1760,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const validatedRange = this.validateRange(range);
 
 		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation);
-		decorations.push(...this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation));
+		pushMany(decorations, this._decorationProvider.getDecorationsInRange(validatedRange, ownerId, filterOutValidation));
 		return decorations;
 	}
 
