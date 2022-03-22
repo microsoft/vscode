@@ -269,6 +269,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	customHover: string | undefined;
 
+	customButtonAriaLabel: string | undefined;
+
 	buttons: ReadonlyArray<IQuickInputButton>;
 
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
