@@ -6,6 +6,7 @@
 import { Severity } from 'vs/platform/notification/common/notification';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
+import * as resources from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import * as json from 'vs/base/common/json';
 import * as arrays from 'vs/base/common/arrays';
@@ -369,7 +370,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		extensionDescription.isUnderDevelopment = this._isUnderDevelopment;
 
 		let notices: string[] = [];
-		if (!ExtensionManifestValidator.isValidExtensionDescription(this._ourVersion, this._ourProductDate, this._absoluteFolderPath, extensionDescription, notices)) {
+		if (!ExtensionManifestValidator.isValidExtensionDescription(this._ourVersion, this._ourProductDate, URI.file(this._absoluteFolderPath), extensionDescription, notices)) {
 			notices.forEach((error) => {
 				this._error(this._absoluteFolderPath, error);
 			});
@@ -395,9 +396,9 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		return extensionDescription;
 	}
 
-	private static isValidExtensionDescription(version: string, productDate: string | undefined, extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
+	private static isValidExtensionDescription(version: string, productDate: string | undefined, extensionLocation: URI, extensionDescription: IExtensionDescription, notices: string[]): boolean {
 
-		if (!ExtensionManifestValidator.baseIsValidExtensionDescription(extensionFolderPath, extensionDescription, notices)) {
+		if (!ExtensionManifestValidator.baseIsValidExtensionDescription(extensionLocation, extensionDescription, notices)) {
 			return false;
 		}
 
@@ -409,7 +410,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 		return isValidExtensionVersion(version, productDate, extensionDescription, notices);
 	}
 
-	private static baseIsValidExtensionDescription(extensionFolderPath: string, extensionDescription: IExtensionDescription, notices: string[]): boolean {
+	private static baseIsValidExtensionDescription(extensionLocation: URI, extensionDescription: IExtensionDescription, notices: string[]): boolean {
 		if (!extensionDescription) {
 			notices.push(nls.localize('extensionDescription.empty', "Got empty extension description"));
 			return false;
@@ -461,9 +462,9 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 				notices.push(nls.localize('extensionDescription.main1', "property `{0}` can be omitted or must be of type `string`", 'main'));
 				return false;
 			} else {
-				const normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.main);
-				if (!normalizedAbsolutePath.startsWith(extensionFolderPath)) {
-					notices.push(nls.localize('extensionDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
+				const mainLocation = resources.joinPath(extensionLocation, extensionDescription.main);
+				if (!resources.isEqualOrParent(mainLocation, extensionLocation)) {
+					notices.push(nls.localize('extensionDescription.main2', "Expected `main` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", mainLocation.path, extensionLocation.path));
 					// not a failure case
 				}
 			}
@@ -477,9 +478,9 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 				notices.push(nls.localize('extensionDescription.browser1', "property `{0}` can be omitted or must be of type `string`", 'browser'));
 				return false;
 			} else {
-				const normalizedAbsolutePath = path.join(extensionFolderPath, extensionDescription.browser);
-				if (!normalizedAbsolutePath.startsWith(extensionFolderPath)) {
-					notices.push(nls.localize('extensionDescription.browser2', "Expected `browser` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", normalizedAbsolutePath, extensionFolderPath));
+				const browserLocation = resources.joinPath(extensionLocation, extensionDescription.browser);
+				if (!resources.isEqualOrParent(browserLocation, extensionLocation)) {
+					notices.push(nls.localize('extensionDescription.browser2', "Expected `browser` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", browserLocation.path, extensionLocation.path));
 					// not a failure case
 				}
 			}
