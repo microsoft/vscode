@@ -53,7 +53,7 @@ class ExtHostEditorTab {
 					return that._dto.isDirty;
 				},
 				get isPinned() {
-					return that._dto.isDirty;
+					return that._dto.isPinned;
 				},
 				get isPreview() {
 					return that._dto.isPreview;
