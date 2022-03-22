@@ -84,7 +84,7 @@ __vsc_update_prompt() {
 	fi
 }
 
-precmd() {
+__vsc_precmd() {
 	local STATUS="$?"
 	if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
 		# not in command execution
@@ -100,7 +100,7 @@ precmd() {
 	fi
 }
 
-preexec() {
+__vsc_preexec() {
 	PS1="$PRIOR_PROMPT"
 	if [ -n "$RPROMPT" ]; then
 		RPROMPT="$PRIOR_RPROMPT"
@@ -108,8 +108,8 @@ preexec() {
 	IN_COMMAND_EXECUTION="1"
 	__vsc_command_output_start
 }
-add-zsh-hook precmd precmd
-add-zsh-hook preexec preexec
+add-zsh-hook precmd __vsc_precmd
+add-zsh-hook preexec __vsc_preexec
 
 # Show the welcome message
 if [ -z "${VSCODE_SHELL_HIDE_WELCOME-}" ]; then
