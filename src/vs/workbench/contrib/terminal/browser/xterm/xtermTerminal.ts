@@ -34,6 +34,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -252,11 +253,26 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 
 	async findNext(term: string, searchOptions: ISearchOptions): Promise<boolean> {
+		this._updateFindColors(searchOptions);
 		return (await this._getSearchAddon()).findNext(term, searchOptions);
 	}
 
 	async findPrevious(term: string, searchOptions: ISearchOptions): Promise<boolean> {
+		this._updateFindColors(searchOptions);
 		return (await this._getSearchAddon()).findPrevious(term, searchOptions);
+	}
+
+	private _updateFindColors(searchOptions: ISearchOptions): void {
+		let selectedColor: string | undefined = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground');
+		let matchColor: string | undefined = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground') || '#EA5C0055';
+		if (!selectedColor) {
+			if (this._themeService.getColorTheme().type === ColorScheme.DARK) {
+				selectedColor = '#515C6A';
+			} else {
+				selectedColor = '#A8AC94';
+			}
+		}
+		searchOptions.decorations = { selectedColor, matchColor };
 	}
 
 	private async _getSearchAddon(): Promise<SearchAddonType> {
@@ -267,6 +283,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		this._searchAddon = new AddonCtor();
 		this.raw.loadAddon(this._searchAddon);
 		return this._searchAddon;
+	}
+
+	clearSearchDecorations(): void {
+		this._searchAddon?.clearDecorations();
 	}
 
 	getFont(): ITerminalFont {
