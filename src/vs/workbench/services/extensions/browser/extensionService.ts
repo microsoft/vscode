@@ -51,8 +51,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILogService logService: ILogService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
 	) {
@@ -69,7 +69,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			configurationService,
 			extensionManifestPropertiesService,
 			webExtensionsScannerService,
-			logService
+			logService,
+			remoteAgentService
 		);
 
 		// Initialize installed extensions first and do it only after workbench is ready

@@ -2577,11 +2577,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	hideInset(output: ICellOutputViewModel) {
-		if (this._webview?.isResolved()) {
-			this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
-				this._webview!.hideInset(output);
-			});
-		}
+		this._insetModifyQueueByOutputId.queue(output.model.outputId, async () => {
+			if (this._webview?.isResolved()) {
+				this._webview.hideInset(output);
+			}
+		});
 	}
 
 	//#region --- webview IPC ----

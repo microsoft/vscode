@@ -132,7 +132,6 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateCommentingRanges(handle: number): void;
-	$onDidCommentThreadsChange(handle: number, event: languages.CommentThreadChangedEvent<IRange | ICellRange>): void;
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {

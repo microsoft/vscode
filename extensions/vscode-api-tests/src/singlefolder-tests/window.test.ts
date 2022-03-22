@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { join } from 'path';
-import { CancellationTokenSource, commands, MarkdownString, NotebookEditorTabInput, Position, QuickPickItem, Selection, StatusBarAlignment, TextDiffTabInput, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TextTabInput, Uri, ViewColumn, window, workspace } from 'vscode';
+import { CancellationTokenSource, commands, MarkdownString, TabKindNotebook, Position, QuickPickItem, Selection, StatusBarAlignment, TabKindTextDiff, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TabKindText, Uri, ViewColumn, window, workspace } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
@@ -414,23 +414,23 @@ suite('vscode API - window', () => {
 		const commandFile = await createRandomFile();
 		await commands.executeCommand('vscode.open', commandFile, ViewColumn.Three);
 		// Ensure active tab is correct after calling vscode.opn
-		assert.strictEqual(getActiveTab()?.parentGroup.viewColumn, ViewColumn.Three);
+		assert.strictEqual(getActiveTab()?.group.viewColumn, ViewColumn.Three);
 
 		const leftDiff = await createRandomFile();
 		const rightDiff = await createRandomFile();
 		await commands.executeCommand('vscode.diff', leftDiff, rightDiff, 'Diff', { viewColumn: ViewColumn.Four, preview: false });
-		assert.strictEqual(getActiveTab()?.parentGroup.viewColumn, ViewColumn.Four);
+		assert.strictEqual(getActiveTab()?.group.viewColumn, ViewColumn.Four);
 
 		const tabs = window.tabGroups.groups.map(g => g.tabs).flat(1);
 		assert.strictEqual(tabs.length, 5);
-		assert.ok(tabs[0].input instanceof TextTabInput);
-		assert.strictEqual(tabs[0].input.uri.toString(), docA.uri.toString());
-		assert.ok(tabs[1].input instanceof TextTabInput);
-		assert.strictEqual(tabs[1].input.uri.toString(), docB.uri.toString());
-		assert.ok(tabs[2].input instanceof TextTabInput);
-		assert.strictEqual(tabs[2].input.uri.toString(), docC.uri.toString());
-		assert.ok(tabs[3].input instanceof TextTabInput);
-		assert.strictEqual(tabs[3].input.uri.toString(), commandFile.toString());
+		assert.ok(tabs[0].kind instanceof TabKindText);
+		assert.strictEqual(tabs[0].kind.uri.toString(), docA.uri.toString());
+		assert.ok(tabs[1].kind instanceof TabKindText);
+		assert.strictEqual(tabs[1].kind.uri.toString(), docB.uri.toString());
+		assert.ok(tabs[2].kind instanceof TabKindText);
+		assert.strictEqual(tabs[2].kind.uri.toString(), docC.uri.toString());
+		assert.ok(tabs[3].kind instanceof TabKindText);
+		assert.strictEqual(tabs[3].kind.uri.toString(), commandFile.toString());
 	});
 
 	test('Tabs - Ensure tabs getter is correct', async function () {
@@ -459,23 +459,23 @@ suite('vscode API - window', () => {
 		assert.strictEqual(tabs.length, 5);
 
 		// All resources should match the text documents as they're the only tabs currently open
-		assert.ok(tabs[0].input instanceof TextTabInput);
-		assert.strictEqual(tabs[0].input.uri.toString(), docA.uri.toString());
-		assert.ok(tabs[1].input instanceof NotebookEditorTabInput);
-		assert.strictEqual(tabs[1].input.uri.toString(), notebookDoc.uri.toString());
-		assert.ok(tabs[2].input instanceof TextTabInput);
-		assert.strictEqual(tabs[2].input.uri.toString(), docB.uri.toString());
-		assert.ok(tabs[3].input instanceof TextTabInput);
-		assert.strictEqual(tabs[3].input.uri.toString(), docC.uri.toString());
+		assert.ok(tabs[0].kind instanceof TabKindText);
+		assert.strictEqual(tabs[0].kind.uri.toString(), docA.uri.toString());
+		assert.ok(tabs[1].kind instanceof TabKindNotebook);
+		assert.strictEqual(tabs[1].kind.uri.toString(), notebookDoc.uri.toString());
+		assert.ok(tabs[2].kind instanceof TabKindText);
+		assert.strictEqual(tabs[2].kind.uri.toString(), docB.uri.toString());
+		assert.ok(tabs[3].kind instanceof TabKindText);
+		assert.strictEqual(tabs[3].kind.uri.toString(), docC.uri.toString());
 		// Diff editor and side by side editor report the right side as the resource
-		assert.ok(tabs[4].input instanceof TextDiffTabInput);
-		assert.strictEqual(tabs[4].input.modified.toString(), rightDiff.toString());
+		assert.ok(tabs[4].kind instanceof TabKindTextDiff);
+		assert.strictEqual(tabs[4].kind.modified.toString(), rightDiff.toString());
 
-		assert.strictEqual(tabs[0].parentGroup.viewColumn, ViewColumn.One);
-		assert.strictEqual(tabs[1].parentGroup.viewColumn, ViewColumn.One);
-		assert.strictEqual(tabs[2].parentGroup.viewColumn, ViewColumn.Two);
-		assert.strictEqual(tabs[3].parentGroup.viewColumn, ViewColumn.Three);
-		assert.strictEqual(tabs[4].parentGroup.viewColumn, ViewColumn.Three);
+		assert.strictEqual(tabs[0].group.viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[1].group.viewColumn, ViewColumn.One);
+		assert.strictEqual(tabs[2].group.viewColumn, ViewColumn.Two);
+		assert.strictEqual(tabs[3].group.viewColumn, ViewColumn.Three);
+		assert.strictEqual(tabs[4].group.viewColumn, ViewColumn.Three);
 	});
 
 	test('Tabs - ensure active tab is correct', async () => {
@@ -495,20 +495,20 @@ suite('vscode API - window', () => {
 		await window.showTextDocument(docA, { viewColumn: ViewColumn.One, preview: false });
 		let activeTab = getActiveTabInActiveGroup();
 		assert.ok(activeTab);
-		assert.ok(activeTab.input instanceof TextTabInput);
-		assert.strictEqual(activeTab.input.uri.toString(), docA.uri.toString());
+		assert.ok(activeTab.kind instanceof TabKindText);
+		assert.strictEqual(activeTab.kind.uri.toString(), docA.uri.toString());
 
 		await window.showTextDocument(docB, { viewColumn: ViewColumn.Two, preview: false });
 		activeTab = getActiveTabInActiveGroup();
 		assert.ok(activeTab);
-		assert.ok(activeTab.input instanceof TextTabInput);
-		assert.strictEqual(activeTab.input.uri.toString(), docB.uri.toString());
+		assert.ok(activeTab.kind instanceof TabKindText);
+		assert.strictEqual(activeTab.kind.uri.toString(), docB.uri.toString());
 
 		await window.showTextDocument(docC, { viewColumn: ViewColumn.Three, preview: false });
 		activeTab = getActiveTabInActiveGroup();
 		assert.ok(activeTab);
-		assert.ok(activeTab.input instanceof TextTabInput);
-		assert.strictEqual(activeTab.input.uri.toString(), docC.uri.toString());
+		assert.ok(activeTab.kind instanceof TabKindText);
+		assert.strictEqual(activeTab.kind.uri.toString(), docC.uri.toString());
 
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 		await commands.executeCommand('workbench.action.closeActiveEditor');

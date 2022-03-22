@@ -515,32 +515,28 @@ export class CommentController implements IEditorContribution {
 			});
 
 			changed.forEach(thread => {
-				if (thread.isDocumentCommentThread()) {
-					let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
-					if (matchedZones.length) {
-						let matchedZone = matchedZones[0];
-						matchedZone.update(thread);
-					}
+				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
+				if (matchedZones.length) {
+					let matchedZone = matchedZones[0];
+					matchedZone.update(thread);
 				}
 			});
 			added.forEach(thread => {
-				if (thread.isDocumentCommentThread()) {
-					let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
-					if (matchedZones.length) {
-						return;
-					}
-
-					let matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && (zoneWidget.commentThread as any).commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
-
-					if (matchedNewCommentThreadZones.length) {
-						matchedNewCommentThreadZones[0].update(thread);
-						return;
-					}
-
-					const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId!];
-					this.displayCommentThread(e.owner, thread, pendingCommentText);
-					this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
+				let matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
+				if (matchedZones.length) {
+					return;
 				}
+
+				let matchedNewCommentThreadZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && (zoneWidget.commentThread as any).commentThreadHandle === -1 && Range.equalsRange(zoneWidget.commentThread.range, thread.range));
+
+				if (matchedNewCommentThreadZones.length) {
+					matchedNewCommentThreadZones[0].update(thread);
+					return;
+				}
+
+				const pendingCommentText = this._pendingCommentCache[e.owner] && this._pendingCommentCache[e.owner][thread.threadId!];
+				this.displayCommentThread(e.owner, thread, pendingCommentText);
+				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 			});
 
 		}));

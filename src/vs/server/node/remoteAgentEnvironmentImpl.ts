@@ -8,7 +8,7 @@ import * as platform from 'vs/base/common/platform';
 import * as performance from 'vs/base/common/performance';
 import { URI } from 'vs/base/common/uri';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
-import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensionsArguments, IScanSingleExtensionArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
+import { IRemoteAgentEnvironmentDTO, IGetEnvironmentDataArguments, IScanExtensionsArguments, IScanSingleExtensionArguments, IGetExtensionHostExitInfoArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import * as nls from 'vs/nls';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
@@ -30,6 +30,7 @@ import { cwd } from 'vs/base/common/process';
 import * as pfs from 'vs/base/node/pfs';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ServerConnectionToken, ServerConnectionTokenType } from 'vs/server/node/serverConnectionToken';
+import { IExtensionHostStatusService } from 'vs/server/node/extensionHostStatusService';
 
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
@@ -61,6 +62,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 		private readonly _extensionManagementService: IExtensionManagementService,
 		private readonly logService: ILogService,
 		private readonly productService: IProductService,
+		private readonly extensionHostStatusService: IExtensionHostStatusService,
 	) {
 		this._logger = new class implements ILog {
 			public error(source: string, message: string): void {
@@ -112,6 +114,11 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 				environmentData = transformOutgoingURIs(environmentData, uriTransformer);
 
 				return environmentData;
+			}
+
+			case 'getExtensionHostExitInfo': {
+				const args = <IGetExtensionHostExitInfoArguments>arg;
+				return this.extensionHostStatusService.getExitInfo(args.reconnectionToken);
 			}
 
 			case 'whenExtensionsReady': {
