@@ -27,8 +27,8 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	return
 fi
 
-IN_COMMAND_EXECUTION="1"
-LAST_HISTORY_ID=0
+VSC_IN_COMMAND_EXECUTION="1"
+VSC_LAST_HISTORY_ID=0
 
 __vsc_prompt_start() {
 	printf "\033]633;A\007"
@@ -63,19 +63,19 @@ __vsc_right_prompt_end() {
 }
 
 __vsc_command_complete() {
-	local HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
-	if [[ "$HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
+	local VSC_HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
+	if [[ "$VSC_HISTORY_ID" == "$VSC_LAST_HISTORY_ID" ]]; then
 		printf "\033]633;D\007"
 	else
 		printf "\033]633;D;%s\007" "$STATUS"
-		LAST_HISTORY_ID=$HISTORY_ID
+		VSC_LAST_HISTORY_ID=$VSC_HISTORY_ID
 	fi
 	__vsc_update_cwd
 }
 
 __vsc_update_prompt() {
-	PRIOR_PROMPT="$PS1"
-	IN_COMMAND_EXECUTION=""
+	VSC_PRIOR_PROMPT="$PS1"
+	VSC_IN_COMMAND_EXECUTION=""
 	PS1="%{$(__vsc_prompt_start)%}$PREFIX$PS1%{$(__vsc_prompt_end)%}"
 	PS2="%{$(__vsc_continuation_start)%}$PS2%{$(__vsc_continuation_end)%}"
 	if [ -n "$RPROMPT" ]; then
@@ -101,9 +101,9 @@ __vsc_precmd() {
 }
 
 __vsc_preexec() {
-	PS1="$PRIOR_PROMPT"
+	PS1="$VSC_PRIOR_PROMPT"
 	if [ -n "$RPROMPT" ]; then
-		RPROMPT="$PRIOR_RPROMPT"
+		RPROMPT="$VSC_PRIOR_RPROMPT"
 	fi
 	IN_COMMAND_EXECUTION="1"
 	__vsc_command_output_start
