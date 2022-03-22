@@ -230,10 +230,13 @@ class NotebookNavigationLabelProvider implements IKeyboardNavigationLabelProvide
 	}
 }
 
-class NotebookOutlineVirtualDelegate implements IListVirtualDelegate<OutlineEntry> {
+class NotebookOutlineVirtualDelegate implements IListVirtualDelegate<OutlineEntry, IConfigurationService> {
+	getFontSize(configurationService: IConfigurationService) {
+		return configurationService.getValue<number>('workbench.FontSize');
+	}
 
-	getHeight(_element: OutlineEntry): number {
-		return 22;
+	getHeight(_element: OutlineEntry, configurationService: IConfigurationService): number {
+		return this.getFontSize(configurationService) * 1.5;
 	}
 
 	getTemplateId(_element: OutlineEntry): string {

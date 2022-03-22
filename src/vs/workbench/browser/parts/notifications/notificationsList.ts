@@ -19,6 +19,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { NotificationFocusedContext } from 'vs/workbench/common/contextkeys';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface INotificationsListOptions extends IListOptions<INotificationViewItem> {
 	widgetAriaLabel?: string;
@@ -209,14 +210,14 @@ export class NotificationsList extends Themable {
 		}
 	}
 
-	updateNotificationHeight(item: INotificationViewItem): void {
+	updateNotificationHeight(item: INotificationViewItem, configurationService: IConfigurationService): void {
 		const index = this.viewModel.indexOf(item);
 		if (index === -1) {
 			return;
 		}
 
 		const [list, listDelegate] = assertAllDefined(this.list, this.listDelegate);
-		list.updateElementHeight(index, listDelegate.getHeight(item));
+		list.updateElementHeight(index, listDelegate.getHeight(item, configurationService));
 		list.layout();
 	}
 

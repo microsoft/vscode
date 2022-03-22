@@ -1210,7 +1210,8 @@ class OutputPeekTree extends Disposable {
 			'Test Output Peek',
 			container,
 			{
-				getHeight: () => 22,
+				getFontSize: (configurationService: IConfigurationService) => configurationService.getValue<number>('workbench.FontSize'),
+				getHeight: (element: this, configurationService: IConfigurationService) => configurationService.getValue<number>('workbench.FontSize') * 1.5,
 				getTemplateId: () => TestRunElementRenderer.ID,
 			},
 			[instantiationService.createInstance(TestRunElementRenderer, labels, this.treeActions)],

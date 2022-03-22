@@ -51,7 +51,7 @@ export interface ITemplateData {
 
 export class Delegate implements IListVirtualDelegate<IExtension, IConfigurationService> {
 	getFontSize(configurationService: IConfigurationService) { return configurationService.getValue<number>('workbench.FontSize'); }
-	getHeight(element: IExtension, configurationService: IConfigurationService): number { return this.getFontSize(configurationService) * 5; }
+	getHeight(element: any, configurationService: IConfigurationService): number { return this.getFontSize(configurationService) * 5; }
 	getTemplateId() { return 'extension'; }
 }
 

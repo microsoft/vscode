@@ -51,7 +51,6 @@ import { getShellIntegrationTooltip } from 'vs/workbench/contrib/terminal/browse
 const $ = DOM.$;
 
 export const enum TerminalTabsListSizes {
-	TabHeight = 22,
 	NarrowViewWidth = 46,
 	WideViewMinimumWidth = 80,
 	DefaultWidth = 120,
@@ -81,7 +80,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	) {
 		super('TerminalTabsList', container,
 			{
-				getHeight: () => TerminalTabsListSizes.TabHeight,
+
+				getFontSize: (configurationService: IConfigurationService) => configurationService.getValue<number>('workbench.FontSize'),
+				getHeight: (element: ITerminalInstance, configurationService: IConfigurationService) => configurationService.getValue<number>('workbench.FontSize') * 1.5,
 				getTemplateId: () => 'terminal.tabs'
 			},
 			[instantiationService.createInstance(TerminalTabsRenderer, container, instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER), () => this.getSelectedElements())],
@@ -95,7 +96,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
 				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
-				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
+				additionalScrollHeight: _configurationService.getValue<number>('workbench.FontSize') * 1.5,
 				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop),
 				openOnSingleClick: true
 			},

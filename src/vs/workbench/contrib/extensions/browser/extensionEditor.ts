@@ -71,6 +71,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class NavBar extends Disposable {
 
@@ -435,20 +436,20 @@ export class ExtensionEditor extends EditorPane {
 		return disposables;
 	}
 
-	override async setInput(input: ExtensionsInput, options: IExtensionEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+	override async setInput(input: ExtensionsInput, options: IExtensionEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, configurationService: IConfigurationService): Promise<void> {
+		await super.setInput(input, options, context, token, configurationService);
 		this.updatePreReleaseVersionContext();
 		if (this.template) {
-			this.render(input.extension, this.template, !!options?.preserveFocus);
+			this.render(input.extension, this.template, !!options?.preserveFocus, configurationService);
 		}
 	}
 
-	override setOptions(options: IExtensionEditorOptions | undefined): void {
+	override setOptions(options: IExtensionEditorOptions | undefined, configurationService: IConfigurationService): void {
 		const currentOptions: IExtensionEditorOptions | undefined = this.options;
-		super.setOptions(options);
+		super.setOptions(options, configurationService);
 		this.updatePreReleaseVersionContext();
 		if (this.input && this.template && currentOptions?.showPreReleaseVersion !== options?.showPreReleaseVersion) {
-			this.render((this.input as ExtensionsInput).extension, this.template, !!options?.preserveFocus);
+			this.render((this.input as ExtensionsInput).extension, this.template, !!options?.preserveFocus, configurationService);
 		}
 	}
 
@@ -489,7 +490,7 @@ export class ExtensionEditor extends EditorPane {
 		return (await this.extensionGalleryService.getExtensions([{ ...extension.identifier, preRelease, hasPreRelease: extension.hasPreReleaseVersion }], CancellationToken.None))[0] || null;
 	}
 
-	private async render(extension: IExtension, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
+	private async render(extension: IExtension, template: IExtensionEditorTemplate, preserveFocus: boolean, configurationService: IConfigurationService): Promise<void> {
 		this.activeElement = null;
 		this.transientDisposables.clear();
 
@@ -550,7 +551,7 @@ export class ExtensionEditor extends EditorPane {
 			template.manifest = manifest;
 		}
 
-		this.renderNavbar(extension, manifest, template, preserveFocus);
+		this.renderNavbar(extension, manifest, template, preserveFocus, configurationService);
 
 		// report telemetry
 		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
@@ -570,7 +571,7 @@ export class ExtensionEditor extends EditorPane {
 
 	}
 
-	private renderNavbar(extension: IExtension, manifest: IExtensionManifest | null, template: IExtensionEditorTemplate, preserveFocus: boolean): void {
+	private renderNavbar(extension: IExtension, manifest: IExtensionManifest | null, template: IExtensionEditorTemplate, preserveFocus: boolean, configurationService: IConfigurationService): void {
 		template.content.innerText = '';
 		template.navbar.clear();
 
@@ -608,9 +609,9 @@ export class ExtensionEditor extends EditorPane {
 		}
 
 		if (template.navbar.currentId) {
-			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
+			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template, configurationService);
 		}
-		template.navbar.onChange(e => this.onNavbarChange(extension, e, template), this, this.transientDisposables);
+		template.navbar.onChange(e => this.onNavbarChange(extension, e, template, configurationService), this, this.transientDisposables);
 	}
 
 	private setStatus(extension: IExtension, template: IExtensionEditorTemplate): void {
@@ -704,14 +705,14 @@ export class ExtensionEditor extends EditorPane {
 		return this.activeElement as IWebview;
 	}
 
-	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null; focus: boolean }, template: IExtensionEditorTemplate): void {
+	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null; focus: boolean }, template: IExtensionEditorTemplate, configurationService: IConfigurationService): void {
 		this.contentDisposables.clear();
 		template.content.innerText = '';
 		this.activeElement = null;
 		if (id) {
 			const cts = new CancellationTokenSource();
 			this.contentDisposables.add(toDisposable(() => cts.dispose(true)));
-			this.open(id, extension, template, cts.token)
+			this.open(id, extension, template, cts.token, configurationService)
 				.then(activeElement => {
 					if (cts.token.isCancellationRequested) {
 						return;
@@ -724,13 +725,13 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private open(id: string, extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken, configurationService: IConfigurationService): Promise<IActiveElement | null> {
 		switch (id) {
-			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
+			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token, configurationService);
 			case ExtensionEditorTab.Contributions: return this.openContributions(template, token);
 			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
 			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
-			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
+			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token, configurationService);
 			case ExtensionEditorTab.RuntimeStatus: return this.openRuntimeStatus(extension, template, token);
 		}
 		return Promise.resolve(null);
@@ -874,7 +875,7 @@ export class ExtensionEditor extends EditorPane {
 		</html>`;
 	}
 
-	private async openDetails(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openDetails(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken, configurationService: IConfigurationService): Promise<IActiveElement | null> {
 		const details = append(template.content, $('.details'));
 		const readmeContainer = append(details, $('.readme-container'));
 		const additionalDetailsContainer = append(details, $('.additional-details-container'));
@@ -886,7 +887,7 @@ export class ExtensionEditor extends EditorPane {
 		let activeElement: IActiveElement | null = null;
 		const manifest = await this.extensionManifest!.get().promise;
 		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExensionPack(manifest)) {
-			activeElement = await this.openExtensionPackReadme(manifest, readmeContainer, token);
+			activeElement = await this.openExtensionPackReadme(manifest, readmeContainer, token, configurationService);
 		} else {
 			activeElement = await this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, token);
 		}
@@ -899,7 +900,7 @@ export class ExtensionEditor extends EditorPane {
 		return !!(manifest.categories?.some(category => category.toLowerCase() === 'extension packs'));
 	}
 
-	private async openExtensionPackReadme(manifest: IExtensionManifest, container: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openExtensionPackReadme(manifest: IExtensionManifest, container: HTMLElement, token: CancellationToken, configurationService: IConfigurationService): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
@@ -927,7 +928,7 @@ export class ExtensionEditor extends EditorPane {
 		const readmeContent = append(extensionPackReadme, $('div.readme-content'));
 
 		await Promise.all([
-			this.renderExtensionPack(manifest, extensionPackContent, token),
+			this.renderExtensionPack(manifest, extensionPackContent, token, configurationService),
 			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContent, WebviewIndex.Readme, token),
 		]);
 
@@ -1112,7 +1113,7 @@ export class ExtensionEditor extends EditorPane {
 		return Promise.resolve({ focus() { dependenciesTree.domFocus(); } });
 	}
 
-	private async openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openExtensionPack(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken, configurationService: IConfigurationService): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
@@ -1123,7 +1124,7 @@ export class ExtensionEditor extends EditorPane {
 		if (!manifest) {
 			return null;
 		}
-		return this.renderExtensionPack(manifest, template.content, token);
+		return this.renderExtensionPack(manifest, template.content, token, configurationService);
 	}
 
 	private async openRuntimeStatus(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
@@ -1196,7 +1197,7 @@ export class ExtensionEditor extends EditorPane {
 		return element;
 	}
 
-	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+	private async renderExtensionPack(manifest: IExtensionManifest, parent: HTMLElement, token: CancellationToken, configurationService: IConfigurationService): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return null;
 		}
@@ -1207,7 +1208,7 @@ export class ExtensionEditor extends EditorPane {
 
 		const extensionsGridView = this.instantiationService.createInstance(ExtensionsGridView, content, new Delegate());
 		const extensions: IExtension[] = await getExtensions(manifest.extensionPack!, this.extensionsWorkbenchService);
-		extensionsGridView.setExtensions(extensions);
+		extensionsGridView.setExtensions(extensions, configurationService);
 		scrollableContent.scanDomNode();
 
 		this.contentDisposables.add(scrollableContent);

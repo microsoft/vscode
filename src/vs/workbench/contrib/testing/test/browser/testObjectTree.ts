@@ -6,6 +6,7 @@
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
@@ -25,7 +26,8 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 			'test',
 			element,
 			{
-				getHeight: () => 20,
+				getFontSize: (configurationService: IConfigurationService) => configurationService.getValue<number>('workbench.FontSize'),
+				getHeight: (element: T, configurationService: IConfigurationService) => configurationService.getValue<number>('workbench.FontSize') * 1.25,
 				getTemplateId: () => 'default'
 			},
 			[
