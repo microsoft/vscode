@@ -183,10 +183,6 @@
 	position: absolute;
 }
 
-.xterm-find-result-decoration {
-	opacity: 60%;
-}
-
 .xterm-decoration-overview-ruler {
 	z-index: 7;
 	position: absolute;

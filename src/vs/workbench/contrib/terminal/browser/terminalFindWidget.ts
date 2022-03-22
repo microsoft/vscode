@@ -30,7 +30,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._findWidgetVisible = TerminalContextKeys.findVisible.bindTo(_contextKeyService);
 	}
 
-	find(previous: boolean): void {
+	find(previous: boolean) {
 		const instance = this._terminalService.activeInstance;
 		if (!instance) {
 			return;
@@ -40,7 +40,6 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		} else {
 			instance.xterm?.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		}
-		return;
 	}
 	override reveal(initialInput?: string): void {
 		super.reveal(initialInput);
