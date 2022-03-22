@@ -28,7 +28,7 @@ if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 fi
 
 IN_COMMAND_EXECUTION="1"
-LAST_VSC_HISTORY_ID=0
+LAST_HISTORY_ID=0
 
 __vsc_prompt_start() {
 	printf "\033]633;A\007"
@@ -64,11 +64,11 @@ __vsc_right_prompt_end() {
 
 __vsc_command_complete() {
 	local VSC_HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
-	if [[ "$VSC_HISTORY_ID" == "$LAST_VSC_HISTORY_ID" ]]; then
+	if [[ "$VSC_HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
 		printf "\033]633;D\007"
 	else
 		printf "\033]633;D;%s\007" "$VSC_STATUS"
-		LAST_VSC_HISTORY_ID=$VSC_HISTORY_ID
+		LAST_HISTORY_ID=$VSC_HISTORY_ID
 	fi
 	__vsc_update_cwd
 }
