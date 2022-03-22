@@ -263,8 +263,8 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 
 	private _updateFindColors(searchOptions: ISearchOptions): void {
-		let selectedColor = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground');
-		let matchColor = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground') || '#EA5C0055';
+		let selectedColor: string | undefined = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground');
+		let matchColor: string | undefined = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground') || '#EA5C0055';
 		if (!selectedColor) {
 			if (this._themeService.getColorTheme().type === ColorScheme.DARK) {
 				selectedColor = '#515C6A';
