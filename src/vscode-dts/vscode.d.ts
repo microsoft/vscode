@@ -9825,6 +9825,7 @@ declare module 'vscode' {
 		 * 1. Set up your `DragAndDropController`
 		 * 2. Use the Developer: Set Log Level... command to set the level to "Debug"
 		 * 3. Open the developer tools and drag the item with unknown mime type over your tree. The mime types will be logged to the developer console
+		 * Note that only mime types of kind "string" are supported and will be logged (ex. files will not be logged).
 		 */
 		readonly dropMimeTypes: string[];
 

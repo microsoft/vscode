@@ -1337,8 +1337,19 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		}
 	}
 
+	private debugLog(originalEvent: DragEvent) {
+		const types = originalEvent.dataTransfer?.types.filter((_value, index) => {
+			return (originalEvent.dataTransfer?.items[index].kind === 'string');
+		});
+		if (types?.length) {
+			this.logService.debug(`TreeView dragged mime types: ${types.join(', ')}`);
+		} else {
+			this.logService.debug(`TreeView dragged with no supported mime types.`);
+		}
+	}
+
 	onDragOver(data: IDragAndDropData, targetElement: ITreeItem, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
-		this.logService.debug(`TreeView dragged mime types: ${originalEvent.dataTransfer?.types.join(', ')}`);
+		this.debugLog(originalEvent);
 		const dndController = this.dndController;
 		if (!dndController || !originalEvent.dataTransfer || (dndController.dropMimeTypes.length === 0)) {
 			return false;
