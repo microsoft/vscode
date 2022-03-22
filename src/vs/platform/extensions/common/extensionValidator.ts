@@ -238,13 +238,14 @@ export interface IReducedExtensionDescription {
 		vscode: string;
 	};
 	main?: string;
+	browser?: string;
 }
 
 type ProductDate = string | Date | undefined;
 
 export function isValidExtensionVersion(version: string, date: ProductDate, extensionDesc: IReducedExtensionDescription, notices: string[]): boolean {
 
-	if (extensionDesc.isBuiltin || typeof extensionDesc.main === 'undefined') {
+	if (extensionDesc.isBuiltin || (typeof extensionDesc.main === 'undefined' && typeof extensionDesc.browser === 'undefined')) {
 		// No version check for builtin or declarative extensions
 		return true;
 	}

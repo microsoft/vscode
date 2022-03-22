@@ -403,4 +403,15 @@ suite('Extension Version Validator', () => {
 		testIsValidVersion('1.10.1', '^1.10.0-20200101', true); // before date, but ahead version
 		testIsValidVersion('1.11.0', '^1.10.0-20200101', true);
 	});
+
+	test('isValidExtensionVersion checks browser only extensions', () => {
+		const desc = {
+			isBuiltin: false,
+			engines: {
+				vscode: '^1.45.0'
+			},
+			browser: 'something'
+		};
+		assert.strictEqual(isValidExtensionVersion('1.44.0', undefined, desc, []), false);
+	});
 });
