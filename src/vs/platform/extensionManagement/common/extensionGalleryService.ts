@@ -782,13 +782,13 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			const rawGalleryExtension = rawGalleryExtensions[index];
 			const extensionIdentifier = { id: getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), uuid: rawGalleryExtension.extensionId };
 			const includePreRelease = isBoolean(criteria.includePreRelease) ? criteria.includePreRelease : !!criteria.includePreRelease.find(extensionIdentifierWithPreRelease => areSameExtensions(extensionIdentifierWithPreRelease, extensionIdentifier))?.includePreRelease;
-			let extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, criteria);
-			if (!extension && criteria.compatible && criteria.targetPlatform === TargetPlatform.WEB) {
-				/** Skip if requested for a web-compatible extension and not found.
-				 * All versions are not needed in case of web-compatible extension
+			if (criteria.compatible && isNotWebExtensionInWebTargetPlatform(getAllTargetPlatforms(rawGalleryExtension), criteria.targetPlatform)) {
+				/** Skip if requested for a web-compatible extension and it is not a web extension.
+				 * All versions are not needed in this case
 				*/
 				continue;
 			}
+			const extension = await this.toGalleryExtensionWithCriteria(rawGalleryExtension, criteria);
 			if (!extension
 				/** Need all versions if the extension is a pre-release version but
 				 * 		- the query is to look for a release version or
