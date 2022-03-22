@@ -1409,7 +1409,8 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 								treeSourceInfo = JSON.parse(dataValue);
 							} else if (type === TREE_DRAG_UUID_MIME) {
 								willDropUuid = dataValue;
-							} else {
+							}
+							if (dataValue && (type !== TREE_DRAG_UUID_MIME) && ((type === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(type) >= 0))) {
 								treeDataTransfer.set(type, {
 									asString: () => Promise.resolve(dataValue),
 									value: undefined
