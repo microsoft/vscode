@@ -67,7 +67,7 @@ __vsc_command_complete() {
 	if [[ "$VSC_HISTORY_ID" == "$VSC_LAST_HISTORY_ID" ]]; then
 		printf "\033]633;D\007"
 	else
-		printf "\033]633;D;%s\007" "$STATUS"
+		printf "\033]633;D;%s\007" "$VSC_STATUS"
 		VSC_LAST_HISTORY_ID=$VSC_HISTORY_ID
 	fi
 	__vsc_update_cwd
@@ -85,13 +85,13 @@ __vsc_update_prompt() {
 }
 
 __vsc_precmd() {
-	local STATUS="$?"
+	local VSC_STATUS="$?"
 	if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
 		# not in command execution
 		__vsc_command_output_start
 	fi
 
-	__vsc_command_complete "$STATUS"
+	__vsc_command_complete "$VSC_STATUS"
 
 	# in command execution
 	if [ -n "$IN_COMMAND_EXECUTION" ]; then
