@@ -384,7 +384,7 @@ export class ExplorerService implements IExplorerService {
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
 		let shouldRefresh = false;
 
-		if (event?.affectedKeys.some(x => x.startsWith('explorer.fileNesting.'))) {
+		if (event?.affectedKeys.some(x => x.startsWith('explorer.experimental.fileNesting.'))) {
 			shouldRefresh = true;
 		}
 

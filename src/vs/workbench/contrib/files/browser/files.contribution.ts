@@ -461,38 +461,26 @@ configurationRegistry.registerConfiguration({
 			'default': 'auto'
 		},
 		'explorer.experimental.fileNesting.enabled': {
-			deprecationMessage: nls.localize('deprecated', "Deprecated, use non-experimental setting names.")
-		},
-		'explorer.experimental.fileNesting.expand': {
-			deprecationMessage: nls.localize('deprecated', "Deprecated, use non-experimental setting names.")
-		},
-		'explorer.experimental.fileNesting.operateAsGroup': {
-			deprecationMessage: nls.localize('deprecated', "Deprecated, use non-experimental setting names.")
-		},
-		'explorer.experimental.fileNesting.patterns': {
-			deprecationMessage: nls.localize('deprecated', "Deprecated, use non-experimental setting names.")
-		},
-		'explorer.fileNesting.enabled': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('fileNestingEnabled', "Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
+			'markdownDescription': nls.localize('fileNestingEnabled', "Experimental. Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
 			'default': false,
 		},
-		'explorer.fileNesting.expand': {
+		'explorer.experimental.fileNesting.expand': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('fileNestingExpand', "Controls whether file nests are automatically expanded."),
+			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expanded. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
 			'default': true,
 		},
-		'explorer.fileNesting.operateAsGroup': {
+		'explorer.experimental.fileNesting.operateAsGroup': {
 			'type': 'boolean',
 			'markdownDescription': nls.localize('operateAsGroup', "Controls whether file nests are treated as a group for clipboard operations, file deletions, and during drag and drop."),
 			'default': false,
 		},
-		'explorer.fileNesting.patterns': {
+		'explorer.experimental.fileNesting.patterns': {
 			'type': 'object',
 			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the explorer. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `$\u200b(capture)`: Matches the resolved value of the `*` from the parent pattern\n- `$\u200b(basename)`: Matches the parent file's basename, the `file` in `file.ts`\n- `$\u200b(extname)`: Matches the parent file's extension, the `ts` in `file.ts`\n- `$\u200b(dirname)`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`: Matches any string, may only be used once per child pattern"),
 			patternProperties: {
 				'^[^*]*\\*?[^*]*$': {
-					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain several special sequences: \n- `$\u200b(capture)`: Matches the resolved value of the `*` from the parent pattern\n- `$\u200b(basename)`: Matches the parent file's basename, the `file` in `file.ts`\n- `$\u200b(extname)`: Matches the parent file's extension, the `ts` in `file.ts`\n- `$\u200b(dirname)`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`: Matches any string, may only be used once per child pattern"),
+					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain a single `*` character which will match any string."),
 					type: 'string',
 					pattern: '^([^,*]*\\*?[^,*]*)(, ?[^,*]*\\*?[^,*]*)*$',
 				}

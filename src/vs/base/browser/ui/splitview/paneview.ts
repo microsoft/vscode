@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import 'vs/css!./paneview';
 import { localize } from 'vs/nls';
-import { IView, Sizing, SplitView } from './splitview';
+import { IView, SplitView } from './splitview';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;
@@ -492,7 +492,7 @@ export class PaneView extends Disposable {
 			return;
 		}
 
-		this.splitview.removeView(index, Sizing.Distribute);
+		this.splitview.removeView(index);
 		const paneItem = this.paneItems.splice(index, 1)[0];
 		paneItem.disposable.dispose();
 	}

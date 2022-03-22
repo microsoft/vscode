@@ -368,7 +368,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	}
 }
 
-class ExtensionManifestValidator extends ExtensionManifestHandler {
+export class ExtensionManifestValidator extends ExtensionManifestHandler {
 	validate(_extensionDescription: IExtensionDescription): IExtensionDescription | null {
 		let extensionDescription = <IRelaxedExtensionDescription>_extensionDescription;
 		extensionDescription.isBuiltin = this._isBuiltin;
