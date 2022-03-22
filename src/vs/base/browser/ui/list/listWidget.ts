@@ -936,6 +936,7 @@ export interface IListOptions<T> extends IListOptionsUpdate {
 	readonly supportDynamicHeights?: boolean;
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly scrollByPage?: boolean;
 	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;

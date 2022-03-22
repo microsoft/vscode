@@ -54,6 +54,7 @@ export interface IListViewOptionsUpdate {
 	readonly additionalScrollHeight?: number;
 	readonly smoothScrolling?: boolean;
 	readonly horizontalScrolling?: boolean;
+	readonly scrollByPage?: boolean;
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
 }
@@ -353,7 +354,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
 			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
 			mouseWheelScrollSensitivity: options.mouseWheelScrollSensitivity,
-			fastScrollSensitivity: options.fastScrollSensitivity
+			fastScrollSensitivity: options.fastScrollSensitivity,
+			scrollByPage: options.scrollByPage
 		}, this.scrollable));
 
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
@@ -391,6 +393,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (options.horizontalScrolling !== undefined) {
 			this.horizontalScrolling = options.horizontalScrolling;
+		}
+
+		if (options.scrollByPage !== undefined) {
+			this.scrollableElement.updateOptions({ scrollByPage: options.scrollByPage });
 		}
 
 		if (options.mouseWheelScrollSensitivity !== undefined) {

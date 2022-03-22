@@ -170,6 +170,21 @@ export class VariablesView extends ViewPane {
 				horizontalScrolling = undefined;
 			}
 		}));
+		let scrollByPage: boolean | undefined;
+		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
+			const variable = e?.expression;
+			if (variable instanceof Variable && !e?.settingWatch) {
+				scrollByPage = this.tree.options.scrollByPage;
+				if (scrollByPage) {
+					this.tree.updateOptions({ scrollByPage: false });
+				}
+
+				this.tree.rerender(variable);
+			} else if (!e && scrollByPage !== undefined) {
+				this.tree.updateOptions({ scrollByPage: scrollByPage });
+				scrollByPage = undefined;
+			}
+		}));
 		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable) {
 				await this.tree.updateChildren(e, false, true);

@@ -166,7 +166,24 @@ export class WatchExpressionsView extends ViewPane {
 				horizontalScrolling = undefined;
 			}
 		}));
+		let scrollByPage: boolean | undefined;
+		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
+			const expression = e?.expression;
+			if (expression instanceof Expression || (expression instanceof Variable && e?.settingWatch)) {
+				scrollByPage = this.tree.options.scrollByPage;
+				if (scrollByPage) {
+					this.tree.updateOptions({ scrollByPage: false });
+				}
 
+				if (expression.name) {
+					// Only rerender if the input is already done since otherwise the tree is not yet aware of the new element
+					this.tree.rerender(expression);
+				}
+			} else if (!expression && scrollByPage !== undefined) {
+				this.tree.updateOptions({ scrollByPage: scrollByPage });
+				scrollByPage = undefined;
+			}
+		}));
 		this._register(this.debugService.getViewModel().onDidEvaluateLazyExpression(async e => {
 			if (e instanceof Variable && this.tree.hasNode(e)) {
 				await this.tree.updateChildren(e, false, true);

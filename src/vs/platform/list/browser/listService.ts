@@ -134,6 +134,7 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 const multiSelectModifierSettingKey = 'workbench.list.multiSelectModifier';
 const openModeSettingKey = 'workbench.list.openMode';
 const horizontalScrollingKey = 'workbench.list.horizontalScrolling';
+const scrollByPageKey = 'workbench.list.scrollByPage';
 const keyboardNavigationSettingKey = 'workbench.list.keyboardNavigation';
 const automaticKeyboardNavigationSettingKey = 'workbench.list.automaticKeyboardNavigation';
 const treeIndentKey = 'workbench.tree.indent';
@@ -210,6 +211,7 @@ export class WorkbenchList<T> extends List<T> {
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 	private horizontalScrolling: boolean | undefined;
+	private scrollByPage: boolean | undefined;
 	private _styler: IDisposable | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private navigator: ListResourceNavigator<T>;
@@ -228,6 +230,7 @@ export class WorkbenchList<T> extends List<T> {
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
+		const scrollByPage = typeof options.scrollByPage !== 'undefined' ? options.scrollByPage : Boolean(configurationService.getValue(scrollByPageKey));
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 
 		super(user, container, delegate, renderers,
@@ -235,7 +238,8 @@ export class WorkbenchList<T> extends List<T> {
 				keyboardSupport: false,
 				...computeStyles(themeService.getColorTheme(), defaultListStyles),
 				...workbenchListOptions,
-				horizontalScrolling
+				horizontalScrolling,
+				scrollByPage
 			}
 		);
 
@@ -254,6 +258,7 @@ export class WorkbenchList<T> extends List<T> {
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 		this.horizontalScrolling = options.horizontalScrolling;
+		this.scrollByPage = options.scrollByPage;
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
@@ -290,6 +295,10 @@ export class WorkbenchList<T> extends List<T> {
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
 				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 				options = { ...options, horizontalScrolling };
+			}
+			if (e.affectsConfiguration(scrollByPageKey) && this.scrollByPage === undefined) {
+				const scrollByPage = Boolean(configurationService.getValue(scrollByPageKey));
+				options = { ...options, scrollByPage };
 			}
 			if (e.affectsConfiguration(listSmoothScrolling)) {
 				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
@@ -351,6 +360,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 	private listSupportsMultiSelect: IContextKey<boolean>;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private horizontalScrolling: boolean | undefined;
+	private scrollByPage: boolean | undefined;
 	private _styler: IDisposable | undefined;
 	private navigator: ListResourceNavigator<T>;
 	get onDidOpen(): Event<IOpenEvent<T | undefined>> { return this.navigator.onDidOpen; }
@@ -368,13 +378,15 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
+		const scrollByPage = typeof options.scrollByPage !== 'undefined' ? options.scrollByPage : Boolean(configurationService.getValue(scrollByPageKey));
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 		super(user, container, delegate, renderers,
 			{
 				keyboardSupport: false,
 				...computeStyles(themeService.getColorTheme(), defaultListStyles),
 				...workbenchListOptions,
-				horizontalScrolling
+				horizontalScrolling,
+				scrollByPage
 			}
 		);
 
@@ -385,6 +397,7 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		this.themeService = themeService;
 
 		this.horizontalScrolling = options.horizontalScrolling;
+		this.scrollByPage = options.scrollByPage;
 
 		this.listSupportsMultiSelect = WorkbenchListSupportsMultiSelectContextKey.bindTo(this.contextKeyService);
 		this.listSupportsMultiSelect.set(options.multipleSelectionSupport !== false);
@@ -415,6 +428,10 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
 				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 				options = { ...options, horizontalScrolling };
+			}
+			if (e.affectsConfiguration(scrollByPageKey) && this.scrollByPage === undefined) {
+				const scrollByPage = Boolean(configurationService.getValue(scrollByPageKey));
+				options = { ...options, scrollByPage };
 			}
 			if (e.affectsConfiguration(listSmoothScrolling)) {
 				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
@@ -482,6 +499,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 	private listDoubleSelection: IContextKey<boolean>;
 	private listMultiSelection: IContextKey<boolean>;
 	private horizontalScrolling: boolean | undefined;
+	private scrollByPage: boolean | undefined;
 	private _styler: IDisposable | undefined;
 	private _useAltAsMultipleSelectionModifier: boolean;
 	private navigator: TableResourceNavigator<TRow>;
@@ -501,6 +519,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		const horizontalScrolling = typeof options.horizontalScrolling !== 'undefined' ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
+		const scrollByPage = typeof options.scrollByPage !== 'undefined' ? options.scrollByPage : Boolean(configurationService.getValue(scrollByPageKey));
 		const [workbenchListOptions, workbenchListOptionsDisposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 
 		super(user, container, delegate, columns, renderers,
@@ -508,7 +527,8 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 				keyboardSupport: false,
 				...computeStyles(themeService.getColorTheme(), defaultListStyles),
 				...workbenchListOptions,
-				horizontalScrolling
+				horizontalScrolling,
+				scrollByPage
 			}
 		);
 
@@ -527,6 +547,7 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 		this.listDoubleSelection = WorkbenchListDoubleSelection.bindTo(this.contextKeyService);
 		this.listMultiSelection = WorkbenchListMultiSelection.bindTo(this.contextKeyService);
 		this.horizontalScrolling = options.horizontalScrolling;
+		this.scrollByPage = options.scrollByPage;
 
 		this._useAltAsMultipleSelectionModifier = useAltAsMultipleSelectionModifier(configurationService);
 
@@ -563,6 +584,10 @@ export class WorkbenchTable<TRow> extends Table<TRow> {
 			if (e.affectsConfiguration(horizontalScrollingKey) && this.horizontalScrolling === undefined) {
 				const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 				options = { ...options, horizontalScrolling };
+			}
+			if (e.affectsConfiguration(scrollByPageKey) && this.scrollByPage === undefined) {
+				const scrollByPage = Boolean(configurationService.getValue(scrollByPageKey));
+				options = { ...options, scrollByPage };
 			}
 			if (e.affectsConfiguration(listSmoothScrolling)) {
 				const smoothScrolling = Boolean(configurationService.getValue(listSmoothScrolling));
@@ -1066,6 +1091,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 	const accessibilityOn = accessibilityService.isScreenReaderOptimized();
 	const keyboardNavigation = options.simpleKeyboardNavigation || accessibilityOn ? 'simple' : configurationService.getValue<string>(keyboardNavigationSettingKey);
 	const horizontalScrolling = options.horizontalScrolling !== undefined ? options.horizontalScrolling : Boolean(configurationService.getValue(horizontalScrollingKey));
+	const scrollByPage = options.scrollByPage !== undefined ? options.scrollByPage : Boolean(configurationService.getValue(scrollByPageKey));
 	const [workbenchListOptions, disposable] = toWorkbenchListOptions(options, configurationService, keybindingService);
 	const additionalScrollHeight = options.additionalScrollHeight;
 
@@ -1083,6 +1109,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			simpleKeyboardNavigation: keyboardNavigation === 'simple',
 			filterOnType: keyboardNavigation === 'filter',
 			horizontalScrolling,
+			scrollByPage,
 			keyboardNavigationEventFilter: createKeyboardNavigationEventFilter(container, keybindingService),
 			additionalScrollHeight,
 			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
@@ -1219,6 +1246,10 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 					const horizontalScrolling = Boolean(configurationService.getValue(horizontalScrollingKey));
 					newOptions = { ...newOptions, horizontalScrolling };
 				}
+				if (e.affectsConfiguration(scrollByPageKey) && options.scrollByPage === undefined) {
+					const scrollByPage = Boolean(configurationService.getValue(scrollByPageKey));
+					newOptions = { ...newOptions, scrollByPage };
+				}
 				if (e.affectsConfiguration(treeExpandMode) && options.expandOnlyOnTwistieClick === undefined) {
 					newOptions = { ...newOptions, expandOnlyOnTwistieClick: configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick' };
 				}
@@ -1305,6 +1336,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: false,
 			description: localize('horizontalScrolling setting', "Controls whether lists and trees support horizontal scrolling in the workbench. Warning: turning on this setting has a performance implication.")
+		},
+		[scrollByPageKey]: {
+			type: 'boolean',
+			default: false,
+			description: localize('list.scrollByPage', "Controls whether clicks scroll by page or jump to click position globally.")
 		},
 		[treeIndentKey]: {
 			type: 'number',
