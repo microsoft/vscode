@@ -73,8 +73,8 @@
 
 .monaco-workbench .editor-instance .xterm-decoration-overview-ruler,
 .monaco-workbench .pane-body.integrated-terminal .xterm-decoration-overview-ruler {
-	z-index: 31;
 	/* Must be higher than .xterm-viewport */
+	z-index: 31;
 	pointer-events: none;
 }
 
