@@ -98,5 +98,6 @@
 	"explorer.fileNesting.patterns": {
 		"*.js": "$(capture).*.js",
 		"bootstrap.js": "bootstrap-*.js"
-	}
+	},
+	"explorer.fileNesting.enabled": true
 }
