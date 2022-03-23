@@ -116,7 +116,8 @@ declare module 'vscode' {
 		readonly activeTab: Tab | undefined;
 
 		/**
-		 * The list of tabs contained within the group
+		 * The list of tabs contained within the group.
+		 * This can be empty if the group has no tabs open.
 		 */
 		readonly tabs: readonly Tab[];
 	}
@@ -130,7 +131,7 @@ declare module 'vscode' {
 		/**
 		 * The currently active group
 		 */
-		readonly activeTabGroup: TabGroup | undefined;
+		readonly activeTabGroup: TabGroup;
 
 		/**
 		 * An {@link Event} which fires when a group changes.
@@ -148,7 +149,7 @@ declare module 'vscode' {
 		 * An {@link Event} which fires when the active group changes.
 		 * This does not fire when the properties within the group change.
 		 */
-		readonly onDidChangeActiveTabGroup: Event<TabGroup | undefined>;
+		readonly onDidChangeActiveTabGroup: Event<TabGroup>;
 
 		/**
 		 * Closes the tab. This makes the tab object invalid and the tab
