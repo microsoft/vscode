@@ -914,10 +914,10 @@ wrappy@1:
   resolved "https://registry.yarnpkg.com/wrappy/-/wrappy-1.0.2.tgz#b5243d8f3ec1aa35f1364605bc0d1036e30ab69f"
   integrity sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
 
-xterm-addon-search@0.9.0-beta.12:
-  version "0.9.0-beta.12"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.12.tgz#8b0005aee9c212bf0d884cdf34cb81cd2a72b13c"
-  integrity sha512-NzZsfxGmHanCKbZLkCZMIqqioiUsFWyvZncN+FOoc5MpFZ5ytDjHkDOb5ZTEYfm+5FaVt2JTx7nZTsoEDXT+Xw==
+xterm-addon-search@0.9.0-beta.14:
+  version "0.9.0-beta.14"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.14.tgz#709d385451e9aaa014980e4035a64db46ba29c5b"
+  integrity sha512-GoXGJCWHIweRgpL71nM9CVwpfvTZVbEiSgoMN1XcYI0oJFtH068wE9jwbHDrB64RWKGbLEDmCslhq5jfPXpzbg==
 
 xterm-addon-serialize@0.7.0-beta.11:
   version "0.7.0-beta.11"
@@ -934,15 +934,15 @@ xterm-addon-webgl@0.12.0-beta.24:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.24.tgz#5c17256933991856554c95c9bd1eaab42e9727a0"
   integrity sha512-+wZxKReEOlfN9JRHyikoffA6Do61/THR7QY35ajkQo0lLutKr6hTd/TLTuZh0PhFVelgTgudpXqlP++Lc0WFIA==
 
-xterm-headless@4.19.0-beta.12:
-  version "4.19.0-beta.12"
-  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.19.0-beta.12.tgz#8781496adb56ed4c9ce79761628f68fa53e066cc"
-  integrity sha512-e1lkive0fcXvFFE+HU/s3E9xDbzkrD70ZzUKjgwiwMwaINRHZy+uPs0dGBj/S+Yf0rlD0LpI+ohAmIpy1sP9qQ==
+xterm-headless@4.19.0-beta.14:
+  version "4.19.0-beta.14"
+  resolved "https://registry.yarnpkg.com/xterm-headless/-/xterm-headless-4.19.0-beta.14.tgz#d79e8ecc02f243d6a8b78d054aafca7cb7074d61"
+  integrity sha512-g2j1FDfCHJ4j7gZFljIc4bgV4QpHVBmsIwXsQB1IKeLhk3BzUvj5NQs3ijCRlZsznGQdhWQZNox/i5QiRuSXGw==
 
-xterm@4.19.0-beta.12:
-  version "4.19.0-beta.12"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0-beta.12.tgz#41473a884b036f0c9223ebe38608e90a2d73b362"
-  integrity sha512-q2J0N9m2V2qfWpJaVm0uXCX0bOON1uCpLC6fRF2ocHA1B8xZ5QqDCGPBLk8mRNrojt8XkbKsbYOJHGeV6e6qQg==
+xterm@4.19.0-beta.14:
+  version "4.19.0-beta.14"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0-beta.14.tgz#cc732cb8009ecb3da23702f22c2ff46cf491fa2b"
+  integrity sha512-6mRaL4x0YmzVyouD86wBZpfdjlI4NdJFlJybwxG9g3XSlphyDq/fwa0wEa1/JnKvpdgjuZsP9XNwMIfaYFTqUA==
 
 yallist@^4.0.0:
   version "4.0.0"
