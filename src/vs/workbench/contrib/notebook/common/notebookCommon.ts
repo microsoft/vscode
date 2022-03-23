@@ -276,6 +276,7 @@ export interface NotebookCellsInitializeEvent<T> {
 
 export interface NotebookCellContentChangeEvent {
 	readonly kind: NotebookCellsChangeType.ChangeCellContent;
+	readonly index: number;
 }
 
 export interface NotebookCellsModelChangedEvent<T> {
