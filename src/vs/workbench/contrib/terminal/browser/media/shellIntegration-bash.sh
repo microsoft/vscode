@@ -20,7 +20,7 @@ else
 	VSCODE_SHELL_LOGIN=""
 fi
 
-if [[ "$PROMPT_COMMAND" =~ ^.*(\s.*\;)|(\;.*\s).*$ ]]; then
+if [[ "$PROMPT_COMMAND" =~ ^.*(' '.*\;)|(\;.*' ').*$ ]]; then
 	echo -e "\033[1;32mShell integration cannot be activated due to complex \$PROMPT_COMMAND\033[0m"
 	VSCODE_SHELL_HIDE_WELCOME=""
 	return;
