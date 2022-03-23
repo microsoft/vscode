@@ -24,6 +24,14 @@ declare module 'vscode' {
 		constructor(uri: Uri, viewType: string);
 	}
 
+	export class TabKindWebview {
+		/**
+		 * The type of webview. Maps to {@linkcode WebviewPanel.viewType WebviewPanel's viewType}
+		 */
+		readonly viewType: string;
+		constructor(viewType: string);
+	}
+
 	export class TabKindNotebook {
 		readonly uri: Uri;
 		readonly notebookType: string;
@@ -55,7 +63,7 @@ declare module 'vscode' {
 		 * Defines the structure of the tab i.e. text, notebook, custom, etc.
 		 * Resource and other useful properties are defined on the tab kind.
 		 */
-		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindNotebook | TabKindNotebookDiff | unknown;
+		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindWebview | TabKindNotebook | TabKindNotebookDiff | unknown;
 
 		/**
 		 * Whether or not the tab is currently active

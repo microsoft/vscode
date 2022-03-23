@@ -1337,7 +1337,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TabKindTextDiff: extHostTypes.TextDiffTabInput,
 			TabKindCustom: extHostTypes.CustomEditorTabInput,
 			TabKindNotebook: extHostTypes.NotebookEditorTabInput,
-			TabKindNotebookDiff: extHostTypes.NotebookDiffEditorTabInput
+			TabKindNotebookDiff: extHostTypes.NotebookDiffEditorTabInput,
+			TabKindWebview: extHostTypes.WebviewEditorTabInput
 		};
 	};
 }

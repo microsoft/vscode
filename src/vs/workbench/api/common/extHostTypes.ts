@@ -3616,6 +3616,10 @@ export class CustomEditorTabInput {
 	constructor(readonly uri: URI, readonly viewType: string) { }
 }
 
+export class WebviewEditorTabInput {
+	constructor(readonly viewType: string) { }
+}
+
 export class NotebookEditorTabInput {
 	constructor(readonly uri: URI, readonly notebookType: string) { }
 }
