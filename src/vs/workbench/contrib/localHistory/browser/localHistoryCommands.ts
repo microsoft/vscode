@@ -517,6 +517,7 @@ registerAction2(class extends Action2 {
 		const workingCopyHistoryService = accessor.get(IWorkingCopyHistoryService);
 		const quickInputService = accessor.get(IQuickInputService);
 		const editorService = accessor.get(IEditorService);
+		const labelService = accessor.get(ILabelService);
 
 		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (!resource) {
@@ -526,7 +527,7 @@ registerAction2(class extends Action2 {
 		const inputBox = quickInputService.createInputBox();
 		inputBox.title = localize('createLocalHistoryEntryTitle', "Create Local History Entry");
 		inputBox.ignoreFocusOut = true;
-		inputBox.placeholder = localize('createLocalHistoryPlaceholder', "Enter the new name of the local history entry");
+		inputBox.placeholder = localize('createLocalHistoryPlaceholder', "Enter the new name of the local history entry for '{0}'", labelService.getUriBasenameLabel(resource));
 		inputBox.show();
 		inputBox.onDidAccept(async () => {
 			let entrySource = inputBox.value;
