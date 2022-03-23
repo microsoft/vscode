@@ -311,6 +311,8 @@ registerAction2(class extends Action2 {
 		const languageService = accessor.get(ILanguageService);
 		const labelService = accessor.get(ILabelService);
 		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
+		const commandService = accessor.get(ICommandService);
 
 		// Show all resources with associated history entries in picker
 		// with progress because this operation will take longer the more
@@ -371,12 +373,17 @@ registerAction2(class extends Action2 {
 		await Event.toPromise(entryPicker.onDidAccept);
 		entryPicker.dispose();
 
-		const entry = firstOrDefault(entryPicker.selectedItems);
-		if (!entry) {
+		const selectedItem = firstOrDefault(entryPicker.selectedItems);
+		if (!selectedItem) {
 			return;
 		}
 
-		return openEntry(entry.entry, editorService);
+		const resourceExists = await fileService.exists(selectedItem.entry.workingCopy.resource);
+		if (resourceExists) {
+			return commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(selectedItem.entry, selectedItem.entry.workingCopy.resource));
+		}
+
+		return openEntry(selectedItem.entry, editorService);
 	}
 });
 
