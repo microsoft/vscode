@@ -63,12 +63,12 @@ __vsc_right_prompt_end() {
 }
 
 __vsc_command_complete() {
-	local HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
-	if [[ "$HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
+	local VSC_HISTORY_ID=$(history | tail -n1 | awk '{print $1;}')
+	if [[ "$VSC_HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
 		printf "\033]633;D\007"
 	else
-		printf "\033]633;D;%s\007" "$STATUS"
-		LAST_HISTORY_ID=$HISTORY_ID
+		printf "\033]633;D;%s\007" "$VSC_STATUS"
+		LAST_HISTORY_ID=$VSC_HISTORY_ID
 	fi
 	__vsc_update_cwd
 }
@@ -84,14 +84,14 @@ __vsc_update_prompt() {
 	fi
 }
 
-precmd() {
-	local STATUS="$?"
+__vsc_precmd() {
+	local VSC_STATUS="$?"
 	if [ -z "${IN_COMMAND_EXECUTION-}" ]; then
 		# not in command execution
 		__vsc_command_output_start
 	fi
 
-	__vsc_command_complete "$STATUS"
+	__vsc_command_complete "$VSC_STATUS"
 
 	# in command execution
 	if [ -n "$IN_COMMAND_EXECUTION" ]; then
@@ -100,7 +100,7 @@ precmd() {
 	fi
 }
 
-preexec() {
+__vsc_preexec() {
 	PS1="$PRIOR_PROMPT"
 	if [ -n "$RPROMPT" ]; then
 		RPROMPT="$PRIOR_RPROMPT"
@@ -108,8 +108,8 @@ preexec() {
 	IN_COMMAND_EXECUTION="1"
 	__vsc_command_output_start
 }
-add-zsh-hook precmd precmd
-add-zsh-hook preexec preexec
+add-zsh-hook precmd __vsc_precmd
+add-zsh-hook preexec __vsc_preexec
 
 # Show the welcome message
 if [ -z "${VSCODE_SHELL_HIDE_WELCOME-}" ]; then

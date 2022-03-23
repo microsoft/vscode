@@ -20,8 +20,14 @@ else
 	VSCODE_SHELL_LOGIN=""
 fi
 
+if [[ "$PROMPT_COMMAND" =~ .*(' '.*\;)|(\;.*' ').* ]]; then
+	echo -e "\033[1;33mShell integration cannot be activated due to complex PROMPT_COMMAND: $PROMPT_COMMAND\033[0m"
+	VSCODE_SHELL_HIDE_WELCOME=""
+	return;
+fi
+
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
-	echo -e "\033[1;32mShell integration was disabled by the shell\033[0m"
+	echo -e "\033[1;33mShell integration was disabled by the shell\033[0m"
 	return
 fi
 
@@ -53,12 +59,12 @@ __vsc_continuation_end() {
 }
 
 __vsc_command_complete() {
-	local HISTORY_ID=$(history 1 | awk '{print $1;}')
-	if [[ "$HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
+	local VSC_HISTORY_ID=$(history 1 | awk '{print $1;}')
+	if [[ "$VSC_HISTORY_ID" == "$LAST_HISTORY_ID" ]]; then
 		printf "\033]633;D\007"
 	else
-		printf "\033]633;D;%s\007" "$STATUS"
-		LAST_HISTORY_ID=$HISTORY_ID
+		printf "\033]633;D;%s\007" "$VSC_STATUS"
+		LAST_HISTORY_ID=$VSC_HISTORY_ID
 	fi
 	__vsc_update_cwd
 }
@@ -71,7 +77,7 @@ __vsc_update_prompt() {
 }
 
 precmd() {
-	__vsc_command_complete "$STATUS"
+	__vsc_command_complete "$VSC_STATUS"
 
 	# in command execution
 	if [ -n "$IN_COMMAND_EXECUTION" ]; then
@@ -90,7 +96,7 @@ preexec() {
 __vsc_update_prompt
 
 prompt_cmd_original() {
-	STATUS="$?"
+	VSC_STATUS="$?"
 	if [[ "$ORIGINAL_PROMPT_COMMAND" =~ .+\;.+ ]]; then
 		IFS=';'
 	else
@@ -105,7 +111,7 @@ prompt_cmd_original() {
 }
 
 prompt_cmd() {
-	STATUS="$?"
+	VSC_STATUS="$?"
 	precmd
 }
 

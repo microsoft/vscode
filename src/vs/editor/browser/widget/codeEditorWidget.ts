@@ -190,7 +190,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onMouseDropCanceled: Event<void> = this._onMouseDropCanceled.event;
 
-	private readonly _onDropIntoEditor = this._register(new Emitter<{ position: IPosition; dataTransfer: DataTransfer }>());
+	private readonly _onDropIntoEditor = this._register(new Emitter<{ readonly position: IPosition; readonly event: DragEvent }>());
 	public readonly onDropIntoEditor = this._onDropIntoEditor.event;
 
 	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
@@ -362,33 +362,35 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._actions[internalAction.id] = internalAction;
 		});
 
-		this._register(new dom.DragAndDropObserver(this._domElement, {
-			onDragEnter: () => undefined,
-			onDragOver: e => {
-				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
-				if (target?.position) {
-					this.showDropIndicatorAt(target.position);
-				}
-			},
-			onDrop: async e => {
-				this.removeDropIndicator();
+		if (_options.enableDropIntoEditor) {
+			this._register(new dom.DragAndDropObserver(this._domElement, {
+				onDragEnter: () => undefined,
+				onDragOver: e => {
+					const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+					if (target?.position) {
+						this.showDropIndicatorAt(target.position);
+					}
+				},
+				onDrop: async e => {
+					this.removeDropIndicator();
 
-				if (!e.dataTransfer) {
-					return;
-				}
+					if (!e.dataTransfer) {
+						return;
+					}
 
-				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
-				if (target?.position) {
-					this._onDropIntoEditor.fire({ position: target.position, dataTransfer: e.dataTransfer });
-				}
-			},
-			onDragLeave: () => {
-				this.removeDropIndicator();
-			},
-			onDragEnd: () => {
-				this.removeDropIndicator();
-			},
-		}));
+					const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
+					if (target?.position) {
+						this._onDropIntoEditor.fire({ position: target.position, event: e });
+					}
+				},
+				onDragLeave: () => {
+					this.removeDropIndicator();
+				},
+				onDragEnd: () => {
+					this.removeDropIndicator();
+				},
+			}));
+		}
 
 		this._codeEditorService.addCodeEditor(this);
 	}

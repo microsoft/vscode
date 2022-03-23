@@ -33,6 +33,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { diffSets, diffMaps } from 'vs/base/common/collections';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 
 class TextEditorSnapshot {
@@ -297,14 +298,15 @@ export class MainThreadDocumentsAndEditors {
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IPathService pathService: IPathService
+		@IPathService pathService: IPathService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
 		this._mainThreadDocuments = this._toDispose.add(new MainThreadDocuments(extHostContext, this._modelService, this._textFileService, fileService, textModelResolverService, environmentService, uriIdentityService, workingCopyFileService, pathService));
 		extHostContext.set(MainContext.MainThreadDocuments, this._mainThreadDocuments);
 
-		this._mainThreadEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService));
+		this._mainThreadEditors = this._toDispose.add(new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService, instantiationService));
 		extHostContext.set(MainContext.MainThreadTextEditors, this._mainThreadEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
