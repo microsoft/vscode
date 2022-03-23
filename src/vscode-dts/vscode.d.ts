@@ -9855,7 +9855,7 @@ declare module 'vscode' {
 		handleDrag?(source: T[], dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
 
 		/**
-		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.
+		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs to.
 		 *
 		 * Extensions should fire {@link TreeDataProvider.onDidChangeTreeData onDidChangeTreeData} for any elements that need to be refreshed.
 		 *
