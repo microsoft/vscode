@@ -15,7 +15,7 @@
     "https-proxy-agent": "^2.2.3",
     "jschardet": "3.0.0",
     "keytar": "7.9.0",
-    "minimist": "^1.2.5",
+    "minimist": "^1.2.6",
     "native-watchdog": "1.4.0",
     "node-pty": "0.11.0-beta11",
     "spdlog": "^0.13.0",
