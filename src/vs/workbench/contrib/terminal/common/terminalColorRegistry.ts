@@ -86,8 +86,8 @@ export const TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR = registerColor('termina
 export const TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR = registerColor('terminalOverviewRuler.findMatchForeground', {
 	dark: overviewRulerFindMatchForeground,
 	light: overviewRulerFindMatchForeground,
-	hcDark: overviewRulerFindMatchForeground,
-	hcLight: overviewRulerFindMatchForeground
+	hcDark: '#f38518',
+	hcLight: '#0F4A85'
 }, nls.localize('terminalOverviewRuler.findMatchHighlightForeground', 'Overview ruler marker color for find matches in the terminal.'));
 export const TERMINAL_DRAG_AND_DROP_BACKGROUND = registerColor('terminal.dropBackground', {
 	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
