@@ -68,8 +68,8 @@ export const TERMINAL_FIND_MATCH_BACKGROUND_COLOR = registerColor('terminal.find
 export const TERMINAL_FIND_MATCH_BORDER_COLOR = registerColor('terminal.findMatchfindMatchBorder', {
 	dark: editorFindMatch,
 	light: editorFindMatch,
-	hcDark: editorFindMatch,
-	hcLight: editorFindMatch
+	hcDark: '#f38518',
+	hcLight: '#0F4A85'
 }, nls.localize('terminal.findMatchfindMatchBorder', 'Border color of the current search match in the terminal.'));
 export const TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR = registerColor('terminal.findMatchHighlightBackground', {
 	dark: null,
@@ -80,8 +80,8 @@ export const TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR = registerColor('ter
 export const TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR = registerColor('terminal.findMatchHighlightBorder', {
 	dark: editorFindMatchHighlight,
 	light: editorFindMatchHighlight,
-	hcDark: editorFindMatchHighlight,
-	hcLight: editorFindMatchHighlight
+	hcDark: '#f38518',
+	hcLight: '#0F4A85'
 }, nls.localize('terminal.findMatchHighlightBorder', 'Border color of the other search matches in the terminal.'));
 export const TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR = registerColor('terminalOverviewRuler.findMatchForeground', {
 	dark: overviewRulerFindMatchForeground,
