@@ -57,6 +57,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -215,7 +216,8 @@ export class SettingsEditor2 extends EditorPane {
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -530,7 +532,11 @@ export class SettingsEditor2 extends EditorPane {
 				// Based on testing, the trigger character is always at the end of the query.
 				// for the ':' trigger, only return suggestions if there was a '@' before it in the same word.
 				const queryParts = query.split(/\s/g);
-				if (queryParts[queryParts.length - 1].startsWith('@')) {
+				if (queryParts[queryParts.length - 1].startsWith(`@${LANGUAGE_SETTING_TAG}`)) {
+					return this.languageService.getRegisteredLanguageIds().map(languageId => {
+						return `@${LANGUAGE_SETTING_TAG}${languageId} `;
+					}).sort();
+				} else if (queryParts[queryParts.length - 1].startsWith('@')) {
 					return SettingsEditor2.SUGGESTIONS.filter(tag => !query.includes(tag)).map(tag => tag.endsWith(':') ? tag : tag + ' ');
 				}
 				return [];

@@ -228,7 +228,7 @@ const enum SubstitutionType {
 	extname = 'extname',
 }
 
-const substitutionStringTokenizer = /\$\((capture|basename|dirname|extname)\)/g;
+const substitutionStringTokenizer = /\$[({](capture|basename|dirname|extname)[)}]/g;
 
 class SubstitutionString {
 

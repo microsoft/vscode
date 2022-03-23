@@ -155,16 +155,19 @@ export class ExplorerService implements IExplorerService {
 		if (!this.view) {
 			return [];
 		}
-		const items = this.view.getContext(respectMultiSelection);
+
+		const items = new Set<ExplorerItem>(this.view.getContext(respectMultiSelection));
 		if (includeNestedChildren) {
 			items.forEach(item => {
-				const nestedChildren = item.nestedChildren;
-				if (nestedChildren) {
-					items.push(...nestedChildren);
+				if (item.nestedChildren) {
+					for (const child of item.nestedChildren) {
+						items.add(child);
+					}
 				}
 			});
 		}
-		return items;
+
+		return [...items];
 	}
 
 	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {

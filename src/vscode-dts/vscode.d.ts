@@ -9784,7 +9784,7 @@ declare module 'vscode' {
 	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
-	export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
+	export class DataTransfer {
 		/**
 		 * Retrieves the data transfer item for a given mime type.
 		 *
@@ -9794,20 +9794,20 @@ declare module 'vscode' {
 		 * - `text/uri-list` — A string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 */
-		get(mimeType: string): T | undefined;
+		get(mimeType: string): DataTransferItem | undefined;
 
 		/**
 		 * Sets a mime type to data transfer item mapping.
 		 * @param mimeType The mime type to set the data for.
 		 * @param value The data transfer item for the given mime type.
 		 */
-		set(mimeType: string, value: T): void;
+		set(mimeType: string, value: DataTransferItem): void;
 
 		/**
 		 * Allows iteration through the data transfer items.
 		 * @param callbackfn Callback for iteration through the data transfer items.
 		 */
-		forEach(callbackfn: (value: T, key: string) => void): void;
+		forEach(callbackfn: (value: DataTransferItem, key: string) => void): void;
 	}
 
 	/**
@@ -9826,7 +9826,8 @@ declare module 'vscode' {
 		 * 1. Set up your `DragAndDropController`
 		 * 2. Use the Developer: Set Log Level... command to set the level to "Debug"
 		 * 3. Open the developer tools and drag the item with unknown mime type over your tree. The mime types will be logged to the developer console
-		 * Note that only mime types of kind "string" are supported and will be logged (ex. files will not be logged).
+		 *
+		 * Note that mime types that cannot be sent to the extension will be omitted.
 		 */
 		readonly dropMimeTypes: string[];
 
@@ -9854,7 +9855,7 @@ declare module 'vscode' {
 		handleDrag?(source: T[], dataTransfer: DataTransfer, token: CancellationToken): Thenable<void> | void;
 
 		/**
-		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs too.
+		 * Called when a drag and drop action results in a drop on the tree that this `DragAndDropController` belongs to.
 		 *
 		 * Extensions should fire {@link TreeDataProvider.onDidChangeTreeData onDidChangeTreeData} for any elements that need to be refreshed.
 		 *
@@ -10548,17 +10549,20 @@ declare module 'vscode' {
 
 		/**
 		 * Show progress for the source control viewlet, as overlay for the icon and as progress bar
-		 * inside the viewlet (when visible). Neither supports cancellation nor discrete progress.
+		 * inside the viewlet (when visible). Neither supports cancellation nor discrete progress nor
+		 * a label to describe the operation.
 		 */
 		SourceControl = 1,
 
 		/**
 		 * Show progress in the status bar of the editor. Neither supports cancellation nor discrete progress.
+		 * Supports rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax in the progress label.
 		 */
 		Window = 10,
 
 		/**
-		 * Show progress as notification with an optional cancel button. Supports to show infinite and discrete progress.
+		 * Show progress as notification with an optional cancel button. Supports to show infinite and discrete
+		 * progress but does not support rendering of icons.
 		 */
 		Notification = 15
 	}

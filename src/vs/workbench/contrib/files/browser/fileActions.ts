@@ -575,7 +575,7 @@ export class FocusFilesExplorer extends Action {
 export class ShowActiveFileInExplorer extends Action {
 
 	static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
+	static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Explorer View");
 
 	constructor(
 		id: string,

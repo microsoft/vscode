@@ -427,12 +427,20 @@ export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCel
 		selections = [editor.getFocus()];
 	}
 
+	let originalFocusIdx = editor.getFocus().start;
+
+	// If the dragged cell is not focused/selected, ignore the current focus/selection and use the dragged idx
+	if (!selections.some(s => s.start <= draggedCellIndex && s.end > draggedCellIndex)) {
+		selections = [{ start: draggedCellIndex, end: draggedCellIndex + 1 }];
+		originalFocusIdx = draggedCellIndex;
+	}
+
 	const droppedInSelection = selections.find(range => range.start <= originalToIdx && range.end > originalToIdx);
 	if (droppedInSelection) {
 		originalToIdx = droppedInSelection.start;
 	}
 
-	const originalFocusIdx = editor.getFocus().start;
+
 	let numCells = 0;
 	let focusNewIdx = originalToIdx;
 	let newInsertionIdx = originalToIdx;
@@ -481,9 +489,6 @@ export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCel
 	const finalSelection = { start: lastEdit.newIdx, end: lastEdit.newIdx + numCells };
 	const finalFocus = { start: focusNewIdx, end: focusNewIdx + 1 };
 
-	// console.log(JSON.stringify(edits));
-	// console.log(JSON.stringify(finalSelection));
-	// console.log(JSON.stringify(finalFocus));
 	editor.textModel!.applyEdits(
 		edits,
 		true,

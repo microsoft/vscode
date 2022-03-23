@@ -195,6 +195,11 @@ export async function extractTreeDropData(dataTransfer: IDataTransfer): Promise<
 	return editors;
 }
 
+export function convertResourceUrlsToUriList(resourceUrls: string): string {
+	const asJson: URI[] = JSON.parse(resourceUrls);
+	return asJson.map(uri => uri.toString()).join('/n');
+}
+
 interface IFileTransferData {
 	resource: URI;
 	isDirectory?: boolean;

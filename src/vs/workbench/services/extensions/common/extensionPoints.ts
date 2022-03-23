@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Severity } from 'vs/platform/notification/common/notification';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
@@ -50,32 +49,9 @@ export namespace Translations {
 }
 
 export interface ILog {
-	error(source: string, message: string): void;
-	warn(source: string, message: string): void;
-	info(source: string, message: string): void;
-}
-
-export class Logger implements ILog {
-
-	private readonly _messageHandler: (severity: Severity, source: string, message: string) => void;
-
-	constructor(
-		messageHandler: (severity: Severity, source: string, message: string) => void
-	) {
-		this._messageHandler = messageHandler;
-	}
-
-	public error(source: string, message: string): void {
-		this._messageHandler(Severity.Error, source, message);
-	}
-
-	public warn(source: string, message: string): void {
-		this._messageHandler(Severity.Warning, source, message);
-	}
-
-	public info(source: string, message: string): void {
-		this._messageHandler(Severity.Info, source, message);
-	}
+	error(message: string | Error): void;
+	warn(message: string): void;
+	info(message: string): void;
 }
 
 export interface NlsConfiguration {
@@ -102,16 +78,13 @@ abstract class ExtensionManifestHandler {
 	}
 
 	protected _error(source: string, message: string): void {
-		this._log.error(source, message);
+		this._log.error(`[${source}]: ${message}`);
 	}
 
 	protected _warn(source: string, message: string): void {
-		this._log.warn(source, message);
+		this._log.warn(`[${source}]: ${message}`);
 	}
 
-	protected _info(source: string, message: string): void {
-		this._log.info(source, message);
-	}
 }
 
 class ExtensionManifestParser extends ExtensionManifestHandler {
@@ -344,7 +317,8 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 						}
 						obj[key] = command && (key === 'title' || key === 'category') && originalMessages ? { value: message, original: originalMessages[messageKey] } : message;
 					} else {
-						log.warn(messageScope, nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey));
+						const message = nls.localize('missingNLSKey', "Couldn't find message for key {0}.", messageKey);
+						log.warn(`[${messageScope}]: ${message}`);
 					}
 				}
 			} else if (types.isObject(value)) {
@@ -654,7 +628,8 @@ export class ExtensionScanner {
 			});
 			return extensionDescriptions;
 		} catch (err) {
-			log.error(absoluteFolderPath, err);
+			log.error(`Error scanning extensions at ${absoluteFolderPath}:`);
+			log.error(err);
 			return [];
 		}
 	}
@@ -680,7 +655,8 @@ export class ExtensionScanner {
 			}
 			return this.scanExtensions(input, log, fileService);
 		}, (err) => {
-			log.error(absoluteFolderPath, err);
+			log.error(`Error scanning extensions at ${absoluteFolderPath}:`);
+			log.error(err);
 			return [];
 		});
 	}

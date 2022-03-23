@@ -248,9 +248,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
 		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
 	}
-	public onDidChangeContentOrInjectedText(listener: (e: ModelRawContentChangedEvent | ModelInjectedTextChangedEvent) => void): IDisposable {
+	public onDidChangeContentOrInjectedText(listener: (e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent) => void): IDisposable {
 		return combinedDisposable(
-			this._eventEmitter.fastEvent(e => listener(e.rawContentChangedEvent)),
+			this._eventEmitter.fastEvent(e => listener(e)),
 			this._onDidChangeInjectedText.event(e => listener(e))
 		);
 	}
