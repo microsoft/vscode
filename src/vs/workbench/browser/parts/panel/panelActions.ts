@@ -502,7 +502,7 @@ class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
 				original: 'Move Panel Views To Secondary Side Bar'
 			},
 			category: CATEGORIES.View,
-			f1: true
+			f1: false
 		});
 	}
 }
@@ -538,7 +538,7 @@ class MoveSidePanelToPanelAction extends MoveViewsBetweenPanelsAction {
 				original: 'Move Secondary Side Bar Views To Panel'
 			},
 			category: CATEGORIES.View,
-			f1: true
+			f1: false
 		});
 	}
 }
