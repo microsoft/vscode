@@ -1046,7 +1046,7 @@ export class ToggleGroupSizesAction extends Action {
 export class MaximizeGroupAction extends Action {
 
 	static readonly ID = 'workbench.action.maximizeEditor';
-	static readonly LABEL = localize('maximizeEditor', "Maximize Editor Group and Hide Side Bar");
+	static readonly LABEL = localize('maximizeEditor', "Maximize Editor Group and Hide Side Bars");
 
 	constructor(
 		id: string,
@@ -1060,8 +1060,9 @@ export class MaximizeGroupAction extends Action {
 
 	override async run(): Promise<void> {
 		if (this.editorService.activeEditor) {
-			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 			this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			this.editorGroupService.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 		}
 	}
 }
