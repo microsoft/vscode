@@ -7,13 +7,14 @@ import { SimpleFindWidget } from 'vs/workbench/contrib/codeEditor/browser/find/s
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _findWidgetVisible: IContextKey<boolean>;
+	private _matchesCount: HTMLElement | undefined;
 
 	constructor(
 		findState: FindReplaceState,
@@ -73,9 +74,19 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (instance?.xterm) {
 			instance.xterm.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true }).then(foundMatch => {
 				this.updateButtons(foundMatch);
+				this._updateMatchesCount(instance.xterm!);
 			});
 		}
 		return false;
+	}
+	private _updateMatchesCount(xterm: IXtermTerminal) {
+		if (!this._matchesCount) {
+			this._matchesCount = document.createElement('div');
+		}
+		this._matchesCount.className = 'matchesCount';
+		this._matchesCount.appendChild(document.createTextNode(`${xterm.getMatchesCount()} Results`));
+		const node = super.getDomNode().querySelector('.monaco-findInput');
+		node?.insertAdjacentElement('beforeend', this._matchesCount);
 	}
 
 	protected _onFocusTrackerFocus() {

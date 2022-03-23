@@ -906,6 +906,8 @@ export interface IXtermTerminal {
 	 * Clears the search result decorations
 	 */
 	clearSearchDecorations(): void;
+
+	getMatchesCount(): number;
 }
 
 export interface IRequestAddInstanceToGroupEvent {
