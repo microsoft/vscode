@@ -274,8 +274,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				let hadOtherModelChange = false;
 				let hadModelLineChangeThatChangedLineMapping = false;
 
-				const changes = e.changes;
-				const versionId = (e instanceof textModelEvents.ModelRawContentChangedEvent ? e.versionId : null);
+				const changes = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
+				const versionId = (e instanceof textModelEvents.InternalModelContentChangeEvent ? e.rawContentChangedEvent.versionId : null);
 
 				// Do a first pass to compute line mappings, and a second pass to actually interpret them
 				const lineBreaksComputer = this._lines.createLineBreaksComputer();
@@ -391,16 +391,15 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+				if (e instanceof textModelEvents.InternalModelContentChangeEvent) {
+					eventsCollector.emitOutgoingEvent(new ModelContentChangedEvent(e.contentChangedEvent));
+				}
 				this._cursor.onModelContentChanged(eventsCollector, e);
 			} finally {
 				this._eventDispatcher.endEmitViewEvents();
 			}
 
 			this._tokenizeViewportSoon.schedule();
-		}));
-
-		this._register(this.model.onDidChangeContent((e) => {
-			this._eventDispatcher.emitOutgoingEvent(new ModelContentChangedEvent(e));
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {

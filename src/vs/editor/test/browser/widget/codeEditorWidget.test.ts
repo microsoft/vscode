@@ -122,4 +122,33 @@ suite('CodeEditorWidget', () => {
 		});
 	});
 
+	test('monaco-editor issue #2774 - Wrong order of events onDidChangeModelContent and onDidChangeCursorSelection on redo', () => {
+		withTestCodeEditor('', {}, (editor, viewModel) => {
+			const disposables = new DisposableStore();
+
+			const calls: string[] = [];
+			disposables.add(editor.onDidChangeModelContent((e) => {
+				calls.push(`contentchange(${e.changes.reduce<any[]>((aggr, c) => [...aggr, c.text, c.rangeOffset, c.rangeLength], []).join(', ')})`);
+			}));
+			disposables.add(editor.onDidChangeCursorSelection((e) => {
+				calls.push(`cursorchange(${e.selection.positionLineNumber}, ${e.selection.positionColumn})`);
+			}));
+
+			viewModel.type('a', 'test');
+			viewModel.model.undo();
+			viewModel.model.redo();
+
+			assert.deepStrictEqual(calls, [
+				'contentchange(a, 0, 0)',
+				'cursorchange(1, 2)',
+				'contentchange(, 0, 1)',
+				'cursorchange(1, 1)',
+				'contentchange(a, 0, 0)',
+				'cursorchange(1, 2)'
+			]);
+
+			disposables.dispose();
+		});
+	});
+
 });
