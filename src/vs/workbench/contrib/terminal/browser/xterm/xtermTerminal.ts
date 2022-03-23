@@ -25,9 +25,9 @@ import { CommandNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xt
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { editorBackground, editorFindMatch, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -263,11 +263,23 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 	private _updateFindColors(searchOptions: ISearchOptions): void {
 		const theme = this._themeService.getColorTheme();
-		const selectedColor = theme.getColor(editorFindMatch);
-		const matchColor = theme.getColor(editorFindMatchHighlight);
+		// Theme color names align with monaco/vscode whereas xterm.js has some different naming.
+		// The mapping is as follows:
+		// - findMatch -> activeMatch
+		// - findMatchHighlight -> match
+		const findMatchBackground = theme.getColor(TERMINAL_FIND_MATCH_BACKGROUND_COLOR);
+		const findMatchBorder = theme.getColor(TERMINAL_FIND_MATCH_BORDER_COLOR);
+		const findMatchOverviewRuler = theme.getColor(TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR);
+		const findMatchHighlightBackground = theme.getColor(TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR);
+		const findMatchHighlightBorder = theme.getColor(TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR);
+		const findMatchHighlightOverviewRuler = theme.getColor(TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR);
 		searchOptions.decorations = {
-			selectedColor: selectedColor?.toString() || 'transparent',
-			matchColor: matchColor?.toString() || 'transparent'
+			activeMatchBackground: findMatchBackground?.toString() || 'transparent',
+			activeMatchBorder: findMatchBorder?.toString() || 'transparent',
+			activeMatchColorOverviewRuler: findMatchOverviewRuler?.toString() || 'transparent',
+			matchBackground: findMatchHighlightBackground?.toString() || 'transparent',
+			matchBorder: findMatchHighlightBorder?.toString() || 'transparent',
+			matchOverviewRuler: findMatchHighlightOverviewRuler?.toString() || 'transparent'
 		};
 	}
 
