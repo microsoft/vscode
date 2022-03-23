@@ -32,7 +32,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { forEach } from 'vs/base/common/collections';
@@ -1192,11 +1192,22 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const extension = this._registry.getExtensionDescription(msg.extensionId);
 		const strMsg = `[${msg.extensionId.value}]: ${msg.message}`;
-		if (extension && extension.isUnderDevelopment && (msg.type === Severity.Error || msg.type === Severity.Warning)) {
-			// This message is about the extension currently being developed
-			this._notificationService.notify({ severity: msg.type, message: strMsg });
+
+		if (msg.type === Severity.Error) {
+			if (extension && extension.isUnderDevelopment) {
+				// This message is about the extension currently being developed
+				this._notificationService.notify({ severity: Severity.Error, message: strMsg });
+			}
+			this._logService.error(strMsg);
+		} else if (msg.type === Severity.Warning) {
+			if (extension && extension.isUnderDevelopment) {
+				// This message is about the extension currently being developed
+				this._notificationService.notify({ severity: Severity.Warning, message: strMsg });
+			}
+			this._logService.warn(strMsg);
+		} else {
+			this._logService.info(strMsg);
 		}
-		this._logMessage(msg.type, strMsg);
 
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
@@ -1232,25 +1243,26 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		extensionPoint.acceptUsers(users);
 	}
 
-	private _logMessage(severity: Severity, msg: string): void {
-		if (severity === Severity.Error) {
-			this._logService.error(msg);
-		} else if (severity === Severity.Warning) {
-			this._logService.warn(msg);
-		} else {
-			this._logService.info(msg);
-		}
-	}
-
 	//#region Called by extension host
 
-	protected _createLogger(): Logger {
-		return new Logger((severity, message) => {
-			if (this._isDev && (severity === Severity.Error || severity === Severity.Warning)) {
-				this._notificationService.notify({ severity, message });
+	protected _createLogger(): ILog {
+		return {
+			error: (message: string | Error): void => {
+				if (this._isDev) {
+					this._notificationService.notify({ severity: Severity.Error, message });
+				}
+				this._logService.error(message);
+			},
+			warn: (message: string): void => {
+				if (this._isDev) {
+					this._notificationService.notify({ severity: Severity.Warning, message });
+				}
+				this._logService.warn(message);
+			},
+			info: (message: string): void => {
+				this._logService.info(message);
 			}
-			this._logMessage(severity, message);
-		});
+		};
 	}
 
 	private _acquireInternalAPI(): IInternalExtensionService {
@@ -1326,7 +1338,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				this._webExtensionsScannerService.scanExtensionsUnderDevelopment().then(extensions => development.push(...extensions.map(e => toExtensionDescription(e, true))))
 			]);
 		} catch (error) {
-			log.error('', error);
+			log.error(error);
 		}
 		return dedupExtensions(system, user, development, log);
 	}
