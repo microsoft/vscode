@@ -417,9 +417,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		};
 
 		elementDisposables.add(this.themeService.onDidFileIconThemeChange(() => setResourceData()));
-		elementDisposables.add(this.configurationService.onDidChangeConfiguration((e) =>
-			e.affectsConfiguration('explorer.experimental.fileNesting.hideIconsToMatchFolders') && setResourceData()));
-
 		setResourceData();
 
 		elementDisposables.add(templateData.label.onDidRender(() => {
