@@ -11,7 +11,6 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { parseLinkedText, LinkedText } from 'vs/base/common/linkedText';
-import { stripIcons } from 'vs/base/common/iconLabels';
 
 export interface INotificationsModel {
 
@@ -486,9 +485,6 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		}
 
 		const raw = message;
-
-		// Remove icons
-		message = stripIcons(message);
 
 		// Make sure message is in the limits
 		if (message.length > NotificationViewItem.MAX_MESSAGE_LENGTH) {
