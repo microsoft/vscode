@@ -35,7 +35,7 @@ import { ILineBreaksComputer, ILineBreaksComputerFactory, InjectedText } from 'v
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { ICoordinatesConverter, IViewModel, IWhitespaceChangeAccessor, MinimapLinesRenderingData, OverviewRulerDecorationsGroup, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { FocusChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
+import { FocusChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
@@ -399,6 +399,10 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._tokenizeViewportSoon.schedule();
 		}));
 
+		this._register(this.model.onDidChangeContent((e) => {
+			this._eventDispatcher.emitOutgoingEvent(new ModelContentChangedEvent(e));
+		}));
+
 		this._register(this.model.onDidChangeTokens((e) => {
 			const viewRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
 			for (let j = 0, lenJ = e.ranges.length; j < lenJ; j++) {
@@ -415,17 +419,20 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (e.tokenizationSupportChanged) {
 				this._tokenizeViewportSoon.schedule();
 			}
+			this._eventDispatcher.emitOutgoingEvent(new ModelTokensChangedEvent(e));
 		}));
 
 		this._register(this.model.onDidChangeLanguageConfiguration((e) => {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewLanguageConfigurationEvent());
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
 			this._cursor.updateConfiguration(this.cursorConfig);
+			this._eventDispatcher.emitOutgoingEvent(new ModelLanguageConfigurationChangedEvent(e));
 		}));
 
 		this._register(this.model.onDidChangeLanguage((e) => {
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
 			this._cursor.updateConfiguration(this.cursorConfig);
+			this._eventDispatcher.emitOutgoingEvent(new ModelLanguageChangedEvent(e));
 		}));
 
 		this._register(this.model.onDidChangeOptions((e) => {
@@ -447,11 +454,14 @@ export class ViewModel extends Disposable implements IViewModel {
 
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageId(), this.model.getOptions(), this._configuration, this.languageConfigurationService);
 			this._cursor.updateConfiguration(this.cursorConfig);
+
+			this._eventDispatcher.emitOutgoingEvent(new ModelOptionsChangedEvent(e));
 		}));
 
 		this._register(this.model.onDidChangeDecorations((e) => {
 			this._decorations.onModelDecorationsChanged();
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
+			this._eventDispatcher.emitOutgoingEvent(new ModelDecorationsChangedEvent(e));
 		}));
 	}
 
