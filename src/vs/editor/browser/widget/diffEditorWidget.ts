@@ -596,7 +596,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: Readonly<IEditorConstructionOptions>, editorWidgetOptions: ICodeEditorWidgetOptions): CodeEditorWidget {
-		return instantiationService.createInstance(CodeEditorWidget, container, options, editorWidgetOptions);
+		return instantiationService.createInstance(CodeEditorWidget, container, { enableDropIntoEditor: true, ...options }, editorWidgetOptions);
 	}
 
 	public override dispose(): void {

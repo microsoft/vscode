@@ -4500,6 +4500,12 @@ declare namespace monaco.editor {
 		 * Defaults to an internal DOM node.
 		 */
 		overflowWidgetsDomNode?: HTMLElement;
+		/**
+		 * Enables dropping into the editor.
+		 *
+		 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
+		 */
+		enableDropIntoEditor?: boolean;
 	}
 
 	/**
