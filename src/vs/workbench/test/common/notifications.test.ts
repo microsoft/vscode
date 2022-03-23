@@ -45,6 +45,10 @@ suite('Notifications', () => {
 		assert.strictEqual(itemId1.equals(itemId2), true);
 		assert.strictEqual(itemId1.equals(item3), false);
 
+		// Strip icons
+		let itemId3 = NotificationViewItem.create({ id: 'same', message: '$(mark-github) works $(not)', severity: Severity.Error })!;
+		assert.strictEqual(itemId3.message.linkedText.toString(), 'works');
+
 		// Progress
 		assert.strictEqual(item1.hasProgress, false);
 		assert.strictEqual(item6.hasProgress, true);
