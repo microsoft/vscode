@@ -638,7 +638,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 
-		service._configurationService.setUserConfiguration('workbench.localHistory.mergePeriod', 1);
+		service._configurationService.setUserConfiguration('workbench.localHistory.mergeWindow', 1);
 
 		const entry1 = await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		assert.strictEqual(replaced, undefined);
@@ -653,7 +653,7 @@ flakySuite('WorkingCopyHistoryService', () => {
 		assert.strictEqual(entries.length, 1);
 		assertEntryEqual(entries[0], entry3);
 
-		service._configurationService.setUserConfiguration('workbench.localHistory.mergePeriod', undefined);
+		service._configurationService.setUserConfiguration('workbench.localHistory.mergeWindow', undefined);
 
 		await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
 		await addEntry({ resource: workingCopy1.resource, source: 'test-source' }, CancellationToken.None);
