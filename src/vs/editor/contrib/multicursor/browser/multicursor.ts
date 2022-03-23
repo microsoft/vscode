@@ -1091,6 +1091,45 @@ function getValueInRange(model: ITextModel, range: Range, toLowerCase: boolean):
 	return (toLowerCase ? text.toLowerCase() : text);
 }
 
+export class CyclePrimaryCursor extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.cycleCursors',
+			label: nls.localize('mutlicursor.cycleCursors', "Cycle Cursors"),
+			description: {
+				description: nls.localize('mutlicursor.cycleCursors.description', "Removes the first cursor and adds it back to the end"),
+				args: [],
+			},
+			alias: 'Cycle Cursors',
+			precondition: undefined
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const viewModel = editor._getViewModel();
+
+		if (viewModel.cursorConfig.readOnly) {
+			return;
+		}
+
+		viewModel.model.pushStackElement();
+		const previousCursorState = Array.from(viewModel.getCursorStates());
+		const firstCursor = previousCursorState.shift();
+		if (!firstCursor) {
+			return;
+		}
+		previousCursorState.push(firstCursor);
+
+		viewModel.setCursorStates(args.source, CursorChangeReason.Explicit, previousCursorState);
+		viewModel.revealPrimaryCursor(args.source, true);
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
+	}
+}
+
 registerEditorContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 registerEditorContribution(SelectionHighlighter.ID, SelectionHighlighter);
 
@@ -1105,3 +1144,4 @@ registerEditorAction(SelectHighlightsAction);
 registerEditorAction(CompatChangeAll);
 registerEditorAction(InsertCursorAtEndOfLineSelected);
 registerEditorAction(InsertCursorAtTopOfLineSelected);
+registerEditorAction(CyclePrimaryCursor);
