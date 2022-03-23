@@ -12330,10 +12330,10 @@ xtend@~2.1.1:
   dependencies:
     object-keys "~0.4.0"
 
-xterm-addon-search@0.9.0-beta.14:
-  version "0.9.0-beta.14"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.14.tgz#709d385451e9aaa014980e4035a64db46ba29c5b"
-  integrity sha512-GoXGJCWHIweRgpL71nM9CVwpfvTZVbEiSgoMN1XcYI0oJFtH068wE9jwbHDrB64RWKGbLEDmCslhq5jfPXpzbg==
+xterm-addon-search@0.9.0-beta.15:
+  version "0.9.0-beta.15"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.9.0-beta.15.tgz#94c56a322e26053bb73e0b46ae7938c5fc6ec3ef"
+  integrity sha512-BW4JnirVQmIjjC9P9F+84ffDsCIAXFGESzaZUbRHLNnRkcb9hRpw3FLDjohoY77xIsn8FR//hxN9+NUVlRV9HA==
 
 xterm-addon-serialize@0.7.0-beta.11:
   version "0.7.0-beta.11"
