@@ -22,8 +22,9 @@ if [ -f ~/.zshrc ]; then
 	. ~/.zshrc
 fi
 
+# Shell integration was disabled by the shell, exit without warning assuming either the shell has
+# explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
-	echo -e "\033[1;32mShell integration was disabled by the shell\033[0m"
 	return
 fi
 
