@@ -284,23 +284,31 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		const model = this.editor.getModel();
 		const cursorPosition = model.validatePosition(this.editor.getPosition());
 		this.filteredCompletions = this.cache.value.completions.filter(c => {
-			let originalValue = model.getValueInRange(c.synchronizedRange).toLowerCase();
-			let filterText = c.inlineCompletion.filterText;
+			const originalValue = model.getValueInRange(c.synchronizedRange).toLowerCase();
+			const filterText = c.inlineCompletion.filterText;
 
 			const indent = model.getLineIndentColumn(c.synchronizedRange.startLineNumber);
+
+
+			const cursorPosIndex = Math.max(0, cursorPosition.column - c.synchronizedRange.startColumn);
+
+			let filterTextBefore = filterText.substring(0, cursorPosIndex);
+			let filterTextAfter = filterText.substring(cursorPosIndex);
+
+			let originalValueBefore = originalValue.substring(0, cursorPosIndex);
+			let originalValueAfter = originalValue.substring(cursorPosIndex);
+
 			if (c.synchronizedRange.startColumn <= indent) {
 				// Remove indentation
-				originalValue = originalValue.trimStart();
-				filterText = filterText.trimStart();
+				originalValueBefore = originalValueBefore.trimStart();
+				if (originalValueBefore.length === 0) {
+					originalValueAfter = originalValueAfter.trimStart();
+				}
+				filterTextBefore = filterTextBefore.trimStart();
+				if (filterTextBefore.length === 0) {
+					filterTextAfter = filterTextAfter.trimStart();
+				}
 			}
-
-			const cursorPosIndex = cursorPosition.column - c.synchronizedRange.startColumn;
-
-			const filterTextBefore = filterText.substring(0, cursorPosIndex);
-			const filterTextAfter = filterText.substring(cursorPosIndex);
-
-			const originalValueBefore = originalValue.substring(0, cursorPosIndex);
-			const originalValueAfter = originalValue.substring(cursorPosIndex);
 
 			return filterTextBefore.startsWith(originalValueBefore)
 				&& matchesSubString(originalValueAfter, filterTextAfter);
