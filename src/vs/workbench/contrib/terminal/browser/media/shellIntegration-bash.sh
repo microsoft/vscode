@@ -24,6 +24,7 @@ if [[ "$PROMPT_COMMAND" =~ ^.*(' '.*\;)|(\;.*' ').*$ ]]; then
 	echo -e "\033[1;32mShell integration cannot be activated due to complex \$PROMPT_COMMAND\033[0m"
 	VSCODE_SHELL_HIDE_WELCOME=""
 	return;
+fi
 
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
 	echo -e "\033[1;32mShell integration was disabled by the shell\033[0m"
