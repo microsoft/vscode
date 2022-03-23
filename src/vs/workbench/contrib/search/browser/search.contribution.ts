@@ -478,7 +478,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 
 const RevealInSideBarForSearchResultsCommand: ICommandAction = {
 	id: Constants.RevealInSideBarForSearchResults,
-	title: nls.localize('revealInSideBar', "Reveal in Side Bar")
+	title: nls.localize('revealInSideBar', "Reveal in Explorer View")
 };
 
 MenuRegistry.appendMenuItem(MenuId.SearchContext, {
