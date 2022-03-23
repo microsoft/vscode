@@ -473,7 +473,7 @@ configurationRegistry.registerConfiguration({
 		'explorer.experimental.fileNesting.operateAsGroup': {
 			'type': 'boolean',
 			'markdownDescription': nls.localize('operateAsGroup', "Controls whether file nests are treated as a group for clipboard operations, file deletions, and during drag and drop."),
-			'default': false,
+			'default': true,
 		},
 		'explorer.experimental.fileNesting.patterns': {
 			'type': 'object',
