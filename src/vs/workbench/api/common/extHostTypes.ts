@@ -3627,4 +3627,8 @@ export class NotebookEditorTabInput {
 export class NotebookDiffEditorTabInput {
 	constructor(readonly original: URI, readonly modified: URI, readonly notebookType: string) { }
 }
+
+export class TerminalEditorTabInput {
+	constructor() { }
+}
 //#endregion

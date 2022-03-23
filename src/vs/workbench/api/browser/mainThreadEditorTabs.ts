@@ -17,6 +17,7 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebo
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 
 interface TabInfo {
@@ -112,6 +113,12 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return {
 				kind: TabInputKind.WebviewEditorInput,
 				viewType: editor.viewType
+			};
+		}
+
+		if (editor instanceof TerminalEditorInput) {
+			return {
+				kind: TabInputKind.TerminalEditorInput
 			};
 		}
 

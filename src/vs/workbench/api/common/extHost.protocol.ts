@@ -616,7 +616,8 @@ export const enum TabInputKind {
 	NotebookInput,
 	NotebookDiffInput,
 	CustomEditorInput,
-	WebviewEditorInput
+	WebviewEditorInput,
+	TerminalEditorInput
 }
 
 export interface UnknownInputDto {
@@ -658,7 +659,11 @@ export interface WebviewInputDto {
 	viewType: string;
 }
 
-export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto;
+export interface TabInputDto {
+	kind: TabInputKind.TerminalEditorInput;
+}
+
+export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | TabInputDto;
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc

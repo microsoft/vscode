@@ -45,6 +45,10 @@ declare module 'vscode' {
 		constructor(original: Uri, modified: Uri, notebookType: string);
 	}
 
+	export class TabKindTerminal {
+		constructor();
+	}
+
 	/**
 	 * Represents a tab within the window
 	 */
@@ -63,7 +67,7 @@ declare module 'vscode' {
 		 * Defines the structure of the tab i.e. text, notebook, custom, etc.
 		 * Resource and other useful properties are defined on the tab kind.
 		 */
-		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindWebview | TabKindNotebook | TabKindNotebookDiff | unknown;
+		readonly kind: TabKindText | TabKindTextDiff | TabKindCustom | TabKindWebview | TabKindNotebook | TabKindNotebookDiff | TabKindTerminal | unknown;
 
 		/**
 		 * Whether or not the tab is currently active

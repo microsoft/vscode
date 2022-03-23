@@ -9,7 +9,7 @@ import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TextDiffTabInput, TextTabInput, ViewColumn, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
+import { CustomEditorTabInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextTabInput, ViewColumn, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
@@ -19,7 +19,7 @@ export interface IExtHostEditorTabs extends IExtHostEditorTabsShape {
 
 export const IExtHostEditorTabs = createDecorator<IExtHostEditorTabs>('IExtHostEditorTabs');
 
-type AnyTabInput = TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookDiffEditorTabInput | WebviewEditorTabInput;
+type AnyTabInput = TextTabInput | TextDiffTabInput | CustomEditorTabInput | NotebookEditorTabInput | NotebookDiffEditorTabInput | WebviewEditorTabInput | TerminalEditorTabInput;
 
 class ExtHostEditorTab {
 	private _apiObject: vscode.Tab | undefined;
@@ -90,6 +90,8 @@ class ExtHostEditorTab {
 				return new NotebookEditorTabInput(URI.revive(this._dto.input.uri), this._dto.input.notebookType);
 			case TabInputKind.NotebookDiffInput:
 				return new NotebookDiffEditorTabInput(URI.revive(this._dto.input.original), URI.revive(this._dto.input.modified), this._dto.input.notebookType);
+			case TabInputKind.TerminalEditorInput:
+				return new TerminalEditorTabInput();
 			default:
 				return undefined;
 		}
