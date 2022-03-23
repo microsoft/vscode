@@ -25,7 +25,7 @@ import { CommandNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xt
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorFindMatch, editorFindMatchHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
@@ -34,7 +34,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -263,16 +262,13 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 
 	private _updateFindColors(searchOptions: ISearchOptions): void {
-		let selectedColor: string | undefined = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground');
-		let matchColor: string | undefined = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground') || '#EA5C0055';
-		if (!selectedColor) {
-			if (this._themeService.getColorTheme().type === ColorScheme.DARK) {
-				selectedColor = '#515C6A';
-			} else {
-				selectedColor = '#A8AC94';
-			}
-		}
-		searchOptions.decorations = { selectedColor, matchColor };
+		const theme = this._themeService.getColorTheme();
+		const selectedColor = theme.getColor(editorFindMatch);
+		const matchColor = theme.getColor(editorFindMatchHighlight);
+		searchOptions.decorations = {
+			selectedColor: selectedColor?.toString() || 'transparent',
+			matchColor: matchColor?.toString() || 'transparent'
+		};
 	}
 
 	private async _getSearchAddon(): Promise<SearchAddonType> {
