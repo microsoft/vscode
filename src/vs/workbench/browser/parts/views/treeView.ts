@@ -57,7 +57,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { Command } from 'vs/editor/common/languages';
 import { isCancellationError } from 'vs/base/common/errors';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { CodeDataTransfers, DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { CodeDataTransfers, convertResourceUrlsToUriList, DraggedTreeItemsIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -1263,7 +1263,7 @@ interface TreeDragSourceInfo {
 }
 
 const TREE_DRAG_UUID_MIME = 'tree-dnd';
-const INTERNAL_MIME_TYPES = ['codeeditors'];
+const INTERNAL_MIME_TYPES = [CodeDataTransfers.EDITORS.toLowerCase()];
 
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	private readonly treeMimeType: string;
@@ -1339,11 +1339,14 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	}
 
 	private debugLog(originalEvent: DragEvent) {
-		const types = originalEvent.dataTransfer?.types.filter((value, index) => {
-			return (originalEvent.dataTransfer?.items[index].kind === 'string') && (INTERNAL_MIME_TYPES.indexOf(value) < 0);
+		const types: Set<string> = new Set();
+		originalEvent.dataTransfer?.types.forEach((value, index) => {
+			if ((originalEvent.dataTransfer?.items[index].kind === 'string') && (INTERNAL_MIME_TYPES.indexOf(value) < 0)) {
+				types.add(this.convertKnownMimes(value).type);
+			}
 		});
-		if (types?.length) {
-			this.logService.debug(`TreeView dragged mime types: ${types.join(', ')}`);
+		if (types.size) {
+			this.logService.debug(`TreeView dragged mime types: ${Array.from(types).join(', ')}`);
 		} else {
 			this.logService.debug(`TreeView dragged with no supported mime types.`);
 		}
@@ -1386,6 +1389,19 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 		return element.label ? element.label.label : (element.resourceUri ? this.labelService.getUriLabel(URI.revive(element.resourceUri)) : undefined);
 	}
 
+	private convertKnownMimes(type: string, value?: string): { type: string; value?: string } {
+		let convertedValue = value;
+		let convertedType = type;
+		switch (type) {
+			case DataTransfers.RESOURCES.toLowerCase(): {
+				convertedValue = value ? convertResourceUrlsToUriList(value) : undefined;
+				convertedType = Mimes.uriList;
+				break;
+			}
+		}
+		return { type: convertedType, value: convertedValue };
+	}
+
 	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
 		const dndController = this.dndController;
 		if (!originalEvent.dataTransfer || !dndController || !targetNode) {
@@ -1426,8 +1442,9 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 								&& (type !== TREE_DRAG_UUID_MIME)
 								&& (INTERNAL_MIME_TYPES.indexOf(type) < 0)
 								&& ((type === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(type) >= 0))) {
-								treeDataTransfer.set(type, {
-									asString: () => Promise.resolve(dataValue),
+								const converted = this.convertKnownMimes(type, dataValue);
+								treeDataTransfer.set(converted.type, {
+									asString: () => Promise.resolve(converted.value!),
 									value: undefined
 								});
 							}
