@@ -43,7 +43,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 	}
 
 	override get editorId(): string | undefined {
-		return this.modified.editorId === this.original.editorId ? this.modified.editorId : `${this.original.editorId}-${this.modified.editorId}`;
+		return this.modified.editorId === this.original.editorId ? this.modified.editorId : undefined;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
