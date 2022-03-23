@@ -590,7 +590,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		toRemove = toRemove.concat(result.removedDueToLooping);
 		if (result.removedDueToLooping.length > 0) {
-			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
+			});
 		}
 
 		// enable or disable proposed API per extension
@@ -1189,12 +1192,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		const extension = this._registry.getExtensionDescription(msg.extensionId);
 		const strMsg = `[${msg.extensionId.value}]: ${msg.message}`;
-		if (extension && extension.isUnderDevelopment) {
+		if (extension && extension.isUnderDevelopment && (msg.type === Severity.Error || msg.type === Severity.Warning)) {
 			// This message is about the extension currently being developed
-			this._showMessageToUser(msg.type, strMsg);
-		} else {
-			this._logMessageInConsole(msg.type, strMsg);
+			this._notificationService.notify({ severity: msg.type, message: strMsg });
 		}
+		this._logMessage(msg.type, strMsg);
 
 		if (!this._isDev && msg.extensionId) {
 			const { type, extensionId, extensionPointId, message } = msg;
@@ -1230,37 +1232,25 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		extensionPoint.acceptUsers(users);
 	}
 
-	private _showMessageToUser(severity: Severity, msg: string): void {
-		if (severity === Severity.Error || severity === Severity.Warning) {
-			this._notificationService.notify({ severity, message: msg });
-		} else {
-			this._logMessageInConsole(severity, msg);
-		}
-	}
-
-	private _logMessageInConsole(severity: Severity, msg: string): void {
+	private _logMessage(severity: Severity, msg: string): void {
 		if (severity === Severity.Error) {
-			console.error(msg);
+			this._logService.error(msg);
 		} else if (severity === Severity.Warning) {
-			console.warn(msg);
+			this._logService.warn(msg);
 		} else {
-			console.log(msg);
+			this._logService.info(msg);
 		}
 	}
 
 	//#region Called by extension host
 
-	protected createLogger(): Logger {
+	protected _createLogger(): Logger {
 		return new Logger((severity, message) => {
-			this._logOrShowMessage(severity, message);
+			if (this._isDev && (severity === Severity.Error || severity === Severity.Warning)) {
+				this._notificationService.notify({ severity, message });
+			}
+			this._logMessage(severity, message);
 		});
-	}
-
-	protected _logOrShowMessage(severity: Severity, msg: string): void {
-		if (this._isDev) {
-			this._showMessageToUser(severity, msg);
-		}
-		this._logMessageInConsole(severity, msg);
 	}
 
 	private _acquireInternalAPI(): IInternalExtensionService {
@@ -1327,7 +1317,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected async _scanWebExtensions(): Promise<IExtensionDescription[]> {
-		const log = this.createLogger();
+		const log = this._createLogger();
 		const system: IExtensionDescription[] = [], user: IExtensionDescription[] = [], development: IExtensionDescription[] = [];
 		try {
 			await Promise.all([
