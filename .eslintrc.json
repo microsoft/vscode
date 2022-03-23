@@ -194,6 +194,7 @@
 				"src/**/*.ts"
 			],
 			"rules": {
+				"code-no-look-behind-regex": "warn",
 				"code-import-patterns": [
 					"warn",
 					{

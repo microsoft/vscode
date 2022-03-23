@@ -93,7 +93,7 @@ export class ExtHostCell {
 			if (!data) {
 				throw new Error(`MISSING extHostDocument for notebook cell: ${this.uri}`);
 			}
-			this._apiCell = Object.freeze<vscode.NotebookCell>({
+			const apiCell: vscode.NotebookCell = {
 				get index() { return that.notebook.getCellIndex(that); },
 				notebook: that.notebook.apiNotebook,
 				kind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
@@ -103,7 +103,8 @@ export class ExtHostCell {
 				get outputs() { return that._outputs.slice(0); },
 				get metadata() { return that._metadata; },
 				get executionSummary() { return that._previousResult; }
-			});
+			};
+			this._apiCell = Object.freeze(apiCell);
 		}
 		return this._apiCell;
 	}
@@ -181,7 +182,7 @@ export class ExtHostNotebookDocument {
 	get apiNotebook(): vscode.NotebookDocument {
 		if (!this._notebook) {
 			const that = this;
-			this._notebook = {
+			const apiObject: vscode.NotebookDocument = {
 				get uri() { return that.uri; },
 				get version() { return that._versionId; },
 				get notebookType() { return that._notebookType; },
@@ -202,6 +203,7 @@ export class ExtHostNotebookDocument {
 					return that._save();
 				}
 			};
+			this._notebook = Object.freeze(apiObject);
 		}
 		return this._notebook;
 	}
@@ -293,6 +295,11 @@ export class ExtHostNotebookDocument {
 				};
 			}
 		}
+
+		// Freeze event properties so handlers cannot accidentally modify them
+		Object.freeze(result);
+		Object.freeze(result.cellChanges);
+		Object.freeze(result.contentChanges);
 
 		return result;
 	}

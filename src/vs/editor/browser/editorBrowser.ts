@@ -614,7 +614,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 * @event
 	 */
-	readonly onDropIntoEditor: Event<{ readonly position: IPosition; readonly dataTransfer: DataTransfer }>;
+	readonly onDropIntoEditor: Event<{ readonly position: IPosition; readonly event: DragEvent }>;
 	/**
 	 * An event emitted on a "contextmenu".
 	 * @event

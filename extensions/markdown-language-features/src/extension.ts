@@ -50,13 +50,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.workspace.onWillDropOnTextEditor(e => {
 		e.waitUntil((async () => {
-			const resourceUrls = await e.dataTransfer.get('resourceurls')?.asString();
-			if (!resourceUrls) {
+			const urlList = await e.dataTransfer.get('text/uri-list')?.asString();
+			if (!urlList) {
 				return;
 			}
 
 			const uris: vscode.Uri[] = [];
-			for (const resource of JSON.parse(resourceUrls)) {
+			for (const resource of urlList.split('\n')) {
 				try {
 					uris.push(vscode.Uri.parse(resource));
 				} catch {

@@ -33,5 +33,6 @@
 }
 
 .monaco-editor .inline-completion-text-to-replace {
-	text-decoration: line-through;
+	text-decoration: underline;
+	text-underline-position: under;
 }

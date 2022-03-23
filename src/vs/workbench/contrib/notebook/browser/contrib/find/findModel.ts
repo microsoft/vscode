@@ -174,6 +174,7 @@ export class FindModel extends Disposable {
 
 		const findMatches = await this._computePromise;
 		if (!findMatches) {
+			this.set([], false);
 			return;
 		}
 

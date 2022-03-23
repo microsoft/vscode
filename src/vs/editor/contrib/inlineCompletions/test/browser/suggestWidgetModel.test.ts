@@ -109,6 +109,7 @@ suite('Suggest Widget Model', () => {
 			filterText: 'function',
 			insertText: 'function',
 			snippetInfo: undefined,
+			additionalTextEdits: [],
 		})!;
 
 		assert.deepStrictEqual({

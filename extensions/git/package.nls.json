@@ -200,6 +200,7 @@
 	"config.experimental.installGuide": "Experimental improvements for the git setup flow.",
 	"config.repositoryScanIgnoredFolders": "List of folders that are ignored while scanning for Git repositories when `#git.autoRepositoryDetection#` is set to `true` or `subFolders`.",
 	"config.repositoryScanMaxDepth": "Controls the depth used when scanning workspace folders for Git repositories when `#git.autoRepositoryDetection#` is set to `true` or `subFolders`. Can be set to `-1` for no limit.",
+	"config.useIntegratedAskPass": "Controls whether GIT_ASKPASS should be overwritten to use the integrated version.",
 	"submenu.explorer": "Git",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",

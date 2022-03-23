@@ -159,16 +159,16 @@ suite('markdown.DocumentLinkProvider', () => {
 		assert.strictEqual(links.length, 1);
 	});
 
-	test('Should find links for referenes with only one [] (#141285)', async () => {
+	test('Should find links for referees with only one [] (#141285)', async () => {
 		let links = await getLinksForFile([
-			'[Works]',
-			'[Works]: https://microsoft.com',
+			'[ref]',
+			'[ref]: https://microsoft.com',
 		].join('\n'));
 		assert.strictEqual(links.length, 2);
 
 		links = await getLinksForFile([
 			'[Does Not Work]',
-			'[Works]: https://microsoft.com',
+			'[def]: https://microsoft.com',
 		].join('\n'));
 		assert.strictEqual(links.length, 1);
 	});

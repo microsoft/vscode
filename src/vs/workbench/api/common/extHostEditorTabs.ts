@@ -46,19 +46,19 @@ class ExtHostEditorTab {
 				get label() {
 					return that._dto.label;
 				},
-				get input() {
+				get kind() {
 					return that._input;
 				},
 				get isDirty() {
 					return that._dto.isDirty;
 				},
 				get isPinned() {
-					return that._dto.isDirty;
+					return that._dto.isPinned;
 				},
 				get isPreview() {
 					return that._dto.isPreview;
 				},
-				get parentGroup() {
+				get group() {
 					return that._parentGroup.apiObject;
 				}
 			};

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { INormalizedVersion, IParsedVersion, IReducedExtensionDescription, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { INormalizedVersion, IParsedVersion, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
 
 suite('Extension Version Validator', () => {
 	const productVersion = '2021-05-11T21:54:30.577Z';
@@ -208,17 +209,19 @@ suite('Extension Version Validator', () => {
 	test('isValidExtensionVersion', () => {
 
 		function testExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean, expectedResult: boolean): void {
-			let desc: IReducedExtensionDescription = {
-				isBuiltin: isBuiltin,
+			const manifest: IExtensionManifest = {
+				name: 'test',
+				publisher: 'test',
+				version: '0.0.0',
 				engines: {
 					vscode: desiredVersion
 				},
 				main: hasMain ? 'something' : undefined
 			};
 			let reasons: string[] = [];
-			let actual = isValidExtensionVersion(version, productVersion, desc, reasons);
+			let actual = isValidExtensionVersion(version, productVersion, manifest, isBuiltin, reasons);
 
-			assert.strictEqual(actual, expectedResult, 'version: ' + version + ', desiredVersion: ' + desiredVersion + ', desc: ' + JSON.stringify(desc) + ', reasons: ' + JSON.stringify(reasons));
+			assert.strictEqual(actual, expectedResult, 'version: ' + version + ', desiredVersion: ' + desiredVersion + ', desc: ' + JSON.stringify(manifest) + ', reasons: ' + JSON.stringify(reasons));
 		}
 
 		function testIsInvalidExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean): void {
@@ -402,5 +405,18 @@ suite('Extension Version Validator', () => {
 		testIsValidVersion('1.10.0', '^1.10.0-20210512', false); // future date
 		testIsValidVersion('1.10.1', '^1.10.0-20200101', true); // before date, but ahead version
 		testIsValidVersion('1.11.0', '^1.10.0-20200101', true);
+	});
+
+	test('isValidExtensionVersion checks browser only extensions', () => {
+		const manifest = {
+			name: 'test',
+			publisher: 'test',
+			version: '0.0.0',
+			engines: {
+				vscode: '^1.45.0'
+			},
+			browser: 'something'
+		};
+		assert.strictEqual(isValidExtensionVersion('1.44.0', undefined, manifest, false, []), false);
 	});
 });

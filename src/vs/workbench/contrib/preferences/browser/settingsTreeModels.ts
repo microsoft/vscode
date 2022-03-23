@@ -672,6 +672,7 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
+		setting.key === 'workbench.localHistory.exclude' ||
 		setting.key === 'files.watcherExclude';
 }
 

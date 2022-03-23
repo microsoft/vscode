@@ -42,6 +42,12 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 	}
 	override reveal(initialInput?: string): void {
+		const instance = this._terminalService.activeInstance;
+		if (instance && this.inputValue && this.inputValue !== '') {
+			// trigger highlight all matches
+			instance.xterm?.findPrevious(this.inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		}
+
 		super.reveal(initialInput);
 		this._findWidgetVisible.set(true);
 	}
@@ -58,6 +64,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		if (instance) {
 			instance.focus();
 		}
+		instance?.xterm?.clearSearchDecorations();
 	}
 
 	protected _onInputChanged() {

@@ -190,7 +190,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onMouseDropCanceled: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onMouseDropCanceled: Event<void> = this._onMouseDropCanceled.event;
 
-	private readonly _onDropIntoEditor = this._register(new Emitter<{ position: IPosition; dataTransfer: DataTransfer }>());
+	private readonly _onDropIntoEditor = this._register(new Emitter<{ readonly position: IPosition; readonly event: DragEvent }>());
 	public readonly onDropIntoEditor = this._onDropIntoEditor.event;
 
 	private readonly _onContextMenu: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
@@ -379,7 +379,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 				const target = this.getTargetAtClientPoint(e.clientX, e.clientY);
 				if (target?.position) {
-					this._onDropIntoEditor.fire({ position: target.position, dataTransfer: e.dataTransfer });
+					this._onDropIntoEditor.fire({ position: target.position, event: e });
 				}
 			},
 			onDragLeave: () => {

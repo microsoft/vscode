@@ -63,6 +63,14 @@ interface CompletionContext {
 	readonly anchorInfo?: AnchorContext;
 }
 
+function tryDecodeUriComponent(str: string): string {
+	try {
+		return decodeURIComponent(str);
+	} catch {
+		return str;
+	}
+}
+
 export class PathCompletionProvider implements vscode.CompletionItemProvider {
 
 	public static register(selector: vscode.DocumentSelector, engine: MarkdownEngine): vscode.Disposable {
@@ -157,7 +165,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			const suffix = lineSuffixText.match(/^[^\)\s]*/);
 			return {
 				kind: CompletionContextKind.Link,
-				linkPrefix: prefix,
+				linkPrefix: tryDecodeUriComponent(prefix),
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),
@@ -174,7 +182,7 @@ export class PathCompletionProvider implements vscode.CompletionItemProvider {
 			const suffix = lineSuffixText.match(/^[^\s]*/);
 			return {
 				kind: CompletionContextKind.LinkDefinition,
-				linkPrefix: prefix,
+				linkPrefix: tryDecodeUriComponent(prefix),
 				linkTextStartPosition: position.translate({ characterDelta: -prefix.length }),
 				linkSuffix: suffix ? suffix[0] : '',
 				anchorInfo: this.getAnchorContext(prefix),

@@ -26,7 +26,7 @@ This project incorporates components from the projects listed below. The origina
 19.	fadeevab/make.tmbundle (https://github.com/fadeevab/make.tmbundle)
 20.	freebroccolo/atom-language-swift (https://github.com/freebroccolo/atom-language-swift)
 21.	HTML 5.1 W3C Working Draft version 08 October 2015 (http://www.w3.org/TR/2015/WD-html51-20151008/)
-22.	Ikuyadeu/vscode-R version 2.3.5 (https://github.com/Ikuyadeu/vscode-R)
+22.	Ikuyadeu/vscode-R version 2.3.8 (https://github.com/Ikuyadeu/vscode-R)
 23.	Ionic documentation version 1.2.4 (https://github.com/ionic-team/ionic-site)
 24.	ionide/ionide-fsgrammar (https://github.com/ionide/ionide-fsgrammar)
 25.	James-Yu/LaTeX-Workshop version 8.19.1 (https://github.com/James-Yu/LaTeX-Workshop)
@@ -66,13 +66,14 @@ This project incorporates components from the projects listed below. The origina
 59.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
 60.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
 61.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-62.	TypeScript-TmLanguage version 0.1.8 (https://github.com/microsoft/TypeScript-TmLanguage)
-63.	TypeScript-TmLanguage version 1.0.0 (https://github.com/microsoft/TypeScript-TmLanguage)
-64.	Unicode version 12.0.0 (https://home.unicode.org/)
-65.	vscode-codicons version 0.0.14 (https://github.com/microsoft/vscode-codicons)
-66.	vscode-logfile-highlighter version 2.11.0 (https://github.com/emilast/vscode-logfile-highlighter)
-67.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
-68.	Web Background Synchronization (https://github.com/WICG/background-sync)
+62.	trond-snekvik/vscode-rst version 1.5.1 (https://github.com/trond-snekvik/vscode-rst)
+63.	TypeScript-TmLanguage version 0.1.8 (https://github.com/microsoft/TypeScript-TmLanguage)
+64.	TypeScript-TmLanguage version 1.0.0 (https://github.com/microsoft/TypeScript-TmLanguage)
+65.	Unicode version 12.0.0 (https://home.unicode.org/)
+66.	vscode-codicons version 0.0.14 (https://github.com/microsoft/vscode-codicons)
+67.	vscode-logfile-highlighter version 2.11.0 (https://github.com/emilast/vscode-logfile-highlighter)
+68.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
+69.	Web Background Synchronization (https://github.com/WICG/background-sync)
 
 
 %% atom/language-clojure NOTICES AND INFORMATION BEGIN HERE
@@ -2569,6 +2570,20 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 =========================================
 END OF textmate/yaml.tmbundle NOTICES AND INFORMATION
+
+%% trond-snekvik/vscode-rst NOTICES AND INFORMATION BEGIN HERE
+=========================================
+The MIT License (MIT)
+
+Copyright 2021 Trond Snekvik
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+=========================================
+END OF trond-snekvik/vscode-rst NOTICES AND INFORMATION
 
 %% TypeScript-TmLanguage NOTICES AND INFORMATION BEGIN HERE
 =========================================

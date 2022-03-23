@@ -6288,6 +6288,12 @@ declare namespace monaco.languages {
 		 */
 		readonly filterText?: string;
 		/**
+		 * An optional array of additional text edits that are applied when
+		 * selecting this completion. Edits must not overlap with the main edit
+		 * nor with themselves.
+		 */
+		readonly additionalTextEdits?: editor.ISingleEditOperation[];
+		/**
 		 * The range to replace.
 		 * Must begin and end on the same line.
 		*/

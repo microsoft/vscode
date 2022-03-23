@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { flakySuite } from 'vs/base/test/common/testUtils';
-import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
@@ -57,14 +57,7 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		fileService = workingCopyHistoryService._fileService;
 		configurationService = workingCopyHistoryService._configurationService;
 
-		tracker = new WorkingCopyHistoryTracker(
-			workingCopyService,
-			workingCopyHistoryService,
-			new UriIdentityService(new TestFileService()),
-			new TestPathService(undefined, Schemas.file),
-			configurationService,
-			new UndoRedoService(new TestDialogService(), new TestNotificationService())
-		);
+		tracker = createTracker();
 
 		await Promises.mkdir(historyHome, { recursive: true });
 
@@ -74,6 +67,18 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		await Promises.writeFile(testFile1Path, testFile1PathContents);
 		await Promises.writeFile(testFile2Path, testFile2PathContents);
 	});
+
+	function createTracker() {
+		return new WorkingCopyHistoryTracker(
+			workingCopyService,
+			workingCopyHistoryService,
+			new UriIdentityService(new TestFileService()),
+			new TestPathService(undefined, Schemas.file),
+			configurationService,
+			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
+			new TestContextService()
+		);
+	}
 
 	teardown(() => {
 		workingCopyHistoryService.dispose();
@@ -111,36 +116,29 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		await saveResult.p;
 	});
 
-	test('history entry skipped when setting disabled', async () => {
-		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
-		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
+	test('history entry skipped when setting disabled (globally)', async () => {
+		configurationService.setUserConfiguration('workbench.localHistory.enabled', false, URI.file(testFile1Path));
 
-		const stat1 = await fileService.resolve(workingCopy1.resource, { resolveMetadata: true });
-		const stat2 = await fileService.resolve(workingCopy2.resource, { resolveMetadata: true });
+		return assertNoLocalHistoryEntryAddedWithSettingsConfigured();
+	});
 
-		workingCopyService.registerWorkingCopy(workingCopy1);
-		workingCopyService.registerWorkingCopy(workingCopy2);
+	test('history entry skipped when setting disabled (exclude)', () => {
+		configurationService.setUserConfiguration('workbench.localHistory.exclude', { '**/foo.txt': true });
 
-		configurationService.setUserConfiguration('workbench.localHistory.enabled', false, workingCopy1.resource);
+		// Recreate to apply settings
+		tracker.dispose();
+		tracker = createTracker();
 
-		const saveResult = new DeferredPromise<void>();
-		workingCopyHistoryService.onDidAddEntry(e => {
-			if (isEqual(e.entry.workingCopy.resource, workingCopy1.resource)) {
-				assert.fail('Unexpected working copy history entry');
-			}
-
-			if (isEqual(e.entry.workingCopy.resource, workingCopy2.resource)) {
-				saveResult.complete();
-			}
-		});
-
-		await workingCopy1.save(undefined, stat1);
-		await workingCopy2.save(undefined, stat2);
-
-		await saveResult.p;
+		return assertNoLocalHistoryEntryAddedWithSettingsConfigured();
 	});
 
 	test('history entry skipped when too large', async () => {
+		configurationService.setUserConfiguration('workbench.localHistory.maxFileSize', 0, URI.file(testFile1Path));
+
+		return assertNoLocalHistoryEntryAddedWithSettingsConfigured();
+	});
+
+	async function assertNoLocalHistoryEntryAddedWithSettingsConfigured(): Promise<void> {
 		const workingCopy1 = new TestWorkingCopy(URI.file(testFile1Path));
 		const workingCopy2 = new TestWorkingCopy(URI.file(testFile2Path));
 
@@ -150,15 +148,13 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		workingCopyService.registerWorkingCopy(workingCopy1);
 		workingCopyService.registerWorkingCopy(workingCopy2);
 
-		configurationService.setUserConfiguration('workbench.localHistory.maxFileSize', 1);
-
 		const saveResult = new DeferredPromise<void>();
 		workingCopyHistoryService.onDidAddEntry(e => {
-			if (isEqual(e.entry.workingCopy.resource, workingCopy2.resource)) {
-				assert.fail('Unexpected working copy history entry');
+			if (isEqual(e.entry.workingCopy.resource, workingCopy1.resource)) {
+				assert.fail('Unexpected working copy history entry: ' + e.entry.workingCopy.resource.toString());
 			}
 
-			if (isEqual(e.entry.workingCopy.resource, workingCopy1.resource)) {
+			if (isEqual(e.entry.workingCopy.resource, workingCopy2.resource)) {
 				saveResult.complete();
 			}
 		});
@@ -167,5 +163,5 @@ flakySuite('WorkingCopyHistoryTracker', () => {
 		await workingCopy2.save(undefined, stat2);
 
 		await saveResult.p;
-	});
+	}
 });

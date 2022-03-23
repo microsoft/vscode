@@ -257,11 +257,19 @@ export class MainThreadCommentController {
 
 		this._threads.set(commentThreadHandle, thread);
 
-		this._commentService.updateComments(this._uniqueId, {
-			added: [thread],
-			removed: [],
-			changed: []
-		});
+		if (thread.isDocumentCommentThread()) {
+			this._commentService.updateComments(this._uniqueId, {
+				added: [thread],
+				removed: [],
+				changed: []
+			});
+		} else {
+			this._commentService.updateNotebookComments(this._uniqueId, {
+				added: [thread as MainThreadCommentThread<ICellRange>],
+				removed: [],
+				changed: []
+			});
+		}
 
 		return thread;
 	}
@@ -273,22 +281,39 @@ export class MainThreadCommentController {
 		let thread = this.getKnownThread(commentThreadHandle);
 		thread.batchUpdate(changes);
 
-		this._commentService.updateComments(this._uniqueId, {
-			added: [],
-			removed: [],
-			changed: [thread]
-		});
+		if (thread.isDocumentCommentThread()) {
+			this._commentService.updateComments(this._uniqueId, {
+				added: [],
+				removed: [],
+				changed: [thread]
+			});
+		} else {
+			this._commentService.updateNotebookComments(this._uniqueId, {
+				added: [],
+				removed: [],
+				changed: [thread as MainThreadCommentThread<ICellRange>]
+			});
+		}
+
 	}
 
 	deleteCommentThread(commentThreadHandle: number) {
 		let thread = this.getKnownThread(commentThreadHandle);
 		this._threads.delete(commentThreadHandle);
 
-		this._commentService.updateComments(this._uniqueId, {
-			added: [],
-			removed: [thread],
-			changed: []
-		});
+		if (thread.isDocumentCommentThread()) {
+			this._commentService.updateComments(this._uniqueId, {
+				added: [],
+				removed: [thread],
+				changed: []
+			});
+		} else {
+			this._commentService.updateNotebookComments(this._uniqueId, {
+				added: [],
+				removed: [thread as MainThreadCommentThread<ICellRange>],
+				changed: []
+			});
+		}
 
 		thread.dispose();
 	}
@@ -626,13 +651,6 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 		return this._handlers.get(handle)!;
 	}
-
-	$onDidCommentThreadsChange(handle: number, event: languages.CommentThreadChangedEvent<IRange | ICellRange>) {
-		// notify comment service
-		const providerId = this.getHandler(handle);
-		this._commentService.updateComments(providerId, event);
-	}
-
 	override dispose(): void {
 		super.dispose();
 		this._workspaceProviders.forEach(value => dispose(value));

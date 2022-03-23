@@ -121,6 +121,7 @@ export interface IWindowSettings {
 	readonly zoomLevel: number;
 	readonly titleBarStyle: 'native' | 'custom';
 	readonly autoDetectHighContrast: boolean;
+	readonly autoDetectColorScheme: boolean;
 	readonly menuBarVisibility: MenuBarVisibility;
 	readonly newWindowDimensions: 'default' | 'inherit' | 'offset' | 'maximized' | 'fullscreen';
 	readonly nativeTabs: boolean;
@@ -279,6 +280,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	accessibilitySupport?: boolean;
 	colorScheme: IColorScheme;
 	autoDetectHighContrast?: boolean;
+	autoDetectColorScheme?: boolean;
 
 	perfMarks: PerformanceMark[];
 

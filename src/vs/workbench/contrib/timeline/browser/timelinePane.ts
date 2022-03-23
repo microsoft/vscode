@@ -38,7 +38,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry, ISubmenuItem } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -50,6 +50,7 @@ import { isString } from 'vs/base/common/types';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 const ItemHeight = 22;
 
@@ -257,7 +258,8 @@ export class TimelinePane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super({ ...options, titleMenuId: MenuId.TimelineTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -354,7 +356,7 @@ export class TimelinePane extends ViewPane {
 
 		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		if ((uri?.toString() === this.uri?.toString() && uri !== undefined) ||
+		if ((this.uriIdentityService.extUri.isEqual(uri, this.uri) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
 			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
 
@@ -397,7 +399,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || e.uri.toString() === this.uri?.toString()) {
+		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(e.uri, this.uri)) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;
@@ -895,9 +897,9 @@ export class TimelinePane extends ViewPane {
 				}
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
-			multipleSelectionSupport: true,
+			multipleSelectionSupport: false,
 			overrideStyles: {
-				listBackground: this.getBackgroundColor(),
+				listBackground: this.getBackgroundColor()
 			}
 		});
 
@@ -1190,11 +1192,9 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 const timelineRefresh = registerIcon('timeline-refresh', Codicon.refresh, localize('timelineRefresh', 'Icon for the refresh timeline action.'));
 const timelinePin = registerIcon('timeline-pin', Codicon.pin, localize('timelinePin', 'Icon for the pin timeline action.'));
 const timelineUnpin = registerIcon('timeline-unpin', Codicon.pinned, localize('timelineUnpin', 'Icon for the unpin timeline action.'));
-const timelineFilter = registerIcon('timeline-filter', Codicon.filter, localize('timelineFilter', 'Icon for the filter timeline action.'));
 
 class TimelinePaneCommands extends Disposable {
 	private sourceDisposables: DisposableStore;
-	private readonly timelineFilterSubMenu = new MenuId('timelineFilterSubMenu');
 
 	constructor(
 		private readonly pane: TimelinePane,
@@ -1206,14 +1206,6 @@ class TimelinePaneCommands extends Disposable {
 		super();
 
 		this._register(this.sourceDisposables = new DisposableStore());
-
-		MenuRegistry.appendMenuItem(MenuId.TimelineTitle, <ISubmenuItem>{
-			submenu: this.timelineFilterSubMenu,
-			title: localize('filterTimeline', "Filter Timeline..."),
-			group: 'navigation',
-			order: 100,
-			icon: timelineFilter
-		});
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -1296,14 +1288,13 @@ class TimelinePaneCommands extends Disposable {
 
 		const excluded = new Set(this.configurationService.getValue<string[] | undefined>('timeline.excludeSources') ?? []);
 		for (const source of this.timelineService.getSources()) {
-			const that = this;
 			this.sourceDisposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: `timeline.toggleExcludeSource:${source.id}`,
 						title: source.label,
 						menu: {
-							id: that.timelineFilterSubMenu,
+							id: MenuId.TimelineFilterSubMenu,
 							group: 'navigation',
 						},
 						toggled: ContextKeyExpr.regex(`config.timeline.excludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()

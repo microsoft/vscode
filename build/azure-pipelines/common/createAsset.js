@@ -135,7 +135,7 @@ async function main() {
     const platform = getPlatform(product, os, arch, unprocessedType);
     const type = getRealType(unprocessedType);
     const quality = getEnv('VSCODE_QUALITY');
-    const commit = getEnv('BUILD_SOURCEVERSION');
+    const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');
     console.log('Creating asset...');
     const stat = await new Promise((c, e) => fs.stat(filePath, (err, stat) => err ? e(err) : c(stat)));
     const size = stat.size;
