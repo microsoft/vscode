@@ -314,11 +314,11 @@
             "default": true,
             "description": "%css.format.enable.desc%"
           },
-          "css.format.selectorSeparatorNewline": {
+          "css.format.newlineBetweenSelectors": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
-            "markdownDescription": "%css.format.selectorSeparatorNewline.desc%"
+            "markdownDescription": "%css.format.newlineBetweenSelectors.desc%"
           },
           "css.format.newlineBetweenRules": {
             "type": "boolean",
@@ -594,11 +594,11 @@
             "default": true,
             "description": "%scss.format.enable.desc%"
           },
-          "scss.format.selectorSeparatorNewline": {
+          "scss.format.newlineBetweenSelectors": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
-            "markdownDescription": "%scss.format.selectorSeparatorNewline.desc%"
+            "markdownDescription": "%scss.format.newlineBetweenSelectors.desc%"
           },
           "scss.format.newlineBetweenRules": {
             "type": "boolean",
@@ -875,11 +875,11 @@
             "default": true,
             "description": "%less.format.enable.desc%"
           },
-          "less.format.selectorSeparatorNewline": {
+          "less.format.newlineBetweenSelectors": {
             "type": "boolean",
             "scope": "resource",
             "default": true,
-            "markdownDescription": "%less.format.selectorSeparatorNewline.desc%"
+            "markdownDescription": "%less.format.newlineBetweenSelectors.desc%"
           },
           "less.format.newlineBetweenRules": {
             "type": "boolean",
