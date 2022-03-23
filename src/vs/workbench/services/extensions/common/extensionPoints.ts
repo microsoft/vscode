@@ -57,24 +57,32 @@ export interface ILog {
 
 export class Logger implements ILog {
 
-	private readonly _messageHandler: (severity: Severity, source: string, message: string) => void;
+	private readonly _messageHandler: (severity: Severity, message: string) => void;
 
 	constructor(
-		messageHandler: (severity: Severity, source: string, message: string) => void
+		messageHandler: (severity: Severity, message: string) => void
 	) {
 		this._messageHandler = messageHandler;
 	}
 
 	public error(source: string, message: string): void {
-		this._messageHandler(Severity.Error, source, message);
+		this._log(Severity.Error, source, message);
 	}
 
 	public warn(source: string, message: string): void {
-		this._messageHandler(Severity.Warning, source, message);
+		this._log(Severity.Warning, source, message);
 	}
 
 	public info(source: string, message: string): void {
-		this._messageHandler(Severity.Info, source, message);
+		this._log(Severity.Info, source, message);
+	}
+
+	private _log(severity: Severity, source: string, message: string): void {
+		if (source) {
+			this._messageHandler(severity, `[${source}]: ${message}`);
+		} else {
+			this._messageHandler(severity, message);
+		}
 	}
 }
 

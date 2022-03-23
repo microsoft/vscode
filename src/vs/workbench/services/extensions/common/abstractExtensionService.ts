@@ -1251,12 +1251,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#region Called by extension host
 
 	protected createLogger(): Logger {
-		return new Logger((severity, source, message) => {
-			if (source) {
-				this._logOrShowMessage(severity, `[${source}]: ${message}`);
-			} else {
-				this._logOrShowMessage(severity, message);
-			}
+		return new Logger((severity, message) => {
+			this._logOrShowMessage(severity, message);
 		});
 	}
 
