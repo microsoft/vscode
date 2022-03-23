@@ -68,7 +68,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			editorId,
 			input: this._editorInputToDto(editor),
 			isPinned: group.isSticky(editorIndex),
-			isPreview: group.isPinned(editorIndex),
+			isPreview: !group.isPinned(editorIndex),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
@@ -306,7 +306,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return;
 		}
 		// Whether or not the tab has the pin icon (internally it's called sticky)
-		tab.isPreview = group.isPinned(editorIndex);
+		tab.isPreview = !group.isPinned(editorIndex);
 		this._proxy.$acceptTabUpdate(groupId, tab);
 	}
 
