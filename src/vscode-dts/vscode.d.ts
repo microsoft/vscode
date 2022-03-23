@@ -9784,7 +9784,7 @@ declare module 'vscode' {
 	 * data transfer. These additional mime types will only be included in the `handleDrop` when the the drag was initiated from
 	 * an element in the same drag and drop controller.
 	 */
-	export class DataTransfer<T extends DataTransferItem = DataTransferItem> {
+	export class DataTransfer {
 		/**
 		 * Retrieves the data transfer item for a given mime type.
 		 *
@@ -9794,20 +9794,20 @@ declare module 'vscode' {
 		 * - `text/uri-list` — A string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 */
-		get(mimeType: string): T | undefined;
+		get(mimeType: string): DataTransferItem | undefined;
 
 		/**
 		 * Sets a mime type to data transfer item mapping.
 		 * @param mimeType The mime type to set the data for.
 		 * @param value The data transfer item for the given mime type.
 		 */
-		set(mimeType: string, value: T): void;
+		set(mimeType: string, value: DataTransferItem): void;
 
 		/**
 		 * Allows iteration through the data transfer items.
 		 * @param callbackfn Callback for iteration through the data transfer items.
 		 */
-		forEach(callbackfn: (value: T, key: string) => void): void;
+		forEach(callbackfn: (value: DataTransferItem, key: string) => void): void;
 	}
 
 	/**
