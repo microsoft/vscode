@@ -364,7 +364,7 @@ MenuRegistry.appendMenuItems([
 			group: '3_workbench_layout_move',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
 			},
 			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 			order: 2
@@ -375,7 +375,7 @@ MenuRegistry.appendMenuItems([
 			group: '3_workbench_layout_move',
 			command: {
 				id: ToggleSidebarVisibilityAction.ID,
-				title: localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+				title: localize('compositePart.hideSideBarLabel', "Hide Primary Side Bar"),
 			},
 			when: ContextKeyExpr.and(SideBarVisibleContext, ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 			order: 2
