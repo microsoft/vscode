@@ -101,14 +101,14 @@ declare module 'vscode' {
 		readonly isActive: boolean;
 
 		/**
-		 * The view column of the groups
+		 * The view column of the group
 		 */
 		readonly viewColumn: ViewColumn;
 
 		/**
-		 * The active tab within the group
+		 * The active tab in the group (this is the tab currently being rendered).
+		 * There can be one active tab per group. There can only be one active group.
 		 */
-		// TODO@API explain the relation between active tab groups and active tab
 		readonly activeTab: Tab | undefined;
 
 		/**
