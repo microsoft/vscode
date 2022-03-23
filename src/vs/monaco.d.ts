@@ -4503,7 +4503,7 @@ declare namespace monaco.editor {
 		/**
 		 * Enables dropping into the editor.
 		 *
-		 * This shows a preview of the drop cursor location and triggers an `onDropIntoEditor` event.
+		 * This shows a preview of the drop location and triggers an `onDropIntoEditor` event.
 		 */
 		enableDropIntoEditor?: boolean;
 	}
