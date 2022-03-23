@@ -128,7 +128,7 @@ xterm-addon-webgl@0.12.0-beta.24:
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.12.0-beta.24.tgz#5c17256933991856554c95c9bd1eaab42e9727a0"
   integrity sha512-+wZxKReEOlfN9JRHyikoffA6Do61/THR7QY35ajkQo0lLutKr6hTd/TLTuZh0PhFVelgTgudpXqlP++Lc0WFIA==
 
-xterm@4.19.0-beta.11:
-  version "4.19.0-beta.11"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0-beta.11.tgz#36987dcf31ec1aa9c55a3e9d1fc4233407f4fba4"
-  integrity sha512-8fWXecwLn8EL5UwOZeigCb6cg3w3GOQT8AQvaWCVdsBAi4bgwY8UoRkMMtZf5yiWbHgnaMrwNk6/iZgyM2JDzQ==
+xterm@4.19.0-beta.12:
+  version "4.19.0-beta.12"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.19.0-beta.12.tgz#41473a884b036f0c9223ebe38608e90a2d73b362"
+  integrity sha512-q2J0N9m2V2qfWpJaVm0uXCX0bOON1uCpLC6fRF2ocHA1B8xZ5QqDCGPBLk8mRNrojt8XkbKsbYOJHGeV6e6qQg==
