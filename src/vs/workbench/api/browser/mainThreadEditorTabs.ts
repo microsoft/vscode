@@ -46,6 +46,13 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 
 		// Main listener which responds to events from the editor service
 		this._dispoables.add(editorService.onDidEditorsChange((event) => this._updateTabsModel(event)));
+
+		// Structural group changes (add, remove, move, etc) are difficult to patch.
+		// Since they happen infrequently we just rebuild the entire model
+		this._dispoables.add(this._editorGroupsService.onDidAddGroup(() => this._createTabsModel()));
+		this._dispoables.add(this._editorGroupsService.onDidRemoveGroup(() => this._createTabsModel()));
+
+		// Once everything is read go ahead and initialize the model
 		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
 	}
 
@@ -223,16 +230,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		// Update lookup
 		this._tabInfoLookup.delete(removedTab[0]?.id ?? '');
 
-		// If no tabs left, it's an empty group and the group gets deleted from the model
-		// In the future we may want to support empty groups
-		if (tabs.length === 0) {
-			for (let i = 0; i < this._tabGroupModel.length; i++) {
-				if (this._tabGroupModel[i].groupId === group.id) {
-					this._tabGroupModel.splice(i, 1);
-					this._groupLookup.delete(group.id);
-				}
-			}
-		}
 		// TODO @lramos15 Switch to patching here
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
