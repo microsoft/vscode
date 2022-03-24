@@ -23,7 +23,7 @@ const auxiliaryBarLeftIcon = registerIcon('auxiliarybar-left-layout-icon', Codic
 export class ToggleAuxiliaryBarAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleAuxiliaryBar';
-	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Secondary Side Bar");
+	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Secondary Side Bar Visibility");
 
 	constructor(
 		id: string,
@@ -134,5 +134,5 @@ MenuRegistry.appendMenuItems([
 ]);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Secondary Side Bar', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Secondary Side Bar Visibility', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Secondary Side Bar', CATEGORIES.View.value);
