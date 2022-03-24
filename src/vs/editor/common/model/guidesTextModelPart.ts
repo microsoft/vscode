@@ -8,7 +8,7 @@ import * as strings from 'vs/base/common/strings';
 import { CursorColumns } from 'vs/editor/common/core/cursorColumns';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketInfo, BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
+import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
 import type { TextModel } from 'vs/editor/common/model/textModel';
 import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
