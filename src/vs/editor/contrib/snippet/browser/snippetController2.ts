@@ -17,7 +17,7 @@ import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/e
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { showSimpleSuggestions2 } from 'vs/editor/contrib/suggest/browser/suggest';
+import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -234,7 +234,7 @@ export class SnippetController2 implements IEditorContribution {
 
 			// give editor a change to catch up with events and trigger suggestions
 			queueMicrotask(() => {
-				showSimpleSuggestions2(this._editor, this._choiceCompletionItemProvider!);
+				showSimpleSuggestions(this._editor, this._choiceCompletionItemProvider!);
 			});
 		}
 	}
