@@ -372,11 +372,17 @@ export class ExplorerService implements IExplorerService {
 		// Delete
 		else if (e.isOperation(FileOperation.DELETE)) {
 			const modelElements = this.model.findAll(e.resource);
-			await Promise.all(modelElements.map(async element => {
-				if (element.parent) {
-					const parent = element.parent;
+			await Promise.all(modelElements.map(async modelElement => {
+				if (modelElement.parent) {
 					// Remove Element from Parent (Model)
-					parent.removeChild(element);
+					const parent = modelElement.parent;
+					parent.removeChild(modelElement);
+
+					const oldNestedParent = modelElement.nestedParent;
+					if (oldNestedParent) {
+						oldNestedParent.removeChild(modelElement);
+						await this.view?.refresh(false, oldNestedParent);
+					}
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}
