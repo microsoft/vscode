@@ -12,7 +12,7 @@ import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { DefaultKeyboardNavigationDelegate, IListOptions, IListStyles, isInputElement, isMonacoEditor, List, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
-import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
+import { coalesce, distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { SetMap } from 'vs/base/common/collections';
@@ -1197,9 +1197,29 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			const location = model.getNodeLocation(node);
 			const recursive = e.browserEvent.altKey;
 			this.tree.setFocus([location]);
+			const oldSelection = this.list.getSelection();
 			model.setCollapsed(location, undefined, recursive);
 
 			if (expandOnlyOnTwistieClick && onTwistie) {
+				if (node.collapsed) {
+					const childCount = node.children.length;
+					// normally super.onViewPointer(e) would set the selection to the clicked element
+					// but here we only want to collapse the element but not overly change the selection
+					// we need to manaully drop all selected elements that got collapsed and shift up
+					// the index of all selected elements after this one
+					this.list.setSelection(coalesce(oldSelection.map(oldSelectedIndex => {
+						if (e.index) {
+							if (oldSelectedIndex <= e.index) {
+								return oldSelectedIndex;
+							} else if (oldSelectedIndex > e.index && oldSelectedIndex <= e.index + childCount) {
+								return undefined;
+							} else {
+								return oldSelectedIndex - childCount;
+							}
+						}
+						return undefined;
+					})), e.browserEvent);
+				}
 				return;
 			}
 		}
