@@ -149,6 +149,7 @@ export class RemoteExtensionHostAgentServer extends Disposable implements IServe
 			responseHeaders['Vary'] = 'Origin';
 			const requestOrigin = req.headers['origin'];
 			if (requestOrigin && this._webEndpointOriginChecker.matches(requestOrigin)) {
+				console.log(`setting Access-Control-Allow-Origin`);
 				responseHeaders['Access-Control-Allow-Origin'] = requestOrigin;
 			}
 
@@ -789,13 +790,13 @@ class WebEndpointOriginChecker {
 		}
 
 		const uuid = generateUuid();
-		const exampleUrl = new URL(
+		const exampleUri = URI.parse(
 			webEndpointUrlTemplate
 				.replace('{{uuid}}', uuid)
 				.replace('{{commit}}', commit)
 				.replace('{{quality}}', quality)
 		);
-		const exampleOrigin = exampleUrl.origin;
+		const exampleOrigin = `${exampleUri.scheme}://${exampleUri.authority}`;
 		const originRegExpSource = (
 			escapeRegExpCharacters(exampleOrigin)
 				.replace(uuid, '[a-zA-Z0-9\-]+')
