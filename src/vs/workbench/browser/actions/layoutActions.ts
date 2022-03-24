@@ -271,28 +271,28 @@ MenuRegistry.appendMenuItems([{
 		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar))),
 		order: 1
 	}
-	}, {
-		id: MenuId.ViewTitleContext,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id: ToggleSidebarPositionAction.ID,
-				title: localize('move second sidebar left', "Move Secondary Side Bar Left")
-			},
-			when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
-			order: 1
-		}
-	}, {
-		id: MenuId.ViewTitleContext,
-		item: {
-			group: '3_workbench_layout_move',
-			command: {
-				id: ToggleSidebarPositionAction.ID,
-				title: localize('move second sidebar right', "Move Secondary Side Bar Right")
-			},
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
-			order: 1
-		}
+}, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: localize('move second sidebar left', "Move Secondary Side Bar Left")
+		},
+		when: ContextKeyExpr.and(ContextKeyExpr.notEquals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		order: 1
+	}
+}, {
+	id: MenuId.ViewTitleContext,
+	item: {
+		group: '3_workbench_layout_move',
+		command: {
+			id: ToggleSidebarPositionAction.ID,
+			title: localize('move second sidebar right', "Move Secondary Side Bar Right")
+		},
+		when: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.sideBar.location', 'right'), ContextKeyExpr.equals('viewLocation', ViewContainerLocationToString(ViewContainerLocation.AuxiliaryBar))),
+		order: 1
+	}
 }]);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
