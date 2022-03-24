@@ -383,11 +383,11 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 
 		const parentUri = this.extUri.dirname(resource);
-		// Root directory's parent is itself
 		if (this.extUri.isEqual(parentUri, resource)) {
-			return undefined;
+			return undefined; // return when root is reached to prevent infinite recursion
 		}
-		const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+
+		const parent = await this.getDirectoryHandle(parentUri);
 
 		try {
 			return await parent?.getDirectoryHandle(extUri.basename(resource));
