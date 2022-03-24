@@ -149,7 +149,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 			remoteUserData = await this.updateRemoteSnippets(accptedResourcePreviews, remoteUserData, force);
 		}
 
-		if (lastSyncUserData?.ref !== remoteUserData.ref) {
+		if (this.hasToUpdateLastSyncUserData(remoteUserData, lastSyncUserData)) {
 			// update last sync
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized snippets...`);
 			await this.updateLastSyncUserData(remoteUserData);
