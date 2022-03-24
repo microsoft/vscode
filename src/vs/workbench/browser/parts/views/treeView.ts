@@ -1419,7 +1419,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 
 	async drop(data: IDragAndDropData, targetNode: ITreeItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): Promise<void> {
 		const dndController = this.dndController;
-		if (!originalEvent.dataTransfer || !dndController || !targetNode) {
+		if (!originalEvent.dataTransfer || !dndController) {
 			return;
 		}
 		const treeDataTransfer: IDataTransfer = new Map();
@@ -1443,7 +1443,7 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 				}
 			}
 
-			if (!originalEvent.dataTransfer || !targetNode) {
+			if (!originalEvent.dataTransfer) {
 				return;
 			}
 			for (const dataItem of originalEvent.dataTransfer.items) {
