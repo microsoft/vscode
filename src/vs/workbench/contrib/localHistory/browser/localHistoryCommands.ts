@@ -6,6 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryService } from 'vs/workbench/services/workingCopy/common/workingCopyHistory';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -28,6 +29,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { LOCAL_HISTORY_DATE_FORMATTER, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
 
@@ -525,10 +527,11 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const editorService = accessor.get(IEditorService);
 		const labelService = accessor.get(ILabelService);
+		const pathService = accessor.get(IPathService);
 
 		const resource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource) {
-			return;
+		if (resource?.scheme !== pathService.defaultUriScheme && resource?.scheme !== Schemas.vscodeUserData) {
+			return; // only enable for selected schemes
 		}
 
 		const inputBox = quickInputService.createInputBox();
