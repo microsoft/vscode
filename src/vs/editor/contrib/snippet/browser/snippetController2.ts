@@ -154,6 +154,7 @@ export class SnippetController2 implements IEditorContribution {
 							insertText: option.value,
 							sortText: 'a'.repeat(i + 1),
 							range: Range.fromPositions(position),
+							command: { id: 'jumpToNextSnippetPlaceholder', title: localize('next', 'Go to next placeholder...') }
 						});
 					}
 					return { suggestions };
