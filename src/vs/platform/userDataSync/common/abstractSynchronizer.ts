@@ -705,14 +705,6 @@ export abstract class AbstractSynchroniser extends Disposable implements IUserDa
 		return this.configurationService.getValue(USER_DATA_SYNC_CONFIGURATION_SCOPE);
 	}
 
-	protected hasToUpdateLastSyncUserData(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): boolean {
-		if (lastSyncUserData === null && remoteUserData.syncData === null) {
-			// No remote data and No lasty sync date, so update is not needed
-			return false;
-		}
-		return lastSyncUserData?.ref !== remoteUserData.ref;
-	}
-
 	protected abstract readonly version: number;
 	protected abstract generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, userDataSyncConfiguration: IUserDataSyncConfiguration, token: CancellationToken): Promise<IResourcePreview[]>;
 	protected abstract getMergeResult(resourcePreview: IResourcePreview, token: CancellationToken): Promise<IMergeResult>;

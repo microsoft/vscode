@@ -203,7 +203,7 @@ export class TasksSynchroniser extends AbstractFileSynchroniser implements IUser
 			await this.fileService.del(this.previewResource);
 		} catch (e) { /* ignore */ }
 
-		if (this.hasToUpdateLastSyncUserData(remoteUserData, lastSyncUserData)) {
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized tasks...`);
 			await this.updateLastSyncUserData(remoteUserData);
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized tasks`);

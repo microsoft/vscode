@@ -248,7 +248,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			await this.fileService.del(this.previewResource);
 		} catch (e) { /* ignore */ }
 
-		if (this.hasToUpdateLastSyncUserData(remoteUserData, lastSyncUserData)) {
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized keybindings...`);
 			await this.updateLastSyncUserData(remoteUserData, { platformSpecific: this.syncKeybindingsPerPlatform() });
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized keybindings`);

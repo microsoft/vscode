@@ -229,7 +229,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			this.logService.info(`${this.syncResourceLogLabel}: Updated remote ui state`);
 		}
 
-		if (this.hasToUpdateLastSyncUserData(remoteUserData, lastSyncUserData)) {
+		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			// update last sync
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized ui state...`);
 			await this.updateLastSyncUserData(remoteUserData);
