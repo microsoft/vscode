@@ -155,10 +155,10 @@ async function main() {
         console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
         return;
     }
-    const mooncakeCredential = new identity_1.ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID'], process.env['AZURE_MOONCAKE_CLIENT_ID'], process.env['AZURE_MOONCAKE_CLIENT_SECRET']);
-    const mooncakeBlobServiceClient = new storage_blob_1.BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
-    const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
-    const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
+    // const mooncakeCredential = new ClientSecretCredential(process.env['AZURE_MOONCAKE_TENANT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_ID']!, process.env['AZURE_MOONCAKE_CLIENT_SECRET']!);
+    // const mooncakeBlobServiceClient = new BlobServiceClient(`https://vscode.blob.core.chinacloudapi.cn`, mooncakeCredential, storagePipelineOptions);
+    // const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
+    // const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
     console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
     const blobOptions = {
         blobHTTPHeaders: {
@@ -169,7 +169,7 @@ async function main() {
     };
     await (0, retry_1.retry)(() => Promise.all([
         blobClient.uploadFile(filePath, blobOptions),
-        mooncakeBlobClient.uploadFile(filePath, blobOptions)
+        // mooncakeBlobClient.uploadFile(filePath, blobOptions)
     ]));
     console.log('Blobs successfully uploaded.');
     const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
