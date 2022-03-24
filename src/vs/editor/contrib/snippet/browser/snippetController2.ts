@@ -7,17 +7,20 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CompletionItem, CompletionItemKind } from 'vs/editor/common/languages';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
+import { showSimpleSuggestions2 } from 'vs/editor/contrib/suggest/browser/suggest';
 import { OvertypingCapturer } from 'vs/editor/contrib/suggest/browser/suggestOvertypingCapturer';
 import { localize } from 'vs/nls';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
@@ -63,10 +66,12 @@ export class SnippetController2 implements IEditorContribution {
 	private _modelVersionId: number = -1;
 	private _currentChoice?: Choice;
 
+	private _choiceCompletionItemProvider?: CompletionItemProvider;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);
@@ -129,6 +134,41 @@ export class SnippetController2 implements IEditorContribution {
 			this._editor.getModel().pushStackElement();
 		}
 
+		// regster completion item provider when there is any choice element
+		if (this._session?.hasChoice) {
+			this._choiceCompletionItemProvider = {
+				provideCompletionItems: (model: ITextModel, position: Position) => {
+					if (!this._session || model !== this._editor.getModel() || !Position.equals(this._editor.getPosition(), position)) {
+						return undefined;
+					}
+					const { activeChoice } = this._session;
+					if (!activeChoice || activeChoice.options.length === 0) {
+						return undefined;
+					}
+					const suggestions: CompletionItem[] = [];
+					for (let i = 0; i < activeChoice.options.length; i++) {
+						const option = activeChoice.options[i];
+						suggestions.push({
+							kind: CompletionItemKind.Value,
+							label: option.value,
+							insertText: option.value,
+							sortText: 'a'.repeat(i + 1),
+							range: Range.fromPositions(position),
+						});
+					}
+					return { suggestions };
+				}
+			};
+
+			const registration = this._languageFeaturesService.completionProvider.register({
+				language: this._editor.getModel().getLanguageId(),
+				pattern: this._editor.getModel().uri.path,
+				scheme: this._editor.getModel().uri.scheme
+			}, this._choiceCompletionItemProvider);
+
+			this._snippetListener.add(registration);
+		}
+
 		this._updateState();
 
 		this._snippetListener.add(this._editor.onDidChangeModelContent(e => e.isFlush && this.cancel()));
@@ -172,35 +212,29 @@ export class SnippetController2 implements IEditorContribution {
 			return;
 		}
 
-		const { choice } = this._session;
-		if (!choice) {
+		const { activeChoice } = this._session;
+		if (!activeChoice || !this._choiceCompletionItemProvider) {
 			this._currentChoice = undefined;
 			return;
 		}
-		if (this._currentChoice !== choice) {
-			this._currentChoice = choice;
 
-			this._editor.setSelections(this._editor.getSelections()
-				.map(s => Selection.fromPositions(s.getStartPosition()))
-			);
+		if (this._currentChoice !== activeChoice) {
+			this._currentChoice = activeChoice;
 
-			const [first] = choice.options;
+			// remove default choise element
+			// TODO@jrieken support additionalTextEdits AFTER cursor and make this obsolete
+			const edits: ISingleEditOperation[] = [];
+			const selections: Selection[] = [];
+			for (const selection of this._editor.getSelections()) {
+				edits.push(EditOperation.delete(selection));
+				selections.push(new Selection(selection.startLineNumber, selection.startColumn, selection.startLineNumber, selection.startColumn));
+			}
+			this._editor.executeEdits('snippet_choice_prepare', edits, selections);
 
-			this._instantiationService.invokeFunction(showSimpleSuggestions, this._editor, choice.options.map((option, i) => {
-
-				// let before = choice.options.slice(0, i);
-				// let after = choice.options.slice(i);
-
-				return <CompletionItem>{
-					kind: CompletionItemKind.Value,
-					label: option.value,
-					insertText: option.value,
-					// insertText: `\${1|${after.concat(before).join(',')}|}$0`,
-					// snippetType: 'textmate',
-					sortText: 'a'.repeat(i + 1),
-					range: Range.fromPositions(this._editor.getPosition()!, this._editor.getPosition()!.delta(0, first.value.length))
-				};
-			}));
+			// give editor a change to catch up with events and trigger suggestions
+			queueMicrotask(() => {
+				showSimpleSuggestions2(this._editor, this._choiceCompletionItemProvider!);
+			});
 		}
 	}
 

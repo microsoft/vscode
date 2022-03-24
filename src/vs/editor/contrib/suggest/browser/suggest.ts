@@ -429,6 +429,12 @@ export function showSimpleSuggestions(accessor: ServicesAccessor, editor: ICodeE
 	}, 0);
 }
 
+export function showSimpleSuggestions2(editor: ICodeEditor, provider: languages.CompletionItemProvider) {
+	editor.getContribution<SuggestController>('editor.contrib.suggestController')?.triggerSuggest(
+		new Set<languages.CompletionItemProvider>().add(provider)
+	);
+}
+
 export interface ISuggestItemPreselector {
 	/**
 	 * The preselector with highest priority is asked first.
