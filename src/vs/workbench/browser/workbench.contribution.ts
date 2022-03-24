@@ -512,8 +512,8 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
 				'markdownDescription': isMacintosh ?
-					localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the sidebar.") :
-					localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the sidebar."),
+					localize('menuBarVisibility.mac', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and executing `Focus Application Menu` will show it. A setting of 'compact' will move the menu into the side bar.") :
+					localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. A setting of 'compact' will move the menu into the side bar."),
 				'included': isWindows || isLinux || isWeb
 			},
 			'window.enableMenuBarMnemonics': {
