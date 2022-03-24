@@ -852,7 +852,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['view', 'reuseEditor', 'newEditor'],
 			default: 'view',
-			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the sidebar's search view, or in a search editor"),
+			markdownDescription: nls.localize('search.mode', "Controls where new `Search: Find in Files` and `Find in Folder` operations occur: either in the search view, or in a search editor"),
 			enumDescriptions: [
 				nls.localize('search.mode.view', "Search in the search view, either in the panel or sidebar."),
 				nls.localize('search.mode.reuseEditor', "Search in an existing search editor if present, otherwise in a new search editor."),

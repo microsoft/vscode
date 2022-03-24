@@ -335,7 +335,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'right'],
 				'default': 'left',
-				'description': localize('sideBarLocation', "Controls the location of the primary sidebar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
+				'description': localize('sideBarLocation', "Controls the location of the primary side bar and activity bar. They can either show on the left or right of the workbench. The secondary side bar will show on the opposite side of the workbench.")
 			},
 			'workbench.panel.defaultLocation': {
 				'type': 'string',
@@ -507,7 +507,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 						localize('window.menuBarVisibility.toggle.mac', "Menu is hidden but can be displayed at the top of the window by executing the `Focus Application Menu` command.") :
 						localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed at the top of the window via the Alt key."),
 					localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when `#window.titleBarStyle#` is `native`.")
+					localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the side bar. This value is ignored when `#window.titleBarStyle#` is `native`.")
 				],
 				'default': isWeb ? 'compact' : 'classic',
 				'scope': ConfigurationScope.APPLICATION,
