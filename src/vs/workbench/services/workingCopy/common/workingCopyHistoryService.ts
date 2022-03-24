@@ -50,7 +50,7 @@ export class WorkingCopyHistoryModel {
 
 	private static readonly SETTINGS = {
 		MAX_ENTRIES: 'workbench.localHistory.maxFileEntries',
-		MERGE_PERIOD: 'workbench.localHistory.mergePeriod'
+		MERGE_PERIOD: 'workbench.localHistory.mergeWindow'
 	};
 
 	private entries: IWorkingCopyHistoryEntry[] = [];

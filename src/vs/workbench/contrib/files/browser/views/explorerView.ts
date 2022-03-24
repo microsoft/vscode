@@ -384,7 +384,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
 
-		const getFileNestingSettings = () => this.configurationService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.experimental.fileNesting;
 
 		this.tree = <WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree, 'FileExplorer', container, new ExplorerDelegate(), new ExplorerCompressionDelegate(), [this.renderer],
 			this.instantiationService.createInstance(ExplorerDataSource), {
@@ -413,7 +413,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			dnd: this.instantiationService.createInstance(FileDragAndDrop),
 			collapseByDefault: (e) => {
 				if (e instanceof ExplorerItem) {
-					if (e.hasNests && getFileNestingSettings().expand) {
+					if (e.hasNests && getFileNestingSettings(e).expand) {
 						return false;
 					}
 				}
@@ -625,7 +625,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		if (this.configurationService.getValue<IFilesConfiguration>()?.explorer?.experimental?.fileNesting?.enabled) {
+		if (this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.experimental.fileNesting.enabled) {
 			return (async () => {
 				try {
 					await this.tree.updateChildren(toRefresh, recursive, false, {

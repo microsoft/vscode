@@ -298,10 +298,12 @@ export class ExplorerItem {
 	}
 
 	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
-		const nestingConfig = this.configService.getValue<IFilesConfiguration>().explorer.experimental.fileNesting;
+		const nestingConfig = this.configService.getValue<IFilesConfiguration>({ resource: this.root.resource }).explorer.experimental.fileNesting;
 
 		// fast path when the children can be resolved sync
-		if (nestingConfig.enabled && this.nestedChildren) { return this.nestedChildren; }
+		if (nestingConfig.enabled && this.nestedChildren) {
+			return this.nestedChildren;
+		}
 
 		return (async () => {
 			if (!this._isDirectoryResolved) {
@@ -383,11 +385,13 @@ export class ExplorerItem {
 	 * Removes a child element from this folder.
 	 */
 	removeChild(child: ExplorerItem): void {
+		this.nestedChildren = undefined;
 		this.children.delete(this.getPlatformAwareName(child.name));
 	}
 
 	forgetChildren(): void {
 		this.children.clear();
+		this.nestedChildren = undefined;
 		this._isDirectoryResolved = false;
 		this._fileNester = undefined;
 	}
@@ -400,6 +404,9 @@ export class ExplorerItem {
 	 * Moves this element under a new parent element.
 	 */
 	move(newParent: ExplorerItem): void {
+		if (this.nestedParent) {
+			this.nestedParent.removeChild(this);
+		}
 		if (this._parent) {
 			this._parent.removeChild(this);
 		}

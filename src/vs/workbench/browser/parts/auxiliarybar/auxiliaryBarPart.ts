@@ -23,10 +23,12 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IAction, Separator } from 'vs/base/common/actions';
+import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { ToggleAuxiliaryBarAction } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions';
 import { assertIsDefined } from 'vs/base/common/types';
 import { LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
+import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class AuxiliaryBarPart extends BasePanelPart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
@@ -53,6 +55,7 @@ export class AuxiliaryBarPart extends BasePanelPart {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@ICommandService private commandService: ICommandService,
 	) {
 		super(
 			notificationService,
@@ -107,8 +110,12 @@ export class AuxiliaryBarPart extends BasePanelPart {
 	}
 
 	protected fillExtraContextMenuActions(actions: IAction[]): void {
+		const currentPositionRight = this.layoutService.getSideBarPosition() === Position.LEFT;
 		actions.push(...[
 			new Separator(),
+			toAction({
+				id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID)
+			}),
 			this.instantiationService.createInstance(ToggleAuxiliaryBarAction, ToggleAuxiliaryBarAction.ID, localize('hideAuxiliaryBar', "Hide Secondary Side Bar"))
 		]);
 	}

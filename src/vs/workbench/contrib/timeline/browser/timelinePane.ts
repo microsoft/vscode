@@ -762,15 +762,16 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this._visibleItemCount = count;
-
-		if (more) {
-			yield {
-				element: new LoadMoreCommand(this.pendingRequests.size !== 0)
-			};
-		} else if (this.pendingRequests.size !== 0) {
-			yield {
-				element: new LoadMoreCommand(true)
-			};
+		if (count > 0) {
+			if (more) {
+				yield {
+					element: new LoadMoreCommand(this.pendingRequests.size !== 0)
+				};
+			} else if (this.pendingRequests.size !== 0) {
+				yield {
+					element: new LoadMoreCommand(true)
+				};
+			}
 		}
 	}
 

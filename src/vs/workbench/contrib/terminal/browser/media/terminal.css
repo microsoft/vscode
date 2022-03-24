@@ -433,3 +433,8 @@
 	right: 0;
 	border: 1px solid #ffffff;
 }
+
+.hc-black .xterm-find-result-decoration,
+.hc-light .xterm-find-result-decoration {
+	outline-style: dotted !important;
+}

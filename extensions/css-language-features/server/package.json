@@ -10,7 +10,7 @@
   "main": "./out/node/cssServerMain",
   "browser": "./dist/browser/cssServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^5.2.0",
+    "vscode-css-languageservice": "^5.3.0",
     "vscode-languageserver": "^7.0.0",
     "vscode-uri": "^3.0.3"
   },

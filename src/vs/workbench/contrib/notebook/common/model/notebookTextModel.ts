@@ -315,7 +315,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		switch (e) {
 			case 'content':
 				this._pauseableEmitter.fire({
-					rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }],
+					rawEvents: [{ kind: NotebookCellsChangeType.ChangeCellContent, index: this._getCellIndexByHandle(cell.handle), transient: false }],
 					versionId: this.versionId,
 					synchronous: true,
 					endSelectionState: undefined

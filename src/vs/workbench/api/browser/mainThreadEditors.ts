@@ -15,7 +15,7 @@ import { IDecorationOptions, IDecorationRenderOptions } from 'vs/editor/common/e
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions, IResourceEditorInput, EditorActivation, EditorResolution } from 'vs/platform/editor/common/editor';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
 import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, ITextDocumentShowOptions, ITextEditorConfigurationUpdate, ITextEditorPositionData, IUndoStopOptions, MainThreadTextEditorsShape, TextEditorRevealType, IWorkspaceEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToColumn, columnToEditorGroup, EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -34,7 +34,9 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DataTransferConverter } from 'vs/workbench/api/common/shared/dataTransfer';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IDataTransfer, IDataTransferItem } from 'vs/workbench/common/dnd';
-import { DataTransfers } from 'vs/base/browser/dnd';
+import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
+import { Mimes } from 'vs/base/common/mime';
+import { distinct } from 'vs/base/common/arrays';
 
 export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
@@ -79,6 +81,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._instanceId = String(++MainThreadTextEditors.INSTANCE_COUNT);
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
@@ -92,7 +95,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 		const registerDropListenerOnEditor = (editor: ICodeEditor) => {
 			this._dropIntoEditorListeners.get(editor)?.dispose();
-			this._dropIntoEditorListeners.set(editor, editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.dataTransfer)));
+			this._dropIntoEditorListeners.set(editor, editor.onDropIntoEditor(e => this.onDropIntoEditor(editor, e.position, e.event)));
 		};
 
 		this._toDispose.add(_codeEditorService.onCodeEditorAdd(registerDropListenerOnEditor));
@@ -158,15 +161,17 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return result;
 	}
 
-	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dataTransfer: DataTransfer) {
+	private async onDropIntoEditor(editor: ICodeEditor, position: IPosition, dragEvent: DragEvent) {
+		if (!dragEvent.dataTransfer) {
+			return;
+		}
 		const id = this._editorLocator.getIdOfCodeEditor(editor);
 		if (typeof id !== 'string') {
 			return;
 		}
 
 		const textEditorDataTransfer: IDataTransfer = new Map<string, IDataTransferItem>();
-		const fileUris: string[] = [];
-		for (const item of dataTransfer.items) {
+		for (const item of dragEvent.dataTransfer.items) {
 			if (item.kind === 'string') {
 				const type = item.type;
 				const asStringValue = new Promise<string>(resolve => item.getAsString(resolve));
@@ -174,20 +179,21 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 					asString: () => asStringValue,
 					value: undefined
 				});
-			} else if (item.kind === 'file') {
-				const file = item.getAsFile();
-				if (file?.path) {
-					fileUris.push(file.path);
-				}
 			}
 		}
 
-		if (fileUris.length && !textEditorDataTransfer.has(DataTransfers.RESOURCES.toLowerCase())) {
-			const str = JSON.stringify(fileUris);
-			textEditorDataTransfer.set(DataTransfers.RESOURCES.toLowerCase(), {
-				asString: () => Promise.resolve(str),
-				value: undefined
-			});
+		if (!textEditorDataTransfer.has(Mimes.uriList.toLowerCase())) {
+			const editorData = (await this._instantiationService.invokeFunction(extractEditorsDropData, dragEvent))
+				.filter(input => input.resource)
+				.map(input => input.resource!.toString());
+
+			if (editorData.length) {
+				const str = distinct(editorData).join('\n');
+				textEditorDataTransfer.set(Mimes.uriList.toLowerCase(), {
+					asString: () => Promise.resolve(str),
+					value: undefined
+				});
+			}
 		}
 
 		if (textEditorDataTransfer.size > 0) {

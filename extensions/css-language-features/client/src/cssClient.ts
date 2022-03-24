@@ -29,12 +29,12 @@ interface FormatterRegistration {
 }
 
 interface CSSFormatSettings {
-	selectorSeparatorNewline?: boolean;
+	newlineBetweenSelectors?: boolean;
 	newlineBetweenRules?: boolean;
 	spaceAroundSelectorSeparator?: boolean;
 }
 
-const cssFormatSettingKeys: (keyof CSSFormatSettings)[] = ['selectorSeparatorNewline', 'newlineBetweenRules', 'spaceAroundSelectorSeparator'];
+const cssFormatSettingKeys: (keyof CSSFormatSettings)[] = ['newlineBetweenSelectors', 'newlineBetweenRules', 'spaceAroundSelectorSeparator'];
 
 export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
 

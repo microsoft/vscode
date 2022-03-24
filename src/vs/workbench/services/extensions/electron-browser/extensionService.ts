@@ -145,7 +145,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
 
-		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
+		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this._createLogger());
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
@@ -431,7 +431,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	protected async _scanAndHandleExtensions(): Promise<void> {
-		this._extensionScanner.startScanningExtensions(this.createLogger());
+		this._extensionScanner.startScanningExtensions(this._createLogger());
 
 		const remoteAuthority = this._environmentService.remoteAuthority;
 
@@ -547,7 +547,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const result = this._registry.deltaExtensions(remoteExtensions.concat(localProcessExtensions).concat(localWebWorkerExtensions), []);
 		if (result.removedDueToLooping.length > 0) {
-			this._logOrShowMessage(Severity.Error, nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', ')));
+			this._notificationService.notify({
+				severity: Severity.Error,
+				message: nls.localize('looping', "The following extensions contain dependency loops and have been disabled: {0}", result.removedDueToLooping.map(e => `'${e.identifier.value}'`).join(', '))
+			});
 		}
 
 		if (remoteAuthority && remoteEnv) {
