@@ -11,6 +11,7 @@ import { performance } from 'perf_hooks';
 import * as url from 'url';
 import { LoaderStats } from 'vs/base/common/amd';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { connectionTokenQueryName, FileAccess, Schemas } from 'vs/base/common/network';
@@ -646,6 +647,22 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	}
 	const disposables = new DisposableStore();
 	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, disposables);
+
+	// Set the unexpected error handler after the services have been initialized, to avoid having
+	// the telemetry service overwrite our handler
+	instantiationService.invokeFunction((accessor) => {
+		const logService = accessor.get(ILogService);
+		setUnexpectedErrorHandler(err => {
+			// See https://github.com/microsoft/vscode-remote-release/issues/6481
+			// In some circumstances, console.error will throw an asynchronous error. This asynchronous error
+			// will end up here, and then it will be logged again, thus creating an endless asynchronous loop.
+			// Here we try to break the loop by ignoring EPIPE errors that include our own unexpected error handler in the stack.
+			if (err && err.code === 'EPIPE' && err.syscall === 'write' && err.stack && /unexpectedErrorHandler/.test(err.stack)) {
+				return;
+			}
+			logService.error(err);
+		});
+	});
 
 	//
 	// On Windows, exit early with warning message to users about potential security issue
