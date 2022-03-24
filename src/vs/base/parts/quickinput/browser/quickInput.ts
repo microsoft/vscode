@@ -469,7 +469,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _customButton = false;
 	private _customButtonLabel: string | undefined;
 	private _customButtonHover: string | undefined;
-	private _customButtonAriaLabel: string | undefined;
 	private _quickNavigate: IQuickNavigateConfiguration | undefined;
 	private _hideInput: boolean | undefined;
 	private _hideCheckAll: boolean | undefined;
@@ -693,15 +692,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	set customHover(hover: string | undefined) {
 		this._customButtonHover = hover;
-		this.update();
-	}
-
-	get customButtonAriaLabel() {
-		return this._customButtonAriaLabel;
-	}
-
-	set customButtonAriaLabel(label: string | undefined) {
-		this._customButtonAriaLabel = label;
 		this.update();
 	}
 
@@ -1050,7 +1040,6 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		this.ui.customButton.label = this.customLabel || '';
 		this.ui.customButton.element.title = this.customHover || '';
-		this.ui.customButton.element.ariaLabel = this.customButtonAriaLabel || '';
 		this.ui.setComboboxAccessibility(true);
 		if (!visibilities.inputBox) {
 			// we need to move focus into the tree to detect keybindings
