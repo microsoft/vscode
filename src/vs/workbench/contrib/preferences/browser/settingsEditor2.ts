@@ -1520,7 +1520,7 @@ export class SettingsEditor2 extends EditorPane {
 				} else {
 					/* __GDPR__
 						"settingsEditor.searchError" : {
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight", "owner": "rzhao271", comment: "The error message of the search error." }
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The error message of the search error." }
 						}
 					*/
 					const message = getErrorMessage(err).trim();
