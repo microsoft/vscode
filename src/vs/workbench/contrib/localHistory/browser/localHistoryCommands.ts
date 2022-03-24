@@ -541,10 +541,7 @@ registerAction2(class extends Action2 {
 			inputBox.dispose();
 
 			if (entrySource) {
-				const entry = await workingCopyHistoryService.addEntry({ resource, source: inputBox.value }, CancellationToken.None);
-				if (entry) {
-					await openEntry(entry, editorService);
-				}
+				await workingCopyHistoryService.addEntry({ resource, source: inputBox.value }, CancellationToken.None);
 			}
 		});
 	}
