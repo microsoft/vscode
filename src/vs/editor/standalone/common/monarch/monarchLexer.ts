@@ -10,11 +10,12 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as languages from 'vs/editor/common/languages';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { NullState, nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { TokenTheme } from 'vs/editor/common/languages/supports/tokenization';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as monarchCommon from 'vs/editor/standalone/common/monarch/monarchCommon';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const CACHE_STACK_DEPTH = 5;
 
@@ -394,8 +395,9 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 	private readonly _embeddedLanguages: { [languageId: string]: boolean };
 	public embeddedLoaded: Promise<void>;
 	private readonly _tokenizationRegistryListener: IDisposable;
+	private _maxTokenizationLineLength: number;
 
-	constructor(languageService: ILanguageService, standaloneThemeService: IStandaloneThemeService, languageId: string, lexer: monarchCommon.ILexer) {
+	constructor(languageService: ILanguageService, standaloneThemeService: IStandaloneThemeService, languageId: string, lexer: monarchCommon.ILexer, @IConfigurationService private readonly _configurationService: IConfigurationService) {
 		this._languageService = languageService;
 		this._standaloneThemeService = standaloneThemeService;
 		this._languageId = languageId;
@@ -421,6 +423,16 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 				emitting = true;
 				languages.TokenizationRegistry.fire([this._languageId]);
 				emitting = false;
+			}
+		});
+		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
+			overrideIdentifier: this._languageId
+		});
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
+				this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
+					overrideIdentifier: this._languageId
+				});
 			}
 		});
 	}
@@ -473,6 +485,9 @@ export class MonarchTokenizer implements languages.ITokenizationSupport {
 	}
 
 	public tokenizeEncoded(line: string, hasEOL: boolean, lineState: languages.IState): languages.EncodedTokenizationResult {
+		if (line.length >= this._maxTokenizationLineLength) {
+			return nullTokenizeEncoded(this._languageService.languageIdCodec.encodeLanguageId(this._languageId), lineState);
+		}
 		const tokensCollector = new MonarchModernTokensCollector(this._languageService, this._standaloneThemeService.getColorTheme().tokenTheme);
 		const endLineState = this._tokenize(line, hasEOL, <MonarchLineState>lineState, tokensCollector);
 		return tokensCollector.finalize(endLineState);
