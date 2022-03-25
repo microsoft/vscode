@@ -1262,7 +1262,7 @@ interface TreeDragSourceInfo {
 	itemHandles: string[];
 }
 
-const INTERNAL_MIME_TYPES = [CodeDataTransfers.EDITORS.toLowerCase()];
+const INTERNAL_MIME_TYPES = [CodeDataTransfers.EDITORS.toLowerCase(), CodeDataTransfers.FILES.toLowerCase()];
 
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	private readonly treeMimeType: string;
