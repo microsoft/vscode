@@ -1262,7 +1262,7 @@ interface TreeDragSourceInfo {
 	itemHandles: string[];
 }
 
-const INTERNAL_MIME_TYPES = [CodeDataTransfers.EDITORS.toLowerCase()];
+const INTERNAL_MIME_TYPES = [CodeDataTransfers.EDITORS.toLowerCase(), CodeDataTransfers.FILES.toLowerCase()];
 
 export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 	private readonly treeMimeType: string;
@@ -1448,15 +1448,16 @@ export class CustomTreeViewDragAndDrop implements ITreeDragAndDrop<ITreeItem> {
 			}
 			for (const dataItem of originalEvent.dataTransfer.items) {
 				const type = dataItem.type;
+				const convertedType = this.convertKnownMimes(type).type;
 				if (dataItem.kind === 'string') {
-					if ((type === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(type) >= 0)) {
+					if ((convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0)) {
 						dataItem.getAsString(dataValue => {
-							if (type === this.treeMimeType) {
+							if (convertedType === this.treeMimeType) {
 								treeSourceInfo = JSON.parse(dataValue);
 							}
 							if (dataValue
-								&& (INTERNAL_MIME_TYPES.indexOf(type) < 0)
-								&& ((type === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(type) >= 0))) {
+								&& (INTERNAL_MIME_TYPES.indexOf(convertedType) < 0)
+								&& ((convertedType === this.treeMimeType) || (dndController.dropMimeTypes.indexOf(convertedType) >= 0))) {
 								const converted = this.convertKnownMimes(type, dataValue);
 								treeDataTransfer.set(converted.type, {
 									asString: () => Promise.resolve(converted.value!),

@@ -411,7 +411,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		this.layoutTrees(dimension);
+		this.layoutSplitView(dimension);
 
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
@@ -714,6 +714,7 @@ export class SettingsEditor2 extends EditorPane {
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width) => {
 				this.tocTreeContainer.style.width = `${width}px`;
+				this.tocTree.layout(undefined, width);
 			}
 		}, startingWidth, undefined, true);
 		this.splitView.addView({
@@ -723,6 +724,7 @@ export class SettingsEditor2 extends EditorPane {
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width) => {
 				this.settingsTreeContainer.style.width = `${width}px`;
+				this.settingsTree.layout(undefined, width);
 			}
 		}, Sizing.Distribute, undefined, true);
 		this._register(this.splitView.onDidSashReset(() => {
@@ -1534,17 +1536,10 @@ export class SettingsEditor2 extends EditorPane {
 			});
 	}
 
-	private layoutTrees(dimension: DOM.Dimension): void {
+	private layoutSplitView(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (72 + 11 + 14 /* header height + editor padding */);
-		const settingsTreeHeight = listHeight;
-		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
-		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 
-		const tocTreeHeight = settingsTreeHeight;
-		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
-		this.tocTree.layout(tocTreeHeight);
-
-		this.splitView.el.style.height = `${settingsTreeHeight}px`;
+		this.splitView.el.style.height = `${listHeight}px`;
 
 		// We call layout first so the splitView has an idea of how much
 		// space it has, otherwise setViewVisible results in the first panel

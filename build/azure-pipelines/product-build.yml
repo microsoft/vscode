@@ -77,6 +77,10 @@ parameters:
     displayName: "Publish to builds.code.visualstudio.com"
     type: boolean
     default: true
+  - name: VSCODE_PUBLISH_TO_MOONCAKE
+    displayName: "Publish to Azure China"
+    type: boolean
+    default: true
   - name: VSCODE_RELEASE
     displayName: "Release build if successful"
     type: boolean
@@ -107,6 +111,8 @@ variables:
     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+  - name: VSCODE_PUBLISH_TO_MOONCAKE
+    value: ${{ eq(parameters.VSCODE_PUBLISH_TO_MOONCAKE, true) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_STEP_ON_IT

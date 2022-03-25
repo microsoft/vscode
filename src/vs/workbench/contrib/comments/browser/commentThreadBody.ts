@@ -209,7 +209,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 	}
 
 	private _updateAriaLabel() {
-		this._commentsElement.ariaLabel = nls.localize('commentThreadAria', "Comment thead with {0} comments. {1}.",
+		this._commentsElement.ariaLabel = nls.localize('commentThreadAria', "Comment thread with {0} comments. {1}.",
 			this._commentThread.comments?.length, this._commentThread.label);
 	}
 

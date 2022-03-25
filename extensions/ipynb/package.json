@@ -55,7 +55,8 @@
 		"menus": {
 			"file/newFile": [
 				{
-					"command": "ipynb.newUntitledIpynb"
+					"command": "ipynb.newUntitledIpynb",
+					"group": "notebook"
 				}
 			],
 			"commandPalette": [
