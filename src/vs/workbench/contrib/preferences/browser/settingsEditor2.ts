@@ -411,7 +411,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		this.layoutTrees(dimension);
+		this.layoutSplitView(dimension);
 
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
@@ -1536,7 +1536,7 @@ export class SettingsEditor2 extends EditorPane {
 			});
 	}
 
-	private layoutTrees(dimension: DOM.Dimension): void {
+	private layoutSplitView(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (72 + 11 + 14 /* header height + editor padding */);
 
 		this.splitView.el.style.height = `${listHeight}px`;
