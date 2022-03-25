@@ -702,14 +702,27 @@ export const enum FileOperation {
 	WRITE
 }
 
-export class FileOperationEvent {
+export interface IFileOperationEvent {
+
+	readonly resource: URI;
+	readonly operation: FileOperation;
+
+	isOperation(operation: FileOperation.DELETE | FileOperation.WRITE): boolean;
+	isOperation(operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY): this is IFileOperationEventWithMetadata;
+}
+
+export interface IFileOperationEventWithMetadata extends IFileOperationEvent {
+	readonly target: IFileStatWithMetadata;
+}
+
+export class FileOperationEvent implements IFileOperationEvent {
 
 	constructor(resource: URI, operation: FileOperation.DELETE | FileOperation.WRITE);
 	constructor(resource: URI, operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY, target: IFileStatWithMetadata);
 	constructor(readonly resource: URI, readonly operation: FileOperation, readonly target?: IFileStatWithMetadata) { }
 
 	isOperation(operation: FileOperation.DELETE | FileOperation.WRITE): boolean;
-	isOperation(operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY): this is { readonly target: IFileStatWithMetadata };
+	isOperation(operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY): this is IFileOperationEventWithMetadata;
 	isOperation(operation: FileOperation): boolean {
 		return this.operation === operation;
 	}

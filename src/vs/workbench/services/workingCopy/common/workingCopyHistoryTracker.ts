@@ -23,7 +23,7 @@ import { IWorkingCopySaveEvent, IWorkingCopyService } from 'vs/workbench/service
 import { Schemas } from 'vs/base/common/network';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { FileOperation, FileOperationEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileOperationEventWithMetadata, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchContribution {
 
@@ -79,8 +79,8 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 	}
 
 	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
-		if (!e.isOperation(FileOperation.MOVE)) {
-			return; // only interested in move operations
+		if (!this.shouldTrackHistoryFromFileOperationEvent(e)) {
+			return; // return early for working copies we are not interested in
 		}
 
 		const source = e.resource;
@@ -111,7 +111,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 	}
 
 	private onDidSave(e: IWorkingCopySaveEvent): void {
-		if (!this.shouldTrackHistory(e)) {
+		if (!this.shouldTrackHistoryFromSaveEvent(e)) {
 			return; // return early for working copies we are not interested in
 		}
 
@@ -174,28 +174,40 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 		return undefined;
 	}
 
-	private shouldTrackHistory(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent<IStoredFileWorkingCopyModel> {
-		if (
-			e.workingCopy.resource.scheme !== this.pathService.defaultUriScheme && 	// track history for all workspace resources
-			e.workingCopy.resource.scheme !== Schemas.vscodeUserData				// track history for all settings
-		) {
-			return false; // do not support unknown resources
-		}
-
+	private shouldTrackHistoryFromSaveEvent(e: IWorkingCopySaveEvent): e is IStoredFileWorkingCopySaveEvent<IStoredFileWorkingCopyModel> {
 		if (!isStoredFileWorkingCopySaveEvent(e)) {
 			return false; // only support working copies that are backed by stored files
 		}
 
-		const configuredMaxFileSizeInBytes = 1024 * this.configurationService.getValue<number>(WorkingCopyHistoryTracker.SETTINGS.SIZE_LIMIT, { resource: e.workingCopy.resource });
-		if (e.stat.size > configuredMaxFileSizeInBytes) {
+		return this.shouldTrackHistory(e.workingCopy.resource, e.stat);
+	}
+
+	private shouldTrackHistoryFromFileOperationEvent(e: FileOperationEvent): e is IFileOperationEventWithMetadata {
+		if (!e.isOperation(FileOperation.MOVE)) {
+			return false; // only interested in move operations
+		}
+
+		return this.shouldTrackHistory(e.target.resource, e.target);
+	}
+
+	private shouldTrackHistory(resource: URI, stat: IFileStatWithMetadata): boolean {
+		if (
+			resource.scheme !== this.pathService.defaultUriScheme && 	// track history for all workspace resources
+			resource.scheme !== Schemas.vscodeUserData					// track history for all settings
+		) {
+			return false; // do not support unknown resources
+		}
+
+		const configuredMaxFileSizeInBytes = 1024 * this.configurationService.getValue<number>(WorkingCopyHistoryTracker.SETTINGS.SIZE_LIMIT, { resource });
+		if (stat.size > configuredMaxFileSizeInBytes) {
 			return false; // only track files that are not too large
 		}
 
-		if (this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.ENABLED, { resource: e.workingCopy.resource }) === false) {
+		if (this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.ENABLED, { resource }) === false) {
 			return false; // do not track when history is disabled
 		}
 
 		// Finally check for exclude setting
-		return !this.resourceExcludeMatcher.value.matches(e.workingCopy.resource);
+		return !this.resourceExcludeMatcher.value.matches(resource);
 	}
 }

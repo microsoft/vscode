@@ -202,11 +202,12 @@
 	content: "";
 	border: 1px solid;
 	position: absolute;
-	left: -5px;
+	left: 0;
 	top: 0;
-	right: -5px;
+	right: 0;
 	bottom: 0;
-	z-index: 10;
+	z-index: 32;
+	pointer-events: none;
 }
 
 .monaco-workbench.hc-black .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:not(:only-child) .xterm.focus::before,
