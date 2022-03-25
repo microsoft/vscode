@@ -190,7 +190,8 @@ const RULES = [
             'pathname',
             'search',
             'username',
-            'password'
+            'password',
+            'origin'
         ],
         disallowedDefinitions: [
             'lib.dom.d.ts' // no DOM
