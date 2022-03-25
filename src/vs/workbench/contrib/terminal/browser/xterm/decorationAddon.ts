@@ -119,7 +119,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			dispose(value.disposables);
 		}
 		this._decorations.clear();
-		this.dispose();
 	}
 
 	private _attachToCommandCapability(): void {
