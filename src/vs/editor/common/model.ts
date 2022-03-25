@@ -1270,6 +1270,16 @@ export const enum PositionAffinity {
 	 * No preference.
 	*/
 	None = 2,
+
+	/**
+	 * If the given position is on injected text, prefers the position left of it.
+	*/
+	LeftOfInjectedText = 3,
+
+	/**
+	 * If the given position is on injected text, prefers the position right of it.
+	*/
+	RightOfInjectedText = 4,
 }
 
 /**
