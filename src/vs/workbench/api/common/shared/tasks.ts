@@ -84,7 +84,7 @@ export interface TaskHandleDTO {
 }
 
 export interface TaskGroupDTO {
-	isDefault?: boolean;
+	isDefault?: boolean | string;
 	_id: string;
 }
 

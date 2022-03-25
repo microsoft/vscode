@@ -2757,7 +2757,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let none: Task[] = [];
 		let defaults: Task[] = [];
 		for (let task of tasks) {
-			if ((task.configurationProperties.group as TaskGroup).isDefault) {
+			// isDefault could be a string of the glob, so make sure to check explicitly for true
+			if ((task.configurationProperties.group as TaskGroup).isDefault === true) {
 				defaults.push(task);
 			} else {
 				none.push(task);
@@ -2767,9 +2768,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private runTaskGroupCommand(taskGroup: TaskGroup, strings: {
-		fetching: string,
-		select: string,
-		notFoundConfigure: string
+		fetching: string;
+		select: string;
+		notFoundConfigure: string;
 	}, configure: () => void, legacyCommand: () => void): void {
 		if (!this.canRunCommand()) {
 			return;
@@ -2823,6 +2824,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					runSingleTask(taskGroupTask, undefined, this);
 				}
+
+				return;
 			}
 
 			return this.getTasksForGroup(taskGroup).then((tasks) => {

@@ -6952,7 +6952,7 @@ declare module 'vscode' {
 		 * Whether the task that is part of this group is the default for the group.
 		 * This property cannot be set through API, and is controlled by a user's task configurations.
 		 */
-		readonly isDefault: boolean | undefined;
+		readonly isDefault: boolean | string | undefined;
 
 		/**
 		 * The ID of the task group. Is one of TaskGroup.Clean.id, TaskGroup.Build.id, TaskGroup.Rebuild.id, or TaskGroup.Test.id.
