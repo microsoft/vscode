@@ -207,12 +207,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async getCustomBuiltinExtensionsFromGallery(scanOptions?: ScanOptions): Promise<IScannedExtension[]> {
-		if (!this.galleryService.isEnabled()) {
-			this.logService.info('Ignoring fetching additional builtin extensions from gallery as it is disabled.');
-			return [];
-		}
 		const { extensions } = await this.readCustomBuiltinExtensionsInfoFromEnv();
 		if (!extensions.length) {
+			return [];
+		}
+		if (!this.galleryService.isEnabled()) {
+			this.logService.info('Ignoring fetching additional builtin extensions from gallery as it is disabled.');
 			return [];
 		}
 		const result: IScannedExtension[] = [];
