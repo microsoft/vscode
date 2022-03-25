@@ -135,7 +135,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getChildren(treeItemHandle);
 	}
 
-	async $handleDrop(destinationViewId: string, treeDataTransferDTO: DataTransferDTO, newParentItemHandle: string, token: CancellationToken,
+	async $handleDrop(destinationViewId: string, treeDataTransferDTO: DataTransferDTO, targetItemHandle: string | undefined, token: CancellationToken,
 		operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void> {
 		const treeView = this.treeViews.get(destinationViewId);
 		if (!treeView) {
@@ -146,7 +146,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		if ((sourceViewId === destinationViewId) && sourceTreeItemHandles) {
 			await this.addAdditionalTransferItems(treeDataTransfer, treeView, sourceTreeItemHandles, token, operationUuid);
 		}
-		return treeView.onDrop(treeDataTransfer, newParentItemHandle, token);
+		return treeView.onDrop(treeDataTransfer, targetItemHandle, token);
 	}
 
 	private async addAdditionalTransferItems(treeDataTransfer: IDataTransfer, treeView: ExtHostTreeView<any>,
@@ -452,9 +452,9 @@ class ExtHostTreeView<T> extends Disposable {
 		return !!this.dndController?.handleDrag;
 	}
 
-	async onDrop(treeDataTransfer: vscode.DataTransfer, targetHandleOrNode: TreeItemHandle, token: CancellationToken): Promise<void> {
-		const target = this.getExtensionElement(targetHandleOrNode);
-		if (!target || !this.dndController?.handleDrop) {
+	async onDrop(treeDataTransfer: vscode.DataTransfer, targetHandleOrNode: TreeItemHandle | undefined, token: CancellationToken): Promise<void> {
+		const target = targetHandleOrNode ? this.getExtensionElement(targetHandleOrNode) : undefined;
+		if ((!target && targetHandleOrNode) || !this.dndController?.handleDrop) {
 			return;
 		}
 		return asPromise(() => this.dndController?.handleDrop

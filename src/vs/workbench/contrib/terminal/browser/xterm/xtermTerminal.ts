@@ -90,7 +90,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		cols: number,
 		rows: number,
 		location: TerminalLocation,
-		capabilities: ITerminalCapabilityStore,
+		private readonly _capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -145,6 +145,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
 				this._updateUnicodeVersion();
 			}
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) ||
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
+				this._updateDecorationAddon();
+			}
 		}));
 
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
@@ -157,16 +161,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
-		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, capabilities);
+		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._commandNavigationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		if (this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) && this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-			this._createDecorationAddon(capabilities);
-		}
+		this._updateDecorationAddon();
 	}
-	private _createDecorationAddon(capabilities: ITerminalCapabilityStore): void {
-		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, capabilities);
+	private _createDecorationAddon(): void {
+		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
 		this.raw.loadAddon(this._decorationAddon);
 	}
@@ -568,6 +570,19 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 		if (this.raw.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
 			this.raw.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+		}
+	}
+
+	private _updateDecorationAddon(): void {
+		if (this._configHelper.config.shellIntegration?.enabled && this._configHelper.config.shellIntegration.decorationsEnabled) {
+			if (!this._decorationAddon) {
+				this._createDecorationAddon();
+			}
+			return;
+		}
+		if (this._decorationAddon) {
+			this._decorationAddon.dispose();
+			this._decorationAddon = undefined;
 		}
 	}
 }

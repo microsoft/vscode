@@ -87,6 +87,7 @@ export interface ICommandDetectionCapability {
 	readonly commands: readonly ITerminalCommand[];
 	/** The command currently being executed, otherwise undefined. */
 	readonly executingCommand: string | undefined;
+	readonly executingCommandObject: ITerminalCommand | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
