@@ -220,7 +220,7 @@ async function main(): Promise<void> {
 		console.log('Uploading blobs to Azure storage...');
 	}
 
-	await uploadPromises;
+	await Promise.all(uploadPromises);
 	console.log('All blobs successfully uploaded.');
 
 	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
