@@ -748,18 +748,6 @@ export class MoveToMatchFindAction extends MatchFindAction {
 			label: nls.localize('findMatchAction', "Find"),
 			alias: 'Find',
 			precondition: undefined,
-			// TODO Maybe a shortcut to focus
-			/*kbOpts: [{
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
-				weight: KeybindingWeight.EditorContrib
-			}, {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
-				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			}
-			]*/
 		});
 	}
 
