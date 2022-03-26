@@ -52,6 +52,7 @@ export interface INewFindReplaceState<T extends { update: (value: T) => void } =
 	loop?: boolean;
 	isSearching?: boolean;
 	filters?: T;
+	manualIndex?: number;
 }
 
 function effectiveOptionValue(override: FindOptionOverride, value: boolean): boolean {
@@ -84,6 +85,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 	private _loop: boolean;
 	private _isSearching: boolean;
 	private _filters: T | null;
+	private _manualIndex: number | null;
 	private readonly _onFindReplaceStateChange = this._register(new Emitter<FindReplaceStateChangedEvent>());
 
 	public get searchString(): string { return this._searchString; }
@@ -106,6 +108,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 	public get currentMatch(): Range | null { return this._currentMatch; }
 	public get isSearching(): boolean { return this._isSearching; }
 	public get filters(): T | null { return this._filters; }
+	public get manualIndex(): number | null { return this._manualIndex; }
 	public readonly onFindReplaceStateChange: Event<FindReplaceStateChangedEvent> = this._onFindReplaceStateChange.event;
 
 	constructor() {
@@ -129,6 +132,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 		this._loop = true;
 		this._isSearching = false;
 		this._filters = null;
+		this._manualIndex = null;
 	}
 
 	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
@@ -287,6 +291,10 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 
 			changeEvent.filters = true;
 			somethingChanged = true;
+		}
+
+		if (typeof newState.manualIndex !== 'undefined') {
+			this._manualIndex = newState.manualIndex;
 		}
 
 		// Overrides get set when they explicitly come in and get reset anytime something else changes

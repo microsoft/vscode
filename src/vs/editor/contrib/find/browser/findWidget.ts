@@ -11,7 +11,7 @@ import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
-import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IMessage as InputBoxMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ISashEvent, IVerticalSashLayoutProvider, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
@@ -407,6 +407,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._matchesCount.removeChild(this._matchesCount.firstChild);
 		}
 
+		const container = document.createElement('div');
 		let label: string;
 		if (this._state.matchesCount > 0) {
 			let matchesCount: string = String(this._state.matchesCount);
@@ -418,11 +419,22 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				matchesPosition = '?';
 			}
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+
+			const inputBox = new InputBox(container, undefined, { type: 'number' });
+			inputBox.value = matchesPosition;
+			this._register(inputBox.onDidChange((value) => {
+				const index = +value;
+				if (!isNaN(index) && index > 0 && index <= this._state.matchesCount) {
+					this._state.change({ manualIndex: index - 1 }, true);
+					this._codeEditor.getAction(FIND_IDS.MoveToMatchFindAction).run().then(undefined, onUnexpectedError);
+				}
+			}));
 		} else {
 			label = NLS_NO_RESULTS;
 		}
 
-		this._matchesCount.appendChild(document.createTextNode(label));
+		container.appendChild(document.createTextNode(label));
+		this._matchesCount.appendChild(container);
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
