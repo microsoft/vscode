@@ -17,7 +17,7 @@ const terminalDescriptors = '\n- ' + [
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace"),
 	'`\${process}`: ' + localize('process', "the name of the terminal process"),
 	'`\${separator}`: ' + localize('separator', "a conditional separator (\" - \") that only shows when surrounded by variables with values or static text."),
-	'`\${sequence}`: ' + localize('sequence', "the name provided to xterm.js by the process"),
+	'`\${sequence}`: ' + localize('sequence', "the name provided to the terminal by the process"),
 	'`\${task}`: ' + localize('task', "indicates this terminal is associated with a task"),
 ].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 

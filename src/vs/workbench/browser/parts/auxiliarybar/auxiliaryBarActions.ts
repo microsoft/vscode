@@ -23,7 +23,7 @@ const auxiliaryBarLeftIcon = registerIcon('auxiliarybar-left-layout-icon', Codic
 export class ToggleAuxiliaryBarAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleAuxiliaryBar';
-	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Secondary Side Bar");
+	static readonly LABEL = localize('toggleAuxiliaryBar', "Toggle Secondary Side Bar Visibility");
 
 	constructor(
 		id: string,
@@ -90,7 +90,7 @@ MenuRegistry.appendMenuItems([
 				toggled: AuxiliaryBarVisibleContext,
 				icon: auxiliaryBarLeftIcon,
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
+			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
 			order: 0
 		}
 	},
@@ -104,7 +104,7 @@ MenuRegistry.appendMenuItems([
 				toggled: AuxiliaryBarVisibleContext,
 				icon: auxiliaryBarRightIcon,
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.experimental.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
+			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
 			order: 2
 		}
 	},
@@ -134,5 +134,5 @@ MenuRegistry.appendMenuItems([
 ]);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Secondary Side Bar', CATEGORIES.View.value);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAuxiliaryBarAction), 'View: Toggle Secondary Side Bar Visibility', CATEGORIES.View.value);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAuxiliaryBarAction), 'View: Focus into Secondary Side Bar', CATEGORIES.View.value);

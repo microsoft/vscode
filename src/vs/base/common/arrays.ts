@@ -527,6 +527,12 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 	}
 }
 
+export function pushMany<T>(arr: T[], items: ReadonlyArray<T>): void {
+	for (const item of items) {
+		arr.push(item);
+	}
+}
+
 export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 	return Array.isArray(items) ?
 		items.map(fn) :

@@ -382,13 +382,13 @@ export class NativeWindow extends Disposable {
 
 		switch (reason) {
 			case ShutdownReason.CLOSE:
-				return localize('shutdownTitleClose', "Closing the window is taking longer than expected...");
+				return localize('shutdownTitleClose', "Closing the window is taking a bit longer...");
 			case ShutdownReason.QUIT:
-				return localize('shutdownTitleQuit', "Quitting the application is taking longer than expected...");
+				return localize('shutdownTitleQuit', "Quitting the application is taking a bit longer...");
 			case ShutdownReason.RELOAD:
-				return localize('shutdownTitleReload', "Reloading the window is taking longer than expected...");
+				return localize('shutdownTitleReload', "Reloading the window is taking a bit longer...");
 			case ShutdownReason.LOAD:
-				return localize('shutdownTitleLoad', "Changing the workspace is taking longer than expected...");
+				return localize('shutdownTitleLoad', "Changing the workspace is taking a bit longer...");
 		}
 	}
 

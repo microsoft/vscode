@@ -19,6 +19,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { ConfigurationScope, EditPresentationTypes } from 'vs/platform/configuration/common/configurationRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -147,7 +148,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		setting: ISetting,
 		parent: SettingsTreeGroupElement,
 		inspectResult: IInspectResult,
-		isWorkspaceTrusted: boolean
+		isWorkspaceTrusted: boolean,
+		private readonly languageService: ILanguageService
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
@@ -380,6 +382,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return true;
 		}
 
+		if (!this.languageService.isRegisteredLanguageId(languageFilter)) {
+			// We're trying to filter by an invalid language.
+			return false;
+		}
+
 		// We have a language filter in the search widget at this point.
 		// We decide to show all language overridable settings to make the
 		// lang filter act more like a scope filter,
@@ -409,6 +416,7 @@ export class SettingsTreeModel {
 		protected _viewState: ISettingsEditorViewState,
 		private _isWorkspaceTrusted: boolean,
 		@IWorkbenchConfigurationService private readonly _configurationService: IWorkbenchConfigurationService,
+		@ILanguageService private readonly _languageService: ILanguageService
 	) {
 	}
 
@@ -506,7 +514,7 @@ export class SettingsTreeModel {
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
 		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._viewState.languageFilter, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult, this._isWorkspaceTrusted, this._languageService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
@@ -749,8 +757,9 @@ export class SearchResultModel extends SettingsTreeModel {
 		isWorkspaceTrusted: boolean,
 		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@ILanguageService languageService: ILanguageService
 	) {
-		super(viewState, isWorkspaceTrusted, configurationService);
+		super(viewState, isWorkspaceTrusted, configurationService, languageService);
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 

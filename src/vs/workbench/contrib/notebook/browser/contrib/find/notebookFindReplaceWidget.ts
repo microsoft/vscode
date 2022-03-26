@@ -335,6 +335,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._delayedUpdateHistory();
 		});
 
+		this._register(this._findInput.inputBox.onDidChange(() => {
+			this._state.change({ searchString: this._findInput.getValue() }, true);
+		}));
+
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
 		this._findInput.setWholeWords(!!this._state.wholeWord);

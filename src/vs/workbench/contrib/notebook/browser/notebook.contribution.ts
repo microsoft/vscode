@@ -208,6 +208,8 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 );
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
+	private _uriComparisonKeyComputer?: IDisposable;
+
 	constructor(
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -215,19 +217,40 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	) {
 		super();
 
-		const undoRedoPerCell = configurationService.getValue<boolean>(NotebookSetting.undoRedoPerCell);
+		this.updateCellUndoRedoComparisonKey(configurationService, undoRedoService);
 
-		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
-			getComparisonKey: (uri: URI): string => {
-				if (undoRedoPerCell) {
-					return uri.toString();
-				}
-				return NotebookContribution._getCellUndoRedoComparisonKey(uri);
+		// Watch for changes to undoRedoPerCell setting
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotebookSetting.undoRedoPerCell)) {
+				this.updateCellUndoRedoComparisonKey(configurationService, undoRedoService);
 			}
 		}));
 
 		// register comment decoration
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
+	}
+
+	// Add or remove the cell undo redo comparison key based on the user setting
+	private updateCellUndoRedoComparisonKey(configurationService: IConfigurationService, undoRedoService: IUndoRedoService) {
+		const undoRedoPerCell = configurationService.getValue<boolean>(NotebookSetting.undoRedoPerCell);
+
+		if (!undoRedoPerCell) {
+			// Add comparison key to map cell => main document
+			if (!this._uriComparisonKeyComputer) {
+				this._uriComparisonKeyComputer = undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
+					getComparisonKey: (uri: URI): string => {
+						if (undoRedoPerCell) {
+							return uri.toString();
+						}
+						return NotebookContribution._getCellUndoRedoComparisonKey(uri);
+					}
+				});
+			}
+		} else {
+			// Dispose comparison key
+			this._uriComparisonKeyComputer?.dispose();
+			this._uriComparisonKeyComputer = undefined;
+		}
 	}
 
 	private static _getCellUndoRedoComparisonKey(uri: URI) {
@@ -237,6 +260,11 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		return data.notebook.toString();
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this._uriComparisonKeyComputer?.dispose();
 	}
 }
 

@@ -615,7 +615,9 @@ export const enum TabInputKind {
 	TextDiffInput,
 	NotebookInput,
 	NotebookDiffInput,
-	CustomEditorInput
+	CustomEditorInput,
+	WebviewEditorInput,
+	TerminalEditorInput
 }
 
 export interface UnknownInputDto {
@@ -652,7 +654,16 @@ export interface CustomInputDto {
 	uri: UriComponents;
 }
 
-export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto;
+export interface WebviewInputDto {
+	kind: TabInputKind.WebviewEditorInput;
+	viewType: string;
+}
+
+export interface TabInputDto {
+	kind: TabInputKind.TerminalEditorInput;
+}
+
+export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | TabInputDto;
 
 export interface MainThreadEditorTabsShape extends IDisposable {
 	// manage tabs: move, close, rearrange etc
@@ -1319,7 +1330,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 
 export interface ExtHostTreeViewsShape {
 	$getChildren(treeViewId: string, treeItemHandle?: string): Promise<ITreeItem[] | undefined>;
-	$handleDrop(destinationViewId: string, treeDataTransfer: DataTransferDTO, newParentTreeItemHandle: string, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
+	$handleDrop(destinationViewId: string, treeDataTransfer: DataTransferDTO, targetHandle: string | undefined, token: CancellationToken, operationUuid?: string, sourceViewId?: string, sourceTreeItemHandles?: string[]): Promise<void>;
 	$handleDrag(sourceViewId: string, sourceTreeItemHandles: string[], operationUuid: string, token: CancellationToken): Promise<DataTransferDTO | undefined>;
 	$setExpanded(treeViewId: string, treeItemHandle: string, expanded: boolean): void;
 	$setSelection(treeViewId: string, treeItemHandles: string[]): void;
@@ -2040,7 +2051,7 @@ export type NotebookRawContentEventDto =
 	| notebookCommon.NotebookCellsChangeMetadataEvent
 	| notebookCommon.NotebookCellsChangeInternalMetadataEvent
 	// | notebookCommon.NotebookDocumentChangeMetadataEvent
-	// | notebookCommon.NotebookCellContentChangeEvent
+	| notebookCommon.NotebookCellContentChangeEvent
 	// | notebookCommon.NotebookDocumentUnknownChangeEvent
 	;
 

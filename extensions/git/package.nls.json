@@ -79,7 +79,7 @@
 	"command.publish": "Publish Branch...",
 	"command.showOutput": "Show Git Output",
 	"command.ignore": "Add to .gitignore",
-	"command.revealInExplorer": "Reveal in Side Bar",
+	"command.revealInExplorer": "Reveal in Explorer View",
 	"command.rebaseAbort": "Abort Rebase",
 	"command.stashIncludeUntracked": "Stash (Include Untracked)",
 	"command.stash": "Stash",

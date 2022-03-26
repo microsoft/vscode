@@ -190,5 +190,6 @@
 	"codeActions.refactor.rewrite.property.generateAccessors.description": "Generate 'get' and 'set' accessors",
 	"codeActions.source.organizeImports.title": "Organize imports",
 	"typescript.findAllFileReferences": "Find File References",
-	"configuration.suggest.classMemberSnippets.enabled": "Enable/disable snippet completions for class members. Requires using TypeScript 4.5+ in the workspace"
+	"configuration.suggest.classMemberSnippets.enabled": "Enable/disable snippet completions for class members. Requires using TypeScript 4.5+ in the workspace",
+	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals. Requires using TypeScript 4.7+ in the workspace"
 }

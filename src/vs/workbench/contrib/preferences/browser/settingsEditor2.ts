@@ -57,6 +57,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -200,8 +201,6 @@ export class SettingsEditor2 extends EditorPane {
 	private settingsTreeScrollTop = 0;
 	private dimension!: DOM.Dimension;
 
-	private searchWidgetWillBeDisposed = false;
-
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
@@ -217,7 +216,8 @@ export class SettingsEditor2 extends EditorPane {
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -346,7 +346,6 @@ export class SettingsEditor2 extends EditorPane {
 		// Don't block setInput on render (which can trigger an async search)
 		this.onConfigUpdate(undefined, true).then(() => {
 			this._register(input.onWillDispose(() => {
-				this.searchWidgetWillBeDisposed = true;
 				this.searchWidget.setValue('');
 			}));
 
@@ -412,7 +411,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		this.layoutTrees(dimension);
+		this.layoutSplitView(dimension);
 
 		const innerWidth = Math.min(1000, dimension.width) - 24 * 2; // 24px padding on left and right;
 		// minus padding inside inputbox, countElement width, controls width, extra padding before countElement
@@ -533,7 +532,11 @@ export class SettingsEditor2 extends EditorPane {
 				// Based on testing, the trigger character is always at the end of the query.
 				// for the ':' trigger, only return suggestions if there was a '@' before it in the same word.
 				const queryParts = query.split(/\s/g);
-				if (queryParts[queryParts.length - 1].startsWith('@')) {
+				if (queryParts[queryParts.length - 1].startsWith(`@${LANGUAGE_SETTING_TAG}`)) {
+					return this.languageService.getRegisteredLanguageIds().map(languageId => {
+						return `@${LANGUAGE_SETTING_TAG}${languageId} `;
+					}).sort();
+				} else if (queryParts[queryParts.length - 1].startsWith('@')) {
 					return SettingsEditor2.SUGGESTIONS.filter(tag => !query.includes(tag)).map(tag => tag.endsWith(':') ? tag : tag + ' ');
 				}
 				return [];
@@ -711,6 +714,7 @@ export class SettingsEditor2 extends EditorPane {
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width) => {
 				this.tocTreeContainer.style.width = `${width}px`;
+				this.tocTree.layout(undefined, width);
 			}
 		}, startingWidth, undefined, true);
 		this.splitView.addView({
@@ -720,6 +724,7 @@ export class SettingsEditor2 extends EditorPane {
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width) => {
 				this.settingsTreeContainer.style.width = `${width}px`;
+				this.settingsTree.layout(undefined, width);
 			}
 		}, Sizing.Distribute, undefined, true);
 		this._register(this.splitView.onDidSashReset(() => {
@@ -1256,8 +1261,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async onSearchInputChanged(): Promise<void> {
-		if (!this.currentSettingsModel || this.searchWidgetWillBeDisposed) {
-			// From initializing or disposing the search widget.
+		if (!this.currentSettingsModel) {
+			// Initializing search widget value
 			return;
 		}
 
@@ -1517,7 +1522,7 @@ export class SettingsEditor2 extends EditorPane {
 				} else {
 					/* __GDPR__
 						"settingsEditor.searchError" : {
-							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight", "owner": "rzhao271", comment: "The error message of the search error." }
+							"message": { "classification": "CallstackOrException", "purpose": "FeatureInsight", "owner": "rzhao271", "comment": "The error message of the search error." }
 						}
 					*/
 					const message = getErrorMessage(err).trim();
@@ -1531,17 +1536,10 @@ export class SettingsEditor2 extends EditorPane {
 			});
 	}
 
-	private layoutTrees(dimension: DOM.Dimension): void {
+	private layoutSplitView(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (72 + 11 + 14 /* header height + editor padding */);
-		const settingsTreeHeight = listHeight;
-		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
-		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 
-		const tocTreeHeight = settingsTreeHeight;
-		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
-		this.tocTree.layout(tocTreeHeight);
-
-		this.splitView.el.style.height = `${settingsTreeHeight}px`;
+		this.splitView.el.style.height = `${listHeight}px`;
 
 		// We call layout first so the splitView has an idea of how much
 		// space it has, otherwise setViewVisible results in the first panel

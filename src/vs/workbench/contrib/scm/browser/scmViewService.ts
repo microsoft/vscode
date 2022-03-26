@@ -188,6 +188,7 @@ export class SCMViewService implements ISCMViewService {
 			} else {
 				// Explicit selection started
 				if (this.didSelectRepository) {
+					this._onDidChangeRepositories.fire({ added: Iterable.empty(), removed: Iterable.empty() });
 					return;
 				}
 			}

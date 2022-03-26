@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
-import * as URI from 'vscode-uri';
 import { CommandManager } from './commandManager';
 import * as commands from './commands/index';
 import LinkProvider from './features/documentLinkProvider';
 import MDDocumentSymbolProvider from './features/documentSymbolProvider';
+import { registerDropIntoEditor } from './features/dropIntoEditor';
 import MarkdownFoldingProvider from './features/foldingProvider';
 import { PathCompletionProvider } from './features/pathCompletions';
 import { MarkdownContentProvider } from './features/previewContentProvider';
@@ -48,42 +47,7 @@ export function activate(context: vscode.ExtensionContext) {
 		previewManager.updateConfiguration();
 	}));
 
-	context.subscriptions.push(vscode.workspace.onWillDropOnTextEditor(e => {
-		e.waitUntil((async () => {
-			const resourceUrls = await e.dataTransfer.get('resourceurls')?.asString();
-			if (!resourceUrls) {
-				return;
-			}
-
-			const uris: vscode.Uri[] = [];
-			for (const resource of JSON.parse(resourceUrls)) {
-				try {
-					uris.push(vscode.Uri.parse(resource));
-				} catch {
-					// noop
-				}
-			}
-
-			if (!uris.length) {
-				return;
-			}
-
-			const snippet = new vscode.SnippetString();
-			uris.forEach((uri, i) => {
-				const rel = path.relative(URI.Utils.dirname(e.editor.document.uri).fsPath, uri.fsPath);
-
-				snippet.appendText('[');
-				snippet.appendTabstop();
-				snippet.appendText(`](${rel})`);
-
-				if (i <= uris.length - 1 && uris.length > 1) {
-					snippet.appendText(' ');
-				}
-			});
-
-			return e.editor.insertSnippet(snippet, e.position);
-		})());
-	}));
+	context.subscriptions.push(registerDropIntoEditor());
 }
 
 function registerMarkdownLanguageFeatures(

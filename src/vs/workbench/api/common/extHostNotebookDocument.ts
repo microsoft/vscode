@@ -262,6 +262,11 @@ export class ExtHostNotebookDocument {
 
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeLanguage) {
 				this._changeCellLanguage(rawEvent.index, rawEvent.language);
+				relaxedCellChanges.push({ cell: this._cells[rawEvent.index].apiCell, document: this._cells[rawEvent.index].apiCell.document });
+
+			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellContent) {
+				relaxedCellChanges.push({ cell: this._cells[rawEvent.index].apiCell, document: this._cells[rawEvent.index].apiCell.document });
+
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellMime) {
 				this._changeCellMime(rawEvent.index, rawEvent.mime);
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellMetadata) {
@@ -282,6 +287,7 @@ export class ExtHostNotebookDocument {
 			const existing = map.get(relaxedCellChange.cell);
 			if (existing === undefined) {
 				const newLen = result.cellChanges.push({
+					document: undefined,
 					executionSummary: undefined,
 					metadata: undefined,
 					outputs: undefined,
