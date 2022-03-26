@@ -247,7 +247,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 	override async setInput(input: SideBySideEditorInput, options: ISideBySideEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const oldInput = this.input;
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 
 		// Create new side by side editors if either we have not
 		// been created before or the input no longer matches.
@@ -273,8 +273,8 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 
 		// Set input to both sides
 		await Promise.all([
-			this.secondaryEditorPane?.setInput(input.secondary, secondary, context, token),
-			this.primaryEditorPane?.setInput(input.primary, primary, context, token)
+			this.secondaryEditorPane?.setInput(input.secondary, secondary, context, token, IConfigurationService),
+			this.primaryEditorPane?.setInput(input.primary, primary, context, token, IConfigurationService)
 		]);
 
 		// Update focus if target is provided
@@ -375,7 +375,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 	}
 
 	override setOptions(options: ISideBySideEditorOptions | undefined): void {
-		super.setOptions(options);
+		super.setOptions(options, IConfigurationService);
 
 		// Update focus if target is provided
 		if (typeof options?.target === 'number') {
@@ -383,7 +383,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		}
 
 		// Apply to focused side
-		this.getLastFocusedEditorPane()?.setOptions(options);
+		this.getLastFocusedEditorPane()?.setOptions(options, IConfigurationService);
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {

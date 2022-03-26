@@ -31,6 +31,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const findWidgetSelector = '.simple-find-part-wrapper';
 
@@ -80,7 +81,7 @@ export class TerminalEditor extends EditorPane {
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
-		await super.setInput(newInput, options, context, token);
+		await super.setInput(newInput, options, context, token, IConfigurationService);
 		this._editorInput.terminalInstance?.attachToElement(this._overflowGuardElement!);
 		if (this._lastDimension) {
 			this.layout(this._lastDimension);

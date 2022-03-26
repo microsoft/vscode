@@ -384,7 +384,7 @@ export class InteractiveEditor extends EditorPane {
 			this.#inputCellContainer.style.width = `${this.#dimension.width}px`;
 		}
 
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 		const model = await input.resolve();
 
 		if (model === null) {

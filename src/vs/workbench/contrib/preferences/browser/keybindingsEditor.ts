@@ -49,6 +49,7 @@ import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type KeybindingEditorActionClassification = {
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
@@ -146,7 +147,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 
 	override setInput(input: KeybindingsEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
-		return super.setInput(input, options, context, token)
+		return super.setInput(input, options, context, token, IConfigurationService)
 			.then(() => this.render(!!(options && options.preserveFocus)));
 	}
 

@@ -29,6 +29,7 @@ import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/works
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const NullThemeService = new TestThemeService();
 
@@ -114,7 +115,7 @@ suite('EditorPane', () => {
 		assert(!editor.isVisible());
 		assert(!editor.input);
 
-		await editor.setInput(input, options, Object.create(null), CancellationToken.None);
+		await editor.setInput(input, options, Object.create(null), CancellationToken.None, IConfigurationService);
 		assert.strictEqual(<any>input, editor.input);
 		const group = new TestEditorGroupView(1);
 		editor.setVisible(true, group);

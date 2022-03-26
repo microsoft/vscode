@@ -14,6 +14,7 @@ import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -196,7 +197,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 
 			// only now `setInput` and yield/await. this is AFTER the actual widget is ready. This is very important
 			// so that others synchronously receive a notebook editor with the correct widget being set
-			await super.setInput(input, options, context, token);
+			await super.setInput(input, options, context, token, IConfigurationService);
 			const model = await input.resolve();
 			mark(input.resource, 'inputLoaded');
 
@@ -325,7 +326,7 @@ export class NotebookEditor extends EditorPane implements IEditorPaneWithSelecti
 
 	override setOptions(options: INotebookEditorOptions | undefined): void {
 		this._widget.value?.setOptions(options);
-		super.setOptions(options);
+		super.setOptions(options, IConfigurationService);
 	}
 
 	protected override saveState(): void {

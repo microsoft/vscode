@@ -23,6 +23,7 @@ import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/edit
 import { EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 abstract class EditorPlaceholderPane extends EditorPane {
 
@@ -58,7 +59,7 @@ abstract class EditorPlaceholderPane extends EditorPane {
 	}
 
 	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 
 		// Check for cancellation
 		if (token.isCancellationRequested) {

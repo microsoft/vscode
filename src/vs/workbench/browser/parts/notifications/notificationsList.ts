@@ -210,7 +210,7 @@ export class NotificationsList extends Themable {
 		}
 	}
 
-	updateNotificationHeight(item: INotificationViewItem, configurationService: IConfigurationService): void {
+	updateNotificationHeight(item: INotificationViewItem, configurationService: any): void {
 		const index = this.viewModel.indexOf(item);
 		if (index === -1) {
 			return;

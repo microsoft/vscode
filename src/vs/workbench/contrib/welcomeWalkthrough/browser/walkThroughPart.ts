@@ -272,7 +272,7 @@ export class WalkThroughPart extends EditorPane {
 
 		this.content.innerText = '';
 
-		return super.setInput(input, options, context, token)
+		return super.setInput(input, options, context, token, IConfigurationService)
 			.then(async () => {
 				if (input.resource.path.endsWith('.md')) {
 					await this.extensionService.whenInstalledExtensionsRegistered();

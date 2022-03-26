@@ -25,6 +25,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IntervalCounter } from 'vs/base/common/async';
 import { assertIsDefined } from 'vs/base/common/types';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface INotificationToast {
 	item: INotificationViewItem;
@@ -231,7 +232,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 					break;
 				case NotificationViewItemContentChangeKind.MESSAGE:
 					if (item.expanded) {
-						notificationList.updateNotificationHeight(item);
+						notificationList.updateNotificationHeight(item, IConfigurationService);
 					}
 					break;
 			}

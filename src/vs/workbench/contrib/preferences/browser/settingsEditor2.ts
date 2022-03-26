@@ -25,7 +25,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ConfigurationTarget, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService, IConfigurationUpdateOverrides } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -316,7 +316,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	override async setInput(input: SettingsEditor2Input, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 		await timeout(0); // Force setInput to be async
 		if (!this.input) {
 			return;
@@ -376,7 +376,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	override setOptions(options: ISettingsEditorOptions | undefined): void {
-		super.setOptions(options);
+		super.setOptions(options, IConfigurationService);
 
 		if (options) {
 			this._setOptions(options);

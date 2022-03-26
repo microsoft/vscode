@@ -113,7 +113,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, configurationService: IConfigurationService): Promise<void> {
+	async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken, configurationService: any): Promise<void> {
 		this._input = input;
 		this._options = options;
 	}
@@ -141,7 +141,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * Sets the given options to the editor. Clients should apply the options
 	 * to the current input.
 	 */
-	setOptions(options: IEditorOptions | undefined, configurationService: IConfigurationService): void {
+	setOptions(options: IEditorOptions | undefined, configurationService: any): void {
 		this._options = options;
 	}
 

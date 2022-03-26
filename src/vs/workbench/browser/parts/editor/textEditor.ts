@@ -31,6 +31,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -183,7 +184,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	override async setInput(input: EditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 
 		// Update editor options after having set the input. We do this because there can be
 		// editor input specific options (e.g. an ARIA label depending on the input showing)
@@ -195,7 +196,7 @@ export abstract class BaseTextEditor<T extends IEditorViewState> extends Abstrac
 	}
 
 	override setOptions(options: ITextEditorOptions | undefined): void {
-		super.setOptions(options);
+		super.setOptions(options, IConfigurationService);
 
 		if (options) {
 			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);

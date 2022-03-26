@@ -54,6 +54,7 @@ import { posix } from 'vs/base/common/path';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
@@ -729,7 +730,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	override async setInput(input: WorkspaceTrustEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 		if (token.isCancellationRequested) { return; }
 
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;

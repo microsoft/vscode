@@ -23,6 +23,7 @@ import { ByteSize } from 'vs/platform/files/common/files';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Link } from 'vs/platform/opener/browser/link';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
@@ -73,7 +74,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 	}
 
 	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token, IConfigurationService);
 		const model = await input.resolve();
 
 		// Check for cancellation

@@ -1426,7 +1426,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 		}
 
 		override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-			super.setInput(input, options, context, token);
+			super.setInput(input, options, context, token, IConfigurationService);
 
 			await input.resolve();
 		}

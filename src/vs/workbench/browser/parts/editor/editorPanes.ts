@@ -20,6 +20,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { UnavailableResourceErrorEditor, UnknownErrorEditor, WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IOpenEditorResult {
 
@@ -258,7 +259,7 @@ export class EditorPanes extends Disposable {
 		// force open it even if it is the same
 		const inputMatches = editorPane.input?.matches(editor);
 		if (inputMatches && !options?.forceReload) {
-			editorPane.setOptions(options);
+			editorPane.setOptions(options, IConfigurationService);
 
 			return { changed: false, cancelled: false };
 		}
@@ -278,7 +279,7 @@ export class EditorPanes extends Disposable {
 			editorPane.clearInput();
 
 			// Set the input to the editor pane
-			await editorPane.setInput(editor, options, context, operation.token);
+			await editorPane.setInput(editor, options, context, operation.token, IConfigurationService);
 
 			if (!operation.isCurrent()) {
 				cancelled = true;
