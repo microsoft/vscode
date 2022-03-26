@@ -400,7 +400,24 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				}
 			}
 
-			this.splice2(diff.start, diff.deleteCount, diff.toInsert);
+			// if view is inactive and the change happens before visible range,
+			// scroll to fix the visible view range after splice.
+			const focusInside = DOM.isAncestor(document.activeElement, this.rowsContainer);
+			const changeVisible = this.length > 0 && diff.start + diff.deleteCount <= this.firstVisibleIndex;
+			if (!focusInside && changeVisible) {
+				// take first visible element as anchor for scrolling
+				const anchorElement = this.view.element(this.firstVisibleIndex);
+				const oldAnchorElementTop = this.view.elementTop(this.firstVisibleIndex);
+
+				this.splice2(diff.start, diff.deleteCount, diff.toInsert);
+
+				const newAnchorElementIndex = this.indexOf(anchorElement);
+				const newAnchorElementTop = this.view.elementTop(newAnchorElementIndex);
+				const toScroll = newAnchorElementTop - oldAnchorElementTop;
+				this.scrollTop = this.scrollTop + toScroll;
+			} else {
+				this.splice2(diff.start, diff.deleteCount, diff.toInsert);
+			}
 
 			this._onDidHideOutputs.fire(hiddenOutputs);
 			this._onDidRemoveOutputs.fire(deletedOutputs);
