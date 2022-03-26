@@ -6,7 +6,6 @@
 const path = require('path');
 const fs = require('fs');
 const esbuild = require('esbuild');
-const watcher = require('@parcel/watcher');
 
 const args = process.argv.slice(2);
 
@@ -47,6 +46,7 @@ async function build() {
 build().catch(() => process.exit(1));
 
 if (isWatch) {
+	const watcher = require('@parcel/watcher');
 	watcher.subscribe(srcDir, () => {
 		return build();
 	});

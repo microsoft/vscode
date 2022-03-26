@@ -5,7 +5,6 @@
 // @ts-check
 const path = require('path');
 const esbuild = require('esbuild');
-const watcher = require('@parcel/watcher');
 
 const args = process.argv.slice(2);
 
@@ -38,6 +37,7 @@ function build() {
 build().catch(() => process.exit(1));
 
 if (isWatch) {
+	const watcher = require('@parcel/watcher');
 	watcher.subscribe(srcDir, () => {
 		return build();
 	});
