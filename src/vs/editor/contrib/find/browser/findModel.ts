@@ -451,13 +451,12 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _moveTo(): void {
-		const index = this._state.manualIndex;
-		if (index) {
-			let decorationId = this._decorations.getDecorationAt(index);
+		if (this._state.manualIndex !== null) {
+			let decorationId = this._decorations.getDecorationAt(this._state.manualIndex);
 			if (decorationId) {
-				let r = this._editor.getModel().getDecorationRange(decorationId);
-				if (r) {
-					this._setCurrentFindMatch(r);
+				let range = this._editor.getModel().getDecorationRange(decorationId);
+				if (range) {
+					this._setCurrentFindMatch(range);
 				}
 			}
 		}

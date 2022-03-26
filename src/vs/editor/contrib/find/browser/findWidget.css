@@ -132,6 +132,19 @@
 	justify-content: center;
 }
 
+.monaco-editor .find-widget .no-spin::-webkit-inner-spin-button, .monaco-editor .find-widget .no-spin::-webkit-outer-spin-button {
+	-webkit-appearance: none !important;
+	margin: 0 !important;
+}
+
+.monaco-editor .find-widget .matches-count-container {
+	display: flex;
+}
+
+.monaco-editor .find-widget .matches-count-container .matches-counter {
+	margin-left: 3px;
+}
+
 /* find in selection button */
 .monaco-editor .find-widget .codicon-find-selection {
 	width: 22px;

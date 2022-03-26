@@ -408,6 +408,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		const container = document.createElement('div');
+		container.classList.add('matches-count-container');
 		let label: string;
 		if (this._state.matchesCount > 0) {
 			let matchesCount: string = String(this._state.matchesCount);
@@ -418,22 +419,34 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			if (matchesPosition === '0') {
 				matchesPosition = '?';
 			}
-			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
+			label = strings.format(NLS_MATCHES_LOCATION, ' ', matchesCount);
 
 			const inputBox = new InputBox(container, undefined, { type: 'number' });
 			inputBox.value = matchesPosition;
+			inputBox.inputElement.setAttribute('min', '1');
+			inputBox.inputElement.setAttribute('max', matchesCount);
+			inputBox.inputElement.classList.add('no-spin');
+
 			this._register(inputBox.onDidChange((value) => {
 				const index = +value;
 				if (!isNaN(index) && index > 0 && index <= this._state.matchesCount) {
 					this._state.change({ manualIndex: index - 1 }, true);
-					this._codeEditor.getAction(FIND_IDS.MoveToMatchFindAction).run().then(undefined, onUnexpectedError);
 				}
 			}));
+			inputBox.inputElement.onkeydown = (ev: KeyboardEvent) => {
+				if (ev.keyCode === 13) {
+					this._codeEditor.getAction(FIND_IDS.MoveToMatchFindAction).run().then(undefined, onUnexpectedError);
+				}
+			};
 		} else {
 			label = NLS_NO_RESULTS;
 		}
 
-		container.appendChild(document.createTextNode(label));
+		const matchesCounterElement = document.createElement('div');
+		matchesCounterElement.classList.add('matches-counter');
+		matchesCounterElement.appendChild(document.createTextNode(label));
+		container.appendChild(matchesCounterElement);
+
 		this._matchesCount.appendChild(container);
 
 		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
