@@ -141,6 +141,11 @@
 	margin-top: 14px;
 }
 
+.settings-editor > .settings-body .settings-toc-container,
+.settings-editor > .settings-body .settings-tree-container {
+	height: 100%;
+}
+
 .settings-editor.no-results > .settings-body .settings-toc-container,
 .settings-editor.no-results > .settings-body .settings-tree-container {
 	display: none;

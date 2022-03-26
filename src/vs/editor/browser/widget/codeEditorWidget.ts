@@ -37,7 +37,7 @@ import { EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecoration, 
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { editorUnnecessaryCodeBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/core/editorColorRegistry';
 import { editorErrorBorder, editorErrorForeground, editorHintBorder, editorHintForeground, editorInfoBorder, editorInfoForeground, editorWarningBorder, editorWarningForeground, editorForeground, editorErrorBackground, editorInfoBackground, editorWarningBackground } from 'vs/platform/theme/common/colorRegistry';
 import { VerticalRevealType } from 'vs/editor/common/viewEvents';
@@ -133,6 +133,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidChangeModelDecorations: Emitter<IModelDecorationsChangedEvent> = this._register(new Emitter<IModelDecorationsChangedEvent>());
 	public readonly onDidChangeModelDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeModelDecorations.event;
+
+	private readonly _onDidChangeModelTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
+	public readonly onDidChangeModelTokens: Event<IModelTokensChangedEvent> = this._onDidChangeModelTokens.event;
 
 	private readonly _onDidChangeConfiguration: Emitter<ConfigurationChangedEvent> = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChangeConfiguration: Event<ConfigurationChangedEvent> = this._onDidChangeConfiguration.event;
@@ -1587,14 +1590,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._themeService
 		);
 
-		listenersToRemove.push(model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
-		listenersToRemove.push(model.onDidChangeLanguage((e) => {
-			this._domElement.setAttribute('data-mode-id', model.getLanguageId());
-			this._onDidChangeModelLanguage.fire(e);
-		}));
-		listenersToRemove.push(model.onDidChangeLanguageConfiguration((e) => this._onDidChangeModelLanguageConfiguration.fire(e)));
-		listenersToRemove.push(model.onDidChangeContent((e) => this._onDidChangeModelContent.fire(e)));
-		listenersToRemove.push(model.onDidChangeOptions((e) => this._onDidChangeModelOptions.fire(e)));
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
 		listenersToRemove.push(model.onWillDispose(() => this.setModel(null)));
 
@@ -1649,6 +1644,25 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 					break;
 				}
+				case OutgoingViewModelEventKind.ModelDecorationsChanged:
+					this._onDidChangeModelDecorations.fire(e.event);
+					break;
+				case OutgoingViewModelEventKind.ModelLanguageChanged:
+					this._domElement.setAttribute('data-mode-id', model.getLanguageId());
+					this._onDidChangeModelLanguage.fire(e.event);
+					break;
+				case OutgoingViewModelEventKind.ModelLanguageConfigurationChanged:
+					this._onDidChangeModelLanguageConfiguration.fire(e.event);
+					break;
+				case OutgoingViewModelEventKind.ModelContentChanged:
+					this._onDidChangeModelContent.fire(e.event);
+					break;
+				case OutgoingViewModelEventKind.ModelOptionsChanged:
+					this._onDidChangeModelOptions.fire(e.event);
+					break;
+				case OutgoingViewModelEventKind.ModelTokensChanged:
+					this._onDidChangeModelTokens.fire(e.event);
+					break;
 
 			}
 		}));

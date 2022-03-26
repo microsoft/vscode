@@ -41,12 +41,16 @@ export class TerminalFindWidget extends SimpleFindWidget {
 			instance.xterm?.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		}
 	}
+
 	override reveal(initialInput?: string): void {
 		const instance = this._terminalService.activeInstance;
 		if (instance && this.inputValue && this.inputValue !== '') {
 			// trigger highlight all matches
-			instance.xterm?.findPrevious(this.inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+			instance.xterm?.findPrevious(this.inputValue, { incremental: true, regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() }).then(foundMatch => {
+				this.updateButtons(foundMatch);
+			});
 		}
+		this.updateButtons(false);
 
 		super.reveal(initialInput);
 		this._findWidgetVisible.set(true);

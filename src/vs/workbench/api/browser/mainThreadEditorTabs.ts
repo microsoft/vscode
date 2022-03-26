@@ -10,12 +10,15 @@ import { EditorResourceAccessor, GroupModelChangeKind, SideBySideEditor } from '
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
-import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorsChangeEvent, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { GroupDirection, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorsChangeEvent, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { URI } from 'vs/base/common/uri';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 interface TabInfo {
@@ -38,6 +41,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 	) {
 
@@ -45,6 +49,13 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 
 		// Main listener which responds to events from the editor service
 		this._dispoables.add(editorService.onDidEditorsChange((event) => this._updateTabsModel(event)));
+
+		// Structural group changes (add, remove, move, etc) are difficult to patch.
+		// Since they happen infrequently we just rebuild the entire model
+		this._dispoables.add(this._editorGroupsService.onDidAddGroup(() => this._createTabsModel()));
+		this._dispoables.add(this._editorGroupsService.onDidRemoveGroup(() => this._createTabsModel()));
+
+		// Once everything is read go ahead and initialize the model
 		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
 	}
 
@@ -68,7 +79,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			editorId,
 			input: this._editorInputToDto(editor),
 			isPinned: group.isSticky(editorIndex),
-			isPreview: group.isPinned(editorIndex),
+			isPreview: !group.isPinned(editorIndex),
 			isActive: group.isActive(editor),
 			isDirty: editor.isDirty()
 		};
@@ -97,6 +108,19 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabInputKind.CustomEditorInput,
 				viewType: editor.viewType,
 				uri: editor.resource,
+			};
+		}
+
+		if (editor instanceof WebviewInput) {
+			return {
+				kind: TabInputKind.WebviewEditorInput,
+				viewType: editor.viewType
+			};
+		}
+
+		if (editor instanceof TerminalEditorInput) {
+			return {
+				kind: TabInputKind.TerminalEditorInput
 			};
 		}
 
@@ -215,16 +239,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		// Update lookup
 		this._tabInfoLookup.delete(removedTab[0]?.id ?? '');
 
-		// If no tabs left, it's an empty group and the group gets deleted from the model
-		// In the future we may want to support empty groups
-		if (tabs.length === 0) {
-			for (let i = 0; i < this._tabGroupModel.length; i++) {
-				if (this._tabGroupModel[i].groupId === group.id) {
-					this._tabGroupModel.splice(i, 1);
-					this._groupLookup.delete(group.id);
-				}
-			}
-		}
 		// TODO @lramos15 Switch to patching here
 		this._proxy.$acceptEditorTabModel(this._tabGroupModel);
 	}
@@ -306,7 +320,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return;
 		}
 		// Whether or not the tab has the pin icon (internally it's called sticky)
-		tab.isPreview = group.isPinned(editorIndex);
+		tab.isPreview = !group.isPinned(editorIndex);
 		this._proxy.$acceptTabUpdate(groupId, tab);
 	}
 
@@ -432,7 +446,12 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 		// If group index is out of bounds then we make a new one that's to the right of the last group
 		if (this._groupLookup.get(groupId) === undefined) {
-			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], GroupDirection.RIGHT, undefined);
+			let direction = GroupDirection.RIGHT;
+			// Make sure we respect the user's preferred side direction
+			if (viewColumn === SIDE_GROUP) {
+				direction = preferredSideBySideGroupDirection(this._configurationService);
+			}
+			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], direction, undefined);
 		} else {
 			targetGroup = this._editorGroupsService.getGroup(groupId);
 		}

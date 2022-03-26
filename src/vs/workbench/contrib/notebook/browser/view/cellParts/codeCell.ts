@@ -130,7 +130,7 @@ export class CodeCell extends Disposable {
 		this._register(toDisposable(() => {
 			executionItemElement.parentElement?.removeChild(executionItemElement);
 		}));
-		this._collapsedExecutionIcon = this.instantiationService.createInstance(CollapsedCodeCellExecutionIcon, this.notebookEditor, this.viewCell, executionItemElement);
+		this._collapsedExecutionIcon = this._register(this.instantiationService.createInstance(CollapsedCodeCellExecutionIcon, this.notebookEditor, this.viewCell, executionItemElement));
 		this.updateForCollapseState();
 
 		this._register(Event.runAndSubscribe(viewCell.onDidChangeOutputs, this.updateForOutputs.bind(this)));

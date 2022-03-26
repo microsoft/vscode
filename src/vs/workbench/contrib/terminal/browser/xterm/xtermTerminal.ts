@@ -27,14 +27,13 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { TERMINAL_FOREGROUND_COLOR, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, ansiColorIdentifiers, TERMINAL_SELECTION_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR, TERMINAL_FIND_MATCH_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR, TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR, TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DecorationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/decorationAddon';
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { Emitter } from 'vs/base/common/event';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -91,7 +90,7 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		cols: number,
 		rows: number,
 		location: TerminalLocation,
-		capabilities: ITerminalCapabilityStore,
+		private readonly _capabilities: ITerminalCapabilityStore,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
@@ -146,6 +145,10 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 			if (e.affectsConfiguration(TerminalSettingId.UnicodeVersion)) {
 				this._updateUnicodeVersion();
 			}
+			if (e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled) ||
+				e.affectsConfiguration(TerminalSettingId.ShellIntegrationEnabled)) {
+				this._updateDecorationAddon();
+			}
 		}));
 
 		this.add(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
@@ -158,16 +161,14 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 
 		// Load addons
 		this._updateUnicodeVersion();
-		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, capabilities);
+		this._commandNavigationAddon = this._instantiationService.createInstance(CommandNavigationAddon, _capabilities);
 		this.raw.loadAddon(this._commandNavigationAddon);
 		this._shellIntegrationAddon = this._instantiationService.createInstance(ShellIntegrationAddon);
 		this.raw.loadAddon(this._shellIntegrationAddon);
-		if (this._configurationService.getValue(TerminalSettingId.ShellIntegrationEnabled) && this._configurationService.getValue(TerminalSettingId.ShellIntegrationDecorationsEnabled)) {
-			this._createDecorationAddon(capabilities);
-		}
+		this._updateDecorationAddon();
 	}
-	private _createDecorationAddon(capabilities: ITerminalCapabilityStore): void {
-		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, capabilities);
+	private _createDecorationAddon(): void {
+		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, this._capabilities);
 		this._decorationAddon.onDidRequestRunCommand(command => this._onDidRequestRunCommand.fire(command));
 		this.raw.loadAddon(this._decorationAddon);
 	}
@@ -263,16 +264,25 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 	}
 
 	private _updateFindColors(searchOptions: ISearchOptions): void {
-		let selectedColor: string | undefined = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchBackground');
-		let matchColor: string | undefined = this._configurationService.getValue('workbench.colorCustomizations.editor.findMatchHighlightBackground') || '#EA5C0055';
-		if (!selectedColor) {
-			if (this._themeService.getColorTheme().type === ColorScheme.DARK) {
-				selectedColor = '#515C6A';
-			} else {
-				selectedColor = '#A8AC94';
-			}
-		}
-		searchOptions.decorations = { selectedColor, matchColor };
+		const theme = this._themeService.getColorTheme();
+		// Theme color names align with monaco/vscode whereas xterm.js has some different naming.
+		// The mapping is as follows:
+		// - findMatch -> activeMatch
+		// - findMatchHighlight -> match
+		const findMatchBackground = theme.getColor(TERMINAL_FIND_MATCH_BACKGROUND_COLOR);
+		const findMatchBorder = theme.getColor(TERMINAL_FIND_MATCH_BORDER_COLOR);
+		const findMatchOverviewRuler = theme.getColor(TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR);
+		const findMatchHighlightBackground = theme.getColor(TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR);
+		const findMatchHighlightBorder = theme.getColor(TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR);
+		const findMatchHighlightOverviewRuler = theme.getColor(TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR);
+		searchOptions.decorations = {
+			activeMatchBackground: findMatchBackground?.toString() || 'transparent',
+			activeMatchBorder: findMatchBorder?.toString() || 'transparent',
+			activeMatchColorOverviewRuler: findMatchOverviewRuler?.toString() || 'transparent',
+			matchBackground: findMatchHighlightBackground?.toString() || 'transparent',
+			matchBorder: findMatchHighlightBorder?.toString() || 'transparent',
+			matchOverviewRuler: findMatchHighlightOverviewRuler?.toString() || 'transparent'
+		};
 	}
 
 	private async _getSearchAddon(): Promise<SearchAddonType> {
@@ -560,6 +570,19 @@ export class XtermTerminal extends DisposableStore implements IXtermTerminal {
 		}
 		if (this.raw.unicode.activeVersion !== this._configHelper.config.unicodeVersion) {
 			this.raw.unicode.activeVersion = this._configHelper.config.unicodeVersion;
+		}
+	}
+
+	private _updateDecorationAddon(): void {
+		if (this._configHelper.config.shellIntegration?.enabled && this._configHelper.config.shellIntegration.decorationsEnabled) {
+			if (!this._decorationAddon) {
+				this._createDecorationAddon();
+			}
+			return;
+		}
+		if (this._decorationAddon) {
+			this._decorationAddon.dispose();
+			this._decorationAddon = undefined;
 		}
 	}
 }

@@ -323,7 +323,7 @@ export class GitHubServer implements IGitHubServer {
 			this._logger.info('Exchanging code for token...');
 
 			const proxyEndpoints: { [providerId: string]: string } | undefined = await vscode.commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-			const endpointUrl = proxyEndpoints?.github ? `${proxyEndpoints.github}/login/oauth/access_token` : GITHUB_TOKEN_URL;
+			const endpointUrl = proxyEndpoints?.github ? `${proxyEndpoints.github}login/oauth/access_token` : GITHUB_TOKEN_URL;
 
 			try {
 				const body = `code=${code}`;

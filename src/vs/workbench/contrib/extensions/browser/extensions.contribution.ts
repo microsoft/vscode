@@ -202,6 +202,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					'pub.name': false
 				}
 			},
+			'extensions.experimental.affinity': {
+				type: 'object',
+				markdownDescription: localize('extensions.affinity', "Configure an extension to execute in a different extension host process."),
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						type: 'integer',
+						default: 1
+					}
+				},
+				additionalProperties: false,
+				default: {
+					'pub.name': 1
+				}
+			},
 			[WORKSPACE_TRUST_EXTENSION_SUPPORT]: {
 				type: 'object',
 				scope: ConfigurationScope.APPLICATION,
