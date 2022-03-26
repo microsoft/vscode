@@ -42,7 +42,7 @@ export const IWalkthroughsService = createDecorator<IWalkthroughsService>('walkt
 export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
 export const walkthroughMetadataConfigurationKey = 'workbench.welcomePage.walkthroughMetadata';
-export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manaullyOpened: boolean }>;
+export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manuallyOpened: boolean }>;
 
 const BUILT_IN_SOURCE = localize('builtin', "Built-In");
 
@@ -270,7 +270,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		const walkthrough = this.gettingStartedContributions.get(id);
 		const prior = this.metadata.get(id);
 		if (prior && walkthrough) {
-			this.metadata.set(id, { ...prior, manaullyOpened: true, stepIDs: walkthrough.steps.map(s => s.id) });
+			this.metadata.set(id, { ...prior, manuallyOpened: true, stepIDs: walkthrough.steps.map(s => s.id) });
 		}
 
 		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
@@ -310,7 +310,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 			const isNewlyInstalled = !this.metadata.get(categoryID);
 			if (isNewlyInstalled) {
-				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps?.map(s => s.id) ?? [], manaullyOpened: false });
+				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps?.map(s => s.id) ?? [], manuallyOpened: false });
 			}
 
 			const override = await Promise.race([
@@ -486,7 +486,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		const stepsWithProgress = category.steps.map(step => this.getStepProgress(step));
 
-		const hasOpened = this.metadata.get(category.id)?.manaullyOpened;
+		const hasOpened = this.metadata.get(category.id)?.manuallyOpened;
 		const firstSeenDate = this.metadata.get(category.id)?.firstSeen;
 		const isNew = firstSeenDate && firstSeenDate > (+new Date() - NEW_WALKTHROUGH_TIME);
 
