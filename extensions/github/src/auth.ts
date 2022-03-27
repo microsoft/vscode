@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AuthenticationSession, authentication, window } from 'vscode';
+import { AuthenticationSession, authentication, window, workspace } from 'vscode';
 import { Agent, globalAgent } from 'https';
 import { Octokit } from '@octokit/rest';
 import { httpsOverHttp } from 'tunnel';
@@ -54,3 +54,11 @@ export function getOctokit(): Promise<Octokit> {
 	return _octokit;
 }
 
+type CreateRepositoryResponseData = Awaited<ReturnType<Octokit['repos']['createForAuthenticatedUser']>>['data'];
+
+export function getRemoteUrl(githubRepository: CreateRepositoryResponseData) {
+	const config = workspace.getConfiguration('git');
+	const remoteUrlType = config.get<'https' | 'ssh'>('remoteUrlType');
+	const { clone_url, ssh_url } = githubRepository;
+	return remoteUrlType === 'https' ? clone_url : ssh_url;
+}

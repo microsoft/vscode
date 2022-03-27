@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RemoteSourceProvider, RemoteSource } from './typings/git-base';
-import { getOctokit } from './auth';
+import { getOctokit, getRemoteUrl } from './auth';
 import { Octokit } from '@octokit/rest';
 
 function parse(url: string): { owner: string; repo: string } | undefined {
@@ -17,7 +17,7 @@ function asRemoteSource(raw: any): RemoteSource {
 	return {
 		name: `$(github) ${raw.full_name}`,
 		description: raw.description || undefined,
-		url: raw.clone_url
+		url: getRemoteUrl(raw)
 	};
 }
 

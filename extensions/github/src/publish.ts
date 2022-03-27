@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { API as GitAPI, Repository } from './typings/git';
-import { getOctokit } from './auth';
+import { getOctokit, getRemoteUrl } from './auth';
 import { TextEncoder } from 'util';
 import { basename } from 'path';
 import { Octokit } from '@octokit/rest';
@@ -197,7 +197,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		progress.report({ message: localize('publishing_uploading', "Uploading files"), increment: 25 });
 
 		const branch = await repository.getBranch('HEAD');
-		await repository.addRemote('origin', createdGithubRepository.clone_url);
+		await repository.addRemote('origin', getRemoteUrl(createdGithubRepository));
 		await repository.push('origin', branch.name, true);
 
 		return createdGithubRepository;

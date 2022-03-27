@@ -5,7 +5,7 @@
 
 import { commands, env, ProgressLocation, Uri, window } from 'vscode';
 import * as nls from 'vscode-nls';
-import { getOctokit } from './auth';
+import { getOctokit, getRemoteUrl } from './auth';
 import { GitErrorCodes, PushErrorHandler, Remote, Repository } from './typings/git';
 
 const localize = nls.loadMessageBundle();
@@ -71,7 +71,7 @@ async function handlePushError(repository: Repository, remote: Remote, refspec: 
 		await repository.renameRemote(remote.name, 'upstream');
 
 		// Issue: what if there's already another `origin` repo?
-		await repository.addRemote('origin', ghRepository.clone_url);
+		await repository.addRemote('origin', getRemoteUrl(ghRepository));
 
 		try {
 			await repository.fetch('origin', remoteName);
