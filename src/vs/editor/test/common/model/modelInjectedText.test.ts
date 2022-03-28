@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { InternalModelContentChangeEvent, LineInjectedText, ModelRawChange, RawContentChangedType } from 'vs/editor/common/textModelEvents';
+import { LineInjectedText, ModelRawChange, RawContentChangedType } from 'vs/editor/common/textModelEvents';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('Editor Model - Injected Text Events', () => {
@@ -25,8 +25,7 @@ suite('Editor Model - Injected Text Events', () => {
 		const recordedChanges = new Array<unknown>();
 
 		thisModel.onDidChangeContentOrInjectedText((e) => {
-			const changes = (e instanceof InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
-			for (const change of changes) {
+			for (const change of e.changes) {
 				recordedChanges.push(mapChange(change));
 			}
 		});
