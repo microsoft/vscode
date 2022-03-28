@@ -9,6 +9,8 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { FindReplaceState } from 'vs/editor/contrib/find/browser/findState';
 import { ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { errorForeground } from 'vs/platform/theme/common/colorRegistry';
 
 export class TerminalFindWidget extends SimpleFindWidget {
 	protected _findInputFocused: IContextKey<boolean>;
@@ -95,9 +97,9 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		this._matchesCount.appendChild(document.createTextNode(matches));
 		const node = super.getDomNode().querySelector('.monaco-findInput');
 		if (count === 0) {
-			this._matchesCount.style.color = '#F48771';
+			this._matchesCount.classList.add('no-results');
 		} else {
-			this._matchesCount.style.color = 'inherit';
+			this._matchesCount.classList.remove('no-results');
 		}
 		this._matchesCount.style.paddingLeft = '3px';
 		node?.insertAdjacentElement('afterend', this._matchesCount);
@@ -137,3 +139,11 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const error = theme.getColor(errorForeground);
+	if (error) {
+		collector.addRule(`.no-results.matchesCount { color: ${error}; }`);
+	}
+});
+
