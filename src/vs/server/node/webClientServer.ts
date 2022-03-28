@@ -27,6 +27,7 @@ import { URI } from 'vs/base/common/uri';
 import { streamToBuffer } from 'vs/base/common/buffer';
 import { IProductConfiguration } from 'vs/base/common/product';
 import { isString } from 'vs/base/common/types';
+import { getLocaleFromConfig, getNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
 
 const textMimeType = {
 	'.html': 'text/html',
@@ -275,6 +276,8 @@ export class WebClientServer {
 			accessToken: this._environmentService.args['github-auth'],
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
+		const locale = this._environmentService.args.locale || await getLocaleFromConfig(this._environmentService.argvResource.fsPath);
+		const nlsConfiguration = await getNLSConfiguration(locale, this._environmentService.userDataPath);
 		const data = (await util.promisify(fs.readFile)(filePath)).toString()
 			.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
 				remoteAuthority,
@@ -296,7 +299,8 @@ export class WebClientServer {
 					} : undefined
 				}
 			})))
-			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '');
+			.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')
+			.replace(/{{NLS_CONFIGURATION}}/g, () => escapeAttribute(JSON.stringify(nlsConfiguration)));
 
 		const cspDirectives = [
 			'default-src \'self\';',

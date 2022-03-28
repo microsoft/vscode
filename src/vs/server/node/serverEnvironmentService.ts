@@ -49,6 +49,7 @@ export const serverOptions: OptionDescriptions<ServerParsedArgs> = {
 
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
+	'locale': { type: 'string', cat: 'o', args: 'locale', description: nls.localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
 
 	/* ----- extension management ----- */
 
@@ -163,6 +164,8 @@ export interface ServerParsedArgs {
 
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
+
+	'locale'?: string;
 
 	/* ----- extension management ----- */
 
